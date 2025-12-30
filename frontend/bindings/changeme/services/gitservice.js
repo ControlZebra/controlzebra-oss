@@ -16,6 +16,30 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * Branches returns all branches in the repository
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.BranchList>}
+ */
+export function Branches(repoPath) {
+    return $Call.ByID(1332778193, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * CheckoutBranch switches to an existing branch.
+ * Fails if there are uncommitted changes to prevent accidental loss.
+ * @param {string} repoPath
+ * @param {string} branchName
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CheckoutBranch(repoPath, branchName) {
+    return $Call.ByID(523493657, repoPath, branchName).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * CommitAll stages all changes and commits with the given message
  * @param {string} repoPath
  * @param {string} message
@@ -23,7 +47,20 @@ import * as $models from "./models.js";
  */
 export function CommitAll(repoPath, message) {
     return $Call.ByID(2550005343, repoPath, message).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * CreateBranchAndCheckout creates a new branch and switches to it.
+ * Fails if there are uncommitted changes or if the branch name is invalid.
+ * @param {string} repoPath
+ * @param {string} branchName
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CreateBranchAndCheckout(repoPath, branchName) {
+    return $Call.ByID(820271594, repoPath, branchName).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
     }));
 }
 
@@ -34,7 +71,86 @@ export function CommitAll(repoPath, message) {
  */
 export function DetectRepo(path) {
     return $Call.ByID(2042099950, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
+ * DiffCommitFile returns the diff for a specific file in a commit compared to its parent
+ * @param {string} repoPath
+ * @param {string} hash
+ * @param {string} filePath
+ * @returns {$CancellablePromise<$models.FileDiff>}
+ */
+export function DiffCommitFile(repoPath, hash, filePath) {
+    return $Call.ByID(2514426657, repoPath, hash, filePath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * DiffCommits returns the diff between two commits for a specific file (or all files if path is empty)
+ * @param {string} repoPath
+ * @param {string} fromHash
+ * @param {string} toHash
+ * @param {string} filePath
+ * @returns {$CancellablePromise<$models.FileDiff>}
+ */
+export function DiffCommits(repoPath, fromHash, toHash, filePath) {
+    return $Call.ByID(2294437908, repoPath, fromHash, toHash, filePath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * DiffWorking returns the diff of a file in the working tree vs HEAD
+ * @param {string} repoPath
+ * @param {string} filePath
+ * @returns {$CancellablePromise<$models.FileDiff>}
+ */
+export function DiffWorking(repoPath, filePath) {
+    return $Call.ByID(1394051649, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * DiscardAll discards all uncommitted changes in the working directory.
+ * This includes modified files, staged changes, and untracked files.
+ * Requires confirm=true as a safety measure for destructive operations.
+ * @param {string} repoPath
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function DiscardAll(repoPath, confirm) {
+    return $Call.ByID(2689509008, repoPath, confirm).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
+    }));
+}
+
+/**
+ * DiscardFile discards changes to a specific file.
+ * For untracked files, the file is deleted. For tracked files, changes are reverted to HEAD.
+ * Requires confirm=true as a safety measure for destructive operations.
+ * @param {string} repoPath
+ * @param {string} filePath
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function DiscardFile(repoPath, filePath, confirm) {
+    return $Call.ByID(1199901871, repoPath, filePath, confirm).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * GetGitVersion returns the installed git version.
+ * Used to determine feature compatibility (e.g., git restore requires 2.23+).
+ * @returns {$CancellablePromise<$models.GitVersion | null>}
+ */
+export function GetGitVersion() {
+    return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
     }));
 }
 
@@ -46,7 +162,7 @@ export function DetectRepo(path) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType7($result);
     }));
 }
 
@@ -57,7 +173,7 @@ export function GetRecentCommits(repoPath, limit) {
  */
 export function Pull(repoPath) {
     return $Call.ByID(2425239014, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
     }));
 }
 
@@ -68,7 +184,34 @@ export function Pull(repoPath) {
  */
 export function Push(repoPath) {
     return $Call.ByID(3059390037, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * ResetSoftHead undoes the last n commits, keeping changes staged.
+ * This is the "Undo Last Save" feature - changes remain in the working directory.
+ * Requires confirm=true as a safety measure for destructive operations.
+ * @param {string} repoPath
+ * @param {number} n
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ResetSoftHead(repoPath, n, confirm) {
+    return $Call.ByID(3890315074, repoPath, n, confirm).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * ShowCommit returns detailed information about a specific commit
+ * @param {string} repoPath
+ * @param {string} hash
+ * @returns {$CancellablePromise<$models.CommitDetail>}
+ */
+export function ShowCommit(repoPath, hash) {
+    return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
     }));
 }
 
@@ -79,8 +222,16 @@ export function Push(repoPath) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType9($result);
     }));
+}
+
+/**
+ * SupportsRestore returns true if git version supports 'git restore' (2.23+)
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function SupportsRestore() {
+    return $Call.ByID(2279015597);
 }
 
 /**
@@ -90,13 +241,18 @@ export function Status(repoPath) {
  */
 export function Sync(repoPath) {
     return $Call.ByID(4020637826, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
     }));
 }
 
 // Private type creation functions
-const $$createType0 = $models.OperationResult.createFrom;
-const $$createType1 = $models.RepoInfo.createFrom;
-const $$createType2 = $models.CommitInfo.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.RepoStatus.createFrom;
+const $$createType0 = $models.BranchList.createFrom;
+const $$createType1 = $models.OperationResult.createFrom;
+const $$createType2 = $models.RepoInfo.createFrom;
+const $$createType3 = $models.FileDiff.createFrom;
+const $$createType4 = $models.GitVersion.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
+const $$createType6 = $models.CommitInfo.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.CommitDetail.createFrom;
+const $$createType9 = $models.RepoStatus.createFrom;
