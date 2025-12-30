@@ -6,11 +6,13 @@ import * as FileDialogService from "./filedialogservice.js";
 import * as FileSystemService from "./filesystemservice.js";
 import * as GitService from "./gitservice.js";
 import * as SettingsService from "./settingsservice.js";
+import * as TerminalService from "./terminalservice.js";
 export {
     FileDialogService,
     FileSystemService,
     GitService,
-    SettingsService
+    SettingsService,
+    TerminalService
 };
 
 export {
@@ -24,5 +26,6 @@ export {
     OperationResult,
     RepoInfo,
     RepoStatus,
+    TerminalResult,
     UserProfile
 } from "./models.js";

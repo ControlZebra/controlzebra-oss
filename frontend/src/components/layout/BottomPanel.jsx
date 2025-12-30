@@ -7,12 +7,12 @@ import { memo, useMemo, useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 import { BOTTOM_PANELS, ICON_SIZES } from '../../constants';
 import { useLayout } from '../../context';
-import { CommitPanel, TerminalPanel } from './bottom-panels';
+import { ComparePanel, TerminalPanel } from './bottom-panels';
 import { Button } from '../ui';
 
 // Panel configuration mapping
 const PANEL_CONFIG = {
-  [BOTTOM_PANELS.COMMIT]: { title: 'Commit', Component: CommitPanel },
+  [BOTTOM_PANELS.COMPARE]: { title: 'Compare', Component: ComparePanel },
   [BOTTOM_PANELS.TERMINAL]: { title: 'Terminal', Component: TerminalPanel },
 };
 

@@ -5,6 +5,7 @@ import NotificationBanner from './NotificationBanner';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import MainArea from './MainArea';
+import BottomPanel from './BottomPanel';
 import StatusBar from './StatusBar';
 
 function AppLayout() {
@@ -19,9 +20,10 @@ function AppLayout() {
           <ActivityBar />
           <Sidebar />
           
-          {/* Right side: Main area + Status bar */}
+          {/* Right side: Main area + Bottom panel + Status bar */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <MainArea />
+            <BottomPanel />
             <StatusBar />
           </div>
         </div>

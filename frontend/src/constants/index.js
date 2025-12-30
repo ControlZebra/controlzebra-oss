@@ -32,7 +32,7 @@ export const VIEWS = {
 // Identifiers for bottom panel tabs.
 // ============================================================================
 export const BOTTOM_PANELS = {
-  COMMIT: 'commit',
+  COMPARE: 'compare',
   TERMINAL: 'terminal',
 };
 
