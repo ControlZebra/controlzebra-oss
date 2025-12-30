@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SettingsService manages app and user settings
@@ -84,13 +85,13 @@ func (s *SettingsService) GetUserProfile(repoPath string) UserProfile {
 	// Get user name
 	nameResult := s.runner.RunGit(workDir, "config", "user.name")
 	if nameResult.Success {
-		profile.Name = trimNewline(nameResult.Stdout)
+		profile.Name = strings.TrimSpace(nameResult.Stdout)
 	}
 
 	// Get user email
 	emailResult := s.runner.RunGit(workDir, "config", "user.email")
 	if emailResult.Success {
-		profile.Email = trimNewline(emailResult.Stdout)
+		profile.Email = strings.TrimSpace(emailResult.Stdout)
 	}
 
 	return profile
@@ -103,14 +104,16 @@ func (s *SettingsService) SetUserProfile(repoPath string, profile UserProfile, g
 		workDir = repoPath
 	}
 
-	args := []string{"config"}
+	// Build base args - use separate slices to avoid append side effects
+	globalFlag := []string{}
 	if global {
-		args = append(args, "--global")
+		globalFlag = []string{"--global"}
 	}
 
 	// Set user name
 	if profile.Name != "" {
-		nameArgs := append(args, "user.name", profile.Name)
+		nameArgs := append([]string{"config"}, globalFlag...)
+		nameArgs = append(nameArgs, "user.name", profile.Name)
 		result := s.runner.RunGit(workDir, nameArgs...)
 		if !result.Success {
 			return OperationResult{
@@ -122,7 +125,8 @@ func (s *SettingsService) SetUserProfile(repoPath string, profile UserProfile, g
 
 	// Set user email
 	if profile.Email != "" {
-		emailArgs := append(args, "user.email", profile.Email)
+		emailArgs := append([]string{"config"}, globalFlag...)
+		emailArgs = append(emailArgs, "user.email", profile.Email)
 		result := s.runner.RunGit(workDir, emailArgs...)
 		if !result.Success {
 			return OperationResult{

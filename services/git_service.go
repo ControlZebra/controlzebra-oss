@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -69,21 +70,15 @@ func (g *GitService) DetectRepo(path string) RepoInfo {
 	// Get current branch
 	branchResult := g.runner.RunGit(path, "branch", "--show-current")
 	if branchResult.Success {
-		result.Branch = trimNewline(branchResult.Stdout)
+		result.Branch = trimOutput(branchResult.Stdout)
 	}
 
 	return result
 }
 
-// trimNewline removes trailing newline from string
-func trimNewline(s string) string {
-	if len(s) > 0 && s[len(s)-1] == '\n' {
-		s = s[:len(s)-1]
-	}
-	if len(s) > 0 && s[len(s)-1] == '\r' {
-		s = s[:len(s)-1]
-	}
-	return s
+// trimOutput removes leading/trailing whitespace from command output
+func trimOutput(s string) string {
+	return strings.TrimSpace(s)
 }
 
 // FileStatus represents the status of a changed file
@@ -113,7 +108,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	// Get current branch
 	branchResult := g.runner.RunGit(repoPath, "branch", "--show-current")
 	if branchResult.Success {
-		result.Branch = trimNewline(branchResult.Stdout)
+		result.Branch = trimOutput(branchResult.Stdout)
 	} else {
 		// Maybe in detached HEAD state
 		result.Branch = "HEAD"
@@ -122,13 +117,13 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	// Get ahead/behind counts
 	aheadBehind := g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
 	if aheadBehind.Success {
-		parts := strings.Fields(trimNewline(aheadBehind.Stdout))
+		parts := strings.Fields(trimOutput(aheadBehind.Stdout))
 		if len(parts) == 2 {
 			// First is behind (upstream ahead), second is ahead (local ahead)
-			if n, err := parseInt(parts[0]); err == nil {
+			if n, err := strconv.Atoi(parts[0]); err == nil {
 				result.Behind = n
 			}
-			if n, err := parseInt(parts[1]); err == nil {
+			if n, err := strconv.Atoi(parts[1]); err == nil {
 				result.Ahead = n
 			}
 		}
@@ -203,18 +198,6 @@ func parseGitStatus(xy string) string {
 	}
 }
 
-// parseInt parses a string to int
-func parseInt(s string) (int, error) {
-	var n int
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0, nil
-		}
-		n = n*10 + int(c-'0')
-	}
-	return n, nil
-}
-
 // OperationResult represents the result of a git operation
 type OperationResult struct {
 	Success bool   `json:"success"`
@@ -264,21 +247,25 @@ func (g *GitService) CommitAll(repoPath string, message string) OperationResult 
 	}
 }
 
+// getErrorMessage extracts error message from command result
+func getErrorMessage(result CommandResult) string {
+	if result.Stderr != "" {
+		return result.Stderr
+	}
+	return result.Error
+}
+
 // Pull fetches and merges changes from the remote
 func (g *GitService) Pull(repoPath string) OperationResult {
 	result := g.runner.RunGit(repoPath, "pull")
 	if !result.Success {
-		errMsg := result.Stderr
-		if errMsg == "" {
-			errMsg = result.Error
-		}
 		return OperationResult{
 			Success: false,
-			Error:   "Failed to sync: " + errMsg,
+			Error:   "Failed to sync: " + getErrorMessage(result),
 		}
 	}
 
-	message := trimNewline(result.Stdout)
+	message := trimOutput(result.Stdout)
 	if message == "" {
 		message = "Already up to date"
 	}
@@ -293,10 +280,7 @@ func (g *GitService) Pull(repoPath string) OperationResult {
 func (g *GitService) Push(repoPath string) OperationResult {
 	result := g.runner.RunGit(repoPath, "push")
 	if !result.Success {
-		errMsg := result.Stderr
-		if errMsg == "" {
-			errMsg = result.Error
-		}
+		errMsg := getErrorMessage(result)
 		// Check for common push errors
 		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
 			return OperationResult{
@@ -321,10 +305,7 @@ func (g *GitService) Sync(repoPath string) OperationResult {
 	// First, pull with rebase
 	pullResult := g.runner.RunGit(repoPath, "pull", "--rebase")
 	if !pullResult.Success {
-		errMsg := pullResult.Stderr
-		if errMsg == "" {
-			errMsg = pullResult.Error
-		}
+		errMsg := getErrorMessage(pullResult)
 		// Check for common errors
 		if strings.Contains(errMsg, "no tracking information") || strings.Contains(errMsg, "no upstream") {
 			return OperationResult{
@@ -347,10 +328,7 @@ func (g *GitService) Sync(repoPath string) OperationResult {
 	// Then push
 	pushResult := g.runner.RunGit(repoPath, "push")
 	if !pushResult.Success {
-		errMsg := pushResult.Stderr
-		if errMsg == "" {
-			errMsg = pushResult.Error
-		}
+		errMsg := getErrorMessage(pushResult)
 		// Check for common push errors
 		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
 			return OperationResult{
@@ -370,7 +348,7 @@ func (g *GitService) Sync(repoPath string) OperationResult {
 		}
 	}
 
-	message := trimNewline(pullResult.Stdout)
+	message := trimOutput(pullResult.Stdout)
 	if message == "" || message == "Already up to date." {
 		message = "Synced successfully"
 	}
@@ -400,7 +378,7 @@ func (g *GitService) GetRecentCommits(repoPath string, limit int) ([]CommitInfo,
 
 	// Format: hash|short_hash|message|author|email|date|relative_date
 	format := "%H|%h|%s|%an|%ae|%ci|%cr"
-	result := g.runner.RunGit(repoPath, "log", "-n", intToString(limit), "--pretty=format:"+format)
+	result := g.runner.RunGit(repoPath, "log", "-n", strconv.Itoa(limit), "--pretty=format:"+format)
 	if !result.Success {
 		return nil, fmt.Errorf("failed to get commits: %s", result.Stderr)
 	}
@@ -429,18 +407,4 @@ func (g *GitService) GetRecentCommits(repoPath string, limit int) ([]CommitInfo,
 	}
 
 	return commits, nil
-}
-
-// intToString converts int to string without importing strconv
-func intToString(n int) string {
-	if n == 0 {
-		return "0"
-	}
-
-	digits := ""
-	for n > 0 {
-		digits = string(rune('0'+n%10)) + digits
-		n /= 10
-	}
-	return digits
 }
