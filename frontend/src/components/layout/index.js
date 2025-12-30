@@ -5,3 +5,4 @@ export { default as Sidebar } from './Sidebar';
 export { default as MainArea } from './MainArea';
 export { default as BottomPanel } from './BottomPanel';
 export { default as StatusBar } from './StatusBar';
+export { default as NotificationBanner } from './NotificationBanner';
