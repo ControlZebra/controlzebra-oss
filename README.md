@@ -13,7 +13,7 @@ This is a minimal git client that can simplify git operations (in opinionated wa
 ## Git Commands
 Support for the following git operations:
 
-| Git Command / Action                | Recommended Label           | Why for Non-Techs?                                                                                  |
+| Git Command / Action                | Recommended Label          | Why for Non-Techs?                                                                                  |
 |-------------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------|
 | `git pull`                          | Sync / Get Updates         | Users don't care about "fetching vs merging"; they just want the latest work.                       |
 | `git add .` + `git commit`          | Save Changes               | Combine these. Staging is a confusing concept for beginners.                                        |
