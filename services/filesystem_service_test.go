@@ -1,9 +1,9 @@
 package services
 
 import (
-"os"
-"path/filepath"
-"testing"
+	"os"
+	"path/filepath"
+	"testing"
 )
 
 func TestNewFileSystemService(t *testing.T) {
