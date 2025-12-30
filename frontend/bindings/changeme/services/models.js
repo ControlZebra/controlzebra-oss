@@ -47,6 +47,317 @@ export class AppSettings {
 }
 
 /**
+ * BranchInfo represents a git branch
+ */
+export class BranchInfo {
+    /**
+     * Creates a new BranchInfo instance.
+     * @param {Partial<BranchInfo>} [$$source = {}] - The source object to create the BranchInfo.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("isCurrent" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isCurrent"] = false;
+        }
+        if (!("isRemote" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isRemote"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Remote tracking branch
+             * @member
+             * @type {string | undefined}
+             */
+            this["upstream"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BranchInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {BranchInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BranchInfo(/** @type {Partial<BranchInfo>} */($$parsedSource));
+    }
+}
+
+/**
+ * BranchList contains all branches in a repository
+ */
+export class BranchList {
+    /**
+     * Creates a new BranchList instance.
+     * @param {Partial<BranchList>} [$$source = {}] - The source object to create the BranchList.
+     */
+    constructor($$source = {}) {
+        if (!("current" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["current"] = "";
+        }
+        if (!("local" in $$source)) {
+            /**
+             * @member
+             * @type {BranchInfo[]}
+             */
+            this["local"] = [];
+        }
+        if (!("remote" in $$source)) {
+            /**
+             * @member
+             * @type {BranchInfo[]}
+             */
+            this["remote"] = [];
+        }
+        if (!("hasError" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasError"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BranchList instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {BranchList}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType1;
+        const $$createField2_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("local" in $$parsedSource) {
+            $$parsedSource["local"] = $$createField1_0($$parsedSource["local"]);
+        }
+        if ("remote" in $$parsedSource) {
+            $$parsedSource["remote"] = $$createField2_0($$parsedSource["remote"]);
+        }
+        return new BranchList(/** @type {Partial<BranchList>} */($$parsedSource));
+    }
+}
+
+/**
+ * CommitDetail contains detailed information about a single commit
+ */
+export class CommitDetail {
+    /**
+     * Creates a new CommitDetail instance.
+     * @param {Partial<CommitDetail>} [$$source = {}] - The source object to create the CommitDetail.
+     */
+    constructor($$source = {}) {
+        if (!("hash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["hash"] = "";
+        }
+        if (!("shortHash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["shortHash"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Full commit message body
+             * @member
+             * @type {string | undefined}
+             */
+            this["body"] = undefined;
+        }
+        if (!("author" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["author"] = "";
+        }
+        if (!("authorEmail" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["authorEmail"] = "";
+        }
+        if (!("date" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["date"] = "";
+        }
+        if (!("relativeDate" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["relativeDate"] = "";
+        }
+        if (!("parentHashes" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["parentHashes"] = [];
+        }
+        if (!("files" in $$source)) {
+            /**
+             * Files changed in this commit
+             * @member
+             * @type {CommitFileInfo[]}
+             */
+            this["files"] = [];
+        }
+        if (!("stats" in $$source)) {
+            /**
+             * Overall stats
+             * @member
+             * @type {CommitStats}
+             */
+            this["stats"] = (new CommitStats());
+        }
+        if (!("hasError" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasError"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CommitDetail instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CommitDetail}
+     */
+    static createFrom($$source = {}) {
+        const $$createField8_0 = $$createType2;
+        const $$createField9_0 = $$createType4;
+        const $$createField10_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("parentHashes" in $$parsedSource) {
+            $$parsedSource["parentHashes"] = $$createField8_0($$parsedSource["parentHashes"]);
+        }
+        if ("files" in $$parsedSource) {
+            $$parsedSource["files"] = $$createField9_0($$parsedSource["files"]);
+        }
+        if ("stats" in $$parsedSource) {
+            $$parsedSource["stats"] = $$createField10_0($$parsedSource["stats"]);
+        }
+        return new CommitDetail(/** @type {Partial<CommitDetail>} */($$parsedSource));
+    }
+}
+
+/**
+ * CommitFileInfo represents a file changed in a commit
+ */
+export class CommitFileInfo {
+    /**
+     * Creates a new CommitFileInfo instance.
+     * @param {Partial<CommitFileInfo>} [$$source = {}] - The source object to create the CommitFileInfo.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * For renames
+             * @member
+             * @type {string | undefined}
+             */
+            this["oldPath"] = undefined;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * "added", "modified", "deleted", "renamed"
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("additions" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["additions"] = 0;
+        }
+        if (!("deletions" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["deletions"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CommitFileInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CommitFileInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CommitFileInfo(/** @type {Partial<CommitFileInfo>} */($$parsedSource));
+    }
+}
+
+/**
  * CommitInfo represents a single commit
  */
 export class CommitInfo {
@@ -120,6 +431,183 @@ export class CommitInfo {
 }
 
 /**
+ * CommitStats contains overall statistics for a commit
+ */
+export class CommitStats {
+    /**
+     * Creates a new CommitStats instance.
+     * @param {Partial<CommitStats>} [$$source = {}] - The source object to create the CommitStats.
+     */
+    constructor($$source = {}) {
+        if (!("filesChanged" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["filesChanged"] = 0;
+        }
+        if (!("additions" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["additions"] = 0;
+        }
+        if (!("deletions" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["deletions"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CommitStats instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CommitStats}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CommitStats(/** @type {Partial<CommitStats>} */($$parsedSource));
+    }
+}
+
+/**
+ * DiffHunk represents a single hunk in a diff
+ */
+export class DiffHunk {
+    /**
+     * Creates a new DiffHunk instance.
+     * @param {Partial<DiffHunk>} [$$source = {}] - The source object to create the DiffHunk.
+     */
+    constructor($$source = {}) {
+        if (!("oldStart" in $$source)) {
+            /**
+             * Starting line in old file
+             * @member
+             * @type {number}
+             */
+            this["oldStart"] = 0;
+        }
+        if (!("oldCount" in $$source)) {
+            /**
+             * Number of lines in old file
+             * @member
+             * @type {number}
+             */
+            this["oldCount"] = 0;
+        }
+        if (!("newStart" in $$source)) {
+            /**
+             * Starting line in new file
+             * @member
+             * @type {number}
+             */
+            this["newStart"] = 0;
+        }
+        if (!("newCount" in $$source)) {
+            /**
+             * Number of lines in new file
+             * @member
+             * @type {number}
+             */
+            this["newCount"] = 0;
+        }
+        if (!("header" in $$source)) {
+            /**
+             * The @@ header line
+             * @member
+             * @type {string}
+             */
+            this["header"] = "";
+        }
+        if (!("lines" in $$source)) {
+            /**
+             * Lines in this hunk
+             * @member
+             * @type {DiffLine[]}
+             */
+            this["lines"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DiffHunk instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DiffHunk}
+     */
+    static createFrom($$source = {}) {
+        const $$createField5_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lines" in $$parsedSource) {
+            $$parsedSource["lines"] = $$createField5_0($$parsedSource["lines"]);
+        }
+        return new DiffHunk(/** @type {Partial<DiffHunk>} */($$parsedSource));
+    }
+}
+
+/**
+ * DiffLine represents a single line in a diff
+ */
+export class DiffLine {
+    /**
+     * Creates a new DiffLine instance.
+     * @param {Partial<DiffLine>} [$$source = {}] - The source object to create the DiffLine.
+     */
+    constructor($$source = {}) {
+        if (!("type" in $$source)) {
+            /**
+             * "context", "add", "delete"
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("content" in $$source)) {
+            /**
+             * Line content (without +/- prefix)
+             * @member
+             * @type {string}
+             */
+            this["content"] = "";
+        }
+        if (!("oldLine" in $$source)) {
+            /**
+             * Line number in old file (0 if added)
+             * @member
+             * @type {number}
+             */
+            this["oldLine"] = 0;
+        }
+        if (!("newLine" in $$source)) {
+            /**
+             * Line number in new file (0 if deleted)
+             * @member
+             * @type {number}
+             */
+            this["newLine"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DiffLine instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DiffLine}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DiffLine(/** @type {Partial<DiffLine>} */($$parsedSource));
+    }
+}
+
+/**
  * DirectoryContents contains the contents of a directory
  */
 export class DirectoryContents {
@@ -159,12 +647,92 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType1;
+        const $$createField1_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
         }
         return new DirectoryContents(/** @type {Partial<DirectoryContents>} */($$parsedSource));
+    }
+}
+
+/**
+ * FileDiff represents the diff for a single file
+ */
+export class FileDiff {
+    /**
+     * Creates a new FileDiff instance.
+     * @param {Partial<FileDiff>} [$$source = {}] - The source object to create the FileDiff.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * For renames
+             * @member
+             * @type {string | undefined}
+             */
+            this["oldPath"] = undefined;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * "added", "modified", "deleted", "renamed"
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("binary" in $$source)) {
+            /**
+             * True if binary file
+             * @member
+             * @type {boolean}
+             */
+            this["binary"] = false;
+        }
+        if (!("hunks" in $$source)) {
+            /**
+             * @member
+             * @type {DiffHunk[]}
+             */
+            this["hunks"] = [];
+        }
+        if (!("hasError" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasError"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FileDiff instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {FileDiff}
+     */
+    static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("hunks" in $$parsedSource) {
+            $$parsedSource["hunks"] = $$createField4_0($$parsedSource["hunks"]);
+        }
+        return new FileDiff(/** @type {Partial<FileDiff>} */($$parsedSource));
     }
 }
 
@@ -270,6 +838,51 @@ export class FileStatus {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new FileStatus(/** @type {Partial<FileStatus>} */($$parsedSource));
+    }
+}
+
+/**
+ * GitVersion represents parsed git version
+ */
+export class GitVersion {
+    /**
+     * Creates a new GitVersion instance.
+     * @param {Partial<GitVersion>} [$$source = {}] - The source object to create the GitVersion.
+     */
+    constructor($$source = {}) {
+        if (!("Major" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["Major"] = 0;
+        }
+        if (!("Minor" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["Minor"] = 0;
+        }
+        if (!("Patch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["Patch"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitVersion instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {GitVersion}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitVersion(/** @type {Partial<GitVersion>} */($$parsedSource));
     }
 }
 
@@ -528,7 +1141,7 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType3;
+        const $$createField3_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -621,7 +1234,17 @@ export class UserProfile {
 }
 
 // Private type creation functions
-const $$createType0 = FileEntry.createFrom;
+const $$createType0 = BranchInfo.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = FileStatus.createFrom;
-const $$createType3 = $Create.Array($$createType2);
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = CommitFileInfo.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = CommitStats.createFrom;
+const $$createType6 = DiffLine.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = FileEntry.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = DiffHunk.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = FileStatus.createFrom;
+const $$createType13 = $Create.Array($$createType12);
