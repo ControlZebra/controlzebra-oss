@@ -4,13 +4,14 @@
  */
 import { memo, useCallback, useMemo } from 'react';
 import {
-  CodeSquare,
+  GitCompare,
   Terminal,
   CheckCircle,
   RefreshCw,
   CloudDownload,
   CloudUpload,
   Pencil,
+  CodeSquare,
 } from 'lucide-react';
 import { BOTTOM_PANELS, ICON_SIZES } from '../../constants';
 import { useLayout, useRepo } from '../../context';
@@ -20,7 +21,7 @@ const iconStyle = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 // Panel tab configuration
 const PANEL_TABS = [
-  { id: BOTTOM_PANELS.COMMIT, Icon: CodeSquare, label: 'Commit' },
+  { id: BOTTOM_PANELS.COMPARE, Icon: GitCompare, label: 'Compare' },
   { id: BOTTOM_PANELS.TERMINAL, Icon: Terminal, label: 'Terminal' },
 ];
 

@@ -538,6 +538,51 @@ export class RepoStatus {
 }
 
 /**
+ * TerminalResult contains the result of terminal operations
+ */
+export class TerminalResult {
+    /**
+     * Creates a new TerminalResult instance.
+     * @param {Partial<TerminalResult>} [$$source = {}] - The source object to create the TerminalResult.
+     */
+    constructor($$source = {}) {
+        if (!("sessionId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["sessionId"] = "";
+        }
+        if (!("success" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["success"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TerminalResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TerminalResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TerminalResult(/** @type {Partial<TerminalResult>} */($$parsedSource));
+    }
+}
+
+/**
  * UserProfile contains git user configuration
  */
 export class UserProfile {

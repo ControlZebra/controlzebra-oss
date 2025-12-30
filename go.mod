@@ -2,7 +2,10 @@ module changeme
 
 go 1.24.0
 
-require github.com/wailsapp/wails/v3 v3.0.0-alpha.54
+require (
+	github.com/creack/pty v1.1.24
+	github.com/wailsapp/wails/v3 v3.0.0-alpha.54
+)
 
 require (
 	dario.cat/mergo v1.0.1 // indirect

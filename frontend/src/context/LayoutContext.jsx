@@ -23,9 +23,9 @@ export function LayoutProvider({ children }) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   
   // Bottom panel state
-  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(false);
+  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(DEFAULT_BOTTOM_PANEL_HEIGHT);
-  const [activeBottomPanel, setActiveBottomPanel] = useState(BOTTOM_PANELS.COMMIT);
+  const [activeBottomPanel, setActiveBottomPanel] = useState(BOTTOM_PANELS.TERMINAL);
   
   // Theme state
   const [theme, setTheme] = useState('system');

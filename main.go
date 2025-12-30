@@ -26,6 +26,9 @@ func init() {
 	// and provide a strongly typed JS/TS API for them.
 	application.RegisterEvent[string]("time")
 	application.RegisterEvent[string]("folder-selected")
+
+	// Terminal events - dynamic event names based on session ID
+	// These are registered as patterns, actual events use session-specific suffixes
 }
 
 // main function serves as the application's entry point. It initializes the application, creates a window,
@@ -35,6 +38,7 @@ func main() {
 
 	// Create services that need app reference
 	fileDialogService := services.NewFileDialogService()
+	terminalService := services.NewTerminalService()
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -49,6 +53,7 @@ func main() {
 			application.NewService(services.NewSettingsService()),
 			application.NewService(services.NewFileSystemService()),
 			application.NewService(fileDialogService),
+			application.NewService(terminalService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -60,6 +65,7 @@ func main() {
 
 	// Set app reference for services that need it
 	fileDialogService.SetApp(app)
+	terminalService.SetApp(app)
 
 	// Create application menu
 	menu := app.NewMenu()

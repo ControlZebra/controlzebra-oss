@@ -1,104 +1,196 @@
 /**
- * TerminalPanel - Simple terminal emulator for git commands.
- * Provides basic command input with history display.
- * NOTE: This is a mock implementation - actual command execution not yet implemented.
+ * TerminalPanel - xterm.js based terminal emulator.
+ * Connects to Go backend PTY for full shell access.
  */
-import { memo, useState, useCallback, useRef, useEffect } from 'react';
-
-/**
- * History entry types:
- * - 'input': User command (displayed in blue)
- * - 'output': Command output (displayed in gray)
- * - 'error': Error message (displayed in red)
- */
+import { memo, useRef, useEffect, useCallback, useState } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import '@xterm/xterm/css/xterm.css';
+import { Events } from '@wailsio/runtime';
+import { CreateSession, WriteInput, ResizeTerminal, CloseSession } from '../../../../bindings/changeme/services/terminalservice';
+import { useRepo } from '../../../context';
 
 function TerminalPanel() {
-  const [input, setInput] = useState('');
-  const [history, setHistory] = useState([
-    { type: 'output', text: 'Welcome to Rewind Logic Terminal' },
-    { type: 'output', text: 'Type "help" for available commands' },
-  ]);
-  const outputRef = useRef(null);
+  const terminalRef = useRef(null);
+  const xtermRef = useRef(null);
+  const fitAddonRef = useRef(null);
+  const sessionIdRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState(null);
+  const { repoPath } = useRepo();
 
-  // Auto-scroll to bottom when history changes
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  // Initialize terminal session
+  const initTerminal = useCallback(async () => {
+    if (!terminalRef.current || xtermRef.current) return;
+
+    // Create xterm instance
+    const term = new Terminal({
+      cursorBlink: true,
+      fontSize: 13,
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      theme: {
+        background: '#1a1a2e',
+        foreground: '#e4e4e4',
+        cursor: '#e4e4e4',
+        cursorAccent: '#1a1a2e',
+        selection: 'rgba(255, 255, 255, 0.3)',
+        black: '#1a1a2e',
+        red: '#ff6b6b',
+        green: '#4ade80',
+        yellow: '#fbbf24',
+        blue: '#60a5fa',
+        magenta: '#c084fc',
+        cyan: '#22d3ee',
+        white: '#e4e4e4',
+        brightBlack: '#4a4a5e',
+        brightRed: '#ff8a8a',
+        brightGreen: '#6ee7a0',
+        brightYellow: '#fcd34d',
+        brightBlue: '#93c5fd',
+        brightMagenta: '#d8b4fe',
+        brightCyan: '#67e8f9',
+        brightWhite: '#ffffff',
+      },
+      allowTransparency: true,
+      scrollback: 5000,
+    });
+
+    // Add fit addon
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    fitAddonRef.current = fitAddon;
+
+    // Add web links addon
+    const webLinksAddon = new WebLinksAddon();
+    term.loadAddon(webLinksAddon);
+
+    // Open terminal in container
+    term.open(terminalRef.current);
+    xtermRef.current = term;
+
+    // Initial fit
+    setTimeout(() => {
+      fitAddon.fit();
+    }, 0);
+
+    // Create PTY session with working directory
+    const workingDir = repoPath || '';
+    const result = await CreateSession(workingDir);
+
+    if (!result.success) {
+      setError(result.error || 'Failed to create terminal session');
+      term.writeln('\x1b[31mError: ' + (result.error || 'Failed to create terminal session') + '\x1b[0m');
+      return;
     }
-  }, [history]);
 
-  const handleInputChange = useCallback((e) => {
-    setInput(e.target.value);
+    sessionIdRef.current = result.sessionId;
+    setIsConnected(true);
+
+    // Send initial resize
+    const { cols, rows } = term;
+    await ResizeTerminal(result.sessionId, cols, rows);
+
+    // Handle input from terminal
+    term.onData((data) => {
+      if (sessionIdRef.current) {
+        WriteInput(sessionIdRef.current, data);
+      }
+    });
+
+    // Handle resize
+    term.onResize(({ cols, rows }) => {
+      if (sessionIdRef.current) {
+        ResizeTerminal(sessionIdRef.current, cols, rows);
+      }
+    });
+
+    // Listen for output from backend
+    const outputCancel = Events.On('terminal-output:' + result.sessionId, (event) => {
+      if (xtermRef.current && event.data) {
+        xtermRef.current.write(event.data);
+      }
+    });
+
+    // Listen for errors
+    const errorCancel = Events.On('terminal-error:' + result.sessionId, (event) => {
+      if (xtermRef.current && event.data) {
+        xtermRef.current.writeln('\x1b[31mError: ' + event.data + '\x1b[0m');
+      }
+    });
+
+    // Listen for exit
+    const exitCancel = Events.On('terminal-exit:' + result.sessionId, () => {
+      if (xtermRef.current) {
+        xtermRef.current.writeln('\x1b[33mTerminal session ended\x1b[0m');
+      }
+      setIsConnected(false);
+    });
+
+    // Store cancellation functions for cleanup
+    xtermRef.current._eventCancels = [outputCancel, errorCancel, exitCancel];
+  }, [repoPath]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    initTerminal();
+
+    return () => {
+      // Cancel event listeners
+      if (xtermRef.current?._eventCancels) {
+        xtermRef.current._eventCancels.forEach(cancel => cancel?.());
+      }
+
+      // Close session
+      if (sessionIdRef.current) {
+        CloseSession(sessionIdRef.current);
+        sessionIdRef.current = null;
+      }
+
+      // Dispose terminal
+      if (xtermRef.current) {
+        xtermRef.current.dispose();
+        xtermRef.current = null;
+      }
+
+      fitAddonRef.current = null;
+      setIsConnected(false);
+    };
+  }, [initTerminal]);
+
+  // Handle resize when panel size changes
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(() => {
+      if (fitAddonRef.current && xtermRef.current) {
+        try {
+          fitAddonRef.current.fit();
+        } catch (e) {
+          // Ignore resize errors during disposal
+        }
+      }
+    });
+
+    if (terminalRef.current) {
+      resizeObserver.observe(terminalRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, []);
 
-  // Handle command submission
-  const handleSubmit = useCallback((e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-
-    const command = input.trim();
-    
-    // Add command to history
-    setHistory(prev => [...prev, { type: 'input', text: `$ ${command}` }]);
-
-    // Mock command handling
-    // TODO: Implement actual command execution via Go backend
-    if (command === 'help') {
-      setHistory(prev => [...prev, { 
-        type: 'output', 
-        text: 'Available: git status, git log, git branch, clear' 
-      }]);
-    } else if (command === 'clear') {
-      setHistory([]);
-    } else if (command.startsWith('git ')) {
-      setHistory(prev => [...prev, { 
-        type: 'output', 
-        text: `Executing: ${command}...` 
-      }]);
-    } else {
-      setHistory(prev => [...prev, { 
-        type: 'error', 
-        text: `Unknown command: ${command}` 
-      }]);
-    }
-
-    setInput('');
-  }, [input]);
-
   return (
-    <div className="h-full flex flex-col">
-      {/* Output history */}
-      <div 
-        ref={outputRef}
-        className="flex-1 overflow-y-auto px-3 py-2 font-mono text-xs space-y-0.5"
-      >
-        {history.map((line, i) => (
-          <p 
-            key={i} 
-            className={
-              line.type === 'error' ? 'text-red-400' :
-              line.type === 'input' ? 'text-blue-400' : 
-              'text-gray-400'
-            }
-          >
-            {line.text}
-          </p>
-        ))}
-      </div>
-      
-      {/* Input form */}
-      <form onSubmit={handleSubmit} className="shrink-0 px-3 pb-2">
-        <div className="flex items-center gap-2 bg-gray-800 rounded px-2">
-          <span className="text-green-400 text-xs font-mono">$</span>
-          <input
-            type="text"
-            value={input}
-            onChange={handleInputChange}
-            placeholder="Enter command..."
-            className="flex-1 py-1.5 bg-transparent text-gray-200 text-xs font-mono placeholder-gray-600 focus:outline-none"
-          />
+    <div className="h-full flex flex-col bg-[#1a1a2e]">
+      {error && !isConnected && (
+        <div className="px-3 py-2 text-red-400 text-xs">
+          {error}
         </div>
-      </form>
+      )}
+      <div 
+        ref={terminalRef} 
+        className="flex-1 px-2 py-1"
+        style={{ minHeight: 0 }}
+      />
     </div>
   );
 }
