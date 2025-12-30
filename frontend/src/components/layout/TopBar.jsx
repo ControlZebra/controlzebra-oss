@@ -1,12 +1,19 @@
+/**
+ * TopBar - Application header with repo name and sync controls.
+ * Shows repository name, current branch, and sync button.
+ */
 import { memo, useCallback } from 'react';
-import SyncIcon from '@mui/icons-material/Sync';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import CircularProgress from '@mui/material/CircularProgress';
+import {
+  RefreshCw,
+  CodeSquare,
+  ChevronDown,
+} from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import { useRepo } from '../../context';
+import { Button } from '../ui';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
+// Shared icon style
+const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
 function TopBar() {
   const { repoPath, repoInfo, syncRepo, isSyncing } = useRepo();
@@ -15,12 +22,13 @@ function TopBar() {
     await syncRepo();
   }, [syncRepo]);
 
+  // Derive display values from repo state
   const repoName = repoPath ? repoPath.split('/').pop() : 'Rewind Logic';
   const branchName = repoInfo?.branch || 'main';
 
   return (
-    <header className="h-10 bg-gray-900 border-b border-gray-700 flex items-center justify-between px-3 select-none shrink-0">
-      {/* Left: App name / repo name */}
+    <header className="h-[52px] bg-gray-900 border-b border-gray-700 flex items-center justify-center px-3 select-none shrink-0 relative">
+      {/* Center: App name / repo name */}
       <div className="flex items-center gap-2">
         <span className="text-white font-semibold text-sm">
           {repoPath ? repoName : 'Rewind Logic'}
@@ -32,32 +40,31 @@ function TopBar() {
       </div>
 
       {/* Right: Branch selector and Sync button */}
-      <div className="flex items-center gap-2">
+      <div className="absolute right-3 flex items-center gap-2">
         {repoPath && (
           <>
-            <button className="flex items-center gap-1.5 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-200 text-xs transition-colors">
-              <AccountTreeIcon sx={iconStyle} />
+            {/* Branch selector dropdown button */}
+            <Button variant="secondary" size="sm">
+              <CodeSquare style={iconStyle} />
               <span>{branchName}</span>
-              <KeyboardArrowDownIcon sx={iconStyle} />
-            </button>
+              <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} />
+            </Button>
 
-            <button 
+            {/* Sync button */}
+            <Button 
+              size="sm"
               onClick={handleSync}
-              disabled={isSyncing}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-70 disabled:cursor-not-allowed rounded text-white text-xs font-medium transition-colors"
+              loading={isSyncing}
             >
               {isSyncing ? (
-                <>
-                  <CircularProgress size={14} sx={{ color: 'white' }} />
-                  <span>Syncing...</span>
-                </>
+                'Syncing...'
               ) : (
                 <>
-                  <SyncIcon sx={iconStyle} />
+                  <RefreshCw style={iconStyle} />
                   <span>Sync</span>
                 </>
               )}
-            </button>
+            </Button>
           </>
         )}
       </div>

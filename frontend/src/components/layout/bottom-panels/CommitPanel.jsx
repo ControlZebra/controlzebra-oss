@@ -1,54 +1,67 @@
+/**
+ * CommitPanel - Bottom panel for committing changes.
+ * Shows file list on left, commit message input on right.
+ */
 import { memo, useState, useCallback } from 'react';
-import SaveIcon from '@mui/icons-material/Save';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import CircularProgress from '@mui/material/CircularProgress';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import { ICON_SIZES, FILE_STATUS } from '../../../constants';
+import {
+  FileText,
+  Plus,
+  Pencil,
+  Trash2,
+  HelpCircle,
+  CheckCircle,
+  AlertCircle,
+  Bookmark,
+} from 'lucide-react';
+import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../constants';
 import { useRepo } from '../../../context';
+import { Button, Textarea } from '../../ui';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
-const fileIconStyle = { fontSize: ICON_SIZES.sm };
-const statusIconStyle = { fontSize: ICON_SIZES.xs };
-const messageIconStyle = { fontSize: ICON_SIZES.sm };
-
+// Status configuration - uses shared colors from constants
 const STATUS_CONFIG = {
-  [FILE_STATUS.ADDED]: { icon: AddIcon, className: 'text-green-400' },
-  [FILE_STATUS.MODIFIED]: { icon: EditIcon, className: 'text-yellow-400' },
-  [FILE_STATUS.DELETED]: { icon: DeleteIcon, className: 'text-red-400' },
-  [FILE_STATUS.RENAMED]: { icon: EditIcon, className: 'text-blue-400' },
-  [FILE_STATUS.UNTRACKED]: { icon: HelpOutlineIcon, className: 'text-gray-400' },
+  [FILE_STATUS.ADDED]: { Icon: Plus, className: FILE_STATUS_COLORS[FILE_STATUS.ADDED] },
+  [FILE_STATUS.MODIFIED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.MODIFIED] },
+  [FILE_STATUS.DELETED]: { Icon: Trash2, className: FILE_STATUS_COLORS[FILE_STATUS.DELETED] },
+  [FILE_STATUS.RENAMED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.RENAMED] },
+  [FILE_STATUS.UNTRACKED]: { Icon: HelpCircle, className: FILE_STATUS_COLORS[FILE_STATUS.UNTRACKED] },
 };
 
-function FileItem({ file }) {
+// Shared icon styles
+const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const fileIconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const statusIconStyle = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
+
+/**
+ * FileItem - Single file in the commit panel file list.
+ */
+const FileItem = memo(function FileItem({ file }) {
   const statusConfig = STATUS_CONFIG[file.status] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
-  const StatusIcon = statusConfig?.icon;
+  const StatusIcon = statusConfig?.Icon;
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-700/50 cursor-pointer transition-colors">
-      <InsertDriveFileIcon sx={fileIconStyle} className="text-gray-400 shrink-0" />
+      <FileText style={fileIconStyle} className="text-gray-400 shrink-0" />
       <span className="flex-1 text-gray-200 text-xs truncate">{file.name}</span>
       {StatusIcon && (
-        <StatusIcon sx={statusIconStyle} className={statusConfig.className} />
+        <StatusIcon style={statusIconStyle} className={statusConfig.className} />
       )}
     </div>
   );
-}
+});
 
+/**
+ * InlineMessage - Status message shown after actions.
+ */
 function InlineMessage({ type, text }) {
   if (!text) return null;
   
   const isSuccess = type === 'success';
-  const Icon = isSuccess ? CheckCircleIcon : ErrorIcon;
+  const Icon = isSuccess ? CheckCircle : AlertCircle;
   const colorClass = isSuccess ? 'text-green-400' : 'text-red-400';
   
   return (
     <div className={`flex items-center gap-1.5 text-xs ${colorClass}`}>
-      <Icon sx={messageIconStyle} />
+      <Icon style={iconStyle} />
       <span>{text}</span>
     </div>
   );
@@ -72,14 +85,15 @@ function CommitPanel() {
     }
   }, [message, commitChanges]);
 
+  // Keyboard shortcut: Ctrl/Cmd+Enter to save
   const handleKeyDown = useCallback((e) => {
-    // Ctrl/Cmd + Enter to save
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleSave();
     }
   }, [handleSave]);
 
+  // No repository open state
   if (!repoPath) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500 text-sm">
@@ -104,35 +118,34 @@ function CommitPanel() {
 
       {/* Right: Commit message & buttons (70%) */}
       <div className="w-[70%] flex flex-col p-3 gap-2">
-        <textarea
+        <Textarea
           value={message}
           onChange={handleMessageChange}
           onKeyDown={handleKeyDown}
           placeholder="Describe your changes..."
           disabled={isCommitting}
-          className="flex-1 px-2.5 py-2 bg-gray-800 border border-gray-700 rounded text-gray-200 text-xs placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors resize-none disabled:opacity-50"
+          className="flex-1 text-xs"
         />
         
+        {/* Actions row */}
         <div className="flex items-center gap-2 justify-between">
           <InlineMessage type={statusMessage?.type} text={statusMessage?.text} />
           
-          <button 
+          <Button 
+            size="sm"
             onClick={handleSave}
-            disabled={!message.trim() || isCommitting || changedFiles.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-white text-xs font-medium transition-colors"
+            disabled={!message.trim() || changedFiles.length === 0}
+            loading={isCommitting}
           >
             {isCommitting ? (
-              <>
-                <CircularProgress size={14} sx={{ color: 'white' }} />
-                <span>Saving...</span>
-              </>
+              'Saving...'
             ) : (
               <>
-                <SaveIcon sx={iconStyle} />
+                <Bookmark style={iconStyle} />
                 <span>Save Changes</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

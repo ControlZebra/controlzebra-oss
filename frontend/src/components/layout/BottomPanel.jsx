@@ -1,16 +1,22 @@
+/**
+ * BottomPanel - Resizable panel at the bottom of the main area.
+ * Contains commit panel and terminal views.
+ * Supports vertical resizing via drag handle.
+ */
 import { memo, useMemo, useCallback, useRef } from 'react';
-import CloseIcon from '@mui/icons-material/Close';
+import { X } from 'lucide-react';
 import { BOTTOM_PANELS, ICON_SIZES } from '../../constants';
 import { useLayout } from '../../context';
 import { CommitPanel, TerminalPanel } from './bottom-panels';
+import { Button } from '../ui';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
-
+// Panel configuration mapping
 const PANEL_CONFIG = {
   [BOTTOM_PANELS.COMMIT]: { title: 'Commit', Component: CommitPanel },
   [BOTTOM_PANELS.TERMINAL]: { title: 'Terminal', Component: TerminalPanel },
 };
 
+// Resize constraints
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 400;
 
@@ -19,11 +25,13 @@ function BottomPanel() {
   const isResizing = useRef(false);
   const containerRef = useRef(null);
 
+  // Get panel config based on active panel
   const { title, Component } = useMemo(
     () => PANEL_CONFIG[activeBottomPanel] || PANEL_CONFIG[BOTTOM_PANELS.COMMIT],
     [activeBottomPanel]
   );
 
+  // Handle vertical resize via mouse drag
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     isResizing.current = true;
@@ -49,6 +57,7 @@ function BottomPanel() {
     document.addEventListener('mouseup', handleMouseUp);
   }, [setBottomPanelHeight]);
 
+  // Don't render if collapsed
   if (bottomPanelCollapsed) {
     return null;
   }
@@ -64,19 +73,24 @@ function BottomPanel() {
         onMouseDown={handleMouseDown}
         className="absolute top-0 left-0 w-full h-1 cursor-row-resize hover:bg-blue-500/50 transition-colors z-10"
       />
+      
+      {/* Panel header */}
       <header className="h-7 px-2 flex items-center justify-between border-b border-gray-800 shrink-0">
         <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
           {title}
         </span>
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setBottomPanelCollapsed(true)}
           title="Close panel"
-          className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
+          className="h-5 w-5"
         >
-          <CloseIcon sx={iconStyle} />
-        </button>
+          <X style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
+        </Button>
       </header>
       
+      {/* Panel content */}
       <div className="flex-1 overflow-hidden">
         <Component />
       </div>

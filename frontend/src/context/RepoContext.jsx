@@ -1,3 +1,20 @@
+/**
+ * RepoContext - Repository state management for Git operations.
+ * 
+ * Manages:
+ * - Repository path, info, and status
+ * - Commit history
+ * - Loading states for async operations
+ * - User feedback messages
+ * - File selection state
+ * - Automatic status polling
+ * 
+ * Provides actions for:
+ * - Opening repositories
+ * - Committing changes
+ * - Syncing with remote
+ * - Refreshing status and commits
+ */
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { DetectRepo, Status, CommitAll, Sync, GetRecentCommits } from '../../bindings/changeme/services/gitservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
@@ -9,32 +26,33 @@ const RepoContext = createContext(null);
 const STATUS_POLL_INTERVAL = 3000;
 
 export function RepoProvider({ children }) {
-  // Repo state
+  // ===== Repository State =====
   const [repoPath, setRepoPath] = useState(null);
   const [repoInfo, setRepoInfo] = useState(null);
   const [repoStatus, setRepoStatus] = useState(null);
   const [commits, setCommits] = useState([]);
   
-  // Loading states
+  // ===== Loading States =====
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   
-  // Feedback messages
-  const [statusMessage, setStatusMessage] = useState(null); // { type: 'success' | 'error' | 'info', text: string }
+  // ===== Feedback Messages =====
+  // Format: { type: 'success' | 'error' | 'info', text: string }
+  const [statusMessage, setStatusMessage] = useState(null);
   
-  // Selection state
+  // ===== UI State =====
   const [selectedFileIndex, setSelectedFileIndex] = useState(null);
   
-  // Polling ref
+  // ===== Refs =====
   const pollIntervalRef = useRef(null);
 
-  // Clear status message function
+  // Clear status message
   const clearStatusMessage = useCallback(() => {
     setStatusMessage(null);
   }, []);
 
-  // Clear status message after delay
+  // Show a temporary status message
   const showMessage = useCallback((type, text, duration = 5000) => {
     setStatusMessage({ type, text });
     if (duration > 0) {
@@ -42,22 +60,7 @@ export function RepoProvider({ children }) {
     }
   }, []);
 
-  // Load last repo from settings on mount
-  useEffect(() => {
-    const loadLastRepo = async () => {
-      try {
-        const settings = await GetAppSettings();
-        if (settings.lastRepoPath) {
-          await openRepo(settings.lastRepoPath);
-        }
-      } catch (err) {
-        console.error('Failed to load last repo:', err);
-      }
-    };
-    loadLastRepo();
-  }, []);
-
-  // Fetch repo status
+  // Fetch repo status from Git
   const refreshStatus = useCallback(async () => {
     if (!repoPath) return;
     
@@ -73,7 +76,7 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath]);
 
-  // Fetch commits
+  // Fetch recent commits
   const refreshCommits = useCallback(async () => {
     if (!repoPath) return;
     
@@ -85,29 +88,12 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath]);
 
-  // Refresh all data
+  // Refresh all repository data
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshStatus(), refreshCommits()]);
   }, [refreshStatus, refreshCommits]);
 
-  // Start polling when repo is open
-  useEffect(() => {
-    if (repoPath) {
-      // Initial fetch
-      refreshAll();
-      
-      // Start polling
-      pollIntervalRef.current = setInterval(refreshStatus, STATUS_POLL_INTERVAL);
-      
-      return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-      };
-    }
-  }, [repoPath, refreshAll, refreshStatus]);
-
-  // Open a repository
+  // Open a repository by path
   const openRepo = useCallback(async (path) => {
     setIsLoading(true);
     setSelectedFileIndex(null);
@@ -124,7 +110,7 @@ export function RepoProvider({ children }) {
       setRepoPath(path);
       setRepoInfo(info);
       
-      // Save to settings
+      // Persist last opened repo to settings
       try {
         await SaveAppSettings({ lastRepoPath: path, theme: 'dark' });
       } catch (err) {
@@ -141,6 +127,40 @@ export function RepoProvider({ children }) {
     }
   }, [showMessage]);
 
+  // Load last opened repository on mount
+  useEffect(() => {
+    const loadLastRepo = async () => {
+      try {
+        const settings = await GetAppSettings();
+        if (settings.lastRepoPath) {
+          await openRepo(settings.lastRepoPath);
+        }
+      } catch (err) {
+        console.error('Failed to load last repo:', err);
+      }
+    };
+    loadLastRepo();
+    // NOTE: openRepo is intentionally omitted to run only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Start polling when repo is open
+  useEffect(() => {
+    if (repoPath) {
+      // Initial fetch
+      refreshAll();
+      
+      // Start polling for status updates
+      pollIntervalRef.current = setInterval(refreshStatus, STATUS_POLL_INTERVAL);
+      
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+      };
+    }
+  }, [repoPath, refreshAll, refreshStatus]);
+
   // Listen for folder-selected event from native menu
   useEffect(() => {
     const unsubscribe = Events.On('folder-selected', async (event) => {
@@ -154,7 +174,7 @@ export function RepoProvider({ children }) {
     };
   }, [openRepo]);
 
-  // Commit all changes
+  // Commit all changes with message
   const commitChanges = useCallback(async (message) => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
@@ -188,7 +208,7 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Sync (pull --rebase + push)
+  // Sync repository (pull --rebase + push)
   const syncRepo = useCallback(async () => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
@@ -217,6 +237,7 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
+  // Memoized context value
   const value = useMemo(() => ({
     // State
     repoPath,
@@ -257,6 +278,10 @@ export function RepoProvider({ children }) {
   );
 }
 
+/**
+ * useRepo - Hook to access repository context.
+ * Must be used within a RepoProvider.
+ */
 export function useRepo() {
   const context = useContext(RepoContext);
   if (!context) {
