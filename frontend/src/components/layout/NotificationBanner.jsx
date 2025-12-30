@@ -1,10 +1,15 @@
+/**
+ * NotificationBanner - Dismissible notification banner with auto-hide timer.
+ * Displays status messages (success/error/info) with a progress countdown.
+ */
 import { memo, useEffect, useState, useCallback } from 'react';
-import CloseIcon from '@mui/icons-material/Close';
+import { X } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import { useRepo } from '../../context';
+import { Button } from '../ui';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
-const NOTIFICATION_DURATION = 5000; // 5 seconds
+// Duration before auto-dismiss (in ms)
+const NOTIFICATION_DURATION = 5000;
 
 function NotificationBanner() {
   const { statusMessage, clearStatusMessage } = useRepo();
@@ -21,7 +26,7 @@ function NotificationBanner() {
     }
   }, [statusMessage]);
 
-  // Handle progress countdown
+  // Handle progress countdown for auto-dismiss
   useEffect(() => {
     if (!statusMessage) return;
 
@@ -43,32 +48,34 @@ function NotificationBanner() {
     clearStatusMessage();
   }, [clearStatusMessage]);
 
+  // Don't render if not visible or no message
   if (!isVisible || !statusMessage) {
     return null;
   }
 
+  // Determine background color based on message type
   const bgColorClass = statusMessage.type === 'error' 
     ? 'bg-red-600/90' 
-    : statusMessage.type === 'success' 
-      ? 'bg-blue-600/90' 
-      : 'bg-blue-600/90';
+    : 'bg-blue-600/90'; // success and info use blue
 
   return (
     <div className="w-full shrink-0">
       {/* Banner content */}
       <div className={`${bgColorClass} px-4 py-1 flex items-center justify-between`}>
         <span className="text-white text-sm">{statusMessage.text}</span>
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={handleClose}
-          className="p-1 text-white/80 hover:text-white hover:bg-white/10 rounded transition-colors"
           title="Dismiss"
           aria-label="Dismiss notification"
+          className="h-6 w-6 text-white/80 hover:text-white hover:bg-white/10"
         >
-          <CloseIcon sx={iconStyle} />
-        </button>
+          <X style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
+        </Button>
       </div>
       
-      {/* Progress line */}
+      {/* Progress line showing time until auto-dismiss */}
       <div className="h-0.5 bg-gray-800 w-full">
         <div 
           className="h-full bg-blue-400 transition-all duration-50 ease-linear"

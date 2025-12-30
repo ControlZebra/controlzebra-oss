@@ -1,33 +1,44 @@
+/**
+ * ActivityBar - Vertical navigation sidebar (leftmost panel).
+ * Provides navigation between main views: Explorer, Changes, History, Profile, Settings.
+ * Clicking an active view toggles the sidebar collapsed state.
+ */
 import { memo, useMemo, useCallback } from 'react';
-import FolderIcon from '@mui/icons-material/Folder';
-import DescriptionIcon from '@mui/icons-material/Description';
-import HistoryIcon from '@mui/icons-material/History';
-import SettingsIcon from '@mui/icons-material/Settings';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import {
+  Folder,
+  FileText,
+  Clock,
+  Settings,
+  UserCircle,
+} from 'lucide-react';
 import { ICON_SIZES, VIEWS } from '../../constants';
 import { useLayout } from '../../context';
 
+// Top navigation items (main workspace views)
 const TOP_NAV_ITEMS = [
-  { id: VIEWS.EXPLORER, icon: FolderIcon, label: 'Explorer' },
-  { id: VIEWS.CHANGES, icon: DescriptionIcon, label: 'Changes' },
-  { id: VIEWS.HISTORY, icon: HistoryIcon, label: 'History' },
+  { id: VIEWS.EXPLORER, Icon: Folder, label: 'Explorer' },
+  { id: VIEWS.CHANGES, Icon: FileText, label: 'Changes' },
+  { id: VIEWS.HISTORY, Icon: Clock, label: 'History' },
 ];
 
+// Bottom navigation items (user-specific)
 const BOTTOM_NAV_ITEMS = [
-  { id: VIEWS.PROFILE, icon: AccountCircleIcon, label: 'Profile' },
-  { id: VIEWS.SETTINGS, icon: SettingsIcon, label: 'Settings' },
+  { id: VIEWS.PROFILE, Icon: UserCircle, label: 'Profile' },
+  { id: VIEWS.SETTINGS, Icon: Settings, label: 'Settings' },
 ];
 
-const iconStyle = { fontSize: ICON_SIZES.md };
-
+/**
+ * NavButton - Individual navigation button in the activity bar.
+ * Handles active state styling and click events.
+ */
 function NavButton({ item, isActive, onClick }) {
-  const Icon = item.icon;
+  const { Icon, label } = item;
   
   return (
     <button
       onClick={onClick}
-      title={item.label}
-      aria-label={item.label}
+      title={label}
+      aria-label={label}
       aria-pressed={isActive}
       className={`
         w-9 h-9 flex items-center justify-center rounded transition-colors
@@ -37,7 +48,7 @@ function NavButton({ item, isActive, onClick }) {
         }
       `}
     >
-      <Icon sx={iconStyle} />
+      <Icon style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
     </button>
   );
 }
@@ -45,7 +56,7 @@ function NavButton({ item, isActive, onClick }) {
 function ActivityBar() {
   const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed } = useLayout();
 
-  // Clicking active view collapses sidebar, clicking inactive view opens it
+  // Toggle sidebar: clicking active view collapses, clicking inactive opens
   const handleNavClick = useCallback((viewId) => {
     if (activeView === viewId && !sidebarCollapsed) {
       setSidebarCollapsed(true);
@@ -55,6 +66,7 @@ function ActivityBar() {
     }
   }, [activeView, sidebarCollapsed, setActiveView, setSidebarCollapsed]);
 
+  // Memoize button lists to prevent unnecessary re-renders
   const topNavButtons = useMemo(() => 
     TOP_NAV_ITEMS.map(item => (
       <NavButton
@@ -80,9 +92,7 @@ function ActivityBar() {
   return (
     <nav className="w-11 bg-gray-900 border-r border-gray-700 flex flex-col items-center py-2 gap-0.5 shrink-0">
       {topNavButtons}
-      
       <div className="flex-1" />
-      
       {bottomNavButtons}
     </nav>
   );

@@ -1,30 +1,41 @@
+/**
+ * ChangesView - Sidebar view for staging and committing changes.
+ * Shows list of changed files with status indicators and commit form.
+ */
 import { memo, useState, useCallback } from 'react';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import SaveIcon from '@mui/icons-material/Save';
-import SyncIcon from '@mui/icons-material/Sync';
-import CircularProgress from '@mui/material/CircularProgress';
-import { ICON_SIZES, FILE_STATUS } from '../../../constants';
+import {
+  FileText,
+  Plus,
+  Pencil,
+  Trash2,
+  HelpCircle,
+  RefreshCw,
+  Bookmark,
+} from 'lucide-react';
+import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../constants';
 import { useRepo } from '../../../context';
+import { Button, Textarea } from '../../ui';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
-const statusIconStyle = { fontSize: ICON_SIZES.xs };
-const buttonIconStyle = { fontSize: ICON_SIZES.sm };
-
+// Status icon configuration - maps status to icon and color class
 const STATUS_CONFIG = {
-  [FILE_STATUS.ADDED]: { icon: AddIcon, className: 'text-green-400' },
-  [FILE_STATUS.MODIFIED]: { icon: EditIcon, className: 'text-yellow-400' },
-  [FILE_STATUS.DELETED]: { icon: DeleteIcon, className: 'text-red-400' },
-  [FILE_STATUS.RENAMED]: { icon: EditIcon, className: 'text-blue-400' },
-  [FILE_STATUS.UNTRACKED]: { icon: HelpOutlineIcon, className: 'text-gray-400' },
+  [FILE_STATUS.ADDED]: { Icon: Plus, className: FILE_STATUS_COLORS[FILE_STATUS.ADDED] },
+  [FILE_STATUS.MODIFIED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.MODIFIED] },
+  [FILE_STATUS.DELETED]: { Icon: Trash2, className: FILE_STATUS_COLORS[FILE_STATUS.DELETED] },
+  [FILE_STATUS.RENAMED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.RENAMED] },
+  [FILE_STATUS.UNTRACKED]: { Icon: HelpCircle, className: FILE_STATUS_COLORS[FILE_STATUS.UNTRACKED] },
 };
 
-function FileItem({ file, index, isSelected, onSelect }) {
+// Shared icon styles
+const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const statusIconStyle = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
+
+/**
+ * FileItem - Single file in the changes list.
+ * Shows file name, path, and status indicator.
+ */
+const FileItem = memo(function FileItem({ file, index, isSelected, onSelect }) {
   const statusConfig = STATUS_CONFIG[file.status] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
-  const StatusIcon = statusConfig?.icon;
+  const StatusIcon = statusConfig?.Icon;
 
   return (
     <div 
@@ -35,17 +46,17 @@ function FileItem({ file, index, isSelected, onSelect }) {
           : 'hover:bg-gray-700/50 border-l-2 border-transparent'
       }`}
     >
-      <InsertDriveFileIcon sx={iconStyle} className="text-gray-400 shrink-0" />
+      <FileText style={iconStyle} className="text-gray-400 shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-gray-200 text-sm truncate">{file.name}</p>
         <p className="text-gray-500 text-xs truncate">{file.path}</p>
       </div>
       {StatusIcon && (
-        <StatusIcon sx={statusIconStyle} className={statusConfig.className} />
+        <StatusIcon style={statusIconStyle} className={statusConfig.className} />
       )}
     </div>
   );
-}
+});
 
 function ChangesView() {
   const { 
@@ -62,18 +73,21 @@ function ChangesView() {
   const [message, setMessage] = useState('');
   const [justCommitted, setJustCommitted] = useState(false);
 
+  // Toggle file selection
   const handleSelect = useCallback((index) => {
     setSelectedFileIndex(selectedFileIndex === index ? null : index);
   }, [selectedFileIndex, setSelectedFileIndex]);
 
+  // Handle commit message input
   const handleMessageChange = useCallback((e) => {
     setMessage(e.target.value);
-    // Reset justCommitted when user starts typing a new message
+    // Reset justCommitted flag when user starts typing
     if (justCommitted) {
       setJustCommitted(false);
     }
   }, [justCommitted]);
 
+  // Commit changes with current message
   const handleSave = useCallback(async () => {
     if (!message.trim()) return;
     const success = await commitChanges(message);
@@ -83,13 +97,14 @@ function ChangesView() {
     }
   }, [message, commitChanges]);
 
+  // Sync repository with remote
   const handleSync = useCallback(async () => {
     await syncRepo();
     setJustCommitted(false);
   }, [syncRepo]);
 
+  // Keyboard shortcuts: Ctrl/Cmd+Enter to save or sync
   const handleKeyDown = useCallback((e) => {
-    // Ctrl/Cmd + Enter to save
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       if (justCommitted) {
@@ -100,6 +115,7 @@ function ChangesView() {
     }
   }, [handleSave, handleSync, justCommitted]);
 
+  // No repository open state
   if (!repoPath) {
     return (
       <div className="px-3 py-4 text-center">
@@ -117,54 +133,49 @@ function ChangesView() {
     <div className="flex flex-col h-full">
       {/* Commit Message Input */}
       <div className="px-3 py-2 border-b border-gray-700">
-        <textarea
+        <Textarea
           value={message}
           onChange={handleMessageChange}
           onKeyDown={handleKeyDown}
           placeholder="Message (Ctrl+Enter to commit)"
           disabled={isCommitting || isSyncing}
           rows={3}
-          className="w-full px-2.5 py-2 bg-gray-800 border border-gray-700 rounded text-gray-200 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors resize-none disabled:opacity-50"
+          className="text-sm"
         />
         
-        {/* Action Button */}
+        {/* Action Button - switches between Save and Sync based on state */}
         <div className="mt-2">
           {showSyncButton ? (
-            <button 
+            <Button 
+              className="w-full"
               onClick={handleSync}
-              disabled={isSyncing}
-              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-white text-sm font-medium transition-colors"
+              loading={isSyncing}
             >
               {isSyncing ? (
-                <>
-                  <CircularProgress size={14} sx={{ color: 'white' }} />
-                  <span>Syncing...</span>
-                </>
+                'Syncing...'
               ) : (
                 <>
-                  <SyncIcon sx={buttonIconStyle} />
+                  <RefreshCw style={iconStyle} />
                   <span>Sync Changes</span>
                 </>
               )}
-            </button>
+            </Button>
           ) : (
-            <button 
+            <Button 
+              className="w-full"
               onClick={handleSave}
-              disabled={!message.trim() || isCommitting || !hasChanges}
-              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-white text-sm font-medium transition-colors"
+              disabled={!message.trim() || !hasChanges}
+              loading={isCommitting}
             >
               {isCommitting ? (
-                <>
-                  <CircularProgress size={14} sx={{ color: 'white' }} />
-                  <span>Saving...</span>
-                </>
+                'Saving...'
               ) : (
                 <>
-                  <SaveIcon sx={buttonIconStyle} />
+                  <Bookmark style={iconStyle} />
                   <span>Save Changes</span>
                 </>
               )}
-            </button>
+            </Button>
           )}
         </div>
       </div>

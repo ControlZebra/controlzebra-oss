@@ -1,14 +1,20 @@
+/**
+ * SettingsView - Application settings panel.
+ * Displays settings categories and forms for Git configuration.
+ */
 import { memo, useState, useEffect, useCallback } from 'react';
-import PersonIcon from '@mui/icons-material/Person';
-import EmailIcon from '@mui/icons-material/Email';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import CircularProgress from '@mui/material/CircularProgress';
+import { User, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import { ICON_SIZES, SETTINGS_CATEGORIES } from '../../../constants';
 import { GetUserProfile, SetUserProfile } from '../../../../bindings/changeme/services/settingsservice';
+import { Button, Input, Label } from '../../ui';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
+// Shared icon style
+const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
+/**
+ * GitConfigForm - Form for setting Git user name and email.
+ * Saves to global git config.
+ */
 function GitConfigForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -32,11 +38,12 @@ function GitConfigForm() {
     loadProfile();
   }, []);
 
-  // Track changes
+  // Track if form has unsaved changes
   useEffect(() => {
     setHasChanges(name !== originalValues.name || email !== originalValues.email);
   }, [name, email, originalValues]);
 
+  // Save git configuration
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     setMessage(null);
@@ -63,65 +70,66 @@ function GitConfigForm() {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
+        {/* Name field */}
         <div>
-          <label className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-            <PersonIcon sx={iconStyle} />
+          <Label>
+            <User style={iconStyle} />
             <span>Name</span>
-          </label>
-          <input
+          </Label>
+          <Input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name for commits"
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-200 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
         
+        {/* Email field */}
         <div>
-          <label className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-            <EmailIcon sx={iconStyle} />
+          <Label>
+            <Mail style={iconStyle} />
             <span>Email</span>
-          </label>
-          <input
+          </Label>
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Your email for commits"
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-200 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
       </div>
 
+      {/* Actions row */}
       <div className="flex items-center justify-between">
         {message ? (
           <div className={`flex items-center gap-1.5 text-xs ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-            {message.type === 'success' ? <CheckCircleIcon sx={iconStyle} /> : <ErrorIcon sx={iconStyle} />}
+            {message.type === 'success' 
+              ? <CheckCircle style={iconStyle} /> 
+              : <AlertCircle style={iconStyle} />
+            }
             <span>{message.text}</span>
           </div>
         ) : (
           <span className="text-gray-500 text-xs">This will be used globally for all repos</span>
         )}
         
-        <button
+        <Button
+          size="sm"
           onClick={handleSave}
-          disabled={!hasChanges || isSaving}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-white text-xs font-medium transition-colors"
+          disabled={!hasChanges}
+          loading={isSaving}
         >
-          {isSaving ? (
-            <>
-              <CircularProgress size={12} sx={{ color: 'white' }} />
-              <span>Saving...</span>
-            </>
-          ) : (
-            <span>Save</span>
-          )}
-        </button>
+          {isSaving ? 'Saving...' : 'Save'}
+        </Button>
       </div>
     </div>
   );
 }
 
-function SettingsItem({ category, isSelected, onSelect }) {
+/**
+ * SettingsItem - Category item in the settings list.
+ */
+const SettingsItem = memo(function SettingsItem({ category, isSelected, onSelect }) {
   return (
     <div 
       onClick={onSelect}
@@ -135,7 +143,7 @@ function SettingsItem({ category, isSelected, onSelect }) {
       <p className="text-gray-500 text-xs">{category.description}</p>
     </div>
   );
-}
+});
 
 function SettingsView() {
   const [selectedCategory, setSelectedCategory] = useState('git-config');

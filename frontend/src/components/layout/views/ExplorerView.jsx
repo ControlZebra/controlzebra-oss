@@ -1,43 +1,37 @@
-import { memo, useState, useCallback, useMemo } from 'react';
-import FolderIcon from '@mui/icons-material/Folder';
-import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import ArrowRightIcon from '@mui/icons-material/ArrowRight';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { ICON_SIZES } from '../../../constants';
+/**
+ * ExplorerView - File tree explorer for the repository.
+ * Displays hierarchical directory structure with lazy-loading of subdirectories.
+ */
+import { memo, useState, useCallback, useMemo, useEffect } from 'react';
+import {
+  Folder,
+  FolderOpen,
+  FileText,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
+import { ICON_SIZES, EXTENSION_COLORS } from '../../../constants';
 import { useRepo } from '../../../context';
 import { ListDirectory, OpenFile } from '../../../../bindings/changeme/services/filesystemservice';
 
-const iconStyle = { fontSize: ICON_SIZES.sm };
-const arrowStyle = { fontSize: ICON_SIZES.md };
+// Shared icon styles
+const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const arrowStyle = { width: ICON_SIZES.md, height: ICON_SIZES.md };
 
-// File extension to icon color mapping
-const EXTENSION_COLORS = {
-  js: 'text-yellow-400',
-  jsx: 'text-blue-400',
-  ts: 'text-blue-500',
-  tsx: 'text-blue-400',
-  json: 'text-yellow-500',
-  md: 'text-gray-300',
-  go: 'text-cyan-400',
-  py: 'text-green-400',
-  html: 'text-orange-400',
-  css: 'text-blue-300',
-  scss: 'text-pink-400',
-  yml: 'text-red-400',
-  yaml: 'text-red-400',
-  xml: 'text-orange-300',
-  txt: 'text-gray-400',
-};
-
-function FileTreeItem({ entry, level = 0, onOpenFile }) {
+/**
+ * FileTreeItem - Recursive tree node for files and directories.
+ * Handles lazy-loading of directory contents on expand.
+ */
+const FileTreeItem = memo(function FileTreeItem({ entry, level = 0, onOpenFile }) {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Toggle directory expansion and lazy-load children
   const handleToggle = useCallback(async () => {
     if (!entry.isDirectory) return;
     
+    // Load children on first expand
     if (!expanded && children.length === 0) {
       setIsLoading(true);
       try {
@@ -53,6 +47,7 @@ function FileTreeItem({ entry, level = 0, onOpenFile }) {
     setExpanded(!expanded);
   }, [entry.path, entry.isDirectory, expanded, children.length]);
 
+  // Open file on double-click
   const handleDoubleClick = useCallback(async (e) => {
     e.stopPropagation();
     if (!entry.isDirectory) {
@@ -60,6 +55,7 @@ function FileTreeItem({ entry, level = 0, onOpenFile }) {
     }
   }, [entry.isDirectory, entry.path, onOpenFile]);
 
+  // Get color class based on file extension
   const fileColorClass = useMemo(() => {
     if (entry.isDirectory) return 'text-gray-300';
     return EXTENSION_COLORS[entry.extension] || 'text-gray-400';
@@ -75,37 +71,38 @@ function FileTreeItem({ entry, level = 0, onOpenFile }) {
         style={{ paddingLeft }}
         className="flex items-center gap-1 py-0.5 pr-2 cursor-pointer hover:bg-gray-700/50 transition-colors select-none"
       >
-        {/* Arrow for directories */}
+        {/* Arrow indicator for directories */}
         <span className="w-4 h-4 flex items-center justify-center">
           {entry.isDirectory && (
             expanded ? (
-              <ArrowDropDownIcon sx={arrowStyle} className="text-gray-400" />
+              <ChevronDown style={arrowStyle} className="text-gray-400" />
             ) : (
-              <ArrowRightIcon sx={arrowStyle} className="text-gray-400" />
+              <ChevronRight style={arrowStyle} className="text-gray-400" />
             )
           )}
         </span>
         
-        {/* Icon */}
+        {/* File/Folder icon */}
         {entry.isDirectory ? (
           expanded ? (
-            <FolderOpenIcon sx={iconStyle} className="text-yellow-500 shrink-0" />
+            <FolderOpen style={iconStyle} className="text-yellow-500 shrink-0" />
           ) : (
-            <FolderIcon sx={iconStyle} className="text-yellow-500 shrink-0" />
+            <Folder style={iconStyle} className="text-yellow-500 shrink-0" />
           )
         ) : (
-          <InsertDriveFileIcon sx={iconStyle} className={`${fileColorClass} shrink-0`} />
+          <FileText style={iconStyle} className={`${fileColorClass} shrink-0`} />
         )}
         
-        {/* Name */}
+        {/* Entry name */}
         <span className="text-gray-200 text-sm truncate flex-1">{entry.name}</span>
         
+        {/* Loading indicator */}
         {isLoading && (
           <span className="text-gray-500 text-xs">...</span>
         )}
       </div>
       
-      {/* Children */}
+      {/* Children (recursive) */}
       {expanded && children.length > 0 && (
         <div>
           {children.map((child) => (
@@ -120,7 +117,7 @@ function FileTreeItem({ entry, level = 0, onOpenFile }) {
       )}
     </div>
   );
-}
+});
 
 function ExplorerView() {
   const { repoPath } = useRepo();
@@ -128,36 +125,37 @@ function ExplorerView() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load root directory when component mounts or repoPath changes
-  const loadDirectory = useCallback(async () => {
-    if (!repoPath) {
-      setEntries([]);
-      setIsLoaded(false);
-      return;
-    }
-    
-    try {
-      const result = await ListDirectory(repoPath);
-      if (result.error) {
-        setError(result.error);
+  // Load root directory when repoPath changes
+  // NOTE: Using useEffect (not useMemo) because this triggers side effects
+  useEffect(() => {
+    const loadDirectory = async () => {
+      if (!repoPath) {
         setEntries([]);
-      } else {
-        setEntries(result.entries || []);
-        setError(null);
+        setIsLoaded(false);
+        return;
       }
-      setIsLoaded(true);
-    } catch (err) {
-      setError('Failed to load directory');
-      setEntries([]);
-      setIsLoaded(true);
-    }
+      
+      try {
+        const result = await ListDirectory(repoPath);
+        if (result.error) {
+          setError(result.error);
+          setEntries([]);
+        } else {
+          setEntries(result.entries || []);
+          setError(null);
+        }
+        setIsLoaded(true);
+      } catch (err) {
+        setError('Failed to load directory');
+        setEntries([]);
+        setIsLoaded(true);
+      }
+    };
+
+    loadDirectory();
   }, [repoPath]);
 
-  // Load on mount and when path changes
-  useMemo(() => {
-    loadDirectory();
-  }, [loadDirectory]);
-
+  // Handle file open via system default application
   const handleOpenFile = useCallback(async (path) => {
     try {
       const result = await OpenFile(path);
@@ -169,6 +167,7 @@ function ExplorerView() {
     }
   }, []);
 
+  // Empty state: no repository open
   if (!repoPath) {
     return (
       <div className="px-3 py-4 text-center">
@@ -178,6 +177,7 @@ function ExplorerView() {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="px-3 py-4 text-center">
@@ -186,6 +186,7 @@ function ExplorerView() {
     );
   }
 
+  // Loading state
   if (!isLoaded) {
     return (
       <div className="px-3 py-4 text-center">
@@ -194,6 +195,7 @@ function ExplorerView() {
     );
   }
 
+  // Empty directory state
   if (entries.length === 0) {
     return (
       <div className="px-3 py-4 text-center">

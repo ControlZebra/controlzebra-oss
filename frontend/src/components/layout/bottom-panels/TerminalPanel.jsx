@@ -1,4 +1,16 @@
+/**
+ * TerminalPanel - Simple terminal emulator for git commands.
+ * Provides basic command input with history display.
+ * NOTE: This is a mock implementation - actual command execution not yet implemented.
+ */
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
+
+/**
+ * History entry types:
+ * - 'input': User command (displayed in blue)
+ * - 'output': Command output (displayed in gray)
+ * - 'error': Error message (displayed in red)
+ */
 
 function TerminalPanel() {
   const [input, setInput] = useState('');
@@ -8,6 +20,7 @@ function TerminalPanel() {
   ]);
   const outputRef = useRef(null);
 
+  // Auto-scroll to bottom when history changes
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
@@ -18,14 +31,18 @@ function TerminalPanel() {
     setInput(e.target.value);
   }, []);
 
+  // Handle command submission
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
     if (!input.trim()) return;
 
     const command = input.trim();
+    
+    // Add command to history
     setHistory(prev => [...prev, { type: 'input', text: `$ ${command}` }]);
 
     // Mock command handling
+    // TODO: Implement actual command execution via Go backend
     if (command === 'help') {
       setHistory(prev => [...prev, { 
         type: 'output', 
@@ -50,6 +67,7 @@ function TerminalPanel() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Output history */}
       <div 
         ref={outputRef}
         className="flex-1 overflow-y-auto px-3 py-2 font-mono text-xs space-y-0.5"
@@ -68,6 +86,7 @@ function TerminalPanel() {
         ))}
       </div>
       
+      {/* Input form */}
       <form onSubmit={handleSubmit} className="shrink-0 px-3 pb-2">
         <div className="flex items-center gap-2 bg-gray-800 rounded px-2">
           <span className="text-green-400 text-xs font-mono">$</span>
