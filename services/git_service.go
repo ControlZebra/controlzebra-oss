@@ -520,19 +520,19 @@ type FileDiff struct {
 
 // CommitDetail contains detailed information about a single commit
 type CommitDetail struct {
-	Hash         string            `json:"hash"`
-	ShortHash    string            `json:"shortHash"`
-	Message      string            `json:"message"`
-	Body         string            `json:"body,omitempty"` // Full commit message body
-	Author       string            `json:"author"`
-	AuthorEmail  string            `json:"authorEmail"`
-	Date         string            `json:"date"`
-	RelativeDate string            `json:"relativeDate"`
-	ParentHashes []string          `json:"parentHashes"`
-	Files        []CommitFileInfo  `json:"files"` // Files changed in this commit
-	Stats        CommitStats       `json:"stats"` // Overall stats
-	HasError     bool              `json:"hasError"`
-	Error        string            `json:"error,omitempty"`
+	Hash         string           `json:"hash"`
+	ShortHash    string           `json:"shortHash"`
+	Message      string           `json:"message"`
+	Body         string           `json:"body,omitempty"` // Full commit message body
+	Author       string           `json:"author"`
+	AuthorEmail  string           `json:"authorEmail"`
+	Date         string           `json:"date"`
+	RelativeDate string           `json:"relativeDate"`
+	ParentHashes []string         `json:"parentHashes"`
+	Files        []CommitFileInfo `json:"files"` // Files changed in this commit
+	Stats        CommitStats      `json:"stats"` // Overall stats
+	HasError     bool             `json:"hasError"`
+	Error        string           `json:"error,omitempty"`
 }
 
 // CommitFileInfo represents a file changed in a commit
