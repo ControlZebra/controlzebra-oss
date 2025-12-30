@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
+import FolderIcon from '@mui/icons-material/Folder';
 import DescriptionIcon from '@mui/icons-material/Description';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -7,6 +8,7 @@ import { ICON_SIZES, VIEWS } from '../../constants';
 import { useLayout } from '../../context';
 
 const TOP_NAV_ITEMS = [
+  { id: VIEWS.EXPLORER, icon: FolderIcon, label: 'Explorer' },
   { id: VIEWS.CHANGES, icon: DescriptionIcon, label: 'Changes' },
   { id: VIEWS.HISTORY, icon: HistoryIcon, label: 'History' },
 ];

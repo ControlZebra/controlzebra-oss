@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import CommitIcon from '@mui/icons-material/Commit';
-import { ICON_SIZES, MOCK_COMMITS } from '../../../constants';
+import { ICON_SIZES } from '../../../constants';
+import { useRepo } from '../../../context';
 
 const iconStyle = { fontSize: ICON_SIZES.sm };
 
@@ -11,9 +12,9 @@ function CommitItem({ commit }) {
       <div className="flex-1 min-w-0">
         <p className="text-gray-200 text-sm truncate">{commit.message}</p>
         <p className="text-gray-500 text-xs">
-          <span className="font-mono">{commit.hash}</span>
+          <span className="font-mono">{commit.shortHash}</span>
           <span className="mx-1">•</span>
-          <span>{commit.time}</span>
+          <span>{commit.relativeDate}</span>
         </p>
       </div>
     </div>
@@ -21,7 +22,18 @@ function CommitItem({ commit }) {
 }
 
 function HistoryView() {
-  if (MOCK_COMMITS.length === 0) {
+  const { repoPath, commits } = useRepo();
+
+  if (!repoPath) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <p className="text-gray-500 text-sm">No repository open</p>
+        <p className="text-gray-600 text-xs mt-1">Use File → Open Folder to select a repo</p>
+      </div>
+    );
+  }
+
+  if (commits.length === 0) {
     return (
       <p className="px-3 py-4 text-gray-500 text-sm text-center">
         No commit history
@@ -31,8 +43,8 @@ function HistoryView() {
 
   return (
     <div className="py-1">
-      {MOCK_COMMITS.map(commit => (
-        <CommitItem key={commit.id} commit={commit} />
+      {commits.map(commit => (
+        <CommitItem key={commit.hash} commit={commit} />
       ))}
     </div>
   );

@@ -1,10 +1,11 @@
 import { memo, useMemo, useCallback, useRef } from 'react';
 import { VIEWS } from '../../constants';
 import { useLayout } from '../../context';
-import { ChangesView, HistoryView, SettingsView, ProfileView } from './views';
+import { ExplorerView, ChangesView, HistoryView, SettingsView, ProfileView } from './views';
 
 const VIEW_CONFIG = {
-  [VIEWS.CHANGES]: { title: 'Changed Files', Component: ChangesView },
+  [VIEWS.EXPLORER]: { title: 'Explorer', Component: ExplorerView },
+  [VIEWS.CHANGES]: { title: 'Source Control', Component: ChangesView },
   [VIEWS.HISTORY]: { title: 'Commit History', Component: HistoryView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
   [VIEWS.PROFILE]: { title: 'Profile', Component: ProfileView },
