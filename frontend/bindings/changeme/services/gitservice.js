@@ -40,6 +40,19 @@ export function Branches(repoPath) {
 }
 
 /**
+ * CheckLockFile checks if a .git/index.lock file exists in the repository.
+ * This lock file is created by Git during operations and can be left behind if
+ * a process crashes or is interrupted.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.LockFileInfo>}
+ */
+export function CheckLockFile(repoPath) {
+    return $Call.ByID(3861435054, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
  * CheckoutBranch switches to an existing branch.
  * Fails if there are uncommitted changes to prevent accidental loss.
  * @param {string} repoPath
@@ -96,7 +109,7 @@ export function CreateBranchAndCheckout(repoPath, branchName) {
  */
 export function DetectRepo(path) {
     return $Call.ByID(2042099950, path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -109,7 +122,7 @@ export function DetectRepo(path) {
  */
 export function DiffCommitFile(repoPath, hash, filePath) {
     return $Call.ByID(2514426657, repoPath, hash, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -123,7 +136,7 @@ export function DiffCommitFile(repoPath, hash, filePath) {
  */
 export function DiffCommits(repoPath, fromHash, toHash, filePath) {
     return $Call.ByID(2294437908, repoPath, fromHash, toHash, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -135,7 +148,7 @@ export function DiffCommits(repoPath, fromHash, toHash, filePath) {
  */
 export function DiffWorking(repoPath, filePath) {
     return $Call.ByID(1394051649, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -175,7 +188,7 @@ export function DiscardFile(repoPath, filePath, confirm) {
  */
 export function GetConflictedFiles(repoPath) {
     return $Call.ByID(3264929955, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -186,7 +199,7 @@ export function GetConflictedFiles(repoPath) {
  */
 export function GetGitVersion() {
     return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -197,7 +210,7 @@ export function GetGitVersion() {
  */
 export function GetMergeState(repoPath) {
     return $Call.ByID(477378934, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -209,7 +222,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -221,7 +234,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -267,6 +280,22 @@ export function Pull(repoPath) {
  */
 export function Push(repoPath) {
     return $Call.ByID(3059390037, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * RemoveLockFile removes the .git/index.lock file from the repository.
+ * This is useful for recovering from a stale lock file left behind by a crashed
+ * Git process. Returns an OperationResult indicating success or failure.
+ * 
+ * CAUTION: Only call this when you are certain no other Git operation is in progress.
+ * Removing a lock file while another Git process is running can cause corruption.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RemoveLockFile(repoPath) {
+    return $Call.ByID(2787472740, repoPath).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -334,7 +363,7 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
@@ -374,7 +403,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
 }
 
@@ -410,7 +439,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType16($result);
     }));
 }
 
@@ -436,17 +465,18 @@ export function Sync(repoPath) {
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.BranchList.createFrom;
-const $$createType2 = $models.RepoInfo.createFrom;
-const $$createType3 = $models.FileDiff.createFrom;
-const $$createType4 = $models.ConflictedFile.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $models.GitVersion.createFrom;
-const $$createType7 = $Create.Nullable($$createType6);
-const $$createType8 = $models.MergeState.createFrom;
-const $$createType9 = $Create.Array($Create.Any);
-const $$createType10 = $models.CommitInfo.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $models.CommitDetail.createFrom;
-const $$createType13 = $models.StashEntry.createFrom;
-const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = $models.RepoStatus.createFrom;
+const $$createType2 = $models.LockFileInfo.createFrom;
+const $$createType3 = $models.RepoInfo.createFrom;
+const $$createType4 = $models.FileDiff.createFrom;
+const $$createType5 = $models.ConflictedFile.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = $models.GitVersion.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);
+const $$createType9 = $models.MergeState.createFrom;
+const $$createType10 = $Create.Array($Create.Any);
+const $$createType11 = $models.CommitInfo.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = $models.CommitDetail.createFrom;
+const $$createType14 = $models.StashEntry.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = $models.RepoStatus.createFrom;

@@ -1086,6 +1086,51 @@ export class LFSLock {
 }
 
 /**
+ * LockFileInfo contains information about Git lock files in the repository
+ */
+export class LockFileInfo {
+    /**
+     * Creates a new LockFileInfo instance.
+     * @param {Partial<LockFileInfo>} [$$source = {}] - The source object to create the LockFileInfo.
+     */
+    constructor($$source = {}) {
+        if (!("indexLockExists" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["indexLockExists"] = false;
+        }
+        if (!("indexLockPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["indexLockPath"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LockFileInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LockFileInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LockFileInfo(/** @type {Partial<LockFileInfo>} */($$parsedSource));
+    }
+}
+
+/**
  * MergeState represents the current merge/rebase state of a repository
  */
 export class MergeState {
