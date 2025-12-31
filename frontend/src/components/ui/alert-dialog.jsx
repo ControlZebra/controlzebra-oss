@@ -167,15 +167,15 @@ AlertDialogDescription.displayName = "AlertDialogDescription";
 /**
  * AlertDialogAction - Primary action button (destructive by default).
  */
-const AlertDialogAction = React.forwardRef(({ className, variant = "destructive", ...props }, ref) => {
+const AlertDialogAction = React.forwardRef(({ className, variant = "destructive", onClick, ...props }, ref) => {
   const { onOpenChange } = React.useContext(AlertDialogContext);
   
   return (
     <Button
       ref={ref}
       variant={variant}
-      onClick={(e) => {
-        props.onClick?.(e);
+      onClick={async (e) => {
+        await onClick?.(e);
         // Only close if onClick doesn't prevent default
         if (!e.defaultPrevented) {
           onOpenChange?.(false);
