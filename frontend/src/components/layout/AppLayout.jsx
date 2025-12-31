@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { LayoutProvider } from '../../context';
+import { Toaster } from '../ui/sonner';
 import TopBar from './TopBar';
-import NotificationBanner from './NotificationBanner';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import MainArea from './MainArea';
@@ -13,7 +13,7 @@ function AppLayout() {
     <LayoutProvider>
       <div className="h-screen w-screen flex flex-col bg-gray-900 text-gray-100 overflow-hidden">
         <TopBar />
-        <NotificationBanner />
+        <Toaster />
         
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left side: Activity bar + Sidebar (full height) */}
