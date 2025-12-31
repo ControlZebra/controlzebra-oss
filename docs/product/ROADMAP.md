@@ -29,7 +29,7 @@ Deliverables checklist:
 
 ## Milestone v2: review + recovery
 
-Outcome: users can review what changed and recover from common mistakes.
+Outcome: users can review what changed, recover from common mistakes, work safely with LFS files, and resolve merge conflicts with guidance.
 
 Scope:
 - History view backed by `git log`
@@ -42,11 +42,56 @@ Scope:
 - Safety actions:
   - Discard My Changes
   - Undo Last Save
-- Initial conflict awareness:
-  - detect conflicts and show a guided message + next steps
 
-Non-scope:
-- Full merge conflict helper UI (defer unless required).
+### Branch protection & safe branching
+- Protected branch warnings:
+  - Warn user when making changes on `main`, `master`, or team-configured protected branches
+  - Show clear guidance: "You're editing a protected branch. Consider starting a new task."
+- Safe branch creation with stash:
+  - When user has uncommitted changes and wants to switch/create branch:
+    1. `git stash push -m "auto-stash before branch switch"`
+    2. Create/switch to target branch
+    3. `git stash pop` to restore changes on new branch
+  - Handles the common case: "I started working but forgot to create a branch"
+
+### Git LFS support
+- LFS initialization for existing repos:
+  - "Enable LFS" action for repos not yet using LFS (`git lfs install`)
+  - Track new files only (no migration of existing history)
+  - Clear explanation: "Large files added after this will use LFS"
+- User-editable LFS track list:
+  - Settings UI to manage tracked patterns (`.gitattributes` entries)
+  - Add pattern: `git lfs track "*.psd"` → updates `.gitattributes`
+  - Remove pattern: `git lfs untrack "*.psd"`
+  - View current patterns: parse `.gitattributes` for `filter=lfs`
+  - Preset patterns for industrial files (e.g., `*.acd`, `*.L5X`, `*.mer`)
+- LFS status detection:
+  - Detect if repo uses Git LFS (`git lfs status`)
+  - Show LFS-tracked files distinctly in Changes view
+- LFS locking during branching:
+  - Before branch switch: check for locked LFS files (`git lfs locks`)
+  - Warn if switching would affect locked files
+  - Auto-unlock owned locks on branch switch (with confirmation)
+- LFS file indicators:
+  - Badge/icon in file list for LFS-tracked files
+  - Show lock owner if file is locked by another user
+
+### Conflict resolution
+- Conflict detection:
+  - After `git pull`, detect merge conflicts via status
+  - Show clear "Conflicts Detected" state in UI
+- Conflict resolution flow:
+  - List conflicted files with visual distinction
+  - For each file, offer three options:
+    - **Keep Mine**: `git checkout --ours <file>`
+    - **Keep Theirs**: `git checkout --theirs <file>`
+    - **Open to Edit**: launch file in editor with conflict markers visible
+  - After resolving all files: `git add .` + prompt for merge commit message
+- Abort option:
+  - "Cancel Sync" button runs `git merge --abort` to return to pre-pull state
+- Guided messaging:
+  - Explain what happened in plain language ("Someone else changed the same files you did")
+  - Step-by-step instructions for resolution
 
 ## Milestone v3: industrial file diffing (proprietary binary parsing)
 

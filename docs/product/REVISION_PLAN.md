@@ -11,17 +11,19 @@ Guiding principles:
 ## Current implementation snapshot (Dec 2025)
 
 Backend (Go/Wails):
-- `GitService` fully implemented with v1 + v2 methods
+- `GitService` fully implemented with v1 + v2 core methods
 - `CommandRunner` helper for CLI execution
 - `SettingsService` for app settings persistence
 - `FileSystemService` and `FileDialogService` for file operations
 - `TerminalService` for terminal integration
+- `LFSService` planned for v2 LFS support
 
 Frontend (React/MUI + Tailwind):
 - VS Code-like layout (TopBar, ActivityBar, Sidebar views, MainArea, BottomPanel, StatusBar)
 - Real git operations via Wails bindings
 - v1 complete: repo open, status, commit, sync, push
-- v2 complete: history viewing, diff viewing, branch switching, undo/discard
+- v2 core complete: history viewing, diff viewing, branch switching, undo/discard
+- v2 additions in progress: branch protection, LFS support, conflict resolution
 
 ## v1 — MVP: "Make Git usable without Git" ✅ COMPLETE
 
@@ -77,9 +79,9 @@ Goal: deliver the core daily loop for a single local repo.
 
 **v1 Implementation Status: ✅ COMPLETE**
 
-## v2 — Review & recovery: history + diffs + safer workflows ✅ COMPLETE
+## v2 — Review & recovery: history + diffs + safer workflows
 
-Goal: make the app useful for reviewing work and recovering from common mistakes.
+Goal: make the app useful for reviewing work, recovering from common mistakes, and preventing dangerous operations on protected branches. Support LFS workflows and guide users through merge conflicts.
 
 ### UX deliverables ✅
 - History view:
@@ -98,6 +100,30 @@ Goal: make the app useful for reviewing work and recovering from common mistakes
   - BranchModal triggered from TopBar for branch switching/creation. ✅
   - `git checkout -b <name>` and `git checkout <branch>`. ✅
 
+### UX deliverables (v2 additions) 🔲
+- Protected branch warnings:
+  - Show warning banner when user has changes on `main`/`master`/protected branches. 🔲
+  - Configurable protected branch list in settings. 🔲
+  - Prompt: "You're editing a protected branch. Start a new task?" 🔲
+- Safe branching with stash:
+  - "Move Changes to New Branch" action in TopBar/BranchModal. 🔲
+  - Stash → create branch → pop workflow for safe branch switching. 🔲
+  - Handle stash conflicts gracefully with clear messaging. 🔲
+- Git LFS integration:
+  - "Enable LFS" action in Settings for repos not using LFS. 🔲
+  - LFS track list editor in Settings (add/remove file patterns). 🔲
+  - Preset patterns for industrial files (*.acd, *.L5X, *.mer, etc.). 🔲
+  - LFS status indicator in StatusBar when repo uses LFS. 🔲
+  - LFS file badges in ChangesView file list. 🔲
+  - Lock indicator showing who owns locks on files. 🔲
+  - Warning before switching branches with locked LFS files. 🔲
+- Conflict resolution UI:
+  - ConflictView component showing conflicted files after failed pull. 🔲
+  - Per-file resolution options: Keep Mine / Keep Theirs / Edit Manually. 🔲
+  - "Abort Sync" button to run `git merge --abort`. 🔲
+  - Merge completion flow: resolve all → stage → commit. 🔲
+  - Plain-language guidance explaining the conflict situation. 🔲
+
 ### Backend deliverables ✅
 - `GitService` additions (all implemented in `services/git_service.go`):
   - `GetRecentCommits(repoPath, limit)` ✅
@@ -111,6 +137,37 @@ Goal: make the app useful for reviewing work and recovering from common mistakes
   - `ResetSoftHead(repoPath, n, confirm)` ✅
   - `DiscardAll(repoPath, confirm)` ✅
   - `DiscardFile(repoPath, path, confirm)` ✅
+
+### Backend deliverables (v2 additions) 🔲
+- `GitService` - Branch protection & stash:
+  - `IsProtectedBranch(repoPath, branchName)` → check against configurable list 🔲
+  - `GetProtectedBranches(repoPath)` → return list of protected branches 🔲
+  - `StashAndSwitchBranch(repoPath, targetBranch, createNew)` → safe branch switch workflow 🔲
+    - Runs: `git stash push` → `git checkout [-b] <branch>` → `git stash pop`
+  - `StashList(repoPath)` → list stashes for recovery if pop fails 🔲
+  - `StashDrop(repoPath, index)` → clean up stashes 🔲
+
+- `LFSService` (new service):
+  - `IsLFSEnabled(repoPath)` → detect if repo uses Git LFS 🔲
+  - `InitializeLFS(repoPath)` → run `git lfs install` for new LFS setup 🔲
+  - `GetTrackedPatterns(repoPath)` → parse `.gitattributes` for LFS patterns 🔲
+  - `TrackPattern(repoPath, pattern)` → `git lfs track "<pattern>"` 🔲
+  - `UntrackPattern(repoPath, pattern)` → `git lfs untrack "<pattern>"` 🔲
+  - `GetPresetPatterns()` → return common industrial file patterns 🔲
+  - `LFSStatus(repoPath)` → get LFS-tracked files and their status 🔲
+  - `LFSLocks(repoPath)` → list current locks with owners 🔲
+  - `LFSLock(repoPath, path)` → lock a file 🔲
+  - `LFSUnlock(repoPath, path, force)` → unlock a file (force for own locks) 🔲
+  - `CheckLocksBeforeBranchSwitch(repoPath)` → warn about locked files 🔲
+
+- `GitService` - Conflict resolution:
+  - `GetConflictedFiles(repoPath)` → list files with merge conflicts 🔲
+  - `ResolveConflictKeepOurs(repoPath, path)` → `git checkout --ours <path>` 🔲
+  - `ResolveConflictKeepTheirs(repoPath, path)` → `git checkout --theirs <path>` 🔲
+  - `MarkResolved(repoPath, path)` → `git add <path>` after manual edit 🔲
+  - `AbortMerge(repoPath)` → `git merge --abort` 🔲
+  - `CompleteMerge(repoPath, message)` → `git commit` after all resolved 🔲
+  - `GetMergeState(repoPath)` → detect if repo is in merge/conflict state 🔲
 
 ### Frontend deliverables ✅
 - **MainArea** (`components/layout/MainArea.jsx`):
@@ -146,11 +203,44 @@ Goal: make the app useful for reviewing work and recovering from common mistakes
   - New actions: `switchBranch`, `createBranch`, `refreshBranches`
   - New actions: `undoLastCommit`, `discardAllChanges`, `discardFileChanges`
 
-### Non-goals
-- Full conflict resolution UI for arbitrary merges.
-- Proprietary binary parsing (starts in v3).
+### Frontend deliverables (v2 additions) 🔲
+- **ProtectedBranchWarning** (`components/common/ProtectedBranchWarning.jsx`):
+  - Banner component shown when on protected branch with changes 🔲
+  - "Start New Task" quick action button 🔲
+- **BranchModal** enhancements:
+  - "Move Changes" option when creating new branch with uncommitted changes 🔲
+  - LFS lock warnings before branch switch 🔲
+- **LFSIndicator** (`components/common/LFSIndicator.jsx`):
+  - StatusBar indicator when LFS is enabled 🔲
+  - File list badges for LFS-tracked files 🔲
+  - Lock icon with owner tooltip 🔲
+- **LFSSettingsPanel** (`components/settings/LFSSettingsPanel.jsx`):
+  - "Enable LFS" button for repos without LFS 🔲
+  - Editable list of tracked file patterns 🔲
+  - Add/remove pattern with validation 🔲
+  - Preset patterns dropdown (industrial file types) 🔲
+  - Explanation text about LFS and when to use it 🔲
+- **ConflictView** (`components/layout/views/ConflictView.jsx`):
+  - Shown when repo is in conflict state 🔲
+  - List of conflicted files with status 🔲
+  - Per-file action buttons: Keep Mine / Keep Theirs / Edit 🔲
+  - "Complete Merge" and "Abort Sync" buttons 🔲
+  - Explanatory text for non-technical users 🔲
+- **ConflictDiffViewer** (`components/common/ConflictDiffViewer.jsx`):
+  - Three-way diff view showing base, ours, theirs 🔲
+  - Highlight conflict markers in file content 🔲
+- **RepoContext** additions:
+  - New state: `isProtectedBranch`, `lfsEnabled`, `lfsLocks`, `conflictState`, `conflictedFiles` 🔲
+  - New actions: `moveChangesToNewBranch`, `resolveConflict`, `abortMerge`, `completeMerge` 🔲
 
-**v2 Implementation Status: ✅ COMPLETE (Dec 31, 2025)**
+### Non-goals (deferred to v3+)
+- Proprietary binary parsing.
+- Advanced LFS operations (migrate, prune).
+- Three-way merge editor for manual conflict resolution.
+
+**v2 Implementation Status: 🔄 IN PROGRESS**
+- Core features (history, diff, undo/discard, branching): ✅ COMPLETE
+- Branch protection, LFS, conflict resolution: 🔲 PENDING
 
 ## v3 — Industrial file intelligence: proprietary binary parsing + meaningful diffs
 
