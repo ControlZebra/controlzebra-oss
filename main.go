@@ -50,6 +50,7 @@ func main() {
 		Description: "A simplified Git client for industrial automation users",
 		Services: []application.Service{
 			application.NewService(services.NewGitService()),
+			application.NewService(services.NewLFSService()),
 			application.NewService(services.NewSettingsService()),
 			application.NewService(services.NewFileSystemService()),
 			application.NewService(fileDialogService),

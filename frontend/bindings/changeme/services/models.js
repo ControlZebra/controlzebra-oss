@@ -476,6 +476,45 @@ export class CommitStats {
 }
 
 /**
+ * ConflictedFile represents a file with merge conflicts
+ */
+export class ConflictedFile {
+    /**
+     * Creates a new ConflictedFile instance.
+     * @param {Partial<ConflictedFile>} [$$source = {}] - The source object to create the ConflictedFile.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * "both-modified", "deleted-by-us", "deleted-by-them", "both-added"
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ConflictedFile instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ConflictedFile}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ConflictedFile(/** @type {Partial<ConflictedFile>} */($$parsedSource));
+    }
+}
+
+/**
  * DiffHunk represents a single hunk in a diff
  */
 export class DiffHunk {
@@ -887,6 +926,219 @@ export class GitVersion {
 }
 
 /**
+ * LFSFileStatus represents the LFS status of a file
+ */
+export class LFSFileStatus {
+    /**
+     * Creates a new LFSFileStatus instance.
+     * @param {Partial<LFSFileStatus>} [$$source = {}] - The source object to create the LFSFileStatus.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * "lfs" for LFS-tracked, "git" for regular
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("size" in $$source)) {
+            /**
+             * Human-readable size
+             * @member
+             * @type {string}
+             */
+            this["size"] = "";
+        }
+        if (!("uploaded" in $$source)) {
+            /**
+             * True if file is uploaded to remote
+             * @member
+             * @type {boolean}
+             */
+            this["uploaded"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LFSFileStatus instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LFSFileStatus}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LFSFileStatus(/** @type {Partial<LFSFileStatus>} */($$parsedSource));
+    }
+}
+
+/**
+ * LFSInfo contains basic information about LFS status in a repo
+ */
+export class LFSInfo {
+    /**
+     * Creates a new LFSInfo instance.
+     * @param {Partial<LFSInfo>} [$$source = {}] - The source object to create the LFSInfo.
+     */
+    constructor($$source = {}) {
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["version"] = undefined;
+        }
+        if (!("hasError" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasError"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LFSInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LFSInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LFSInfo(/** @type {Partial<LFSInfo>} */($$parsedSource));
+    }
+}
+
+/**
+ * LFSLock represents a locked file in Git LFS
+ */
+export class LFSLock {
+    /**
+     * Creates a new LFSLock instance.
+     * @param {Partial<LFSLock>} [$$source = {}] - The source object to create the LFSLock.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("owner" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["owner"] = "";
+        }
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("locked" in $$source)) {
+            /**
+             * Timestamp
+             * @member
+             * @type {string}
+             */
+            this["locked"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LFSLock instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LFSLock}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LFSLock(/** @type {Partial<LFSLock>} */($$parsedSource));
+    }
+}
+
+/**
+ * MergeState represents the current merge/rebase state of a repository
+ */
+export class MergeState {
+    /**
+     * Creates a new MergeState instance.
+     * @param {Partial<MergeState>} [$$source = {}] - The source object to create the MergeState.
+     */
+    constructor($$source = {}) {
+        if (!("inMerge" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["inMerge"] = false;
+        }
+        if (!("inRebase" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["inRebase"] = false;
+        }
+        if (!("hasConflicts" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasConflicts"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Merge commit message if available
+             * @member
+             * @type {string | undefined}
+             */
+            this["message"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MergeState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MergeState}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MergeState(/** @type {Partial<MergeState>} */($$parsedSource));
+    }
+}
+
+/**
  * OpenFileResult contains the result of opening a file
  */
 export class OpenFileResult {
@@ -1011,6 +1263,52 @@ export class OperationResult {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new OperationResult(/** @type {Partial<OperationResult>} */($$parsedSource));
+    }
+}
+
+/**
+ * PresetPattern represents a preset LFS tracking pattern
+ */
+export class PresetPattern {
+    /**
+     * Creates a new PresetPattern instance.
+     * @param {Partial<PresetPattern>} [$$source = {}] - The source object to create the PresetPattern.
+     */
+    constructor($$source = {}) {
+        if (!("pattern" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["pattern"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (!("category" in $$source)) {
+            /**
+             * e.g., "industrial", "media", "documents"
+             * @member
+             * @type {string}
+             */
+            this["category"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PresetPattern instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {PresetPattern}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PresetPattern(/** @type {Partial<PresetPattern>} */($$parsedSource));
     }
 }
 
@@ -1151,6 +1449,61 @@ export class RepoStatus {
 }
 
 /**
+ * StashEntry represents a single stash entry
+ */
+export class StashEntry {
+    /**
+     * Creates a new StashEntry instance.
+     * @param {Partial<StashEntry>} [$$source = {}] - The source object to create the StashEntry.
+     */
+    constructor($$source = {}) {
+        if (!("index" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["index"] = 0;
+        }
+        if (!("name" in $$source)) {
+            /**
+             * e.g., "stash@{0}"
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * Stash message
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+        if (!("branch" in $$source)) {
+            /**
+             * Branch the stash was created on
+             * @member
+             * @type {string}
+             */
+            this["branch"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new StashEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {StashEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new StashEntry(/** @type {Partial<StashEntry>} */($$parsedSource));
+    }
+}
+
+/**
  * TerminalResult contains the result of terminal operations
  */
 export class TerminalResult {
@@ -1192,6 +1545,45 @@ export class TerminalResult {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new TerminalResult(/** @type {Partial<TerminalResult>} */($$parsedSource));
+    }
+}
+
+/**
+ * TrackedPattern represents a pattern tracked by Git LFS
+ */
+export class TrackedPattern {
+    /**
+     * Creates a new TrackedPattern instance.
+     * @param {Partial<TrackedPattern>} [$$source = {}] - The source object to create the TrackedPattern.
+     */
+    constructor($$source = {}) {
+        if (!("pattern" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["pattern"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * e.g., "filter=lfs diff=lfs merge=lfs -text"
+             * @member
+             * @type {string | undefined}
+             */
+            this["attributes"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TrackedPattern instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TrackedPattern}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new TrackedPattern(/** @type {Partial<TrackedPattern>} */($$parsedSource));
     }
 }
 

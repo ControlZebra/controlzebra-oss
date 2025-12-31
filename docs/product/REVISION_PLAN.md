@@ -138,36 +138,41 @@ Goal: make the app useful for reviewing work, recovering from common mistakes, a
   - `DiscardAll(repoPath, confirm)` ✅
   - `DiscardFile(repoPath, path, confirm)` ✅
 
-### Backend deliverables (v2 additions) 🔲
+### Backend deliverables (v2 additions) ✅
 - `GitService` - Branch protection & stash:
-  - `IsProtectedBranch(repoPath, branchName)` → check against configurable list 🔲
-  - `GetProtectedBranches(repoPath)` → return list of protected branches 🔲
-  - `StashAndSwitchBranch(repoPath, targetBranch, createNew)` → safe branch switch workflow 🔲
+  - `IsProtectedBranch(repoPath, branchName)` → check against configurable list ✅
+  - `GetProtectedBranches(repoPath)` → return list of protected branches ✅
+  - `SetProtectedBranches(repoPath, branches)` → update protected branch list ✅
+  - `StashPush(repoPath, message)` → create a new stash ✅
+  - `StashPop(repoPath)` → apply and remove most recent stash ✅
+  - `StashAndSwitchBranch(repoPath, targetBranch, createNew)` → safe branch switch workflow ✅
     - Runs: `git stash push` → `git checkout [-b] <branch>` → `git stash pop`
-  - `StashList(repoPath)` → list stashes for recovery if pop fails 🔲
-  - `StashDrop(repoPath, index)` → clean up stashes 🔲
+  - `StashList(repoPath)` → list stashes for recovery if pop fails ✅
+  - `StashDrop(repoPath, index, confirm)` → clean up stashes ✅
 
-- `LFSService` (new service):
-  - `IsLFSEnabled(repoPath)` → detect if repo uses Git LFS 🔲
-  - `InitializeLFS(repoPath)` → run `git lfs install` for new LFS setup 🔲
-  - `GetTrackedPatterns(repoPath)` → parse `.gitattributes` for LFS patterns 🔲
-  - `TrackPattern(repoPath, pattern)` → `git lfs track "<pattern>"` 🔲
-  - `UntrackPattern(repoPath, pattern)` → `git lfs untrack "<pattern>"` 🔲
-  - `GetPresetPatterns()` → return common industrial file patterns 🔲
-  - `LFSStatus(repoPath)` → get LFS-tracked files and their status 🔲
-  - `LFSLocks(repoPath)` → list current locks with owners 🔲
-  - `LFSLock(repoPath, path)` → lock a file 🔲
-  - `LFSUnlock(repoPath, path, force)` → unlock a file (force for own locks) 🔲
-  - `CheckLocksBeforeBranchSwitch(repoPath)` → warn about locked files 🔲
+- `LFSService` (new service in `services/lfs_service.go`):
+  - `IsLFSInstalled()` → check if git-lfs CLI is available ✅
+  - `GetLFSVersion()` → get installed git-lfs version ✅
+  - `IsLFSEnabled(repoPath)` → detect if repo uses Git LFS ✅
+  - `InitializeLFS(repoPath)` → run `git lfs install` for new LFS setup ✅
+  - `GetTrackedPatterns(repoPath)` → parse `.gitattributes` for LFS patterns ✅
+  - `TrackPattern(repoPath, pattern)` → `git lfs track "<pattern>"` ✅
+  - `UntrackPattern(repoPath, pattern)` → `git lfs untrack "<pattern>"` ✅
+  - `GetPresetPatterns()` → return common industrial file patterns ✅
+  - `LFSStatus(repoPath)` → get LFS-tracked files and their status ✅
+  - `LFSLocks(repoPath)` → list current locks with owners ✅
+  - `LFSLock(repoPath, path)` → lock a file ✅
+  - `LFSUnlock(repoPath, path, force)` → unlock a file (force for own locks) ✅
+  - `CheckLocksBeforeBranchSwitch(repoPath)` → warn about locked files ✅
 
 - `GitService` - Conflict resolution:
-  - `GetConflictedFiles(repoPath)` → list files with merge conflicts 🔲
-  - `ResolveConflictKeepOurs(repoPath, path)` → `git checkout --ours <path>` 🔲
-  - `ResolveConflictKeepTheirs(repoPath, path)` → `git checkout --theirs <path>` 🔲
-  - `MarkResolved(repoPath, path)` → `git add <path>` after manual edit 🔲
-  - `AbortMerge(repoPath)` → `git merge --abort` 🔲
-  - `CompleteMerge(repoPath, message)` → `git commit` after all resolved 🔲
-  - `GetMergeState(repoPath)` → detect if repo is in merge/conflict state 🔲
+  - `GetMergeState(repoPath)` → detect if repo is in merge/conflict state ✅
+  - `GetConflictedFiles(repoPath)` → list files with merge conflicts ✅
+  - `ResolveConflictKeepOurs(repoPath, path)` → `git checkout --ours <path>` ✅
+  - `ResolveConflictKeepTheirs(repoPath, path)` → `git checkout --theirs <path>` ✅
+  - `MarkResolved(repoPath, path)` → `git add <path>` after manual edit ✅
+  - `AbortMerge(repoPath)` → `git merge --abort` ✅
+  - `CompleteMerge(repoPath, message)` → `git commit` after all resolved ✅
 
 ### Frontend deliverables ✅
 - **MainArea** (`components/layout/MainArea.jsx`):
@@ -240,7 +245,8 @@ Goal: make the app useful for reviewing work, recovering from common mistakes, a
 
 **v2 Implementation Status: 🔄 IN PROGRESS**
 - Core features (history, diff, undo/discard, branching): ✅ COMPLETE
-- Branch protection, LFS, conflict resolution: 🔲 PENDING
+- Backend: Branch protection, stash, LFS, conflict resolution: ✅ COMPLETE
+- Frontend: Protected branch UI, LFS UI, conflict resolution UI: 🔲 PENDING
 
 ## v3 — Industrial file intelligence: proprietary binary parsing + meaningful diffs
 
