@@ -11,7 +11,7 @@ import StatusBar from './StatusBar';
 function AppLayout() {
   return (
     <LayoutProvider>
-      <div className="h-screen w-screen flex flex-col bg-gray-900 text-gray-100 overflow-hidden">
+      <div className="h-screen w-screen flex flex-col bg-neutral-950 text-neutral-100 overflow-hidden">
         <TopBar />
         <Toaster />
         

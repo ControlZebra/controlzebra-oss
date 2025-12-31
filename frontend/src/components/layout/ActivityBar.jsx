@@ -90,7 +90,7 @@ function ActivityBar() {
   );
 
   return (
-    <nav className="w-11 bg-gray-900 border-r border-gray-700 flex flex-col items-center py-2 gap-0.5 shrink-0">
+    <nav className="w-11 bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-2 gap-0.5 shrink-0">
       {topNavButtons}
       <div className="flex-1" />
       {bottomNavButtons}

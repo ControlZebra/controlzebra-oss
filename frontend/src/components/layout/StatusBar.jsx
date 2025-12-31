@@ -78,7 +78,7 @@ function StatusBar() {
   );
 
   return (
-    <footer className="h-6 bg-gray-800 border-t border-gray-700 flex items-center justify-between px-2 select-none shrink-0">
+    <footer className="h-6 bg-neutral-900 border-t border-neutral-800 flex items-center justify-between px-2 select-none shrink-0">
       {/* Left: Panel tabs */}
       <div className="flex items-center gap-0.5">
         {PANEL_TABS.map(tab => {
@@ -93,8 +93,8 @@ function StatusBar() {
               className={`
                 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors
                 ${isActive 
-                  ? 'text-gray-200 bg-gray-700' 
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                  ? 'text-neutral-200 bg-neutral-700' 
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700'
                 }
               `}
             >
@@ -110,7 +110,7 @@ function StatusBar() {
         {repoPath ? (
           <>
             {/* Branch name */}
-            <div className="flex items-center gap-1 text-gray-400">
+            <div className="flex items-center gap-1 text-neutral-400">
               <CodeSquare style={iconStyle} />
               <span>{branchName}</span>
             </div>
@@ -133,7 +133,7 @@ function StatusBar() {
             )}
           </>
         ) : (
-          <span className="text-gray-500">No repository open</span>
+          <span className="text-neutral-500">No repository open</span>
         )}
       </div>
     </footer>

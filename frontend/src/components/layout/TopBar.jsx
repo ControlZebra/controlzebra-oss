@@ -70,7 +70,7 @@ function TopBar() {
 
   return (
     <>
-      <header className="h-[52px] bg-gray-900 border-b border-gray-700 flex items-center justify-center px-3 select-none shrink-0 relative">
+      <header className="h-[52px] bg-neutral-950 border-b border-neutral-800 flex items-center justify-center px-3 select-none shrink-0 relative">
         {/* Center: App name / repo name */}
         <div className="flex items-center gap-2">
           <span className="text-white font-semibold text-sm">
