@@ -190,9 +190,9 @@ function MainArea() {
   // Case 1: Viewing a file diff from a commit
   if (selectedCommit && selectedCommitFile && currentDiff) {
     return (
-      <main className="flex-1 bg-gray-900 flex flex-col min-w-0">
+      <main className="flex-1 bg-gray-900 flex flex-col min-w-0 min-h-0">
         <CommitHeader commit={selectedCommit} onBack={handleBackToCommit} />
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0">
           <DiffViewer fileDiff={currentDiff} showHeader={true} />
         </div>
       </main>
@@ -215,7 +215,7 @@ function MainArea() {
   // Case 3: Working tree file selected (from ChangesView)
   if (selectedFileIndex !== null && currentDiff) {
     return (
-      <main className="flex-1 bg-gray-900 flex flex-col min-w-0">
+      <main className="flex-1 bg-gray-900 flex flex-col min-w-0 min-h-0">
         <DiffViewer fileDiff={currentDiff} showHeader={true} />
       </main>
     );
