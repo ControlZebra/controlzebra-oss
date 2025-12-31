@@ -27,6 +27,9 @@ export function LayoutProvider({ children }) {
   const [bottomPanelHeight, setBottomPanelHeight] = useState(DEFAULT_BOTTOM_PANEL_HEIGHT);
   const [activeBottomPanel, setActiveBottomPanel] = useState(BOTTOM_PANELS.TERMINAL);
   
+  // Settings category state (shared between sidebar and main area)
+  const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('git-config');
+  
   // Theme state
   const [theme, setTheme] = useState('system');
 
@@ -77,6 +80,10 @@ export function LayoutProvider({ children }) {
     activeBottomPanel,
     setActiveBottomPanel,
     
+    // Settings
+    selectedSettingsCategory,
+    setSelectedSettingsCategory,
+    
     // Theme
     theme,
     setTheme,
@@ -86,7 +93,8 @@ export function LayoutProvider({ children }) {
     sidebarWidth, 
     bottomPanelCollapsed, 
     bottomPanelHeight, 
-    activeBottomPanel, 
+    activeBottomPanel,
+    selectedSettingsCategory,
     theme, 
     toggleSidebar, 
     toggleBottomPanel
