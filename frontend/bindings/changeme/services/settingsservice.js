@@ -27,6 +27,7 @@ export function GetAppSettings() {
 
 /**
  * GetUserProfile returns the git user config (global or for a specific repo)
+ * Uses concurrent goroutines to fetch name and email in parallel
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.UserProfile>}
  */
