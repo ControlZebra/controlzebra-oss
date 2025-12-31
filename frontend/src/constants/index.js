@@ -20,6 +20,7 @@ export const ICON_SIZES = {
 // Identifiers for sidebar views. Used by LayoutContext and navigation.
 // ============================================================================
 export const VIEWS = {
+  DASHBOARD: 'dashboard',
   EXPLORER: 'explorer',
   CHANGES: 'changes',
   HISTORY: 'history',

@@ -1,10 +1,11 @@
 /**
  * ActivityBar - Vertical navigation sidebar (leftmost panel).
- * Provides navigation between main views: Explorer, Changes, History, Profile, Settings.
+ * Provides navigation between main views: Dashboard, Explorer, Changes, History, Profile, Settings.
  * Clicking an active view toggles the sidebar collapsed state.
  */
 import { memo, useMemo, useCallback } from 'react';
 import {
+  Home,
   Folder,
   GitBranch,
   Clock,
@@ -16,6 +17,7 @@ import { useLayout } from '../../context';
 
 // Top navigation items (main workspace views)
 const TOP_NAV_ITEMS = [
+  { id: VIEWS.DASHBOARD, Icon: Home, label: 'Dashboard' },
   { id: VIEWS.EXPLORER, Icon: Folder, label: 'Explorer' },
   { id: VIEWS.CHANGES, Icon: GitBranch, label: 'Changes' },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History' },
