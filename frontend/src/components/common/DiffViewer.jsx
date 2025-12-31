@@ -204,9 +204,9 @@ function DiffViewer({ fileDiff, showHeader = true }) {
   }
   
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {showHeader && <DiffHeader fileDiff={fileDiff} />}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto min-h-0">
         {/* Column headers */}
         <div className="flex sticky top-0 bg-gray-800/95 border-b border-gray-700 text-xs text-gray-400">
           <div className="flex-1 px-3 py-1 border-r border-gray-700">
