@@ -21,6 +21,7 @@
  * - Discard changes
  */
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { 
   DetectRepo, 
   Status, 
@@ -65,23 +66,25 @@ export function RepoProvider({ children }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   
-  // ===== Feedback Messages =====
-  // Format: { type: 'success' | 'error' | 'info', text: string }
-  const [statusMessage, setStatusMessage] = useState(null);
-  
   // ===== Refs =====
   const pollIntervalRef = useRef(null);
 
-  // Clear status message
-  const clearStatusMessage = useCallback(() => {
-    setStatusMessage(null);
-  }, []);
-
-  // Show a temporary status message
+  // Show a toast notification using sonner
+  // Maps our type names to sonner toast methods
   const showMessage = useCallback((type, text, duration = 5000) => {
-    setStatusMessage({ type, text });
-    if (duration > 0) {
-      setTimeout(() => setStatusMessage(null), duration);
+    const options = { duration };
+    
+    switch (type) {
+      case 'success':
+        toast.success(text, options);
+        break;
+      case 'error':
+        toast.error(text, options);
+        break;
+      case 'info':
+      default:
+        toast.info(text, options);
+        break;
     }
   }, []);
 
@@ -520,9 +523,7 @@ export function RepoProvider({ children }) {
     isDiffLoading,
     
     // Feedback
-    statusMessage,
     showMessage,
-    clearStatusMessage,
     
     // Actions
     openRepo,
@@ -551,7 +552,7 @@ export function RepoProvider({ children }) {
     repoPath, repoInfo, repoStatus, commits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
-    statusMessage, showMessage, clearStatusMessage,
+    showMessage,
     openRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch,
