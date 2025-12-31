@@ -1,8 +1,9 @@
 /**
  * DiffViewer - Side-by-side diff viewer for text files.
  * Displays old and new versions with highlighted changes.
+ * Each side has its own horizontal scrollbar, vertical scroll is synchronized.
  */
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useRef, useCallback } from 'react';
 import { cn } from '../../lib/utils';
 
 /**
@@ -31,7 +32,7 @@ const DiffLine = memo(function DiffLine({ line, side }) {
       <span className="w-10 flex-shrink-0 px-2 text-right text-gray-500 select-none border-r border-gray-700/50">
         {showContent && lineNumber > 0 ? lineNumber : ''}
       </span>
-      <span className={cn('flex-1 px-2 whitespace-pre overflow-hidden', textClass)}>
+      <span className={cn('px-2 whitespace-pre', textClass)}>
         {showContent ? line.content : ''}
       </span>
     </div>
@@ -40,10 +41,11 @@ const DiffLine = memo(function DiffLine({ line, side }) {
 
 /**
  * DiffHunk - A hunk of changes with header.
+ * Returns separate arrays for left and right sides to be rendered in split panels.
  */
-const DiffHunk = memo(function DiffHunk({ hunk, showHeader }) {
+const DiffHunkLines = memo(function DiffHunkLines({ hunk, side, showHeader }) {
   // Split lines into left (old) and right (new) sides
-  const { leftLines, rightLines } = useMemo(() => {
+  const lines = useMemo(() => {
     const left = [];
     const right = [];
     
@@ -53,10 +55,8 @@ const DiffHunk = memo(function DiffHunk({ hunk, showHeader }) {
         right.push(line);
       } else if (line.type === 'delete') {
         left.push(line);
-        // Add placeholder on right
         right.push({ ...line, type: 'placeholder' });
       } else if (line.type === 'add') {
-        // Add placeholder on left
         left.push({ ...line, type: 'placeholder' });
         right.push(line);
       }
@@ -72,14 +72,12 @@ const DiffHunk = memo(function DiffHunk({ hunk, showHeader }) {
       const leftLine = left[leftIdx];
       const rightLine = right[rightIdx];
       
-      // If both are placeholders, skip (shouldn't happen)
       if (leftLine?.type === 'placeholder' && rightLine?.type === 'placeholder') {
         leftIdx++;
         rightIdx++;
         continue;
       }
       
-      // If left is delete and right is add, pair them
       if (leftLine?.type === 'delete' && rightLine?.type === 'add') {
         compactedLeft.push({ ...leftLine, newLine: rightLine.newLine });
         compactedRight.push({ ...rightLine, oldLine: leftLine.oldLine });
@@ -88,7 +86,6 @@ const DiffHunk = memo(function DiffHunk({ hunk, showHeader }) {
         continue;
       }
       
-      // Otherwise just advance
       if (leftLine) {
         compactedLeft.push(leftLine);
         leftIdx++;
@@ -107,29 +104,20 @@ const DiffHunk = memo(function DiffHunk({ hunk, showHeader }) {
       compactedRight.push({ type: 'placeholder', content: '', oldLine: 0, newLine: 0 });
     }
     
-    return { leftLines: compactedLeft, rightLines: compactedRight };
-  }, [hunk.lines]);
+    return side === 'old' ? compactedLeft : compactedRight;
+  }, [hunk.lines, side]);
   
   return (
     <div className="border-b border-gray-700/50 last:border-b-0">
       {showHeader && (
-        <div className="bg-gray-800/50 px-3 py-1 text-xs text-gray-500 font-mono border-b border-gray-700/50">
+        <div className="bg-gray-800/50 px-3 py-1 text-xs text-gray-500 font-mono border-b border-gray-700/50 whitespace-nowrap">
           {hunk.header}
         </div>
       )}
-      <div className="flex">
-        {/* Left side (old) */}
-        <div className="flex-1 border-r border-gray-700 overflow-hidden">
-          {leftLines.map((line, idx) => (
-            <DiffLine key={`left-${idx}`} line={line} side="old" />
-          ))}
-        </div>
-        {/* Right side (new) */}
-        <div className="flex-1 overflow-hidden">
-          {rightLines.map((line, idx) => (
-            <DiffLine key={`right-${idx}`} line={line} side="new" />
-          ))}
-        </div>
+      <div>
+        {lines.map((line, idx) => (
+          <DiffLine key={idx} line={line} side={side} />
+        ))}
       </div>
     </div>
   );
@@ -206,27 +194,52 @@ function DiffViewer({ fileDiff, showHeader = true }) {
   return (
     <div className="flex flex-col h-full min-h-0">
       {showHeader && <DiffHeader fileDiff={fileDiff} />}
-      <div className="flex-1 overflow-auto min-h-0">
-        {/* Column headers */}
-        <div className="flex sticky top-0 bg-gray-800/95 border-b border-gray-700 text-xs text-gray-400">
-          <div className="flex-1 px-3 py-1 border-r border-gray-700">
-            Old
-          </div>
-          <div className="flex-1 px-3 py-1">
-            New
-          </div>
+      {/* Column headers - fixed at top */}
+      <div className="flex shrink-0 bg-gray-800/95 border-b border-gray-700 text-xs text-gray-400">
+        <div className="w-1/2 px-3 py-1 border-r border-gray-700">Old</div>
+        <div className="w-1/2 px-3 py-1">New</div>
+      </div>
+      {/* Synchronized vertical scroll container */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex">
+          {/* Left panel (old) - horizontal scroll only */}
+          <DiffPanel 
+            fileDiff={fileDiff} 
+            side="old"
+          />
+          {/* Right panel (new) - horizontal scroll only */}
+          <DiffPanel 
+            fileDiff={fileDiff} 
+            side="new"
+          />
         </div>
-        {/* Hunks */}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * DiffPanel - Single side of the diff viewer with horizontal scrollbar only.
+ * Vertical scrolling is handled by the parent container.
+ */
+const DiffPanel = memo(function DiffPanel({ fileDiff, side }) {
+  return (
+    <div className={cn(
+      'w-1/2 overflow-x-auto',
+      side === 'old' && 'border-r border-gray-700'
+    )}>
+      <div className="min-w-max">
         {fileDiff.hunks.map((hunk, idx) => (
-          <DiffHunk 
+          <DiffHunkLines 
             key={idx} 
             hunk={hunk} 
+            side={side}
             showHeader={fileDiff.hunks.length > 1}
           />
         ))}
       </div>
     </div>
   );
-}
+});
 
 export default memo(DiffViewer);
