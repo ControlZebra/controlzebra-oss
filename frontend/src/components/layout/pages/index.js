@@ -7,6 +7,7 @@
 import { VIEWS } from '../../../constants';
 
 // Page components
+export { default as DashboardPage } from './DashboardPage';
 export { default as ExplorerPage } from './ExplorerPage';
 export { default as ChangesPage } from './ChangesPage';
 export { default as HistoryPage } from './HistoryPage';
@@ -14,6 +15,7 @@ export { default as ProfilePage } from './ProfilePage';
 export { SettingsPage } from './settings';
 
 // Import for registry
+import DashboardPage from './DashboardPage';
 import ExplorerPage from './ExplorerPage';
 import ChangesPage from './ChangesPage';
 import HistoryPage from './HistoryPage';
@@ -25,6 +27,7 @@ import { SettingsPage } from './settings';
  * Add new views here when creating new pages.
  */
 export const VIEW_REGISTRY = {
+  [VIEWS.DASHBOARD]: DashboardPage,
   [VIEWS.EXPLORER]: ExplorerPage,
   [VIEWS.CHANGES]: ChangesPage,
   [VIEWS.HISTORY]: HistoryPage,

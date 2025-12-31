@@ -1,6 +1,6 @@
 /**
- * ExplorerPage - Main area content for Explorer view.
- * Shows file content viewer or empty state.
+ * ExplorerPage - File explorer main area.
+ * Placeholder for future file browsing functionality.
  */
 import { memo } from 'react';
 import { Folder } from 'lucide-react';
