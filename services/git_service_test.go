@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1090,5 +1091,719 @@ func TestDiffCommitFile_Success(t *testing.T) {
 	}
 	if len(diff.Hunks) == 0 {
 		t.Error("Expected at least one hunk")
+	}
+}
+
+// ============================================================================
+// v2 Additional Tests - Stash Operations
+// ============================================================================
+
+func TestStashPush_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Make changes
+	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+
+	// Stash the changes
+	result := svc.StashPush(repoPath, "Test stash message")
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify working tree is clean
+	status := svc.Status(repoPath)
+	if status.HasChanges {
+		t.Error("Expected clean working tree after stash")
+	}
+}
+
+func TestStashPush_NoChanges(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Try to stash with no changes
+	result := svc.StashPush(repoPath, "")
+
+	if result.Success {
+		t.Error("Expected failure when no changes to stash")
+	}
+}
+
+func TestStashList_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Make changes and stash
+	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+	svc.StashPush(repoPath, "My test stash")
+
+	// List stashes
+	stashes, err := svc.StashList(repoPath)
+	if err != nil {
+		t.Fatalf("Failed to list stashes: %v", err)
+	}
+
+	if len(stashes) == 0 {
+		t.Fatal("Expected at least one stash")
+	}
+
+	// Verify the index is correctly parsed (this was a bug - using loop index instead of actual stash index)
+	if stashes[0].Index != 0 {
+		t.Errorf("Expected first stash to have Index=0, got %d", stashes[0].Index)
+	}
+	if stashes[0].Name != "stash@{0}" {
+		t.Errorf("Expected stash name 'stash@{0}', got '%s'", stashes[0].Name)
+	}
+	if !strings.Contains(stashes[0].Message, "My test stash") {
+		t.Errorf("Expected stash message to contain 'My test stash', got '%s'", stashes[0].Message)
+	}
+}
+
+// TestStashList_MultipleStashes verifies correct index parsing with multiple stashes
+func TestStashList_MultipleStashes(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create multiple stashes
+	for i := 0; i < 3; i++ {
+		if err := os.WriteFile(testFile, []byte(fmt.Sprintf("change-%d", i)), 0644); err != nil {
+			t.Fatalf("Failed to modify test file: %v", err)
+		}
+		svc.StashPush(repoPath, fmt.Sprintf("Stash %d", i))
+	}
+
+	// List stashes
+	stashes, err := svc.StashList(repoPath)
+	if err != nil {
+		t.Fatalf("Failed to list stashes: %v", err)
+	}
+
+	if len(stashes) != 3 {
+		t.Fatalf("Expected 3 stashes, got %d", len(stashes))
+	}
+
+	// Verify indices are correct (stashes are LIFO, so newest is index 0)
+	for i, stash := range stashes {
+		expectedName := fmt.Sprintf("stash@{%d}", i)
+		if stash.Name != expectedName {
+			t.Errorf("Stash %d: expected name '%s', got '%s'", i, expectedName, stash.Name)
+		}
+		if stash.Index != i {
+			t.Errorf("Stash %d: expected Index=%d, got %d", i, i, stash.Index)
+		}
+	}
+}
+
+func TestStashPop_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Make changes and stash
+	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+	svc.StashPush(repoPath, "Test stash")
+
+	// Pop the stash
+	result := svc.StashPop(repoPath)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify changes are restored
+	content, _ := os.ReadFile(testFile)
+	if string(content) != "modified" {
+		t.Errorf("Expected 'modified', got '%s'", string(content))
+	}
+}
+
+func TestStashPop_NoStashes(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Try to pop with no stashes
+	result := svc.StashPop(repoPath)
+
+	if result.Success {
+		t.Error("Expected failure when no stashes to pop")
+	}
+}
+
+func TestStashDrop_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Make changes and stash
+	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+	svc.StashPush(repoPath, "Test stash")
+
+	// Drop the stash
+	result := svc.StashDrop(repoPath, 0, true)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify stash is gone
+	stashes, _ := svc.StashList(repoPath)
+	if len(stashes) != 0 {
+		t.Errorf("Expected 0 stashes after drop, got %d", len(stashes))
+	}
+}
+
+func TestStashDrop_RequiresConfirmation(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	result := svc.StashDrop(repoPath, 0, false)
+
+	if result.Success {
+		t.Error("Expected failure without confirmation")
+	}
+	if !strings.Contains(result.Error, "requires confirmation") {
+		t.Errorf("Expected error about confirmation, got: %s", result.Error)
+	}
+}
+
+func TestStashAndSwitchBranch_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Make changes
+	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+
+	// Switch to new branch with stash
+	result := svc.StashAndSwitchBranch(repoPath, "feature-branch", true)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify we're on the new branch
+	branches := svc.Branches(repoPath)
+	if branches.Current != "feature-branch" {
+		t.Errorf("Expected to be on 'feature-branch', got '%s'", branches.Current)
+	}
+
+	// Verify changes are restored
+	content, _ := os.ReadFile(testFile)
+	if string(content) != "modified" {
+		t.Errorf("Expected 'modified', got '%s'", string(content))
+	}
+}
+
+func TestStashAndSwitchBranch_NoChanges(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit initial file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Switch to new branch without any changes
+	result := svc.StashAndSwitchBranch(repoPath, "feature-branch", true)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify we're on the new branch
+	branches := svc.Branches(repoPath)
+	if branches.Current != "feature-branch" {
+		t.Errorf("Expected to be on 'feature-branch', got '%s'", branches.Current)
+	}
+}
+
+// ============================================================================
+// v2 Additional Tests - Protected Branches
+// ============================================================================
+
+func TestIsProtectedBranch_DefaultList(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Test default protected branches
+	tests := []struct {
+		branch    string
+		protected bool
+	}{
+		{"main", true},
+		{"master", true},
+		{"develop", true},
+		{"production", true},
+		{"release", true},
+		{"feature-branch", false},
+		{"my-branch", false},
+	}
+
+	for _, tc := range tests {
+		result := svc.IsProtectedBranch(repoPath, tc.branch)
+		if result != tc.protected {
+			t.Errorf("IsProtectedBranch(%s) = %v, expected %v", tc.branch, result, tc.protected)
+		}
+	}
+}
+
+func TestIsProtectedBranch_CaseInsensitive(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Test case insensitivity
+	if !svc.IsProtectedBranch(repoPath, "MAIN") {
+		t.Error("Expected 'MAIN' to be protected (case insensitive)")
+	}
+	if !svc.IsProtectedBranch(repoPath, "Master") {
+		t.Error("Expected 'Master' to be protected (case insensitive)")
+	}
+}
+
+func TestGetProtectedBranches_Default(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	branches := svc.GetProtectedBranches(repoPath)
+
+	if len(branches) == 0 {
+		t.Error("Expected non-empty list of protected branches")
+	}
+
+	// Check that main and master are in the list
+	hasMain := false
+	hasMaster := false
+	for _, b := range branches {
+		if b == "main" {
+			hasMain = true
+		}
+		if b == "master" {
+			hasMaster = true
+		}
+	}
+
+	if !hasMain || !hasMaster {
+		t.Error("Expected 'main' and 'master' in default protected branches")
+	}
+}
+
+func TestSetProtectedBranches_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Set custom protected branches
+	result := svc.SetProtectedBranches(repoPath, []string{"main", "staging", "production"})
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify the branches are updated
+	branches := svc.GetProtectedBranches(repoPath)
+	if len(branches) != 3 {
+		t.Errorf("Expected 3 protected branches, got %d", len(branches))
+	}
+
+	// Verify staging is now protected
+	if !svc.IsProtectedBranch(repoPath, "staging") {
+		t.Error("Expected 'staging' to be protected after setting")
+	}
+}
+
+// ============================================================================
+// v2 Additional Tests - Merge State & Conflict Resolution
+// ============================================================================
+
+func TestGetMergeState_NoMerge(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	state := svc.GetMergeState(repoPath)
+
+	if state.InMerge {
+		t.Error("Expected InMerge to be false")
+	}
+	if state.InRebase {
+		t.Error("Expected InRebase to be false")
+	}
+	if state.HasConflicts {
+		t.Error("Expected HasConflicts to be false")
+	}
+}
+
+func TestGetConflictedFiles_NoConflicts(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	conflicted, err := svc.GetConflictedFiles(repoPath)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+	if len(conflicted) != 0 {
+		t.Errorf("Expected 0 conflicted files, got %d", len(conflicted))
+	}
+}
+
+// TestMergeConflict_RealConflict creates a real merge conflict and tests detection + resolution
+func TestMergeConflict_RealConflict(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runner := NewCommandRunner()
+
+	// Create initial commit on main
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("line1\nline2\nline3"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create feature branch and modify file
+	runner.RunGit(repoPath, "checkout", "-b", "feature")
+	if err := os.WriteFile(testFile, []byte("line1\nfeature change\nline3"), 0644); err != nil {
+		t.Fatalf("Failed to modify file on feature: %v", err)
+	}
+	svc.CommitAll(repoPath, "Feature change")
+
+	// Go back to main and make conflicting change
+	// First, find the main branch name (could be main or master)
+	branches := svc.Branches(repoPath)
+	mainBranch := "master"
+	for _, b := range branches.Local {
+		if b.Name == "main" {
+			mainBranch = "main"
+			break
+		}
+	}
+	runner.RunGit(repoPath, "checkout", mainBranch)
+
+	if err := os.WriteFile(testFile, []byte("line1\nmain change\nline3"), 0644); err != nil {
+		t.Fatalf("Failed to modify file on main: %v", err)
+	}
+	svc.CommitAll(repoPath, "Main change")
+
+	// Try to merge feature branch - this should create a conflict
+	mergeResult := runner.RunGit(repoPath, "merge", "feature")
+	// We expect this to fail with a conflict
+	if mergeResult.Success {
+		t.Skip("Merge succeeded without conflict - test setup issue")
+	}
+
+	// Verify we're in a merge state
+	state := svc.GetMergeState(repoPath)
+	if !state.InMerge {
+		t.Error("Expected to be in merge state after conflicting merge")
+	}
+	if !state.HasConflicts {
+		t.Error("Expected HasConflicts to be true")
+	}
+
+	// Get conflicted files
+	conflicted, err := svc.GetConflictedFiles(repoPath)
+	if err != nil {
+		t.Fatalf("Failed to get conflicted files: %v", err)
+	}
+	if len(conflicted) != 1 {
+		t.Fatalf("Expected 1 conflicted file, got %d", len(conflicted))
+	}
+	if conflicted[0].Path != "test.txt" {
+		t.Errorf("Expected conflicted file 'test.txt', got '%s'", conflicted[0].Path)
+	}
+	if conflicted[0].Status != "both-modified" {
+		t.Errorf("Expected status 'both-modified', got '%s'", conflicted[0].Status)
+	}
+
+	// Resolve conflict by keeping ours
+	resolveResult := svc.ResolveConflictKeepOurs(repoPath, "test.txt")
+	if !resolveResult.Success {
+		t.Errorf("Failed to resolve conflict: %s", resolveResult.Error)
+	}
+
+	// Verify no more conflicts
+	conflictedAfter, _ := svc.GetConflictedFiles(repoPath)
+	if len(conflictedAfter) != 0 {
+		t.Errorf("Expected 0 conflicts after resolution, got %d", len(conflictedAfter))
+	}
+
+	// Complete the merge
+	completeResult := svc.CompleteMerge(repoPath, "Merged feature with conflict resolution")
+	if !completeResult.Success {
+		t.Errorf("Failed to complete merge: %s", completeResult.Error)
+	}
+
+	// Verify we're no longer in merge state
+	finalState := svc.GetMergeState(repoPath)
+	if finalState.InMerge {
+		t.Error("Expected to not be in merge state after completion")
+	}
+
+	// Verify our content won
+	content, _ := os.ReadFile(testFile)
+	if !strings.Contains(string(content), "main change") {
+		t.Errorf("Expected 'main change' in file after keeping ours, got: %s", string(content))
+	}
+}
+
+// TestMergeConflict_AbortMerge tests aborting a merge in progress
+func TestMergeConflict_AbortMerge(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runner := NewCommandRunner()
+
+	// Create initial commit on main
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("original"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create feature branch with different content
+	runner.RunGit(repoPath, "checkout", "-b", "feature")
+	if err := os.WriteFile(testFile, []byte("feature content"), 0644); err != nil {
+		t.Fatalf("Failed to modify file on feature: %v", err)
+	}
+	svc.CommitAll(repoPath, "Feature change")
+
+	// Go back to main and make conflicting change
+	branches := svc.Branches(repoPath)
+	mainBranch := "master"
+	for _, b := range branches.Local {
+		if b.Name == "main" {
+			mainBranch = "main"
+			break
+		}
+	}
+	runner.RunGit(repoPath, "checkout", mainBranch)
+	if err := os.WriteFile(testFile, []byte("main content"), 0644); err != nil {
+		t.Fatalf("Failed to modify file on main: %v", err)
+	}
+	svc.CommitAll(repoPath, "Main change")
+
+	// Start merge that will conflict
+	runner.RunGit(repoPath, "merge", "feature")
+
+	// Verify we're in merge state
+	state := svc.GetMergeState(repoPath)
+	if !state.InMerge {
+		t.Skip("Not in merge state - test setup issue")
+	}
+
+	// Abort the merge
+	abortResult := svc.AbortMerge(repoPath)
+	if !abortResult.Success {
+		t.Errorf("Failed to abort merge: %s", abortResult.Error)
+	}
+
+	// Verify we're no longer in merge state
+	afterState := svc.GetMergeState(repoPath)
+	if afterState.InMerge {
+		t.Error("Expected to not be in merge state after abort")
+	}
+
+	// Verify content is back to main's version
+	content, _ := os.ReadFile(testFile)
+	if string(content) != "main content" {
+		t.Errorf("Expected 'main content' after abort, got: %s", string(content))
+	}
+}
+
+func TestAbortMerge_NoMergeInProgress(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	result := svc.AbortMerge(repoPath)
+
+	if result.Success {
+		t.Error("Expected failure when no merge in progress")
+	}
+	if !strings.Contains(result.Error, "No merge or rebase in progress") {
+		t.Errorf("Expected error about no merge in progress, got: %s", result.Error)
+	}
+}
+
+func TestCompleteMerge_NoMergeInProgress(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	result := svc.CompleteMerge(repoPath, "Merge commit")
+
+	if result.Success {
+		t.Error("Expected failure when no merge in progress")
+	}
+}
+
+func TestMarkResolved_EmptyPath(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	result := svc.MarkResolved(repoPath, "")
+
+	if result.Success {
+		t.Error("Expected failure for empty path")
+	}
+	if !strings.Contains(result.Error, "File path is required") {
+		t.Errorf("Expected error about file path required, got: %s", result.Error)
+	}
+}
+
+func TestResolveConflictKeepOurs_EmptyPath(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	result := svc.ResolveConflictKeepOurs(repoPath, "")
+
+	if result.Success {
+		t.Error("Expected failure for empty path")
+	}
+}
+
+func TestResolveConflictKeepTheirs_EmptyPath(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	result := svc.ResolveConflictKeepTheirs(repoPath, "")
+
+	if result.Success {
+		t.Error("Expected failure for empty path")
 	}
 }

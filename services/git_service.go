@@ -3,6 +3,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1350,4 +1351,510 @@ func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool)
 	}
 
 	return successOp(fmt.Sprintf("Discarded changes to '%s'", filePath))
+}
+
+// ============================================================================
+// v2 Additions - Stash Operations
+// ============================================================================
+
+// StashEntry represents a single stash entry
+type StashEntry struct {
+	Index   int    `json:"index"`
+	Name    string `json:"name"`    // e.g., "stash@{0}"
+	Message string `json:"message"` // Stash message
+	Branch  string `json:"branch"`  // Branch the stash was created on
+}
+
+// StashPush creates a new stash with an optional message.
+// Stashes all tracked changes (staged and unstaged).
+func (g *GitService) StashPush(repoPath string, message string) OperationResult {
+	status := g.Status(repoPath)
+	if !status.HasChanges {
+		return failedOp("No changes to stash")
+	}
+
+	args := []string{"stash", "push"}
+	if message != "" {
+		args = append(args, "-m", message)
+	}
+
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to stash changes: " + getErrorMessage(result))
+	}
+
+	return successOp("Changes stashed successfully")
+}
+
+// StashPop applies the most recent stash and removes it from the stash list.
+func (g *GitService) StashPop(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "stash", "pop")
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "No stash entries") {
+			return failedOp("No stashes to apply")
+		}
+		if strings.Contains(errMsg, "CONFLICT") || strings.Contains(errMsg, "conflict") {
+			return failedOp("Conflict while applying stash. Please resolve conflicts manually.")
+		}
+		return failedOp("Failed to apply stash: " + errMsg)
+	}
+
+	return successOp("Stash applied and removed")
+}
+
+// StashList returns all stash entries.
+func (g *GitService) StashList(repoPath string) ([]StashEntry, error) {
+	result := g.runner.RunGit(repoPath, "stash", "list", "--pretty=format:%gd|%gs")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to list stashes: %s", getErrorMessage(result))
+	}
+
+	output := strings.TrimSpace(result.Stdout)
+	if output == "" {
+		return []StashEntry{}, nil
+	}
+
+	lines := strings.Split(output, "\n")
+	entries := make([]StashEntry, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, "|", 2)
+		// Parse index from stash ref like "stash@{0}"
+		stashIdx := len(entries) // fallback to order in list
+		if len(parts[0]) > 0 {
+			// Extract number from "stash@{N}"
+			if start := strings.Index(parts[0], "{"); start >= 0 {
+				if end := strings.Index(parts[0], "}"); end > start {
+					if n, err := strconv.Atoi(parts[0][start+1 : end]); err == nil {
+						stashIdx = n
+					}
+				}
+			}
+		}
+
+		entry := StashEntry{
+			Index: stashIdx,
+			Name:  parts[0],
+		}
+		if len(parts) > 1 {
+			entry.Message = parts[1]
+			// Extract branch from message like "WIP on main: abc123 commit msg"
+			if strings.HasPrefix(entry.Message, "WIP on ") || strings.HasPrefix(entry.Message, "On ") {
+				if colonIdx := strings.Index(entry.Message, ":"); colonIdx > 0 {
+					branchPart := entry.Message[:colonIdx]
+					if spaceIdx := strings.LastIndex(branchPart, " "); spaceIdx > 0 {
+						entry.Branch = branchPart[spaceIdx+1:]
+					}
+				}
+			}
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+// StashDrop removes a specific stash entry by index.
+// Requires confirm=true as a safety measure.
+func (g *GitService) StashDrop(repoPath string, index int, confirm bool) OperationResult {
+	if err := requireConfirmation(confirm); err != nil {
+		return failedOp(err.Error())
+	}
+
+	stashRef := fmt.Sprintf("stash@{%d}", index)
+	result := g.runner.RunGit(repoPath, "stash", "drop", stashRef)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "does not exist") || strings.Contains(errMsg, "No stash entries") {
+			return failedOp(fmt.Sprintf("Stash entry %s does not exist", stashRef))
+		}
+		return failedOp("Failed to drop stash: " + errMsg)
+	}
+
+	return successOp(fmt.Sprintf("Dropped %s", stashRef))
+}
+
+// StashAndSwitchBranch performs a safe branch switch by stashing changes first.
+// Flow: stash push → checkout (or checkout -b if createNew) → stash pop
+// If the stash pop fails due to conflicts, the stash is preserved.
+func (g *GitService) StashAndSwitchBranch(repoPath string, targetBranch string, createNew bool) OperationResult {
+	if targetBranch == "" {
+		return failedOp("Branch name is required")
+	}
+
+	// Check if we have changes to stash
+	status := g.Status(repoPath)
+	hadChanges := status.HasChanges
+
+	if hadChanges {
+		// Stash changes
+		stashResult := g.StashPush(repoPath, fmt.Sprintf("Auto-stash before switching to %s", targetBranch))
+		if !stashResult.Success {
+			return stashResult
+		}
+	}
+
+	// Switch to the target branch
+	var switchResult OperationResult
+	if createNew {
+		result := g.runner.RunGit(repoPath, "checkout", "-b", targetBranch)
+		if !result.Success {
+			errMsg := getErrorMessage(result)
+			// Try to recover the stash if branch creation failed
+			if hadChanges {
+				g.StashPop(repoPath)
+			}
+			if strings.Contains(errMsg, "already exists") {
+				return failedOp(fmt.Sprintf("Branch '%s' already exists", targetBranch))
+			}
+			return failedOp("Failed to create branch: " + errMsg)
+		}
+		switchResult = successOp(fmt.Sprintf("Created and switched to '%s'", targetBranch))
+	} else {
+		result := g.runner.RunGit(repoPath, "checkout", targetBranch)
+		if !result.Success {
+			errMsg := getErrorMessage(result)
+			// Try to recover the stash if switch failed
+			if hadChanges {
+				g.StashPop(repoPath)
+			}
+			if strings.Contains(errMsg, "did not match") {
+				return failedOp(fmt.Sprintf("Branch '%s' does not exist", targetBranch))
+			}
+			return failedOp("Failed to switch branch: " + errMsg)
+		}
+		switchResult = successOp(fmt.Sprintf("Switched to '%s'", targetBranch))
+	}
+
+	// Restore stashed changes if we had any
+	if hadChanges {
+		popResult := g.StashPop(repoPath)
+		if !popResult.Success {
+			// Stash pop failed (likely conflict) - inform user but keep on new branch
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("%s. Note: Could not restore your changes automatically. They are saved in the stash - use 'git stash pop' manually after resolving any conflicts.", switchResult.Message),
+			}
+		}
+		return successOp(fmt.Sprintf("%s with your changes", switchResult.Message))
+	}
+
+	return switchResult
+}
+
+// ============================================================================
+// v2 Additions - Protected Branches
+// ============================================================================
+
+// defaultProtectedBranches contains the default list of protected branch names
+var defaultProtectedBranches = []string{"main", "master", "develop", "production", "release"}
+
+// IsProtectedBranch checks if the given branch name is in the protected list.
+// Uses the configured list from settings, falling back to defaults.
+func (g *GitService) IsProtectedBranch(repoPath string, branchName string) bool {
+	protectedList := g.GetProtectedBranches(repoPath)
+	branchLower := strings.ToLower(branchName)
+	for _, protected := range protectedList {
+		if strings.ToLower(protected) == branchLower {
+			return true
+		}
+	}
+	return false
+}
+
+// GetProtectedBranches returns the list of protected branch names.
+// Reads from .rewind-logic/config.json in the repo, falls back to defaults.
+func (g *GitService) GetProtectedBranches(repoPath string) []string {
+	configPath := filepath.Join(repoPath, ".rewind-logic", "config.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return defaultProtectedBranches
+	}
+
+	type RepoConfig struct {
+		ProtectedBranches []string `json:"protectedBranches"`
+	}
+	var config RepoConfig
+	if err := parseJSON(data, &config); err != nil || len(config.ProtectedBranches) == 0 {
+		return defaultProtectedBranches
+	}
+
+	return config.ProtectedBranches
+}
+
+// SetProtectedBranches updates the list of protected branches for the repo.
+// Stores in .rewind-logic/config.json in the repository.
+func (g *GitService) SetProtectedBranches(repoPath string, branches []string) OperationResult {
+	configDir := filepath.Join(repoPath, ".rewind-logic")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return failedOp("Failed to create config directory: " + err.Error())
+	}
+
+	configPath := filepath.Join(configDir, "config.json")
+
+	// Read existing config
+	type RepoConfig struct {
+		ProtectedBranches []string `json:"protectedBranches"`
+	}
+	config := RepoConfig{ProtectedBranches: branches}
+
+	// Read and merge existing config if present
+	if existingData, err := os.ReadFile(configPath); err == nil {
+		var existing map[string]interface{}
+		if parseJSON(existingData, &existing) == nil {
+			existing["protectedBranches"] = branches
+			data, err := formatJSON(existing)
+			if err != nil {
+				return failedOp("Failed to encode config: " + err.Error())
+			}
+			if err := os.WriteFile(configPath, data, 0644); err != nil {
+				return failedOp("Failed to write config: " + err.Error())
+			}
+			return successOp("Protected branches updated")
+		}
+	}
+
+	// Write new config
+	data, err := formatJSON(config)
+	if err != nil {
+		return failedOp("Failed to encode config: " + err.Error())
+	}
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return failedOp("Failed to write config: " + err.Error())
+	}
+
+	return successOp("Protected branches updated")
+}
+
+// ============================================================================
+// v2 Additions - Conflict Resolution
+// ============================================================================
+
+// MergeState represents the current merge/rebase state of a repository
+type MergeState struct {
+	InMerge      bool   `json:"inMerge"`
+	InRebase     bool   `json:"inRebase"`
+	HasConflicts bool   `json:"hasConflicts"`
+	Message      string `json:"message,omitempty"` // Merge commit message if available
+}
+
+// ConflictedFile represents a file with merge conflicts
+type ConflictedFile struct {
+	Path   string `json:"path"`
+	Status string `json:"status"` // "both-modified", "deleted-by-us", "deleted-by-them", "both-added"
+}
+
+// GetMergeState detects if the repository is in a merge or rebase state.
+func (g *GitService) GetMergeState(repoPath string) MergeState {
+	state := MergeState{}
+
+	// Check for merge in progress
+	mergePath := filepath.Join(repoPath, ".git", "MERGE_HEAD")
+	if _, err := os.Stat(mergePath); err == nil {
+		state.InMerge = true
+		// Try to read the merge message
+		msgPath := filepath.Join(repoPath, ".git", "MERGE_MSG")
+		if msgData, err := os.ReadFile(msgPath); err == nil {
+			state.Message = strings.TrimSpace(string(msgData))
+		}
+	}
+
+	// Check for rebase in progress
+	rebasePath := filepath.Join(repoPath, ".git", "rebase-merge")
+	rebaseApplyPath := filepath.Join(repoPath, ".git", "rebase-apply")
+	if _, err := os.Stat(rebasePath); err == nil {
+		state.InRebase = true
+	} else if _, err := os.Stat(rebaseApplyPath); err == nil {
+		state.InRebase = true
+	}
+
+	// Check for conflicts
+	conflicted, _ := g.GetConflictedFiles(repoPath)
+	state.HasConflicts = len(conflicted) > 0
+
+	return state
+}
+
+// GetConflictedFiles returns a list of files with merge conflicts.
+func (g *GitService) GetConflictedFiles(repoPath string) ([]ConflictedFile, error) {
+	// Use git status to find files with conflicts
+	result := g.runner.RunGit(repoPath, "status", "--porcelain")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to get status: %s", getErrorMessage(result))
+	}
+
+	conflicted := []ConflictedFile{}
+	lines := strings.Split(result.Stdout, "\n")
+	for _, line := range lines {
+		if len(line) < 3 {
+			continue
+		}
+
+		xy := line[:2]
+		path := strings.TrimSpace(line[3:])
+
+		// Conflict indicators in porcelain format:
+		// UU = both modified (most common)
+		// AA = both added
+		// DD = both deleted
+		// DU = deleted by us, modified by them
+		// UD = modified by us, deleted by them
+		// AU = added by us, modified by them
+		// UA = modified by us, added by them
+		var status string
+		switch xy {
+		case "UU":
+			status = "both-modified"
+		case "AA":
+			status = "both-added"
+		case "DD":
+			status = "both-deleted"
+		case "DU", "AU":
+			status = "deleted-by-us"
+		case "UD", "UA":
+			status = "deleted-by-them"
+		default:
+			continue // Not a conflict
+		}
+
+		conflicted = append(conflicted, ConflictedFile{
+			Path:   path,
+			Status: status,
+		})
+	}
+
+	return conflicted, nil
+}
+
+// ResolveConflictKeepOurs resolves a conflict by keeping our version.
+// Runs: git checkout --ours <path> && git add <path>
+func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) OperationResult {
+	if filePath == "" {
+		return failedOp("File path is required")
+	}
+
+	result := g.runner.RunGit(repoPath, "checkout", "--ours", "--", filePath)
+	if !result.Success {
+		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
+	}
+
+	// Stage the resolved file
+	addResult := g.runner.RunGit(repoPath, "add", "--", filePath)
+	if !addResult.Success {
+		return failedOp("Failed to stage resolved file: " + getErrorMessage(addResult))
+	}
+
+	return successOp(fmt.Sprintf("Resolved '%s' by keeping your version", filePath))
+}
+
+// ResolveConflictKeepTheirs resolves a conflict by keeping their version.
+// Runs: git checkout --theirs <path> && git add <path>
+func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string) OperationResult {
+	if filePath == "" {
+		return failedOp("File path is required")
+	}
+
+	result := g.runner.RunGit(repoPath, "checkout", "--theirs", "--", filePath)
+	if !result.Success {
+		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
+	}
+
+	// Stage the resolved file
+	addResult := g.runner.RunGit(repoPath, "add", "--", filePath)
+	if !addResult.Success {
+		return failedOp("Failed to stage resolved file: " + getErrorMessage(addResult))
+	}
+
+	return successOp(fmt.Sprintf("Resolved '%s' by keeping their version", filePath))
+}
+
+// MarkResolved marks a file as resolved after manual editing.
+// Runs: git add <path>
+func (g *GitService) MarkResolved(repoPath string, filePath string) OperationResult {
+	if filePath == "" {
+		return failedOp("File path is required")
+	}
+
+	result := g.runner.RunGit(repoPath, "add", "--", filePath)
+	if !result.Success {
+		return failedOp("Failed to mark as resolved: " + getErrorMessage(result))
+	}
+
+	return successOp(fmt.Sprintf("Marked '%s' as resolved", filePath))
+}
+
+// AbortMerge aborts the current merge operation.
+// Returns the repository to the state before the merge started.
+func (g *GitService) AbortMerge(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InMerge && !state.InRebase {
+		return failedOp("No merge or rebase in progress")
+	}
+
+	var result CommandResult
+	if state.InRebase {
+		result = g.runner.RunGit(repoPath, "rebase", "--abort")
+	} else {
+		result = g.runner.RunGit(repoPath, "merge", "--abort")
+	}
+
+	if !result.Success {
+		return failedOp("Failed to abort: " + getErrorMessage(result))
+	}
+
+	if state.InRebase {
+		return successOp("Rebase aborted")
+	}
+	return successOp("Merge aborted")
+}
+
+// CompleteMerge completes the merge by committing after all conflicts are resolved.
+func (g *GitService) CompleteMerge(repoPath string, message string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InMerge {
+		return failedOp("No merge in progress")
+	}
+
+	// Check if there are still conflicts
+	conflicted, err := g.GetConflictedFiles(repoPath)
+	if err != nil {
+		return failedOp("Failed to check conflicts: " + err.Error())
+	}
+	if len(conflicted) > 0 {
+		return failedOp(fmt.Sprintf("Cannot complete merge: %d file(s) still have conflicts", len(conflicted)))
+	}
+
+	// Use the provided message or the default merge message
+	args := []string{"commit"}
+	if message != "" {
+		args = append(args, "-m", message)
+	} else {
+		args = append(args, "--no-edit") // Use the default merge message
+	}
+
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to complete merge: " + getErrorMessage(result))
+	}
+
+	return successOp("Merge completed successfully")
+}
+
+// ============================================================================
+// JSON Helpers
+// ============================================================================
+
+// parseJSON parses JSON data into a struct
+func parseJSON(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
+}
+
+// formatJSON formats a value as indented JSON
+func formatJSON(v interface{}) ([]byte, error) {
+	return json.MarshalIndent(v, "", "  ")
 }
