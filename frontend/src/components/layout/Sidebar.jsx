@@ -54,10 +54,10 @@ function Sidebar() {
 
   return (
     <aside 
-      className="bg-gray-800/50 border-r border-gray-700 flex flex-col shrink-0 relative"
+      className="bg-neutral-900 border-r border-neutral-800 flex flex-col shrink-0 relative"
       style={{ width: sidebarWidth }}
     >
-      <header className="h-9 px-3 flex items-center border-b border-gray-700 shrink-0">
+      <header className="h-9 px-3 flex items-center border-b border-neutral-800 shrink-0">
         <h2 className="text-gray-400 text-xs font-medium uppercase tracking-wide">
           {title}
         </h2>

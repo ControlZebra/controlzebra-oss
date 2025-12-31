@@ -38,10 +38,10 @@ const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
  */
 const CommitHeader = memo(function CommitHeader({ commit, onBack }) {
   return (
-    <div className="border-b border-gray-700 bg-gray-800/50">
+    <div className="border-b border-neutral-700 bg-neutral-800">
       {/* Back button when viewing file diff */}
       {onBack && (
-        <div className="px-4 py-2 border-b border-gray-700/50">
+        <div className="px-4 py-2 border-b border-neutral-700/50">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ChevronLeft style={iconStyle} />
             <span>Back to commit</span>
@@ -49,11 +49,11 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack }) {
         </div>
       )}
       <div className="px-4 py-3">
-        <h2 className="text-gray-100 font-medium mb-2">{commit.message}</h2>
+        <h2 className="text-neutral-100 font-medium mb-2">{commit.message}</h2>
         {commit.body && (
-          <p className="text-gray-400 text-sm mb-3 whitespace-pre-wrap">{commit.body}</p>
+          <p className="text-neutral-400 text-sm mb-3 whitespace-pre-wrap">{commit.body}</p>
         )}
-        <div className="flex items-center gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-4 text-xs text-neutral-500">
           <div className="flex items-center gap-1.5">
             <Hash style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} />
             <span className="font-mono">{commit.shortHash}</span>
@@ -69,7 +69,7 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack }) {
         </div>
         {/* Stats */}
         <div className="flex items-center gap-3 mt-3 text-xs">
-          <span className="text-gray-400">
+          <span className="text-neutral-400">
             {commit.stats?.filesChanged || 0} file{commit.stats?.filesChanged !== 1 ? 's' : ''} changed
           </span>
           <span className="text-green-400 flex items-center gap-1">
@@ -99,26 +99,26 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }) {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="px-4 py-2 text-xs text-gray-500 uppercase tracking-wide border-b border-gray-700/50 sticky top-0 bg-gray-900">
+      <div className="px-4 py-2 text-xs text-neutral-500 uppercase tracking-wide border-b border-neutral-700/50 sticky top-0 bg-neutral-800">
         Changed Files
       </div>
       {files.map((file, idx) => (
         <button
           key={idx}
           onClick={() => onFileSelect(file.path)}
-          className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-800/50 transition-colors text-left"
+          className="w-full flex items-center gap-2 px-4 py-2 hover:bg-neutral-800/50 transition-colors text-left"
         >
-          <FileText style={iconStyle} className="text-gray-400 shrink-0" />
-          <span className="flex-1 text-sm text-gray-200 truncate font-mono">
+          <FileText style={iconStyle} className="text-neutral-400 shrink-0" />
+          <span className="flex-1 text-sm text-neutral-200 truncate font-mono">
             {file.oldPath && file.oldPath !== file.path 
               ? `${file.oldPath} → ${file.path}`
               : file.path
             }
           </span>
-          <span className={`text-xs uppercase ${statusColors[file.status] || 'text-gray-400'}`}>
+          <span className={`text-xs uppercase ${statusColors[file.status] || 'text-neutral-400'}`}>
             {file.status}
           </span>
-          <span className="text-xs text-gray-500 w-16 text-right">
+          <span className="text-xs text-neutral-500 w-16 text-right">
             <span className="text-green-400">+{file.additions}</span>
             {' '}
             <span className="text-red-400">-{file.deletions}</span>
@@ -137,16 +137,16 @@ const ExplorerMainContent = memo(function ExplorerMainContent() {
   
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-center text-gray-600 px-4">
-        <Folder style={{ width: 48, height: 48 }} className="mx-auto mb-4 text-gray-700" />
+      <div className="text-center text-neutral-600 px-4">
+        <Folder style={{ width: 48, height: 48 }} className="mx-auto mb-4 text-neutral-700" />
         {repoPath ? (
           <>
-            <p className="text-base text-gray-400">File Explorer</p>
+            <p className="text-base text-neutral-400">File Explorer</p>
             <p className="text-sm mt-1">Double-click a file in the sidebar to view its contents</p>
           </>
         ) : (
           <>
-            <p className="text-base text-gray-400">No folder open</p>
+            <p className="text-base text-neutral-400">No folder open</p>
             <p className="text-sm mt-1">Open a folder to browse files</p>
           </>
         )}
@@ -191,29 +191,29 @@ const ProfileMainContent = memo(function ProfileMainContent() {
         <div className="text-center mb-8">
           <UserCircle 
             style={{ width: avatarSize, height: avatarSize }} 
-            className="text-gray-600 mx-auto mb-4" 
+            className="text-neutral-600 mx-auto mb-4" 
           />
-          <h2 className="text-xl text-gray-200 font-medium">Your Profile</h2>
-          <p className="text-gray-500 mt-1">Manage your identity and connected accounts</p>
+          <h2 className="text-xl text-neutral-200 font-medium">Your Profile</h2>
+          <p className="text-neutral-500 mt-1">Manage your identity and connected accounts</p>
         </div>
         
         {/* Quick Status */}
-        <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700 mb-4">
-          <h3 className="text-gray-200 font-medium mb-4">Connected Accounts</h3>
+        <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700 mb-4">
+          <h3 className="text-neutral-200 font-medium mb-4">Connected Accounts</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-3">
-                <Github style={{ width: 20, height: 20 }} className="text-gray-400" />
-                <span className="text-gray-300">GitHub</span>
+                <Github style={{ width: 20, height: 20 }} className="text-neutral-400" />
+                <span className="text-neutral-300">GitHub</span>
               </div>
-              <span className="text-gray-600 text-sm">Not connected</span>
+              <span className="text-neutral-600 text-sm">Not connected</span>
             </div>
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-3">
-                <GitLabIcon style={{ width: 20, height: 20 }} className="text-gray-400" />
-                <span className="text-gray-300">GitLab</span>
+                <GitLabIcon style={{ width: 20, height: 20 }} className="text-neutral-400" />
+                <span className="text-neutral-300">GitLab</span>
               </div>
-              <span className="text-gray-600 text-sm">Not connected</span>
+              <span className="text-neutral-600 text-sm">Not connected</span>
             </div>
           </div>
           <Button 
@@ -225,7 +225,7 @@ const ProfileMainContent = memo(function ProfileMainContent() {
           </Button>
         </div>
         
-        <p className="text-xs text-gray-600 text-center">
+        <p className="text-xs text-neutral-600 text-center">
           Go to Settings → Accounts to connect GitHub or GitLab
         </p>
       </div>
@@ -284,9 +284,9 @@ const GitConfigForm = memo(function GitConfigForm() {
   }, [name, email]);
 
   return (
-    <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-      <h3 className="text-gray-200 font-medium mb-4">Git Identity</h3>
-      <p className="text-gray-500 text-sm mb-6">This information will be used for your commits</p>
+    <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
+      <h3 className="text-neutral-200 font-medium mb-4">Git Identity</h3>
+      <p className="text-neutral-500 text-sm mb-6">This information will be used for your commits</p>
       
       <div className="space-y-4">
         <div>
@@ -316,7 +316,7 @@ const GitConfigForm = memo(function GitConfigForm() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-700">
+      <div className="flex items-center justify-between mt-6 pt-4 border-t border-neutral-700">
         {message ? (
           <div className={`flex items-center gap-1.5 text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
             {message.type === 'success' 
@@ -326,7 +326,7 @@ const GitConfigForm = memo(function GitConfigForm() {
             <span>{message.text}</span>
           </div>
         ) : (
-          <span className="text-gray-500 text-sm">Applied globally for all repositories</span>
+          <span className="text-neutral-500 text-sm">Applied globally for all repositories</span>
         )}
         
         <Button
@@ -350,14 +350,14 @@ const AccountsSettings = memo(function AccountsSettings() {
   return (
     <div className="space-y-4">
       {/* GitHub Section */}
-      <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
+      <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
         <div className="flex items-center gap-4 mb-4">
-          <Github style={{ width: 32, height: 32 }} className="text-gray-300" />
+          <Github style={{ width: 32, height: 32 }} className="text-neutral-300" />
           <div className="flex-1">
-            <h3 className="text-gray-200 font-medium">GitHub</h3>
-            <p className="text-gray-500 text-sm">Push, pull, and manage pull requests</p>
+            <h3 className="text-neutral-200 font-medium">GitHub</h3>
+            <p className="text-neutral-500 text-sm">Push, pull, and manage pull requests</p>
           </div>
-          <span className="text-gray-600 text-xs uppercase">Not connected</span>
+          <span className="text-neutral-600 text-xs uppercase">Not connected</span>
         </div>
         <Button variant="secondary" className="w-full justify-center">
           <Github style={buttonIconStyle} />
@@ -366,14 +366,14 @@ const AccountsSettings = memo(function AccountsSettings() {
       </div>
       
       {/* GitLab Section */}
-      <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
+      <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
         <div className="flex items-center gap-4 mb-4">
-          <GitLabIcon style={{ width: 32, height: 32 }} className="text-gray-300" />
+          <GitLabIcon style={{ width: 32, height: 32 }} className="text-neutral-300" />
           <div className="flex-1">
-            <h3 className="text-gray-200 font-medium">GitLab</h3>
-            <p className="text-gray-500 text-sm">Push, pull, and manage merge requests</p>
+            <h3 className="text-neutral-200 font-medium">GitLab</h3>
+            <p className="text-neutral-500 text-sm">Push, pull, and manage merge requests</p>
           </div>
-          <span className="text-gray-600 text-xs uppercase">Not connected</span>
+          <span className="text-neutral-600 text-xs uppercase">Not connected</span>
         </div>
         <Button variant="secondary" className="w-full justify-center">
           <GitLabIcon style={buttonIconStyle} />
@@ -381,7 +381,7 @@ const AccountsSettings = memo(function AccountsSettings() {
         </Button>
       </div>
       
-      <p className="text-xs text-gray-600 text-center pt-2">
+      <p className="text-xs text-neutral-600 text-center pt-2">
         Connecting accounts uses the CLI tools (gh, glab) installed on your system
       </p>
     </div>
@@ -403,8 +403,8 @@ const SettingsMainContent = memo(function SettingsMainContent() {
         return <GitConfigForm />;
       case 'general':
         return (
-          <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-            <p className="text-gray-500 text-center">General settings coming soon</p>
+          <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
+            <p className="text-neutral-500 text-center">General settings coming soon</p>
           </div>
         );
       case 'accounts':
@@ -420,10 +420,10 @@ const SettingsMainContent = memo(function SettingsMainContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Settings style={{ width: 24, height: 24 }} className="text-gray-500" />
-            <h2 className="text-xl text-gray-200 font-medium">{categoryInfo.name}</h2>
+            <Settings style={{ width: 24, height: 24 }} className="text-neutral-500" />
+            <h2 className="text-xl text-neutral-200 font-medium">{categoryInfo.name}</h2>
           </div>
-          <p className="text-gray-500">{categoryInfo.description}</p>
+          <p className="text-neutral-500">{categoryInfo.description}</p>
         </div>
         
         {/* Category content */}
@@ -447,7 +447,7 @@ const EmptyState = memo(function EmptyState({ activeView }) {
 
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-center text-gray-600 px-4">
+      <div className="text-center text-neutral-600 px-4">
         <p className="text-base">Select an item from the sidebar</p>
         <p className="text-sm mt-1">{VIEW_HINTS[activeView]}</p>
       </div>
@@ -461,7 +461,7 @@ const EmptyState = memo(function EmptyState({ activeView }) {
 const LoadingState = memo(function LoadingState() {
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-gray-500 text-sm">Loading...</div>
+      <div className="text-neutral-500 text-sm">Loading...</div>
     </div>
   );
 });
@@ -548,7 +548,7 @@ function MainArea() {
   };
 
   return (
-    <main className="flex-1 bg-gray-900 flex flex-col min-w-0 min-h-0">
+    <main className="flex-1 bg-neutral-800 flex flex-col min-w-0 min-h-0">
       {renderContent()}
     </main>
   );
