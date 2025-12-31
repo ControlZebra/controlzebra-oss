@@ -67,16 +67,30 @@ function ChangesView() {
     commitChanges,
     syncRepo,
     isCommitting,
-    isSyncing
+    isSyncing,
+    loadWorkingDiff,
+    clearSelection,
   } = useRepo();
 
   const [message, setMessage] = useState('');
   const [justCommitted, setJustCommitted] = useState(false);
 
-  // Toggle file selection
+  // Handle file selection - load diff when selected
   const handleSelect = useCallback((index) => {
-    setSelectedFileIndex(selectedFileIndex === index ? null : index);
-  }, [selectedFileIndex, setSelectedFileIndex]);
+    const changedFiles = repoStatus?.changedFiles || [];
+    if (selectedFileIndex === index) {
+      // Deselect
+      setSelectedFileIndex(null);
+      clearSelection();
+    } else {
+      // Select and load diff
+      setSelectedFileIndex(index);
+      const file = changedFiles[index];
+      if (file) {
+        loadWorkingDiff(file.path);
+      }
+    }
+  }, [selectedFileIndex, setSelectedFileIndex, repoStatus, loadWorkingDiff, clearSelection]);
 
   // Handle commit message input
   const handleMessageChange = useCallback((e) => {
