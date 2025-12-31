@@ -36,6 +36,7 @@ export {
     LFSFileStatus,
     LFSInfo,
     LFSLock,
+    LockFileInfo,
     MergeState,
     OpenFileResult,
     OpenFolderDialogResult,

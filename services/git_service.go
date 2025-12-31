@@ -1846,6 +1846,80 @@ func (g *GitService) CompleteMerge(repoPath string, message string) OperationRes
 }
 
 // ============================================================================
+// Recovery Utilities
+// ============================================================================
+
+// LockFileInfo contains information about Git lock files in the repository
+type LockFileInfo struct {
+	IndexLockExists bool   `json:"indexLockExists"`
+	IndexLockPath   string `json:"indexLockPath"`
+	Error           string `json:"error,omitempty"`
+}
+
+// CheckLockFile checks if a .git/index.lock file exists in the repository.
+// This lock file is created by Git during operations and can be left behind if
+// a process crashes or is interrupted.
+func (g *GitService) CheckLockFile(repoPath string) LockFileInfo {
+	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+
+	_, err := os.Stat(lockPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return LockFileInfo{
+				IndexLockExists: false,
+				IndexLockPath:   lockPath,
+			}
+		}
+		return LockFileInfo{
+			IndexLockExists: false,
+			IndexLockPath:   lockPath,
+			Error:           "Failed to check lock file: " + err.Error(),
+		}
+	}
+
+	return LockFileInfo{
+		IndexLockExists: true,
+		IndexLockPath:   lockPath,
+	}
+}
+
+// RemoveLockFile removes the .git/index.lock file from the repository.
+// This is useful for recovering from a stale lock file left behind by a crashed
+// Git process. Returns an OperationResult indicating success or failure.
+//
+// CAUTION: Only call this when you are certain no other Git operation is in progress.
+// Removing a lock file while another Git process is running can cause corruption.
+func (g *GitService) RemoveLockFile(repoPath string) OperationResult {
+	// First verify this is a valid git repository
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return failedOp("Not a valid git repository")
+	}
+
+	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+
+	// Check if lock file exists
+	_, err := os.Stat(lockPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return OperationResult{
+				Success: true,
+				Message: "No lock file exists",
+			}
+		}
+		return failedOp("Failed to check lock file: " + err.Error())
+	}
+
+	// Remove the lock file
+	err = os.Remove(lockPath)
+	if err != nil {
+		return failedOp("Failed to remove lock file: " + err.Error())
+	}
+
+	return successOp("Lock file removed successfully")
+}
+
+// ============================================================================
 // JSON Helpers
 // ============================================================================
 
