@@ -11,14 +11,19 @@ Guiding principles:
 ## Current implementation snapshot (Dec 2025)
 
 Backend (Go/Wails):
-- Only `GreetService` exists; no Git/auth/services yet.
+- `GitService` fully implemented with v1 + v2 methods
+- `CommandRunner` helper for CLI execution
+- `SettingsService` for app settings persistence
+- `FileSystemService` and `FileDialogService` for file operations
+- `TerminalService` for terminal integration
 
 Frontend (React/MUI + Tailwind):
-- VS Code-like layout exists (TopBar, ActivityBar, Sidebar views, MainArea placeholder, BottomPanel Commit/Terminal).
-- Sidebar views are mock-driven (`MOCK_CHANGED_FILES`, `MOCK_COMMITS`, `SETTINGS_CATEGORIES`).
-- Commit panel has UI for message + Save/Share but no real operations.
+- VS Code-like layout (TopBar, ActivityBar, Sidebar views, MainArea, BottomPanel, StatusBar)
+- Real git operations via Wails bindings
+- v1 complete: repo open, status, commit, sync, push
+- v2 complete: history viewing, diff viewing, branch switching, undo/discard
 
-## v1 — MVP: “Make Git usable without Git”
+## v1 — MVP: "Make Git usable without Git" ✅ COMPLETE
 
 Goal: deliver the core daily loop for a single local repo.
 
@@ -70,43 +75,82 @@ Goal: deliver the core daily loop for a single local repo.
 ### Definition of done
 - A user can open a repo, see changed files, Save, Sync, Share without using CLI.
 
-## v2 — Review & recovery: history + diffs + safer workflows
+**v1 Implementation Status: ✅ COMPLETE**
+
+## v2 — Review & recovery: history + diffs + safer workflows ✅ COMPLETE
 
 Goal: make the app useful for reviewing work and recovering from common mistakes.
 
-### UX deliverables
+### UX deliverables ✅
 - History view:
-  - Real commit list (`git log --pretty=...`), clickable.
+  - Real commit list (`git log --pretty=...`), clickable. ✅
+  - Clicking a commit shows commit details in MainArea. ✅
 - Diff viewing for text-like files:
-  - Selecting a file shows `git diff` (working tree) or commit-to-commit diff.
-  - Selecting a commit shows changed files for that commit.
+  - Selecting a file shows `git diff` (working tree) in MainArea. ✅
+  - Side-by-side diff viewer with syntax highlighting. ✅
+  - Selecting a commit shows changed files for that commit. ✅
+  - Clicking a file in commit shows the diff for that file. ✅
 - Undo Last Save:
-  - One button for `git reset --soft HEAD~1` with a confirmation.
+  - Button in TopBar for `git reset --soft HEAD~1` with AlertDialog confirmation. ✅
 - Discard My Changes:
-  - One button for `git checkout -- .` (or the safer modern `git restore .` if allowed) with a confirmation.
+  - Button in TopBar for `git restore .` with AlertDialog confirmation. ✅
 - Start New Task / Switch Task:
-  - `git checkout -b <name>` and `git checkout <branch>`.
+  - BranchModal triggered from TopBar for branch switching/creation. ✅
+  - `git checkout -b <name>` and `git checkout <branch>`. ✅
 
-### Backend deliverables
-- `GitService` additions:
-  - `Log(repoPath, limit)`
-  - `ShowCommit(repoPath, hash)`
-  - `DiffWorking(repoPath, path)`
-  - `DiffCommits(repoPath, fromHash, toHash, path?)`
-  - `Branches(repoPath)`
-  - `CheckoutBranch(repoPath, name)`
-  - `CreateBranchAndCheckout(repoPath, name)`
-  - `ResetSoftHead(repoPath, n)`
-  - `DiscardAll(repoPath)`
+### Backend deliverables ✅
+- `GitService` additions (all implemented in `services/git_service.go`):
+  - `GetRecentCommits(repoPath, limit)` ✅
+  - `ShowCommit(repoPath, hash)` ✅
+  - `DiffWorking(repoPath, path)` ✅
+  - `DiffCommits(repoPath, fromHash, toHash, path?)` ✅
+  - `DiffCommitFile(repoPath, hash, path)` ✅
+  - `Branches(repoPath)` ✅
+  - `CheckoutBranch(repoPath, name)` ✅
+  - `CreateBranchAndCheckout(repoPath, name)` ✅
+  - `ResetSoftHead(repoPath, n, confirm)` ✅
+  - `DiscardAll(repoPath, confirm)` ✅
+  - `DiscardFile(repoPath, path, confirm)` ✅
 
-### Frontend deliverables
-- MainArea becomes the “detail pane”:
-  - commit details, file diff, and operation output.
-- StatusBar becomes real (branch, sync state, changes count, last operation result).
+### Frontend deliverables ✅
+- **MainArea** (`components/layout/MainArea.jsx`):
+  - Shows commit details when a commit is selected in HistoryView
+  - Shows file diff when a file is selected (working tree or commit)
+  - CommitHeader component with author, date, stats
+  - CommitFileList component for browsing changed files in a commit
+- **DiffViewer** (`components/common/DiffViewer.jsx`):
+  - Side-by-side diff rendering
+  - Syntax highlighting for add/delete/context lines
+  - Hunk headers and file path display
+  - Binary file handling
+- **HistoryView** (`components/layout/views/HistoryView.jsx`):
+  - Clickable commits that load details via `selectCommit()`
+  - Selected state visual feedback
+- **ChangesView** (`components/layout/views/ChangesView.jsx`):
+  - File selection triggers `loadWorkingDiff()`
+  - Integration with MainArea for viewing
+- **TopBar** (`components/layout/TopBar.jsx`):
+  - Undo Last Save button with AlertDialog confirmation
+  - Discard All Changes button with AlertDialog confirmation
+  - Branch button opens BranchModal
+- **BranchModal** (`components/layout/BranchModal.jsx`):
+  - Switch between existing branches
+  - Create new branches
+  - Search/filter branch list
+- **AlertDialog** (`components/ui/alert-dialog.jsx`):
+  - shadcn-style confirmation dialog
+  - Used for destructive actions (undo, discard)
+- **RepoContext** (`context/RepoContext.jsx`):
+  - New state: `selectedCommit`, `selectedCommitFile`, `currentDiff`, `branches`
+  - New actions: `loadWorkingDiff`, `selectCommit`, `loadCommitFileDiff`
+  - New actions: `switchBranch`, `createBranch`, `refreshBranches`
+  - New actions: `undoLastCommit`, `discardAllChanges`, `discardFileChanges`
 
 ### Non-goals
 - Full conflict resolution UI for arbitrary merges.
 - Proprietary binary parsing (starts in v3).
+
+**v2 Implementation Status: ✅ COMPLETE (Dec 31, 2025)**
 
 ## v3 — Industrial file intelligence: proprietary binary parsing + meaningful diffs
 

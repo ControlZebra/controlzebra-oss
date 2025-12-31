@@ -3,7 +3,9 @@
  * 
  * Manages:
  * - Repository path, info, and status
- * - Commit history
+ * - Commit history and selected commit details
+ * - File diffs for working tree and commits
+ * - Branch list and operations
  * - Loading states for async operations
  * - User feedback messages
  * - File selection state
@@ -13,10 +15,28 @@
  * - Opening repositories
  * - Committing changes
  * - Syncing with remote
- * - Refreshing status and commits
+ * - Viewing diffs
+ * - Branch switching/creation
+ * - Undo last commit (ResetSoftHead)
+ * - Discard changes
  */
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { DetectRepo, Status, CommitAll, Sync, GetRecentCommits } from '../../bindings/changeme/services/gitservice';
+import { 
+  DetectRepo, 
+  Status, 
+  CommitAll, 
+  Sync, 
+  GetRecentCommits,
+  ShowCommit,
+  DiffWorking,
+  DiffCommitFile,
+  Branches,
+  CheckoutBranch,
+  CreateBranchAndCheckout,
+  ResetSoftHead,
+  DiscardAll,
+  DiscardFile,
+} from '../../bindings/changeme/services/gitservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
 import { Events } from '@wailsio/runtime';
 
@@ -31,18 +51,23 @@ export function RepoProvider({ children }) {
   const [repoInfo, setRepoInfo] = useState(null);
   const [repoStatus, setRepoStatus] = useState(null);
   const [commits, setCommits] = useState([]);
+  const [branches, setBranches] = useState(null);
+  
+  // ===== Selection State (v2) =====
+  const [selectedFileIndex, setSelectedFileIndex] = useState(null);
+  const [selectedCommit, setSelectedCommit] = useState(null); // CommitDetail object
+  const [selectedCommitFile, setSelectedCommitFile] = useState(null); // File path in commit
+  const [currentDiff, setCurrentDiff] = useState(null); // FileDiff object
   
   // ===== Loading States =====
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isDiffLoading, setIsDiffLoading] = useState(false);
   
   // ===== Feedback Messages =====
   // Format: { type: 'success' | 'error' | 'info', text: string }
   const [statusMessage, setStatusMessage] = useState(null);
-  
-  // ===== UI State =====
-  const [selectedFileIndex, setSelectedFileIndex] = useState(null);
   
   // ===== Refs =====
   const pollIntervalRef = useRef(null);
@@ -237,6 +262,241 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
+  // ===== v2: Diff Operations =====
+  
+  // Load diff for a working tree file (changed file in ChangesView)
+  const loadWorkingDiff = useCallback(async (filePath) => {
+    if (!repoPath || !filePath) {
+      setCurrentDiff(null);
+      return;
+    }
+    
+    setIsDiffLoading(true);
+    setSelectedCommit(null); // Clear commit selection when viewing working changes
+    setSelectedCommitFile(null);
+    
+    try {
+      const diff = await DiffWorking(repoPath, filePath);
+      setCurrentDiff(diff);
+    } catch (err) {
+      console.error('Failed to load diff:', err);
+      setCurrentDiff({ hasError: true, error: err.message || 'Failed to load diff' });
+    } finally {
+      setIsDiffLoading(false);
+    }
+  }, [repoPath]);
+
+  // Load commit details when a commit is selected in HistoryView
+  const selectCommit = useCallback(async (commitHash) => {
+    if (!repoPath || !commitHash) {
+      setSelectedCommit(null);
+      setCurrentDiff(null);
+      return;
+    }
+    
+    setIsDiffLoading(true);
+    setSelectedFileIndex(null); // Clear working file selection
+    setSelectedCommitFile(null);
+    setCurrentDiff(null);
+    
+    try {
+      const detail = await ShowCommit(repoPath, commitHash);
+      if (detail.hasError) {
+        showMessage('error', detail.error || 'Failed to load commit');
+        setSelectedCommit(null);
+      } else {
+        setSelectedCommit(detail);
+      }
+    } catch (err) {
+      console.error('Failed to load commit:', err);
+      showMessage('error', `Failed to load commit: ${err.message || err}`);
+      setSelectedCommit(null);
+    } finally {
+      setIsDiffLoading(false);
+    }
+  }, [repoPath, showMessage]);
+
+  // Load diff for a file within a selected commit
+  const loadCommitFileDiff = useCallback(async (filePath) => {
+    if (!repoPath || !selectedCommit || !filePath) {
+      return;
+    }
+    
+    setIsDiffLoading(true);
+    setSelectedCommitFile(filePath);
+    
+    try {
+      const diff = await DiffCommitFile(repoPath, selectedCommit.hash, filePath);
+      setCurrentDiff(diff);
+    } catch (err) {
+      console.error('Failed to load commit file diff:', err);
+      setCurrentDiff({ hasError: true, error: err.message || 'Failed to load diff' });
+    } finally {
+      setIsDiffLoading(false);
+    }
+  }, [repoPath, selectedCommit]);
+
+  // Clear all selections
+  const clearSelection = useCallback(() => {
+    setSelectedFileIndex(null);
+    setSelectedCommit(null);
+    setSelectedCommitFile(null);
+    setCurrentDiff(null);
+  }, []);
+
+  // ===== v2: Branch Operations =====
+  
+  // Fetch branches
+  const refreshBranches = useCallback(async () => {
+    if (!repoPath) return;
+    
+    try {
+      const branchList = await Branches(repoPath);
+      if (!branchList.hasError) {
+        setBranches(branchList);
+      }
+    } catch (err) {
+      console.error('Failed to fetch branches:', err);
+    }
+  }, [repoPath]);
+
+  // Switch to existing branch
+  const switchBranch = useCallback(async (branchName) => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    try {
+      const result = await CheckoutBranch(repoPath, branchName);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to switch branch');
+        return false;
+      }
+      
+      showMessage('success', result.message || `Switched to ${branchName}`);
+      clearSelection();
+      await refreshAll();
+      await refreshBranches();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to switch branch: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
+
+  // Create new branch and switch to it
+  const createBranch = useCallback(async (branchName) => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    try {
+      const result = await CreateBranchAndCheckout(repoPath, branchName);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to create branch');
+        return false;
+      }
+      
+      showMessage('success', result.message || `Created branch ${branchName}`);
+      clearSelection();
+      await refreshAll();
+      await refreshBranches();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to create branch: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
+
+  // ===== v2: Recovery Operations =====
+  
+  // Undo last commit (keeps changes staged)
+  const undoLastCommit = useCallback(async () => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    try {
+      const result = await ResetSoftHead(repoPath, 1, true);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to undo last commit');
+        return false;
+      }
+      
+      showMessage('success', result.message || 'Undid last commit');
+      clearSelection();
+      await refreshAll();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to undo: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearSelection, refreshAll]);
+
+  // Discard all changes
+  const discardAllChanges = useCallback(async () => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    try {
+      const result = await DiscardAll(repoPath, true);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to discard changes');
+        return false;
+      }
+      
+      showMessage('success', result.message || 'All changes discarded');
+      clearSelection();
+      await refreshAll();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to discard: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearSelection, refreshAll]);
+
+  // Discard changes to a single file
+  const discardFileChanges = useCallback(async (filePath) => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    try {
+      const result = await DiscardFile(repoPath, filePath, true);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to discard file changes');
+        return false;
+      }
+      
+      showMessage('success', result.message || `Discarded changes to ${filePath}`);
+      setSelectedFileIndex(null);
+      setCurrentDiff(null);
+      await refreshStatus();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to discard: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshStatus]);
+
+  // Also refresh branches when repo changes
+  useEffect(() => {
+    if (repoPath) {
+      refreshBranches();
+    }
+  }, [repoPath, refreshBranches]);
+
   // Memoized context value
   const value = useMemo(() => ({
     // State
@@ -244,13 +504,20 @@ export function RepoProvider({ children }) {
     repoInfo,
     repoStatus,
     commits,
+    branches,
     selectedFileIndex,
     setSelectedFileIndex,
+    
+    // v2: Selection state
+    selectedCommit,
+    selectedCommitFile,
+    currentDiff,
     
     // Loading states
     isLoading,
     isSyncing,
     isCommitting,
+    isDiffLoading,
     
     // Feedback
     statusMessage,
@@ -264,11 +531,31 @@ export function RepoProvider({ children }) {
     refreshStatus,
     refreshCommits,
     refreshAll,
+    
+    // v2: Diff actions
+    loadWorkingDiff,
+    selectCommit,
+    loadCommitFileDiff,
+    clearSelection,
+    
+    // v2: Branch actions
+    refreshBranches,
+    switchBranch,
+    createBranch,
+    
+    // v2: Recovery actions
+    undoLastCommit,
+    discardAllChanges,
+    discardFileChanges,
   }), [
-    repoPath, repoInfo, repoStatus, commits, selectedFileIndex,
-    isLoading, isSyncing, isCommitting,
+    repoPath, repoInfo, repoStatus, commits, branches, selectedFileIndex,
+    selectedCommit, selectedCommitFile, currentDiff,
+    isLoading, isSyncing, isCommitting, isDiffLoading,
     statusMessage, showMessage, clearStatusMessage,
     openRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
+    refreshBranches, switchBranch, createBranch,
+    undoLastCommit, discardAllChanges, discardFileChanges,
   ]);
 
   return (
