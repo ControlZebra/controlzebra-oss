@@ -6,7 +6,7 @@
 import { memo, useMemo, useCallback } from 'react';
 import {
   Folder,
-  FileText,
+  GitBranch,
   Clock,
   Settings,
   UserCircle,
@@ -17,7 +17,7 @@ import { useLayout } from '../../context';
 // Top navigation items (main workspace views)
 const TOP_NAV_ITEMS = [
   { id: VIEWS.EXPLORER, Icon: Folder, label: 'Explorer' },
-  { id: VIEWS.CHANGES, Icon: FileText, label: 'Changes' },
+  { id: VIEWS.CHANGES, Icon: GitBranch, label: 'Changes' },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History' },
 ];
 
@@ -41,14 +41,14 @@ function NavButton({ item, isActive, onClick }) {
       aria-label={label}
       aria-pressed={isActive}
       className={`
-        w-9 h-9 flex items-center justify-center rounded transition-colors
+        w-10 h-10 flex items-center justify-center rounded transition-colors
         ${isActive 
           ? 'bg-gray-700 text-blue-400' 
           : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
         }
       `}
     >
-      <Icon style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
+      <Icon style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }} />
     </button>
   );
 }
@@ -90,7 +90,7 @@ function ActivityBar() {
   );
 
   return (
-    <nav className="w-11 bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-2 gap-0.5 shrink-0">
+    <nav className="w-14 bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-3 gap-2 shrink-0">
       {topNavButtons}
       <div className="flex-1" />
       {bottomNavButtons}

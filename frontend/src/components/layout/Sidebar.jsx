@@ -31,7 +31,7 @@ function Sidebar() {
 
     const handleMouseMove = (e) => {
       if (!isResizing.current) return;
-      const activityBarWidth = 44; // w-11 = 44px
+      const activityBarWidth = 56; // w-14 = 56px
       const newWidth = e.clientX - activityBarWidth;
       setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
     };
