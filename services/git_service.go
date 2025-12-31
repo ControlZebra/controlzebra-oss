@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Pre-compiled regular expressions for performance
@@ -113,13 +114,42 @@ type RepoStatus struct {
 }
 
 // Status returns the current status of the repository
+// Uses concurrent goroutines to fetch branch, ahead/behind, and status in parallel
 func (g *GitService) Status(repoPath string) RepoStatus {
 	result := RepoStatus{
 		ChangedFiles: []FileStatus{},
 	}
 
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	var branchResult, aheadBehindResult, statusResult CommandResult
+
+	// Run all three git commands concurrently
+	wg.Add(3)
+
 	// Get current branch
-	branchResult := g.runner.RunGit(repoPath, "branch", "--show-current")
+	go func() {
+		defer wg.Done()
+		branchResult = g.runner.RunGit(repoPath, "branch", "--show-current")
+	}()
+
+	// Get ahead/behind counts
+	go func() {
+		defer wg.Done()
+		aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
+	}()
+
+	// Get changed files using git status --porcelain
+	go func() {
+		defer wg.Done()
+		statusResult = g.runner.RunGit(repoPath, "status", "--porcelain")
+	}()
+
+	wg.Wait()
+
+	// Process branch result
+	mu.Lock()
 	if branchResult.Success {
 		result.Branch = trimOutput(branchResult.Stdout)
 	} else {
@@ -127,10 +157,9 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		result.Branch = "HEAD"
 	}
 
-	// Get ahead/behind counts
-	aheadBehind := g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
-	if aheadBehind.Success {
-		parts := strings.Fields(trimOutput(aheadBehind.Stdout))
+	// Process ahead/behind result
+	if aheadBehindResult.Success {
+		parts := strings.Fields(trimOutput(aheadBehindResult.Stdout))
 		if len(parts) == 2 {
 			// First is behind (upstream ahead), second is ahead (local ahead)
 			if n, err := strconv.Atoi(parts[0]); err == nil {
@@ -142,13 +171,14 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		}
 	}
 
-	// Get changed files using git status --porcelain
-	statusResult := g.runner.RunGit(repoPath, "status", "--porcelain")
+	// Process status result
 	if !statusResult.Success {
 		result.HasError = true
 		result.Error = "Failed to get git status"
+		mu.Unlock()
 		return result
 	}
+	mu.Unlock()
 
 	lines := strings.Split(statusResult.Stdout, "\n")
 	for _, line := range lines {
@@ -610,6 +640,7 @@ func (g *GitService) SupportsRestore() bool {
 }
 
 // ShowCommit returns detailed information about a specific commit
+// Uses concurrent goroutines to fetch metadata, numstat, and name-status in parallel
 func (g *GitService) ShowCommit(repoPath string, hash string) CommitDetail {
 	result := CommitDetail{}
 
@@ -619,10 +650,34 @@ func (g *GitService) ShowCommit(repoPath string, hash string) CommitDetail {
 		return result
 	}
 
+	var wg sync.WaitGroup
+	var showResult, statsResult, nameStatusResult CommandResult
+
+	// Run all three git commands concurrently
+	wg.Add(3)
+
 	// Get commit metadata
-	// Format: hash|short_hash|message|body|author|email|date|relative_date|parents
-	format := "%H|%h|%s|%b|%an|%ae|%ci|%cr|%P"
-	showResult := g.runner.RunGit(repoPath, "show", "-s", "--pretty=format:"+format, hash)
+	go func() {
+		defer wg.Done()
+		format := "%H|%h|%s|%b|%an|%ae|%ci|%cr|%P"
+		showResult = g.runner.RunGit(repoPath, "show", "-s", "--pretty=format:"+format, hash)
+	}()
+
+	// Get list of files changed with stats using --numstat
+	go func() {
+		defer wg.Done()
+		statsResult = g.runner.RunGit(repoPath, "show", "--numstat", "--pretty=format:", hash)
+	}()
+
+	// Get name-status for accurate status detection
+	go func() {
+		defer wg.Done()
+		nameStatusResult = g.runner.RunGit(repoPath, "show", "--name-status", "--pretty=format:", hash)
+	}()
+
+	wg.Wait()
+
+	// Process metadata result
 	if !showResult.Success {
 		result.HasError = true
 		result.Error = "Commit not found: " + hash
@@ -648,14 +703,12 @@ func (g *GitService) ShowCommit(repoPath string, hash string) CommitDetail {
 		result.ParentHashes = strings.Fields(parts[8])
 	}
 
-	// Get list of files changed with stats using --numstat
-	statsResult := g.runner.RunGit(repoPath, "show", "--numstat", "--pretty=format:", hash)
+	// Process numstat result
 	if statsResult.Success {
 		result.Files = g.parseNumstat(statsResult.Stdout)
 	}
 
-	// Get name-status for accurate status detection
-	nameStatusResult := g.runner.RunGit(repoPath, "show", "--name-status", "--pretty=format:", hash)
+	// Process name-status result
 	if nameStatusResult.Success {
 		statusMap := g.parseNameStatus(nameStatusResult.Stdout)
 		for i := range result.Files {
@@ -1062,20 +1115,45 @@ func parseCountOrDefault(s string, defaultVal int) int {
 }
 
 // Branches returns all branches in the repository
+// Uses concurrent goroutines to fetch current, local, and remote branches in parallel
 func (g *GitService) Branches(repoPath string) BranchList {
 	result := BranchList{
 		Local:  []BranchInfo{},
 		Remote: []BranchInfo{},
 	}
 
+	var wg sync.WaitGroup
+	var currentResult, localResult, remoteResult CommandResult
+
+	// Run all three git commands concurrently
+	wg.Add(3)
+
 	// Get current branch
-	currentResult := g.runner.RunGit(repoPath, "branch", "--show-current")
+	go func() {
+		defer wg.Done()
+		currentResult = g.runner.RunGit(repoPath, "branch", "--show-current")
+	}()
+
+	// Get local branches with upstream info
+	go func() {
+		defer wg.Done()
+		localResult = g.runner.RunGit(repoPath, "branch", "-vv")
+	}()
+
+	// Get remote branches
+	go func() {
+		defer wg.Done()
+		remoteResult = g.runner.RunGit(repoPath, "branch", "-r")
+	}()
+
+	wg.Wait()
+
+	// Process current branch result
 	if currentResult.Success {
 		result.Current = trimOutput(currentResult.Stdout)
 	}
 
-	// Get local branches with upstream info
-	localResult := g.runner.RunGit(repoPath, "branch", "-vv")
+	// Process local branches result
 	if !localResult.Success {
 		result.HasError = true
 		result.Error = "Failed to get branches: " + localResult.Stderr
@@ -1118,11 +1196,10 @@ func (g *GitService) Branches(repoPath string) BranchList {
 		result.Local = append(result.Local, branch)
 	}
 
-	// Get remote branches
-	remoteResult := g.runner.RunGit(repoPath, "branch", "-r")
+	// Process remote branches result (already fetched concurrently)
 	if remoteResult.Success {
-		lines := strings.Split(remoteResult.Stdout, "\n")
-		for _, line := range lines {
+		remoteLines := strings.Split(remoteResult.Stdout, "\n")
+		for _, line := range remoteLines {
 			line = strings.TrimSpace(line)
 			if line == "" || strings.Contains(line, "->") {
 				continue // Skip HEAD references like origin/HEAD -> origin/main

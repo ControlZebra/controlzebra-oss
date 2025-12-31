@@ -17,6 +17,7 @@ import * as $models from "./models.js";
 
 /**
  * Branches returns all branches in the repository
+ * Uses concurrent goroutines to fetch current, local, and remote branches in parallel
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.BranchList>}
  */
@@ -205,6 +206,7 @@ export function ResetSoftHead(repoPath, n, confirm) {
 
 /**
  * ShowCommit returns detailed information about a specific commit
+ * Uses concurrent goroutines to fetch metadata, numstat, and name-status in parallel
  * @param {string} repoPath
  * @param {string} hash
  * @returns {$CancellablePromise<$models.CommitDetail>}
@@ -217,6 +219,7 @@ export function ShowCommit(repoPath, hash) {
 
 /**
  * Status returns the current status of the repository
+ * Uses concurrent goroutines to fetch branch, ahead/behind, and status in parallel
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.RepoStatus>}
  */

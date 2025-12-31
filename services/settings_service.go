@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // SettingsService manages app and user settings
@@ -73,6 +74,7 @@ func (s *SettingsService) SaveAppSettings(settings AppSettings) error {
 }
 
 // GetUserProfile returns the git user config (global or for a specific repo)
+// Uses concurrent goroutines to fetch name and email in parallel
 func (s *SettingsService) GetUserProfile(repoPath string) UserProfile {
 	profile := UserProfile{}
 
@@ -82,14 +84,30 @@ func (s *SettingsService) GetUserProfile(repoPath string) UserProfile {
 		workDir = repoPath
 	}
 
+	var wg sync.WaitGroup
+	var nameResult, emailResult CommandResult
+
+	// Run both git config commands concurrently
+	wg.Add(2)
+
 	// Get user name
-	nameResult := s.runner.RunGit(workDir, "config", "user.name")
+	go func() {
+		defer wg.Done()
+		nameResult = s.runner.RunGit(workDir, "config", "user.name")
+	}()
+
+	// Get user email
+	go func() {
+		defer wg.Done()
+		emailResult = s.runner.RunGit(workDir, "config", "user.email")
+	}()
+
+	wg.Wait()
+
+	// Process results
 	if nameResult.Success {
 		profile.Name = strings.TrimSpace(nameResult.Stdout)
 	}
-
-	// Get user email
-	emailResult := s.runner.RunGit(workDir, "config", "user.email")
 	if emailResult.Success {
 		profile.Email = strings.TrimSpace(emailResult.Stdout)
 	}
