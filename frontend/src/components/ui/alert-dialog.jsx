@@ -100,7 +100,7 @@ const AlertDialogContent = React.forwardRef(({ className, children, ...props }, 
         <div
           ref={ref}
           className={cn(
-            "relative w-full max-w-md bg-gray-800 border border-gray-700 rounded-lg shadow-xl",
+            "relative w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl",
             "animate-in fade-in-0 zoom-in-95 duration-200",
             className
           )}
@@ -146,7 +146,7 @@ function AlertDialogFooter({ className, ...props }) {
 const AlertDialogTitle = React.forwardRef(({ className, ...props }, ref) => (
   <h2
     ref={ref}
-    className={cn("text-lg font-semibold text-gray-100", className)}
+    className={cn("text-lg font-semibold text-theme-primary", className)}
     {...props}
   />
 ));
@@ -158,7 +158,7 @@ AlertDialogTitle.displayName = "AlertDialogTitle";
 const AlertDialogDescription = React.forwardRef(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-gray-400", className)}
+    className={cn("text-sm text-theme-secondary", className)}
     {...props}
   />
 ));

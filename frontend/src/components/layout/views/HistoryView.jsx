@@ -22,13 +22,13 @@ const CommitItem = memo(function CommitItem({ commit, isSelected, onSelect }) {
       className={`flex items-start gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
         isSelected 
           ? 'bg-blue-600/30 border-l-2 border-blue-500' 
-          : 'hover:bg-gray-700/50 border-l-2 border-transparent'
+          : 'hover-bg-theme-interactive border-l-2 border-transparent'
       }`}
     >
-      <Hash style={iconStyle} className="text-gray-400 mt-0.5 shrink-0" />
+      <Hash style={iconStyle} className="text-theme-secondary mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-gray-200 text-sm truncate">{commit.message}</p>
-        <p className="text-gray-500 text-xs">
+        <p className="text-theme-primary text-sm truncate">{commit.message}</p>
+        <p className="text-theme-muted text-xs">
           <span className="font-mono">{commit.shortHash}</span>
           <span className="mx-1">•</span>
           <span>{commit.relativeDate}</span>
@@ -54,8 +54,8 @@ function HistoryView() {
   if (!repoPath) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-gray-500 text-sm">No repository open</p>
-        <p className="text-gray-600 text-xs mt-1">Use File → Open Folder to select a repo</p>
+        <p className="text-theme-muted text-sm">No repository open</p>
+        <p className="text-theme-muted text-xs mt-1">Use File → Open Folder to select a repo</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ function HistoryView() {
   // Empty history state
   if (commits.length === 0) {
     return (
-      <p className="px-3 py-4 text-gray-500 text-sm text-center">
+      <p className="px-3 py-4 text-theme-muted text-sm text-center">
         No commit history
       </p>
     );

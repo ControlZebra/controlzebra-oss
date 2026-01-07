@@ -14,12 +14,12 @@ function AllSyncedScreen({ repoPath }) {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">
           <CheckCircle2 style={{ width: 32, height: 32 }} className="text-green-400" />
         </div>
-        <h1 className="text-3xl font-light text-neutral-100 mb-2">All caught up!</h1>
+        <h1 className="text-3xl font-light text-theme-primary mb-2">All caught up!</h1>
 
-        <p className="text-neutral-300 text-base mb-2">
+        <p className="text-theme-secondary text-base mb-2">
           No changes detected in <span className="font-medium">{folderName}</span>
         </p>
-        <p className="text-neutral-500 text-sm">
+        <p className="text-theme-muted text-sm">
           Your project is up to date. Make some changes to files and they'll appear here.
         </p>
       </div>

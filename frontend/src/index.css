@@ -1,5 +1,125 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   THEME CONFIGURATION
+   Using CSS custom properties for light/dark theme support.
+   Tailwind v4 uses selector strategy with .dark class on html element.
+   ============================================================================ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Light theme (default) */
+:root {
+  /* Backgrounds */
+  --color-bg-base: theme(colors.neutral.50);
+  --color-bg-surface: theme(colors.white);
+  --color-bg-elevated: theme(colors.neutral.100);
+  --color-bg-muted: theme(colors.neutral.200);
+  --color-bg-subtle: theme(colors.neutral.100);
+  
+  /* Text */
+  --color-text-primary: theme(colors.neutral.900);
+  --color-text-secondary: theme(colors.neutral.600);
+  --color-text-muted: theme(colors.neutral.500);
+  --color-text-inverted: theme(colors.white);
+  
+  /* Borders */
+  --color-border-default: theme(colors.neutral.300);
+  --color-border-muted: theme(colors.neutral.200);
+  
+  /* Interactive */
+  --color-interactive-hover: theme(colors.neutral.200);
+  --color-interactive-active: theme(colors.blue.100);
+  
+  /* Accents */
+  --color-accent-primary: theme(colors.blue.600);
+  --color-accent-primary-hover: theme(colors.blue.700);
+}
+
+/* Dark theme */
+.dark {
+  /* Backgrounds */
+  --color-bg-base: theme(colors.neutral.950);
+  --color-bg-surface: theme(colors.neutral.900);
+  --color-bg-elevated: theme(colors.neutral.800);
+  --color-bg-muted: theme(colors.neutral.700);
+  --color-bg-subtle: theme(colors.neutral.800/50);
+  
+  /* Text */
+  --color-text-primary: theme(colors.neutral.100);
+  --color-text-secondary: theme(colors.neutral.400);
+  --color-text-muted: theme(colors.neutral.500);
+  --color-text-inverted: theme(colors.neutral.900);
+  
+  /* Borders */
+  --color-border-default: theme(colors.neutral.800);
+  --color-border-muted: theme(colors.neutral.700);
+  
+  /* Interactive */
+  --color-interactive-hover: theme(colors.neutral.700/50);
+  --color-interactive-active: theme(colors.blue.900/30);
+  
+  /* Accents */
+  --color-accent-primary: theme(colors.blue.500);
+  --color-accent-primary-hover: theme(colors.blue.400);
+}
+
+/* Theme utility classes using CSS variables */
+@utility bg-theme-base {
+  background-color: var(--color-bg-base);
+}
+
+@utility bg-theme-surface {
+  background-color: var(--color-bg-surface);
+}
+
+@utility bg-theme-elevated {
+  background-color: var(--color-bg-elevated);
+}
+
+@utility bg-theme-muted {
+  background-color: var(--color-bg-muted);
+}
+
+@utility bg-theme-subtle {
+  background-color: var(--color-bg-subtle);
+}
+
+@utility text-theme-primary {
+  color: var(--color-text-primary);
+}
+
+@utility text-theme-secondary {
+  color: var(--color-text-secondary);
+}
+
+@utility text-theme-muted {
+  color: var(--color-text-muted);
+}
+
+@utility text-theme-tertiary {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+@utility border-theme-default {
+  border-color: var(--color-border-default);
+}
+
+@utility border-theme-muted {
+  border-color: var(--color-border-muted);
+}
+
+@utility hover-bg-theme-interactive {
+  &:hover {
+    background-color: var(--color-interactive-hover);
+  }
+}
+
+@utility bg-theme-interactive-active {
+  background-color: var(--color-interactive-active);
+}
+
 /* Screen transition animation */
 @keyframes fadeSlideIn {
   from {

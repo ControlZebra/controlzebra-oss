@@ -43,13 +43,13 @@ const FileItem = memo(function FileItem({ file, index, isSelected, onSelect }) {
       className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
         isSelected 
           ? 'bg-blue-600/30 border-l-2 border-blue-500' 
-          : 'hover:bg-gray-700/50 border-l-2 border-transparent'
+          : 'hover-bg-theme-interactive border-l-2 border-transparent'
       }`}
     >
-      <FileText style={iconStyle} className="text-gray-400 shrink-0" />
+      <FileText style={iconStyle} className="text-theme-secondary shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-gray-200 text-sm truncate">{file.name}</p>
-        <p className="text-gray-500 text-xs truncate">{file.path}</p>
+        <p className="text-theme-primary text-sm truncate">{file.name}</p>
+        <p className="text-theme-muted text-xs truncate">{file.path}</p>
       </div>
       {StatusIcon && (
         <StatusIcon style={statusIconStyle} className={statusConfig.className} />
@@ -133,8 +133,8 @@ function ChangesView() {
   if (!repoPath) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-gray-500 text-sm">No repository open</p>
-        <p className="text-gray-600 text-xs mt-1">Use File → Open Folder to select a repo</p>
+        <p className="text-theme-muted text-sm">No repository open</p>
+        <p className="text-theme-muted text-xs mt-1">Use File → Open Folder to select a repo</p>
       </div>
     );
   }
@@ -146,7 +146,7 @@ function ChangesView() {
   return (
     <div className="flex flex-col h-full">
       {/* Commit Message Input */}
-      <div className="px-3 py-2 border-b border-gray-700">
+      <div className="px-3 py-2 border-b border-theme-default">
         <Textarea
           value={message}
           onChange={handleMessageChange}
@@ -198,7 +198,7 @@ function ChangesView() {
       <div className="flex-1 overflow-y-auto">
         {hasChanges ? (
           <div className="py-1">
-            <div className="px-3 py-1.5 text-gray-500 text-xs uppercase tracking-wide">
+            <div className="px-3 py-1.5 text-theme-muted text-xs uppercase tracking-wide">
               Changes ({changedFiles.length})
             </div>
             {changedFiles.map((file, index) => (
@@ -212,7 +212,7 @@ function ChangesView() {
             ))}
           </div>
         ) : (
-          <p className="px-3 py-4 text-gray-500 text-sm text-center">
+          <p className="px-3 py-4 text-theme-muted text-sm text-center">
             No changes detected
           </p>
         )}

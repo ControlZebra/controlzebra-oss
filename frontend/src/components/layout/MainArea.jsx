@@ -21,7 +21,7 @@ function MainArea() {
   const PageComponent = VIEW_REGISTRY[activeView] || ExplorerPage;
 
   return (
-    <main className="flex-1 bg-neutral-800 flex flex-col min-w-0 min-h-0">
+    <main className="flex-1 bg-theme-elevated flex flex-col min-w-0 min-h-0">
       <PageComponent />
     </main>
   );

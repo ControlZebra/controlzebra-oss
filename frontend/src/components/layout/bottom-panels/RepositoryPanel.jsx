@@ -40,7 +40,7 @@ function RepositoryPanel() {
 
   if (!repoPath) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-gray-500">
+      <div className="h-full flex flex-col items-center justify-center text-theme-muted">
         <Folder style={{ width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 }} className="mb-3 opacity-50" />
         <p className="text-sm font-medium">No Repository Open</p>
         <p className="text-xs mt-1">Open a folder to view repository info</p>
@@ -58,15 +58,15 @@ function RepositoryPanel() {
   return (
     <div className="h-full p-3 overflow-auto text-xs">
       <div className="flex flex-wrap gap-x-6 gap-y-1">
-        <span><span className="text-gray-500">Name:</span> <span className="text-gray-200">{repoName}</span></span>
-        <span><span className="text-gray-500">Branch:</span> <span className="text-cyan-400">{currentBranch}</span></span>
-        <span><span className="text-gray-500">Commits:</span> <span className="text-gray-200">{commitCount}</span></span>
-        <span><span className="text-gray-500">Local branches:</span> <span className="text-gray-200">{localBranchCount}</span></span>
-        <span><span className="text-gray-500">Remote branches:</span> <span className="text-gray-200">{remoteBranchCount}</span></span>
-        <span><span className="text-gray-500">Pending changes:</span> <span className={changedFilesCount > 0 ? 'text-yellow-400' : 'text-gray-200'}>{changedFilesCount}</span></span>
+        <span><span className="text-theme-muted">Name:</span> <span className="text-theme-primary">{repoName}</span></span>
+        <span><span className="text-theme-muted">Branch:</span> <span className="text-cyan-400">{currentBranch}</span></span>
+        <span><span className="text-theme-muted">Commits:</span> <span className="text-theme-primary">{commitCount}</span></span>
+        <span><span className="text-theme-muted">Local branches:</span> <span className="text-theme-primary">{localBranchCount}</span></span>
+        <span><span className="text-theme-muted">Remote branches:</span> <span className="text-theme-primary">{remoteBranchCount}</span></span>
+        <span><span className="text-theme-muted">Pending changes:</span> <span className={changedFilesCount > 0 ? 'text-yellow-400' : 'text-theme-primary'}>{changedFilesCount}</span></span>
         {remoteURL && (
           <span>
-            <span className="text-gray-500">Remote:</span>{' '}
+            <span className="text-theme-muted">Remote:</span>{' '}
             <button 
               onClick={handleRemoteClick}
               className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
@@ -76,8 +76,8 @@ function RepositoryPanel() {
           </span>
         )}
       </div>
-      <div className="mt-2 text-gray-600 truncate" title={repoPath}>
-        <span className="text-gray-500">Local:</span> {repoPath}
+      <div className="mt-2 text-theme-muted truncate" title={repoPath}>
+        <span className="text-theme-muted">Local:</span> {repoPath}
       </div>
     </div>
   );

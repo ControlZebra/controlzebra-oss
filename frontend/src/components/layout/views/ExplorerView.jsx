@@ -57,8 +57,8 @@ const FileTreeItem = memo(function FileTreeItem({ entry, level = 0, onOpenFile }
 
   // Get color class based on file extension
   const fileColorClass = useMemo(() => {
-    if (entry.isDirectory) return 'text-gray-300';
-    return EXTENSION_COLORS[entry.extension] || 'text-gray-400';
+    if (entry.isDirectory) return 'text-theme-secondary';
+    return EXTENSION_COLORS[entry.extension] || 'text-theme-secondary';
   }, [entry.isDirectory, entry.extension]);
 
   const paddingLeft = 8 + level * 12;
@@ -69,15 +69,15 @@ const FileTreeItem = memo(function FileTreeItem({ entry, level = 0, onOpenFile }
         onClick={handleToggle}
         onDoubleClick={handleDoubleClick}
         style={{ paddingLeft }}
-        className="flex items-center gap-1 py-0.5 pr-2 cursor-pointer hover:bg-gray-700/50 transition-colors select-none"
+        className="flex items-center gap-1 py-0.5 pr-2 cursor-pointer hover-bg-theme-interactive transition-colors select-none"
       >
         {/* Arrow indicator for directories */}
         <span className="w-4 h-4 flex items-center justify-center">
           {entry.isDirectory && (
             expanded ? (
-              <ChevronDown style={arrowStyle} className="text-gray-400" />
+              <ChevronDown style={arrowStyle} className="text-theme-secondary" />
             ) : (
-              <ChevronRight style={arrowStyle} className="text-gray-400" />
+              <ChevronRight style={arrowStyle} className="text-theme-secondary" />
             )
           )}
         </span>
@@ -94,11 +94,11 @@ const FileTreeItem = memo(function FileTreeItem({ entry, level = 0, onOpenFile }
         )}
         
         {/* Entry name */}
-        <span className="text-gray-200 text-sm truncate flex-1">{entry.name}</span>
+        <span className="text-theme-primary text-sm truncate flex-1">{entry.name}</span>
         
         {/* Loading indicator */}
         {isLoading && (
-          <span className="text-gray-500 text-xs">...</span>
+          <span className="text-theme-muted text-xs">...</span>
         )}
       </div>
       
@@ -171,8 +171,8 @@ function ExplorerView() {
   if (!repoPath) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-gray-500 text-sm">No folder open</p>
-        <p className="text-gray-600 text-xs mt-1">Use File → Open Folder to select a folder</p>
+        <p className="text-theme-muted text-sm">No folder open</p>
+        <p className="text-theme-muted text-xs mt-1">Use File → Open Folder to select a folder</p>
       </div>
     );
   }
@@ -190,7 +190,7 @@ function ExplorerView() {
   if (!isLoaded) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-gray-500 text-sm">Loading...</p>
+        <p className="text-theme-muted text-sm">Loading...</p>
       </div>
     );
   }
@@ -199,7 +199,7 @@ function ExplorerView() {
   if (entries.length === 0) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-gray-500 text-sm">Empty folder</p>
+        <p className="text-theme-muted text-sm">Empty folder</p>
       </div>
     );
   }

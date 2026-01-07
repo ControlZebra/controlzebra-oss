@@ -126,26 +126,26 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
 
       {/* Modal content */}
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-neutral-900 border border-neutral-700 rounded-lg shadow-2xl p-6">
+        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-2xl p-6">
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
             {isComplete ? (
               success ? (
-                <CheckCircle className="w-6 h-6 text-green-400 shrink-0" />
+                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 shrink-0" />
               ) : (
-                <XCircle className="w-6 h-6 text-red-400 shrink-0" />
+                <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" />
               )
             ) : (
-              <Loader2 className="w-6 h-6 text-blue-400 animate-spin shrink-0" />
+              <Loader2 className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
             )}
-            <h2 className="text-lg font-medium text-neutral-100">{title}</h2>
+            <h2 className="text-lg font-medium text-theme-primary">{title}</h2>
           </div>
 
           {/* Progress bar */}
           <div className="mb-4">
             {isIndeterminate && !isComplete ? (
               // Indeterminate progress - animated gradient
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-neutral-700">
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-theme-muted">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-indeterminate" />
               </div>
             ) : (
@@ -157,7 +157,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
           </div>
 
           {/* Phase label */}
-          <div className="text-sm text-neutral-400 capitalize mb-2">
+          <div className="text-sm text-theme-secondary capitalize mb-2">
             {phase.replace(/-/g, " ")}
           </div>
 
@@ -165,7 +165,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
           <div
             className={cn(
               "text-sm font-mono break-words",
-              isComplete && !success ? "text-red-400" : "text-neutral-300"
+              isComplete && !success ? "text-red-600 dark:text-red-400" : "text-theme-secondary"
             )}
           >
             {isComplete && error ? error : message}
@@ -176,7 +176,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
             <div
               className={cn(
                 "mt-4 text-sm font-medium text-center",
-                success ? "text-green-400" : "text-red-400"
+                success ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
               )}
             >
               {success ? "Complete!" : "Operation failed"}

@@ -8,6 +8,7 @@ import { SETTINGS_CATEGORIES } from '../../../../constants';
 import { useLayout } from '../../../../context';
 import GitConfigForm from './GitConfigForm';
 import AccountsSettings from './AccountsSettings';
+import GeneralSettings from './GeneralSettings';
 
 function SettingsPage() {
   const { selectedSettingsCategory } = useLayout();
@@ -19,11 +20,7 @@ function SettingsPage() {
       case 'git-config':
         return <GitConfigForm />;
       case 'general':
-        return (
-          <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
-            <p className="text-neutral-500 text-center">General settings coming soon</p>
-          </div>
-        );
+        return <GeneralSettings />;
       case 'accounts':
         return <AccountsSettings />;
       default:
@@ -37,10 +34,10 @@ function SettingsPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Settings style={{ width: 24, height: 24 }} className="text-neutral-500" />
-            <h2 className="text-xl text-neutral-200 font-medium">{categoryInfo.name}</h2>
+            <Settings style={{ width: 24, height: 24 }} className="text-theme-muted" />
+            <h2 className="text-xl text-theme-primary font-medium">{categoryInfo.name}</h2>
           </div>
-          <p className="text-neutral-500">{categoryInfo.description}</p>
+          <p className="text-theme-muted">{categoryInfo.description}</p>
         </div>
         
         {/* Category content */}

@@ -1,6 +1,6 @@
 /**
  * Sonner Toaster - Toast notification component with countdown progress.
- * Wraps sonner library with custom styling for dark theme.
+ * Wraps sonner library with custom styling that respects theme.
  */
 import { Toaster as Sonner } from "sonner";
 import {
@@ -10,13 +10,21 @@ import {
   OctagonX,
   TriangleAlert,
 } from "lucide-react";
+import { useLayout } from "../../context";
 
 const TOAST_DURATION = 5000;
 
 function Toaster(props) {
+  const { theme } = useLayout();
+  
+  // Determine effective theme (resolve 'system' to actual preference)
+  const effectiveTheme = theme === 'system' 
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
+    
   return (
     <Sonner
-      theme="dark"
+      theme={effectiveTheme}
       className="toaster group"
       duration={TOAST_DURATION}
       position="top-center"
@@ -33,22 +41,22 @@ function Toaster(props) {
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-gray-800 group-[.toaster]:text-gray-100 group-[.toaster]:border-gray-700 group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-gray-400",
+            "group toast group-[.toaster]:bg-theme-surface group-[.toaster]:text-theme-primary group-[.toaster]:border-theme-default group-[.toaster]:shadow-lg",
+          description: "group-[.toast]:text-theme-secondary",
           actionButton:
             "group-[.toast]:bg-blue-600 group-[.toast]:text-white",
           cancelButton:
-            "group-[.toast]:bg-gray-700 group-[.toast]:text-gray-300",
+            "group-[.toast]:bg-theme-muted group-[.toast]:text-theme-primary",
           closeButton:
-            "group-[.toast]:bg-gray-700 group-[.toast]:text-gray-300 group-[.toast]:border-gray-600",
+            "group-[.toast]:bg-theme-muted group-[.toast]:text-theme-secondary group-[.toast]:border-theme-default",
           success:
-            "group-[.toaster]:bg-green-900/50 group-[.toaster]:border-green-700 group-[.toaster]:text-green-100",
+            "group-[.toaster]:bg-green-900/50 group-[.toaster]:border-green-700 group-[.toaster]:text-green-100 dark:group-[.toaster]:bg-green-900/50 dark:group-[.toaster]:text-green-100",
           error:
-            "group-[.toaster]:bg-red-900/50 group-[.toaster]:border-red-700 group-[.toaster]:text-red-100",
+            "group-[.toaster]:bg-red-900/50 group-[.toaster]:border-red-700 group-[.toaster]:text-red-100 dark:group-[.toaster]:bg-red-900/50 dark:group-[.toaster]:text-red-100",
           info:
-            "group-[.toaster]:bg-blue-900/50 group-[.toaster]:border-blue-700 group-[.toaster]:text-blue-100",
+            "group-[.toaster]:bg-blue-900/50 group-[.toaster]:border-blue-700 group-[.toaster]:text-blue-100 dark:group-[.toaster]:bg-blue-900/50 dark:group-[.toaster]:text-blue-100",
           warning:
-            "group-[.toaster]:bg-yellow-900/50 group-[.toaster]:border-yellow-700 group-[.toaster]:text-yellow-100",
+            "group-[.toaster]:bg-yellow-900/50 group-[.toaster]:border-yellow-700 group-[.toaster]:text-yellow-100 dark:group-[.toaster]:bg-yellow-900/50 dark:group-[.toaster]:text-yellow-100",
         },
       }}
       {...props}

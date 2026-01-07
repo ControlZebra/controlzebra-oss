@@ -70,15 +70,15 @@ function TopBar() {
 
   return (
     <>
-      <header className="h-[52px] bg-neutral-950 border-b border-neutral-800 flex items-center justify-center px-3 select-none shrink-0 relative">
+      <header className="h-[52px] bg-theme-base border-b border-theme-default flex items-center justify-center px-3 select-none shrink-0 relative">
         {/* Center: App name / repo name */}
         <div className="flex items-center gap-2">
-          <span className="text-white font-semibold text-sm">
+          <span className="text-theme-primary font-semibold text-sm">
             {repoPath ? repoName : 'Rewind Logic'}
           </span>
           
           {repoPath && (
-            <span className="text-gray-500 text-xs">• {branchName}</span>
+            <span className="text-theme-muted text-xs">• {branchName}</span>
           )}
         </div>
 

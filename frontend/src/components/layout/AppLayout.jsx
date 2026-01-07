@@ -14,7 +14,7 @@ function AppLayoutInner() {
 
   return (
     <LayoutProvider>
-      <div className="h-screen w-screen flex flex-col bg-neutral-950 text-neutral-100 overflow-hidden">
+      <div className="h-screen w-screen flex flex-col bg-theme-base text-theme-primary overflow-hidden">
         <TopBar />
         <Toaster />
         
