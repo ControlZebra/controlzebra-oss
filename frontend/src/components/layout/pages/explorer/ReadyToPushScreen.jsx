@@ -26,10 +26,10 @@ function ReadyToPushScreen({
 
         {/* Explanation */}
         <p className="text-theme-secondary text-base mb-2">
-          You have {ahead} snapshot{ahead !== 1 ? 's' : ''} saved on this device.
+          You have {ahead} snapshot{ahead !== 1 ? 's' : ''} pending backup.
         </p>
         <p className="text-theme-muted text-sm mb-8">
-          We recommend syncing to the cloud for a secure backup. This way your work is safe even if something happens to this computer.
+          Feel free to continue making changes or sync to cloud for a secure backup.
         </p>
 
         {/* Sync action */}
@@ -37,17 +37,14 @@ function ReadyToPushScreen({
           onClick={onSync} 
           loading={isSyncing} 
           size="lg"
-          variant="outline"
-          className="w-full max-w-md h-14 text-lg border-2 border-theme-default hover:border-theme-muted"
+          variant="secondary"
+          className="w-[70%] h-10 text-lg"
         >
           <Cloud style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
           Sync to cloud
         </Button>
 
-        {/* Optional note */}
-        <p className="text-xs text-theme-muted mt-6">
-          This is optional — feel free to continue making changes and sync whenever you're ready.
-        </p>
+        
       </div>
     </div>
   );
