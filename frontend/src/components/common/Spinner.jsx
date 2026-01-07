@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 function Spinner({ size = 14, className = '' }) {
   return (
     <Loader2 
-      className={`animate-spin ${className}`}
+      className={`animate-spin text-theme-secondary ${className}`}
       style={{ width: size, height: size }} 
     />
   );

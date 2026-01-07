@@ -25,29 +25,29 @@ function ProfilePage() {
         <div className="text-center mb-8">
           <UserCircle 
             style={{ width: avatarSize, height: avatarSize }} 
-            className="text-neutral-600 mx-auto mb-4" 
+            className="text-theme-muted mx-auto mb-4" 
           />
-          <h2 className="text-xl text-neutral-200 font-medium">Your Profile</h2>
-          <p className="text-neutral-500 mt-1">Manage your identity and connected accounts</p>
+          <h2 className="text-xl text-theme-primary font-medium">Your Profile</h2>
+          <p className="text-theme-muted mt-1">Manage your identity and connected accounts</p>
         </div>
         
         {/* Quick Status */}
-        <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700 mb-4">
-          <h3 className="text-neutral-200 font-medium mb-4">Connected Accounts</h3>
+        <div className="bg-theme-surface rounded-lg p-6 border border-theme-default mb-4">
+          <h3 className="text-theme-primary font-medium mb-4">Connected Accounts</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-3">
-                <Github style={{ width: 20, height: 20 }} className="text-neutral-400" />
-                <span className="text-neutral-300">GitHub</span>
+                <Github style={{ width: 20, height: 20 }} className="text-theme-secondary" />
+                <span className="text-theme-secondary">GitHub</span>
               </div>
-              <span className="text-neutral-600 text-sm">Not connected</span>
+              <span className="text-theme-muted text-sm">Not connected</span>
             </div>
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center gap-3">
-                <GitLabIcon style={{ width: 20, height: 20 }} className="text-neutral-400" />
-                <span className="text-neutral-300">GitLab</span>
+                <GitLabIcon style={{ width: 20, height: 20 }} className="text-theme-secondary" />
+                <span className="text-theme-secondary">GitLab</span>
               </div>
-              <span className="text-neutral-600 text-sm">Not connected</span>
+              <span className="text-theme-muted text-sm">Not connected</span>
             </div>
           </div>
           <Button 
@@ -59,7 +59,7 @@ function ProfilePage() {
           </Button>
         </div>
         
-        <p className="text-xs text-neutral-600 text-center">
+        <p className="text-xs text-theme-muted text-center">
           Go to Settings → Accounts to connect GitHub or GitLab
         </p>
       </div>

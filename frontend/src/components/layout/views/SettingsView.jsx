@@ -16,11 +16,11 @@ const SettingsItem = memo(function SettingsItem({ category, isSelected, onSelect
       className={`px-3 py-2 cursor-pointer transition-colors ${
         isSelected 
           ? 'bg-blue-600/30 border-l-2 border-blue-500' 
-          : 'hover:bg-gray-700/50 border-l-2 border-transparent'
+          : 'hover-bg-theme-interactive border-l-2 border-transparent'
       }`}
     >
-      <p className="text-gray-200 text-sm">{category.name}</p>
-      <p className="text-gray-500 text-xs">{category.description}</p>
+      <p className="text-theme-primary text-sm">{category.name}</p>
+      <p className="text-theme-muted text-xs">{category.description}</p>
     </div>
   );
 });

@@ -18,8 +18,8 @@ function MergeRequestScreen({ branchName }) {
     <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
       <div className="max-w-lg w-full text-center">
         {/* Header */}
-        <h1 className="text-5xl font-light text-neutral-100 mb-2">Great work!</h1>
-        <p className="text-sm text-neutral-500 mb-8">Your changes are safe</p>
+        <h1 className="text-5xl font-light text-theme-primary mb-2">Great work!</h1>
+        <p className="text-sm text-theme-muted mb-8">Your changes are safe</p>
 
         {/* Success icon */}
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">
@@ -27,10 +27,10 @@ function MergeRequestScreen({ branchName }) {
         </div>
 
         {/* Explanation */}
-        <p className="text-neutral-300 text-base mb-2">
+        <p className="text-theme-secondary text-base mb-2">
           All your changes on <span className="font-medium">{branchName}</span> are now synced with the cloud.
         </p>
-        <p className="text-neutral-500 text-sm mb-8">
+        <p className="text-theme-muted text-sm mb-8">
           When you're ready to incorporate your work into the main project, you can create a merge request for review.
         </p>
 
@@ -39,13 +39,13 @@ function MergeRequestScreen({ branchName }) {
           onClick={handleCreateMergeRequest}
           size="lg"
           variant="outline"
-          className="w-full max-w-md h-14 text-lg border-2 border-neutral-600 hover:border-neutral-500"
+          className="w-full max-w-md h-14 text-lg border-2 border-theme-default hover:border-theme-muted"
         >
           <GitPullRequest style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
           Create a merge request
         </Button>
 
-        <p className="text-xs text-neutral-600 mt-6">
+        <p className="text-xs text-theme-muted mt-6">
           No rush — you can continue making changes and sync again anytime.
         </p>
       </div>

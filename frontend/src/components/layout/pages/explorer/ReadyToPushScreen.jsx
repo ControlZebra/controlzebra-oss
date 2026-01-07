@@ -16,8 +16,8 @@ function ReadyToPushScreen({
     <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
       <div className="max-w-lg w-full text-center">
         {/* Header */}
-        <h1 className="text-5xl font-light text-neutral-100 mb-2">Nice work!</h1>
-        <p className="text-sm text-neutral-500 mb-8">Your changes are saved locally</p>
+        <h1 className="text-5xl font-light text-theme-primary mb-2">Nice work!</h1>
+        <p className="text-sm text-theme-muted mb-8">Your changes are saved locally</p>
 
         {/* Snapshot saved icon */}
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/10 mb-6">
@@ -25,10 +25,10 @@ function ReadyToPushScreen({
         </div>
 
         {/* Explanation */}
-        <p className="text-neutral-300 text-base mb-2">
+        <p className="text-theme-secondary text-base mb-2">
           You have {ahead} snapshot{ahead !== 1 ? 's' : ''} saved on this device.
         </p>
-        <p className="text-neutral-500 text-sm mb-8">
+        <p className="text-theme-muted text-sm mb-8">
           We recommend syncing to the cloud for a secure backup. This way your work is safe even if something happens to this computer.
         </p>
 
@@ -38,14 +38,14 @@ function ReadyToPushScreen({
           loading={isSyncing} 
           size="lg"
           variant="outline"
-          className="w-full max-w-md h-14 text-lg border-2 border-neutral-600 hover:border-neutral-500"
+          className="w-full max-w-md h-14 text-lg border-2 border-theme-default hover:border-theme-muted"
         >
           <Cloud style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
           Sync to cloud
         </Button>
 
         {/* Optional note */}
-        <p className="text-xs text-neutral-600 mt-6">
+        <p className="text-xs text-theme-muted mt-6">
           This is optional — feel free to continue making changes and sync whenever you're ready.
         </p>
       </div>

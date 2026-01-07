@@ -60,7 +60,7 @@ function BottomPanel() {
   return (
     <section 
       ref={containerRef}
-      className="bg-neutral-900 border-t border-neutral-800 flex flex-col shrink-0 relative"
+      className="bg-theme-surface border-t border-theme-default flex flex-col shrink-0 relative"
       style={{ 
         height: bottomPanelHeight,
         display: bottomPanelCollapsed ? 'none' : 'flex'
@@ -73,8 +73,8 @@ function BottomPanel() {
       />
       
       {/* Panel header */}
-      <header className="h-7 px-2 flex items-center justify-between border-b border-neutral-800 shrink-0">
-        <span className="text-gray-400 text-xs font-medium uppercase tracking-wide">
+      <header className="h-7 px-2 flex items-center justify-between border-b border-theme-default shrink-0">
+        <span className="text-theme-muted text-xs font-medium uppercase tracking-wide">
           {title}
         </span>
         <Button

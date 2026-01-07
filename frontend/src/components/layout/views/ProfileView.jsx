@@ -12,22 +12,22 @@ function ProfileView() {
   return (
     <div className="flex flex-col h-full">
       {/* User summary */}
-      <div className="p-3 border-b border-gray-700">
+      <div className="p-3 border-b border-theme-default">
         <div className="flex items-center gap-3">
           <UserCircle 
             style={{ width: avatarSize, height: avatarSize }} 
-            className="text-gray-400" 
+            className="text-theme-secondary" 
           />
           <div>
-            <p className="text-gray-200 text-sm font-medium">Not signed in</p>
-            <p className="text-gray-500 text-xs">View profile details</p>
+            <p className="text-theme-primary text-sm font-medium">Not signed in</p>
+            <p className="text-theme-muted text-xs">View profile details</p>
           </div>
         </div>
       </div>
       
       {/* Info */}
       <div className="p-3">
-        <div className="flex items-center gap-2 text-gray-500 text-xs">
+        <div className="flex items-center gap-2 text-theme-muted text-xs">
           <Settings style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
           <span>Manage accounts in Settings</span>
         </div>

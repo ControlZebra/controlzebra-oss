@@ -43,8 +43,8 @@ function NavButton({ item, isActive, onClick }) {
       className={`
         w-10 h-10 flex items-center justify-center rounded transition-colors
         ${isActive 
-          ? 'bg-gray-700 text-blue-400' 
-          : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+          ? 'bg-theme-muted text-blue-500 dark:text-blue-400' 
+          : 'text-theme-muted hover:text-theme-secondary hover-bg-theme-interactive'
         }
       `}
     >
@@ -90,7 +90,7 @@ function ActivityBar() {
   );
 
   return (
-    <nav className="w-14 bg-neutral-950 border-r border-neutral-800 flex flex-col items-center py-3 gap-2 shrink-0">
+    <nav className="w-14 bg-theme-base border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
       {topNavButtons}
       <div className="flex-1" />
       {bottomNavButtons}

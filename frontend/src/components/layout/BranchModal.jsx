@@ -23,14 +23,14 @@ const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect }) {
         "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors",
         isCurrent 
           ? "bg-blue-600/20 text-blue-300 cursor-default" 
-          : "hover:bg-gray-700/50 text-gray-200"
+          : "hover-bg-theme-interactive text-theme-primary"
       )}
     >
-      <GitBranch style={iconStyle} className={isCurrent ? "text-blue-400" : "text-gray-400"} />
+      <GitBranch style={iconStyle} className={isCurrent ? "text-blue-400" : "text-theme-secondary"} />
       <span className="flex-1 text-sm font-mono truncate">{branch.name}</span>
       {isCurrent && <Check style={iconStyle} className="text-blue-400" />}
       {branch.upstream && (
-        <span className="text-xs text-gray-500">{branch.upstream}</span>
+        <span className="text-xs text-theme-muted">{branch.upstream}</span>
       )}
     </button>
   );
@@ -112,11 +112,11 @@ function BranchModal({ open, onClose }) {
       
       {/* Modal */}
       <div className="fixed inset-0 flex items-start justify-center pt-20 px-4">
-        <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-2">
-            <GitBranch style={iconStyle} className="text-gray-400" />
-            <h2 className="text-gray-100 font-medium flex-1">
+          <div className="px-4 py-3 border-b border-theme-default flex items-center gap-2">
+            <GitBranch style={iconStyle} className="text-theme-secondary" />
+            <h2 className="text-theme-primary font-medium flex-1">
               {mode === 'switch' ? 'Switch Branch' : 'Create New Branch'}
             </h2>
             <Button
@@ -141,7 +141,7 @@ function BranchModal({ open, onClose }) {
               /* Create mode */
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">
+                  <label className="block text-xs text-theme-secondary mb-1">
                     Branch name
                   </label>
                   <Input
@@ -151,8 +151,8 @@ function BranchModal({ open, onClose }) {
                     autoFocus
                   />
                 </div>
-                <p className="text-xs text-gray-500">
-                  Branch will be created from current branch: <span className="font-mono text-gray-400">{repoInfo?.branch}</span>
+                <p className="text-xs text-theme-muted">
+                  Branch will be created from current branch: <span className="font-mono text-theme-secondary">{repoInfo?.branch}</span>
                 </p>
                 <Button
                   className="w-full"
@@ -169,7 +169,7 @@ function BranchModal({ open, onClose }) {
                 {/* Search */}
                 <div className="relative">
                   <Search 
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" 
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" 
                     style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }}
                   />
                   <Input
@@ -182,9 +182,9 @@ function BranchModal({ open, onClose }) {
                 </div>
 
                 {/* Branch list */}
-                <div className="max-h-64 overflow-y-auto -mx-4 border-t border-b border-gray-700">
+                <div className="max-h-64 overflow-y-auto -mx-4 border-t border-b border-theme-default">
                   {filteredBranches.length === 0 ? (
-                    <p className="px-4 py-3 text-gray-500 text-sm text-center">
+                    <p className="px-4 py-3 text-theme-muted text-sm text-center">
                       {searchQuery ? 'No matching branches' : 'No branches found'}
                     </p>
                   ) : (
@@ -201,7 +201,7 @@ function BranchModal({ open, onClose }) {
 
                 {/* Remote branches hint */}
                 {branches?.remote?.length > 0 && (
-                  <p className="text-xs text-gray-500 text-center">
+                  <p className="text-xs text-theme-muted text-center">
                     {branches.remote.length} remote branch{branches.remote.length !== 1 ? 'es' : ''} available
                   </p>
                 )}
@@ -215,7 +215,7 @@ function BranchModal({ open, onClose }) {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-gray-700 flex justify-end">
+          <div className="px-4 py-3 border-t border-theme-default flex justify-end">
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>

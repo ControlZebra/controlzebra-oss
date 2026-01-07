@@ -16,20 +16,20 @@ const DiffLine = memo(function DiffLine({ line, side }) {
     : line.type !== 'delete';
   
   const bgClass = {
-    add: side === 'new' ? 'bg-green-900/30' : '',
-    delete: side === 'old' ? 'bg-red-900/30' : '',
+    add: side === 'new' ? 'bg-green-500/20 dark:bg-green-900/30' : '',
+    delete: side === 'old' ? 'bg-red-500/20 dark:bg-red-900/30' : '',
     context: '',
   }[line.type] || '';
   
   const textClass = {
-    add: 'text-green-300',
-    delete: 'text-red-300',
-    context: 'text-gray-300',
-  }[line.type] || 'text-gray-300';
+    add: 'text-green-700 dark:text-green-300',
+    delete: 'text-red-700 dark:text-red-300',
+    context: 'text-theme-primary',
+  }[line.type] || 'text-theme-primary';
   
   return (
     <div className={cn('flex min-h-[22px] font-mono text-xs', bgClass)}>
-      <span className="w-10 flex-shrink-0 px-2 text-right text-gray-500 select-none border-r border-gray-700/50">
+      <span className="w-10 flex-shrink-0 px-2 text-right text-theme-muted select-none border-r border-theme-default">
         {showContent && lineNumber > 0 ? lineNumber : ''}
       </span>
       <span className={cn('px-2 whitespace-pre', textClass)}>
@@ -108,9 +108,9 @@ const DiffHunkLines = memo(function DiffHunkLines({ hunk, side, showHeader }) {
   }, [hunk.lines, side]);
   
   return (
-    <div className="border-b border-gray-700/50 last:border-b-0">
+    <div className="border-b border-theme-default last:border-b-0">
       {showHeader && (
-        <div className="bg-gray-800/50 px-3 py-1 text-xs text-gray-500 font-mono border-b border-gray-700/50 whitespace-nowrap">
+        <div className="bg-theme-muted px-3 py-1 text-xs text-theme-muted font-mono border-b border-theme-default whitespace-nowrap">
           {hunk.header}
         </div>
       )}
@@ -128,18 +128,18 @@ const DiffHunkLines = memo(function DiffHunkLines({ hunk, side, showHeader }) {
  */
 function DiffHeader({ fileDiff }) {
   const statusColors = {
-    added: 'text-green-400',
-    modified: 'text-yellow-400',
-    deleted: 'text-red-400',
-    renamed: 'text-blue-400',
+    added: 'text-green-600 dark:text-green-400',
+    modified: 'text-yellow-600 dark:text-yellow-400',
+    deleted: 'text-red-600 dark:text-red-400',
+    renamed: 'text-blue-600 dark:text-blue-400',
   };
   
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-gray-800 border-b border-gray-700">
-      <span className={cn('text-xs font-medium uppercase', statusColors[fileDiff.status] || 'text-gray-400')}>
+    <div className="flex items-center gap-3 px-4 py-2 bg-theme-surface border-b border-theme-default">
+      <span className={cn('text-xs font-medium uppercase', statusColors[fileDiff.status] || 'text-theme-muted')}>
         {fileDiff.status}
       </span>
-      <span className="text-sm text-gray-200 font-mono">
+      <span className="text-sm text-theme-primary font-mono">
         {fileDiff.oldPath && fileDiff.oldPath !== fileDiff.path 
           ? `${fileDiff.oldPath} → ${fileDiff.path}`
           : fileDiff.path
@@ -155,7 +155,7 @@ function DiffHeader({ fileDiff }) {
 function DiffViewer({ fileDiff, showHeader = true }) {
   if (!fileDiff) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+      <div className="flex items-center justify-center h-full text-theme-muted text-sm">
         Select a file to view changes
       </div>
     );
@@ -163,7 +163,7 @@ function DiffViewer({ fileDiff, showHeader = true }) {
   
   if (fileDiff.hasError) {
     return (
-      <div className="flex items-center justify-center h-full text-red-400 text-sm">
+      <div className="flex items-center justify-center h-full text-red-600 dark:text-red-400 text-sm">
         {fileDiff.error || 'Failed to load diff'}
       </div>
     );
@@ -173,7 +173,7 @@ function DiffViewer({ fileDiff, showHeader = true }) {
     return (
       <div className="flex flex-col h-full">
         {showHeader && <DiffHeader fileDiff={fileDiff} />}
-        <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+        <div className="flex-1 flex items-center justify-center text-theme-muted text-sm">
           Binary file - cannot display diff
         </div>
       </div>
@@ -184,7 +184,7 @@ function DiffViewer({ fileDiff, showHeader = true }) {
     return (
       <div className="flex flex-col h-full">
         {showHeader && <DiffHeader fileDiff={fileDiff} />}
-        <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+        <div className="flex-1 flex items-center justify-center text-theme-muted text-sm">
           No changes to display
         </div>
       </div>
@@ -195,8 +195,8 @@ function DiffViewer({ fileDiff, showHeader = true }) {
     <div className="flex flex-col h-full min-h-0">
       {showHeader && <DiffHeader fileDiff={fileDiff} />}
       {/* Column headers - fixed at top */}
-      <div className="flex shrink-0 bg-gray-800/95 border-b border-gray-700 text-xs text-gray-400">
-        <div className="w-1/2 px-3 py-1 border-r border-gray-700">Old</div>
+      <div className="flex shrink-0 bg-theme-surface border-b border-theme-default text-xs text-theme-muted">
+        <div className="w-1/2 px-3 py-1 border-r border-theme-default">Old</div>
         <div className="w-1/2 px-3 py-1">New</div>
       </div>
       {/* Synchronized vertical scroll container */}
@@ -226,7 +226,7 @@ const DiffPanel = memo(function DiffPanel({ fileDiff, side }) {
   return (
     <div className={cn(
       'w-1/2 overflow-x-auto',
-      side === 'old' && 'border-r border-gray-700'
+      side === 'old' && 'border-r border-theme-default'
     )}>
       <div className="min-w-max">
         {fileDiff.hunks.map((hunk, idx) => (

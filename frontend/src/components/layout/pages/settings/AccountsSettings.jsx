@@ -13,14 +13,14 @@ function AccountsSettings() {
   return (
     <div className="space-y-4">
       {/* GitHub Section */}
-      <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
+      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
         <div className="flex items-center gap-4 mb-4">
-          <Github style={{ width: 32, height: 32 }} className="text-neutral-300" />
+          <Github style={{ width: 32, height: 32 }} className="text-theme-secondary" />
           <div className="flex-1">
-            <h3 className="text-neutral-200 font-medium">GitHub</h3>
-            <p className="text-neutral-500 text-sm">Push, pull, and manage pull requests</p>
+            <h3 className="text-theme-primary font-medium">GitHub</h3>
+            <p className="text-theme-muted text-sm">Push, pull, and manage pull requests</p>
           </div>
-          <span className="text-neutral-600 text-xs uppercase">Not connected</span>
+          <span className="text-theme-muted text-xs uppercase">Not connected</span>
         </div>
         <Button variant="secondary" className="w-full justify-center">
           <Github style={buttonIconStyle} />
@@ -29,14 +29,14 @@ function AccountsSettings() {
       </div>
       
       {/* GitLab Section */}
-      <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
+      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
         <div className="flex items-center gap-4 mb-4">
-          <GitLabIcon style={{ width: 32, height: 32 }} className="text-neutral-300" />
+          <GitLabIcon style={{ width: 32, height: 32 }} className="text-theme-secondary" />
           <div className="flex-1">
-            <h3 className="text-neutral-200 font-medium">GitLab</h3>
-            <p className="text-neutral-500 text-sm">Push, pull, and manage merge requests</p>
+            <h3 className="text-theme-primary font-medium">GitLab</h3>
+            <p className="text-theme-muted text-sm">Push, pull, and manage merge requests</p>
           </div>
-          <span className="text-neutral-600 text-xs uppercase">Not connected</span>
+          <span className="text-theme-muted text-xs uppercase">Not connected</span>
         </div>
         <Button variant="secondary" className="w-full justify-center">
           <GitLabIcon style={buttonIconStyle} />
@@ -44,7 +44,7 @@ function AccountsSettings() {
         </Button>
       </div>
       
-      <p className="text-xs text-neutral-600 text-center pt-2">
+      <p className="text-xs text-theme-muted text-center pt-2">
         Connecting accounts uses the CLI tools (gh, glab) installed on your system
       </p>
     </div>

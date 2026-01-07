@@ -57,9 +57,9 @@ function GitConfigForm() {
   }, [name, email]);
 
   return (
-    <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
-      <h3 className="text-neutral-200 font-medium mb-4">Git Identity</h3>
-      <p className="text-neutral-500 text-sm mb-6">This information will be used for your commits</p>
+    <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
+      <h3 className="text-theme-primary font-medium mb-4">Git Identity</h3>
+      <p className="text-theme-muted text-sm mb-6">This information will be used for your commits</p>
       
       <div className="space-y-4">
         <div>
@@ -89,7 +89,7 @@ function GitConfigForm() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-6 pt-4 border-t border-neutral-700">
+      <div className="flex items-center justify-between mt-6 pt-4 border-t border-theme-default">
         {message ? (
           <div className={`flex items-center gap-1.5 text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
             {message.type === 'success' 
@@ -99,7 +99,7 @@ function GitConfigForm() {
             <span>{message.text}</span>
           </div>
         ) : (
-          <span className="text-neutral-500 text-sm">Applied globally for all repositories</span>
+          <span className="text-theme-muted text-sm">Applied globally for all repositories</span>
         )}
         
         <Button

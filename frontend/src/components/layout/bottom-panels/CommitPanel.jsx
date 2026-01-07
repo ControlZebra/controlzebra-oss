@@ -39,9 +39,9 @@ const FileItem = memo(function FileItem({ file }) {
   const StatusIcon = statusConfig?.Icon;
 
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-700/50 cursor-pointer transition-colors">
-      <FileText style={fileIconStyle} className="text-gray-400 shrink-0" />
-      <span className="flex-1 text-gray-200 text-xs truncate">{file.name}</span>
+    <div className="flex items-center gap-1.5 px-2 py-1 hover-bg-theme-interactive cursor-pointer transition-colors">
+      <FileText style={fileIconStyle} className="text-theme-secondary shrink-0" />
+      <span className="flex-1 text-theme-primary text-xs truncate">{file.name}</span>
       {StatusIcon && (
         <StatusIcon style={statusIconStyle} className={statusConfig.className} />
       )}
@@ -96,7 +96,7 @@ function CommitPanel() {
   // No repository open state
   if (!repoPath) {
     return (
-      <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+      <div className="h-full flex items-center justify-center text-theme-muted text-sm">
         No repository open
       </div>
     );
@@ -105,9 +105,9 @@ function CommitPanel() {
   return (
     <div className="h-full flex">
       {/* Left: Changed files list (30%) */}
-      <div className="w-[30%] border-r border-gray-700 flex flex-col">
-        <div className="px-2 py-1.5 border-b border-gray-800">
-          <span className="text-gray-400 text-xs">{changedFiles.length} files</span>
+      <div className="w-[30%] border-r border-theme-default flex flex-col">
+        <div className="px-2 py-1.5 border-b border-theme-default">
+          <span className="text-theme-secondary text-xs">{changedFiles.length} files</span>
         </div>
         <div className="flex-1 overflow-y-auto">
           {changedFiles.map((file, index) => (

@@ -16,9 +16,9 @@ const VIEW_HINTS = {
 function EmptyState({ activeView, customMessage }) {
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-center text-neutral-600 px-4">
+      <div className="text-center text-theme-muted px-4">
         <p className="text-base">{customMessage || 'Select an item from the sidebar'}</p>
-        <p className="text-sm mt-1">{VIEW_HINTS[activeView]}</p>
+        <p className="text-sm mt-1 text-theme-tertiary">{VIEW_HINTS[activeView]}</p>
       </div>
     </div>
   );

@@ -62,14 +62,14 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
       <CardContent className="p-0">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-neutral-700/50 text-left">
-              <th className="px-4 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wide w-20">Status</th>
-              <th className="px-4 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wide">File Name</th>
-              <th className="px-4 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wide w-32">Modified</th>
-              <th className="px-4 py-3 text-xs font-medium text-neutral-500 uppercase tracking-wide">Path</th>
+            <tr className="border-b border-theme-default text-left">
+              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide w-20">Status</th>
+              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide">File Name</th>
+              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide w-32">Modified</th>
+              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide">Path</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-700/30">
+          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700/50">
             {files.map((file, index) => {
               const statusConfig = STATUS_CONFIG[file.status] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
               const StatusIcon = statusConfig.Icon;
@@ -78,7 +78,7 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
               return (
                 <tr 
                   key={`${file.path}-${index}`}
-                  className="hover:bg-neutral-700/20 transition-colors"
+                  className="hover-bg-theme-interactive transition-colors"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
@@ -93,17 +93,17 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <FileText style={iconStyle} className="text-neutral-500 shrink-0" />
-                      <span className="text-sm text-neutral-200 truncate">{file.name}</span>
+                      <FileText style={iconStyle} className="text-theme-muted shrink-0" />
+                      <span className="text-sm text-theme-primary truncate">{file.name}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-theme-muted">
                       {file.modifiedDate || '—'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-neutral-500 font-mono truncate block" title={file.path}>
+                    <span className="text-xs text-theme-muted font-mono truncate block" title={file.path}>
                       {shortenedPath}
                     </span>
                   </td>
@@ -168,12 +168,12 @@ function CommitScreen({
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-light text-neutral-100 mb-2">Welcome!</h1>
-          <p className="text-sm text-neutral-500">Recommended next step</p>
+          <h1 className="text-5xl font-light text-theme-primary mb-2">Welcome!</h1>
+          <p className="text-sm text-theme-muted">Recommended next step</p>
         </div>
 
         {/* Prompt message */}
-        <p className="text-center text-sm text-neutral-500 mb-6">
+        <p className="text-center text-sm text-theme-muted mb-6">
           New changes are detected. Make a quick save, your future self will thank you!
         </p>
 
