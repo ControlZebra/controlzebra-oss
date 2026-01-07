@@ -33,17 +33,9 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
     <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
       <div className="max-w-lg text-center">
         <h1 className="text-5xl font-light text-theme-primary mb-2">Welcome!</h1>
-        <p className="text-theme-secondary mb-8">Get started by opening a folder</p>
-        
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-theme-subtle mb-6">
-          <Folder style={iconStyleLg} className="text-theme-muted" />
-        </div>
-        
-        <p className="text-theme-muted text-sm mb-6">
-          Open a folder containing your project files to start tracking changes.
-        </p>
-        
-        <Button size="lg" onClick={onOpenFolder} loading={isLoading}>
+        <p className="text-theme-secondary mb-8">Start version control for your project folder</p>
+
+        <Button size="lg" variant="secondary" onClick={onOpenFolder} loading={isLoading}>
           <FolderOpen style={iconStyleSm} />
           Open Folder
         </Button>
