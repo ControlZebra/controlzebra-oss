@@ -38,6 +38,7 @@ import {
   DiscardAll,
   DiscardFile,
 } from '../../bindings/changeme/services/gitservice';
+import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
 import { Events } from '@wailsio/runtime';
 
@@ -66,8 +67,16 @@ export function RepoProvider({ children }) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   
+  // ===== Progress Modal State =====
+  const [progressModal, setProgressModal] = useState({
+    isOpen: false,
+    operationId: null,
+    title: '',
+  });
+  
   // ===== Refs =====
   const pollIntervalRef = useRef(null);
+  const operationIdCounter = useRef(0);
 
   // Show a toast notification using sonner
   // Maps our type names to sonner toast methods
@@ -236,34 +245,66 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Sync repository (pull --rebase + push)
+  // Generate unique operation ID
+  const generateOperationId = useCallback(() => {
+    operationIdCounter.current += 1;
+    return `op-${Date.now()}-${operationIdCounter.current}`;
+  }, []);
+
+  // Close progress modal
+  const closeProgressModal = useCallback(() => {
+    setProgressModal({ isOpen: false, operationId: null, title: '' });
+  }, []);
+
+  // Handle progress modal completion
+  const handleProgressComplete = useCallback((success, error) => {
+    closeProgressModal();
+    setIsSyncing(false);
+    
+    if (success) {
+      showMessage('success', 'Synced successfully');
+      refreshAll();
+    } else if (error) {
+      showMessage('error', error);
+    }
+  }, [closeProgressModal, showMessage, refreshAll]);
+
+  // Sync repository with progress (pull --rebase + push)
   const syncRepo = useCallback(async () => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
     }
     
+    const operationId = generateOperationId();
+    
     setIsSyncing(true);
+    setProgressModal({
+      isOpen: true,
+      operationId,
+      title: 'Syncing with remote',
+    });
     
     try {
-      const result = await Sync(repoPath);
+      // This runs the operation; progress events come via the event system
+      const result = await SyncWithProgress(repoPath, operationId);
       
+      // The modal will handle completion via the progress events
+      // But we check exit code here as a safety net
       if (!result.success) {
-        showMessage('error', result.error || 'Sync failed');
-        setIsSyncing(false);
+        // Progress modal will show the error, but ensure we capture it
         return false;
       }
       
-      showMessage('success', result.message || 'Synced successfully');
-      await refreshAll();
-      setIsSyncing(false);
       return true;
     } catch (err) {
-      showMessage('error', `Sync failed: ${err.message || err}`);
+      // In case of unexpected error, close modal and show error
+      closeProgressModal();
       setIsSyncing(false);
+      showMessage('error', `Sync failed: ${err.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, refreshAll]);
+  }, [repoPath, showMessage, generateOperationId, closeProgressModal]);
 
   // ===== v2: Diff Operations =====
   
@@ -522,6 +563,10 @@ export function RepoProvider({ children }) {
     isCommitting,
     isDiffLoading,
     
+    // Progress modal state
+    progressModal,
+    handleProgressComplete,
+    
     // Feedback
     showMessage,
     
@@ -552,6 +597,7 @@ export function RepoProvider({ children }) {
     repoPath, repoInfo, repoStatus, commits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
+    progressModal, handleProgressComplete,
     showMessage,
     openRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
