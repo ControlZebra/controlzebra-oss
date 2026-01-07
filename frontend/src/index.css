@@ -15,3 +15,18 @@
 .animate-screen-enter {
   animation: fadeSlideIn 0.25s ease-out;
 }
+
+/* Indeterminate progress bar animation */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminate 1.5s ease-in-out infinite;
+  width: 50%;
+}

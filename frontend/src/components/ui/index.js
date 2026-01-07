@@ -22,5 +22,6 @@ export {
 export { Input } from "./input";
 export { Label } from "./label";
 export { Progress } from "./progress";
+export { default as ProgressModal } from "./progress-modal";
 export { Textarea } from "./textarea";
 export { Toaster } from "./sonner";

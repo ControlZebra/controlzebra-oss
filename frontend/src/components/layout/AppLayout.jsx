@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { LayoutProvider } from '../../context';
-import { Toaster } from '../ui/sonner';
+import { LayoutProvider, useRepo } from '../../context';
+import { Toaster, ProgressModal } from '../ui';
 import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
@@ -8,12 +8,23 @@ import MainArea from './MainArea';
 import BottomPanel from './BottomPanel';
 import StatusBar from './StatusBar';
 
-function AppLayout() {
+// Inner component that has access to RepoContext
+function AppLayoutInner() {
+  const { progressModal, handleProgressComplete } = useRepo();
+
   return (
     <LayoutProvider>
       <div className="h-screen w-screen flex flex-col bg-neutral-950 text-neutral-100 overflow-hidden">
         <TopBar />
         <Toaster />
+        
+        {/* Progress Modal for git operations */}
+        <ProgressModal
+          isOpen={progressModal.isOpen}
+          operationId={progressModal.operationId}
+          title={progressModal.title}
+          onComplete={handleProgressComplete}
+        />
         
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left side: Activity bar + Sidebar (full height) */}
@@ -30,6 +41,10 @@ function AppLayout() {
       </div>
     </LayoutProvider>
   );
+}
+
+function AppLayout() {
+  return <AppLayoutInner />;
 }
 
 export default memo(AppLayout);
