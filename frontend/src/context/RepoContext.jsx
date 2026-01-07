@@ -41,6 +41,7 @@ import {
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
 import { Events } from '@wailsio/runtime';
+import { addRecentFolder } from '../lib/recentFolders';
 
 const RepoContext = createContext(null);
 
@@ -147,6 +148,9 @@ export function RepoProvider({ children }) {
       setRepoPath(path);
       setRepoInfo(info);
       
+      // Add to recent folders list (localStorage)
+      addRecentFolder(path);
+      
       // Persist last opened repo to settings
       try {
         await SaveAppSettings({ lastRepoPath: path, theme: 'dark' });
@@ -163,6 +167,33 @@ export function RepoProvider({ children }) {
       return false;
     }
   }, [showMessage]);
+
+  // Close the current repository
+  const closeRepo = useCallback(async () => {
+    // Clear all repo state
+    setRepoPath(null);
+    setRepoInfo(null);
+    setRepoStatus(null);
+    setCommits([]);
+    setBranches(null);
+    setSelectedFileIndex(null);
+    setSelectedCommit(null);
+    setSelectedCommitFile(null);
+    setCurrentDiff(null);
+    
+    // Stop polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    
+    // Clear last opened repo from settings
+    try {
+      await SaveAppSettings({ lastRepoPath: '', theme: 'dark' });
+    } catch (err) {
+      console.error('Failed to clear settings:', err);
+    }
+  }, []);
 
   // Load last opened repository on mount
   useEffect(() => {
@@ -210,6 +241,17 @@ export function RepoProvider({ children }) {
       unsubscribe();
     };
   }, [openRepo]);
+
+  // Listen for folder-closed event from native menu
+  useEffect(() => {
+    const unsubscribe = Events.On('folder-closed', async () => {
+      await closeRepo();
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [closeRepo]);
 
   // Commit all changes with message
   const commitChanges = useCallback(async (message) => {
@@ -572,6 +614,7 @@ export function RepoProvider({ children }) {
     
     // Actions
     openRepo,
+    closeRepo,
     commitChanges,
     syncRepo,
     refreshStatus,
@@ -599,7 +642,7 @@ export function RepoProvider({ children }) {
     isLoading, isSyncing, isCommitting, isDiffLoading,
     progressModal, handleProgressComplete,
     showMessage,
-    openRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    openRepo, closeRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch,
     undoLastCommit, discardAllChanges, discardFileChanges,

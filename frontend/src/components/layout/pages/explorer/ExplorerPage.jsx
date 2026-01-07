@@ -54,7 +54,13 @@ function ExplorerPage() {
 
   // No repository open
   if (!repoPath) {
-    return <NoDirectoryScreen onOpenFolder={handleOpenFolder} isLoading={isOpeningFolder} />;
+    return (
+      <NoDirectoryScreen 
+        onOpenFolder={handleOpenFolder} 
+        onOpenPath={openRepo}
+        isLoading={isOpeningFolder} 
+      />
+    );
   }
 
   // Repository open with uncommitted changes
