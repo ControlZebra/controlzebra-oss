@@ -8,7 +8,7 @@ import { VIEWS } from '../../../constants';
 
 // Page components
 export { default as DashboardPage } from './DashboardPage';
-export { default as ExplorerPage } from './ExplorerPage';
+export { ExplorerPage } from './explorer';
 export { default as ChangesPage } from './ChangesPage';
 export { default as HistoryPage } from './HistoryPage';
 export { default as ProfilePage } from './ProfilePage';
@@ -16,7 +16,7 @@ export { SettingsPage } from './settings';
 
 // Import for registry
 import DashboardPage from './DashboardPage';
-import ExplorerPage from './ExplorerPage';
+import { ExplorerPage } from './explorer';
 import ChangesPage from './ChangesPage';
 import HistoryPage from './HistoryPage';
 import ProfilePage from './ProfilePage';

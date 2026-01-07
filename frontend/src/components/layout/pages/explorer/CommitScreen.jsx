@@ -1,27 +1,18 @@
 /**
- * ExplorerPage - Main area showing recommended actions based on repo state.
- * 
- * Displays contextual guidance:
- * - No repo: Welcome screen with open folder prompt
- * - Has changes: Quick save form with changed files table
- * - No changes: Success state encouraging exploration
+ * CommitScreen - Quick save form when there are uncommitted changes.
+ * Shows commit message input and changed files table.
  */
 import { memo, useState, useCallback } from 'react';
 import {
-  Folder,
-  FolderOpen,
   FileText,
   Plus,
   Pencil,
   Trash2,
   HelpCircle,
-  CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
-import { useRepo } from '../../../context';
-import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../constants';
-import { Button, Textarea, Card, CardContent } from '../../ui';
-import { OpenFolderDialog } from '../../../../bindings/changeme/services/filedialogservice';
+import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../../constants';
+import { Button, Textarea, Card, CardContent } from '../../../ui';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -36,7 +27,6 @@ const STATUS_CONFIG = {
 
 /**
  * Shorten a file path macOS-style: .../parent/file.ext
- * Limits to approximately maxLength characters
  */
 function shortenPath(fullPath, maxLength = 30) {
   if (!fullPath || fullPath.length <= maxLength) return fullPath;
@@ -46,12 +36,10 @@ function shortenPath(fullPath, maxLength = 30) {
   
   const fileName = parts[parts.length - 1];
   
-  // If just filename fits, return it
   if (fileName.length >= maxLength - 4) {
     return `.../${fileName.slice(0, maxLength - 4)}`;
   }
   
-  // Try to include parent folder
   if (parts.length >= 2) {
     const parent = parts[parts.length - 2];
     const shortPath = `.../${parent}/${fileName}`;
@@ -60,67 +48,8 @@ function shortenPath(fullPath, maxLength = 30) {
     }
   }
   
-  // Fallback: just ellipsis + filename
   return `.../${fileName}`;
 }
-
-// ============================================================================
-// No Repository State
-// ============================================================================
-const NoRepoState = memo(function NoRepoState({ onOpenFolder, isLoading }) {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="max-w-md text-center">
-        <h1 className="text-5xl font-light text-neutral-100 mb-2">Welcome!</h1>
-        <p className="text-neutral-400 mb-8">Get started by opening a folder</p>
-        
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-neutral-700/50 mb-6">
-          <Folder style={{ width: 32, height: 32 }} className="text-neutral-500" />
-        </div>
-        
-        <p className="text-neutral-500 text-sm mb-6">
-          Open a folder containing your project files to start tracking changes.
-        </p>
-        
-        <Button size="lg" onClick={onOpenFolder} loading={isLoading}>
-          <FolderOpen style={iconStyle} />
-          Open Folder
-        </Button>
-        
-        <p className="text-xs text-neutral-600 mt-4">
-          Tip: Use <kbd className="px-1.5 py-0.5 rounded bg-neutral-700 text-neutral-300">⌘O</kbd> to quickly open a folder
-        </p>
-      </div>
-    </div>
-  );
-});
-
-// ============================================================================
-// All Synced State - No changes to commit
-// ============================================================================
-const AllSyncedState = memo(function AllSyncedState({ repoPath }) {
-  const folderName = repoPath?.split('/').pop() || 'Repository';
-  
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="max-w-md text-center">
-        <h1 className="text-5xl font-light text-neutral-100 mb-2">Welcome!</h1>
-        <p className="text-sm text-neutral-500 mb-8">All caught up</p>
-        
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">
-          <CheckCircle2 style={{ width: 32, height: 32 }} className="text-green-400" />
-        </div>
-        
-        <p className="text-neutral-300 text-base mb-2">
-          No changes detected in <span className="font-medium">{folderName}</span>
-        </p>
-        <p className="text-neutral-500 text-sm">
-          Your project is up to date. Make some changes to files and they'll appear here.
-        </p>
-      </div>
-    </div>
-  );
-});
 
 // ============================================================================
 // Changed Files Table
@@ -189,10 +118,9 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
 });
 
 // ============================================================================
-// Has Changes State - Quick save form
+// Main CommitScreen Component
 // ============================================================================
-const HasChangesState = memo(function HasChangesState({ 
-  repoPath, 
+function CommitScreen({ 
   changedFiles, 
   onCommit, 
   onSync,
@@ -231,7 +159,6 @@ const HasChangesState = memo(function HasChangesState({
         handleSave();
       }
     }
-    // Shift+Enter allows default behavior (new line) - no need to handle
   }, [handleSave, handleSync, justCommitted, changedFiles.length]);
 
   const showSyncButton = justCommitted && changedFiles.length === 0;
@@ -287,61 +214,6 @@ const HasChangesState = memo(function HasChangesState({
       </div>
     </div>
   );
-});
-
-// ============================================================================
-// Main ExplorerPage Component
-// ============================================================================
-function ExplorerPage() {
-  const { 
-    repoPath, 
-    repoStatus, 
-    openRepo, 
-    commitChanges, 
-    syncRepo,
-    isCommitting,
-    isSyncing,
-  } = useRepo();
-  
-  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
-
-  const handleOpenFolder = useCallback(async () => {
-    setIsOpeningFolder(true);
-    try {
-      const result = await OpenFolderDialog();
-      if (result.selected && result.path) {
-        await openRepo(result.path);
-      }
-    } catch (err) {
-      console.error('Failed to open folder:', err);
-    }
-    setIsOpeningFolder(false);
-  }, [openRepo]);
-
-  const changedFiles = repoStatus?.changedFiles || [];
-  const hasChanges = changedFiles.length > 0;
-
-  // No repository open
-  if (!repoPath) {
-    return <NoRepoState onOpenFolder={handleOpenFolder} isLoading={isOpeningFolder} />;
-  }
-
-  // Repository open but no changes
-  if (!hasChanges) {
-    return <AllSyncedState repoPath={repoPath} />;
-  }
-
-  // Repository open with changes
-  return (
-    <HasChangesState
-      repoPath={repoPath}
-      changedFiles={changedFiles}
-      onCommit={commitChanges}
-      onSync={syncRepo}
-      isCommitting={isCommitting}
-      isSyncing={isSyncing}
-    />
-  );
 }
 
-export default memo(ExplorerPage);
+export default memo(CommitScreen);
