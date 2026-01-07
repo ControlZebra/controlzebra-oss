@@ -38,12 +38,12 @@ func (p *ProgressService) SetApp(app *application.App) {
 // ProgressUpdate represents a progress event sent to the frontend
 type ProgressUpdate struct {
 	OperationID string `json:"operationId"`
-	Phase       string `json:"phase"`       // "starting", "enumerating", "counting", "compressing", "writing", "receiving", "resolving", "done", "error"
-	Percent     int    `json:"percent"`     // 0-100, -1 for indeterminate
-	Message     string `json:"message"`     // Human-readable status
-	IsComplete  bool   `json:"isComplete"`  // True when operation finished
-	Success     bool   `json:"success"`     // True if completed successfully
-	Error       string `json:"error"`       // Error message if failed
+	Phase       string `json:"phase"`      // "starting", "enumerating", "counting", "compressing", "writing", "receiving", "resolving", "done", "error"
+	Percent     int    `json:"percent"`    // 0-100, -1 for indeterminate
+	Message     string `json:"message"`    // Human-readable status
+	IsComplete  bool   `json:"isComplete"` // True when operation finished
+	Success     bool   `json:"success"`    // True if completed successfully
+	Error       string `json:"error"`      // Error message if failed
 }
 
 // Pre-compiled regex for parsing git progress
