@@ -26,6 +26,7 @@ func init() {
 	// and provide a strongly typed JS/TS API for them.
 	application.RegisterEvent[string]("time")
 	application.RegisterEvent[string]("folder-selected")
+	application.RegisterEvent[string]("folder-closed")
 
 	// Terminal events - dynamic event names based on session ID
 	// These are registered as patterns, actual events use session-specific suffixes
@@ -90,6 +91,13 @@ func main() {
 				// Emit event to frontend with the selected path
 				app.Event.Emit("folder-selected", result.Path)
 			}
+		})
+
+	fileMenu.Add("Close Folder").
+		SetAccelerator("CmdOrCtrl+W").
+		OnClick(func(ctx *application.Context) {
+			// Emit event to frontend to close the current folder
+			app.Event.Emit("folder-closed", "")
 		})
 
 	if runtime.GOOS != "darwin" {
