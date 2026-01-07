@@ -14,7 +14,7 @@ function AllSyncedScreen({ repoPath }) {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">
           <CheckCircle2 style={{ width: 32, height: 32 }} className="text-green-400" />
         </div>
-        <h1 className="text-5xl font-light text-neutral-100 mb-2">All caught up!</h1>
+        <h2 className="text-5xl font-light text-neutral-100 mb-2">All caught up!</h2>
 
         <p className="text-neutral-300 text-base mb-2">
           No changes detected in <span className="font-medium">{folderName}</span>
