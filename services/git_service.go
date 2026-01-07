@@ -91,6 +91,15 @@ func (g *GitService) DetectRepo(path string) RepoInfo {
 	return result
 }
 
+// GetRemoteURL returns the URL of the origin remote, or empty string if not set
+func (g *GitService) GetRemoteURL(repoPath string) string {
+	result := g.runner.RunGit(repoPath, "remote", "get-url", "origin")
+	if !result.Success {
+		return ""
+	}
+	return trimOutput(result.Stdout)
+}
+
 // trimOutput removes leading/trailing whitespace from command output
 func trimOutput(s string) string {
 	return strings.TrimSpace(s)

@@ -4,7 +4,7 @@
  */
 import { memo, useCallback, useMemo } from 'react';
 import {
-  GitCompare,
+  GitBranch,
   Terminal,
   CheckCircle,
   RefreshCw,
@@ -21,7 +21,7 @@ const iconStyle = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 // Panel tab configuration
 const PANEL_TABS = [
-  { id: BOTTOM_PANELS.COMPARE, Icon: GitCompare, label: 'Compare' },
+  { id: BOTTOM_PANELS.REPOSITORY, Icon: GitBranch, label: 'Repository' },
   { id: BOTTOM_PANELS.TERMINAL, Icon: Terminal, label: 'Terminal' },
 ];
 

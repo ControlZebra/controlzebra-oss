@@ -239,6 +239,15 @@ export function GetRecentCommits(repoPath, limit) {
 }
 
 /**
+ * GetRemoteURL returns the URL of the origin remote, or empty string if not set
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetRemoteURL(repoPath) {
+    return $Call.ByID(2508520694, repoPath);
+}
+
+/**
  * IsProtectedBranch checks if the given branch name is in the protected list.
  * Uses the configured list from settings, falling back to defaults.
  * @param {string} repoPath
