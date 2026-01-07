@@ -164,7 +164,7 @@ function CommitScreen({
   const showSyncButton = justCommitted && changedFiles.length === 0;
 
   return (
-    <div className="flex-1 flex flex-col items-center p-8 overflow-auto">
+    <div className="flex-1 flex flex-col items-center p-8 overflow-auto animate-screen-enter">
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
