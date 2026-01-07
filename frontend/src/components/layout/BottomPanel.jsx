@@ -7,12 +7,12 @@ import { memo, useMemo, useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 import { BOTTOM_PANELS, ICON_SIZES } from '../../constants';
 import { useLayout } from '../../context';
-import { ComparePanel, TerminalPanel } from './bottom-panels';
+import { RepositoryPanel, TerminalPanel } from './bottom-panels';
 import { Button } from '../ui';
 
 // Panel configuration mapping
 const PANEL_CONFIG = {
-  [BOTTOM_PANELS.COMPARE]: { title: 'Compare', Component: ComparePanel },
+  [BOTTOM_PANELS.REPOSITORY]: { title: 'Repository', Component: RepositoryPanel },
   [BOTTOM_PANELS.TERMINAL]: { title: 'Terminal', Component: TerminalPanel },
 };
 
@@ -27,7 +27,7 @@ function BottomPanel() {
 
   // Get panel config based on active panel
   const { title, Component } = useMemo(
-    () => PANEL_CONFIG[activeBottomPanel] || PANEL_CONFIG[BOTTOM_PANELS.COMMIT],
+    () => PANEL_CONFIG[activeBottomPanel] || PANEL_CONFIG[BOTTOM_PANELS.REPOSITORY],
     [activeBottomPanel]
   );
 
@@ -57,16 +57,14 @@ function BottomPanel() {
     document.addEventListener('mouseup', handleMouseUp);
   }, [setBottomPanelHeight]);
 
-  // Don't render if collapsed
-  if (bottomPanelCollapsed) {
-    return null;
-  }
-
   return (
     <section 
       ref={containerRef}
       className="bg-neutral-900 border-t border-neutral-800 flex flex-col shrink-0 relative"
-      style={{ height: bottomPanelHeight }}
+      style={{ 
+        height: bottomPanelHeight,
+        display: bottomPanelCollapsed ? 'none' : 'flex'
+      }}
     >
       {/* Resize handle */}
       <div
