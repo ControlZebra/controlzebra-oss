@@ -10,8 +10,8 @@ function AllSyncedScreen({ repoPath }) {
   return (
     <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
       <div className="max-w-md text-center">
-        <h1 className="text-5xl font-light text-neutral-100 mb-2">Welcome!</h1>
-        <p className="text-sm text-neutral-500 mb-8">All caught up</p>
+        <h1 className="text-5xl font-light text-neutral-100 mb-2">All caught up!</h1>
+        <p className="text-sm text-neutral-500 mb-8">Ready to work?</p>
         
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">
           <CheckCircle2 style={{ width: 32, height: 32 }} className="text-green-400" />
