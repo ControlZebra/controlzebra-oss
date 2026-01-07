@@ -4,8 +4,9 @@
  * Displays contextual guidance:
  * - No repo: Welcome screen with open folder prompt
  * - Has changes: Quick save form with changed files table
- * - No changes but ahead of remote: Sync to cloud / Create PR screen
- * - Fully synced: Success state encouraging exploration
+ * - No changes but ahead of remote: Encourage sync to cloud
+ * - No changes, synced, on feature branch: Suggest merge request
+ * - No changes, synced, on main/master: All caught up state
  */
 import { memo, useState, useCallback } from 'react';
 import { useRepo } from '../../../../context';
@@ -13,7 +14,11 @@ import { OpenFolderDialog } from '../../../../../bindings/changeme/services/file
 import NoDirectoryScreen from './NoDirectoryScreen';
 import CommitScreen from './CommitScreen';
 import ReadyToPushScreen from './ReadyToPushScreen';
+import MergeRequestScreen from './MergeRequestScreen';
 import AllSyncedScreen from './AllSyncedScreen';
+
+// Main branches where we don't suggest merge requests
+const MAIN_BRANCHES = ['main', 'master'];
 
 function ExplorerPage() {
   const { 
@@ -44,6 +49,8 @@ function ExplorerPage() {
   const changedFiles = repoStatus?.changedFiles || [];
   const hasChanges = changedFiles.length > 0;
   const ahead = repoStatus?.ahead || 0;
+  const branchName = repoStatus?.branch || 'main';
+  const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
 
   // No repository open
   if (!repoPath) {
@@ -63,7 +70,7 @@ function ExplorerPage() {
     );
   }
 
-  // Repository open, no changes, but commits ahead of remote (ready to push/PR)
+  // Repository open, no changes, but commits ahead of remote (ready to push)
   if (ahead > 0) {
     return (
       <ReadyToPushScreen
@@ -74,7 +81,12 @@ function ExplorerPage() {
     );
   }
 
-  // Repository open, no changes, fully synced
+  // Repository open, no changes, synced, on feature branch → suggest merge request
+  if (!isMainBranch) {
+    return <MergeRequestScreen branchName={branchName} />;
+  }
+
+  // Repository open, no changes, synced, on main/master → all caught up
   return <AllSyncedScreen repoPath={repoPath} />;
 }
 
