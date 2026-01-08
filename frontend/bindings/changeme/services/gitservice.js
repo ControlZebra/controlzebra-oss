@@ -248,6 +248,33 @@ export function GetRemoteURL(repoPath) {
 }
 
 /**
+ * InitRepo initializes a new Git repository at the given path.
+ * Creates the directory if it doesn't exist.
+ * Returns an error if the path is already a Git repository.
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function InitRepo(path) {
+    return $Call.ByID(1061210595, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * InitRepoWithLFS initializes a new Git repository with LFS enabled.
+ * Creates the directory if it doesn't exist, runs git init, then git lfs install.
+ * The lfsService parameter is required to perform LFS initialization.
+ * @param {string} path
+ * @param {$models.LFSService | null} lfsService
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function InitRepoWithLFS(path, lfsService) {
+    return $Call.ByID(4162144414, path, lfsService).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * IsProtectedBranch checks if the given branch name is in the protected list.
  * Uses the configured list from settings, falling back to defaults.
  * @param {string} repoPath

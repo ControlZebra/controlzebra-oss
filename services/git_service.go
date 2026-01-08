@@ -100,6 +100,61 @@ func (g *GitService) GetRemoteURL(repoPath string) string {
 	return trimOutput(result.Stdout)
 }
 
+// InitRepo initializes a new Git repository at the given path.
+// Creates the directory if it doesn't exist.
+// Returns an error if the path is already a Git repository.
+func (g *GitService) InitRepo(path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return failedOp("Failed to create directory: " + err.Error())
+	}
+
+	// Check if already a git repo
+	existing := g.DetectRepo(path)
+	if existing.IsRepo {
+		return failedOp("Directory is already a Git repository")
+	}
+
+	// Run git init
+	result := g.runner.RunGit(path, "init")
+	if !result.Success {
+		return failedOp("Failed to initialize repository: " + getErrorMessage(result))
+	}
+
+	return successOp("Repository initialized successfully")
+}
+
+// InitRepoWithLFS initializes a new Git repository with LFS enabled.
+// Creates the directory if it doesn't exist, runs git init, then git lfs install.
+// The lfsService parameter is required to perform LFS initialization.
+func (g *GitService) InitRepoWithLFS(path string, lfsService *LFSService) OperationResult {
+	if lfsService == nil {
+		return failedOp("LFS service is required")
+	}
+
+	// First initialize the git repo
+	initResult := g.InitRepo(path)
+	if !initResult.Success {
+		return initResult
+	}
+
+	// Then initialize LFS
+	lfsResult := lfsService.InitializeLFS(path)
+	if !lfsResult.Success {
+		// Git init succeeded but LFS failed - report partial success
+		return OperationResult{
+			Success: true,
+			Message: "Repository initialized, but LFS setup failed: " + lfsResult.Error,
+		}
+	}
+
+	return successOp("Repository initialized with Git LFS enabled")
+}
+
 // trimOutput removes leading/trailing whitespace from command output
 func trimOutput(s string) string {
 	return strings.TrimSpace(s)
