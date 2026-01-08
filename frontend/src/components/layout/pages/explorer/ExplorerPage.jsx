@@ -2,7 +2,8 @@
  * ExplorerPage - Main area showing recommended actions based on repo state.
  * 
  * Displays contextual guidance:
- * - No repo: Welcome screen with open folder prompt
+ * - No folder: Welcome screen with open folder prompt
+ * - Folder without git: Warning screen with initialize option
  * - Has changes: Quick save form with changed files table
  * - No changes but ahead of remote: Encourage sync to cloud
  * - No changes, synced, on feature branch: Suggest merge request
@@ -12,6 +13,7 @@ import { memo, useState, useCallback } from 'react';
 import { useRepo } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/changeme/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
+import NoGitRepoScreen from './NoGitRepoScreen';
 import CommitScreen from './CommitScreen';
 import ReadyToPushScreen from './ReadyToPushScreen';
 import MergeRequestScreen from './MergeRequestScreen';
@@ -23,10 +25,13 @@ const MAIN_BRANCHES = ['main', 'master'];
 function ExplorerPage() {
   const { 
     repoPath, 
+    repoInfo,
     repoStatus, 
     openRepo, 
+    initializeGitRepo,
     commitChanges, 
     syncRepo,
+    isLoading,
     isCommitting,
     isSyncing,
   } = useRepo();
@@ -46,13 +51,11 @@ function ExplorerPage() {
     setIsOpeningFolder(false);
   }, [openRepo]);
 
-  const changedFiles = repoStatus?.changedFiles || [];
-  const hasChanges = changedFiles.length > 0;
-  const ahead = repoStatus?.ahead || 0;
-  const branchName = repoStatus?.branch || 'main';
-  const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
+  const handleInitializeGit = useCallback(async () => {
+    await initializeGitRepo();
+  }, [initializeGitRepo]);
 
-  // No repository open
+  // No folder open
   if (!repoPath) {
     return (
       <NoDirectoryScreen 
@@ -62,6 +65,25 @@ function ExplorerPage() {
       />
     );
   }
+
+  // Folder open but not a git repository
+  const isGitRepo = repoInfo?.isRepo;
+  if (!isGitRepo) {
+    const folderName = repoPath.split('/').pop();
+    return (
+      <NoGitRepoScreen 
+        folderName={folderName}
+        onInitialize={handleInitializeGit}
+        isLoading={isLoading}
+      />
+    );
+  }
+
+  const changedFiles = repoStatus?.changedFiles || [];
+  const hasChanges = changedFiles.length > 0;
+  const ahead = repoStatus?.ahead || 0;
+  const branchName = repoStatus?.branch || 'main';
+  const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
 
   // Repository open with uncommitted changes
   if (hasChanges) {
