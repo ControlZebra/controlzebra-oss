@@ -31,12 +31,14 @@ function ExplorerPage() {
     initializeGitRepo,
     commitChanges, 
     syncRepo,
+    rewindToLastSnapshot,
     isLoading,
     isCommitting,
     isSyncing,
   } = useRepo();
   
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+  const [isRewinding, setIsRewinding] = useState(false);
 
   const handleOpenFolder = useCallback(async () => {
     setIsOpeningFolder(true);
@@ -54,6 +56,16 @@ function ExplorerPage() {
   const handleInitializeGit = useCallback(async () => {
     await initializeGitRepo();
   }, [initializeGitRepo]);
+
+  const handleRewind = useCallback(async () => {
+    setIsRewinding(true);
+    try {
+      const success = await rewindToLastSnapshot();
+      return success;
+    } finally {
+      setIsRewinding(false);
+    }
+  }, [rewindToLastSnapshot]);
 
   // No folder open
   if (!repoPath) {
@@ -92,8 +104,10 @@ function ExplorerPage() {
         changedFiles={changedFiles}
         onCommit={commitChanges}
         onSync={syncRepo}
+        onRewind={handleRewind}
         isCommitting={isCommitting}
         isSyncing={isSyncing}
+        isRewinding={isRewinding}
       />
     );
   }

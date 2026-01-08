@@ -335,6 +335,20 @@ export function RemoveLockFile(repoPath) {
 }
 
 /**
+ * ResetHardHead resets the working directory to HEAD, discarding all uncommitted changes.
+ * This is the "Rewind" feature - returns to the last committed state.
+ * Requires confirm=true as a safety measure for destructive operations.
+ * @param {string} repoPath
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ResetHardHead(repoPath, confirm) {
+    return $Call.ByID(3423917539, repoPath, confirm).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * ResetSoftHead undoes the last n commits, keeping changes staged.
  * This is the "Undo Last Save" feature - changes remain in the working directory.
  * Requires confirm=true as a safety measure for destructive operations.

@@ -10,9 +10,11 @@ import {
   Trash2,
   HelpCircle,
   RefreshCw,
+  RotateCcw,
 } from 'lucide-react';
 import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../../constants';
 import { Button, Textarea, Card, CardContent } from '../../../ui';
+import { RewindConfirmModal } from '../../';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -124,11 +126,14 @@ function CommitScreen({
   changedFiles, 
   onCommit, 
   onSync,
+  onRewind,
   isCommitting,
   isSyncing,
+  isRewinding,
 }) {
   const [message, setMessage] = useState('');
   const [justCommitted, setJustCommitted] = useState(false);
+  const [showRewindModal, setShowRewindModal] = useState(false);
 
   const handleMessageChange = useCallback((e) => {
     setMessage(e.target.value);
@@ -148,6 +153,21 @@ function CommitScreen({
     await onSync();
     setJustCommitted(false);
   }, [onSync]);
+
+  const handleRewindClick = useCallback(() => {
+    setShowRewindModal(true);
+  }, []);
+
+  const handleRewindConfirm = useCallback(async () => {
+    const success = await onRewind();
+    if (success) {
+      setShowRewindModal(false);
+    }
+  }, [onRewind]);
+
+  const handleRewindCancel = useCallback(() => {
+    setShowRewindModal(false);
+  }, []);
 
   const handleKeyDown = useCallback((e) => {
     // Ctrl+Enter (or Cmd+Enter) to save/sync
@@ -191,27 +211,46 @@ function CommitScreen({
         </div>
 
         {/* Action button */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center gap-3 mb-8">
           {showSyncButton ? (
             <Button onClick={handleSync} loading={isSyncing} size="lg">
               <RefreshCw style={iconStyle} />
               Sync with remote
             </Button>
           ) : (
-            <Button 
-              onClick={handleSave} 
-              disabled={!message.trim()} 
-              loading={isCommitting}
-              size="lg"
-            >
-              Create Snapshot
-            </Button>
+            <>
+              <Button 
+                onClick={handleSave} 
+                disabled={!message.trim()} 
+                loading={isCommitting}
+                size="lg"
+              >
+                Create Snapshot
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleRewindClick}
+                disabled={isCommitting || isSyncing}
+                size="lg"
+              >
+                <RotateCcw style={iconStyle} />
+                Rewind
+              </Button>
+            </>
           )}
         </div>
 
         {/* Changed files table */}
         <ChangedFilesTable files={changedFiles} />
       </div>
+
+      {/* Rewind Confirmation Modal */}
+      <RewindConfirmModal
+        open={showRewindModal}
+        onClose={handleRewindCancel}
+        onConfirm={handleRewindConfirm}
+        isLoading={isRewinding}
+      />
     </div>
   );
 }
