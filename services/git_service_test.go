@@ -91,6 +91,113 @@ func TestDetectRepo_NonExistentPath(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// InitRepo Tests
+// ============================================================================
+
+func TestInitRepo_Success(t *testing.T) {
+	// Create a temp directory but don't init git
+	tmpDir, err := os.MkdirTemp("", "init-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	targetPath := filepath.Join(tmpDir, "new-repo")
+
+	svc := NewGitService()
+	result := svc.InitRepo(targetPath)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify it's actually a git repo now
+	info := svc.DetectRepo(targetPath)
+	if !info.IsRepo {
+		t.Error("Expected directory to be a valid git repo after init")
+	}
+}
+
+func TestInitRepo_AlreadyExists(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	result := svc.InitRepo(repoPath)
+
+	if result.Success {
+		t.Error("Expected failure when initializing existing repo")
+	}
+	if !strings.Contains(result.Error, "already a Git repository") {
+		t.Errorf("Expected 'already a Git repository' error, got: %s", result.Error)
+	}
+}
+
+func TestInitRepo_EmptyPath(t *testing.T) {
+	svc := NewGitService()
+	result := svc.InitRepo("")
+
+	if result.Success {
+		t.Error("Expected failure for empty path")
+	}
+	if !strings.Contains(result.Error, "Path is required") {
+		t.Errorf("Expected 'Path is required' error, got: %s", result.Error)
+	}
+}
+
+func TestInitRepoWithLFS_Success(t *testing.T) {
+	lfsSvc := NewLFSService()
+	if !lfsSvc.IsLFSInstalled() {
+		t.Skip("Git LFS is not installed, skipping test")
+	}
+
+	// Create a temp directory
+	tmpDir, err := os.MkdirTemp("", "init-lfs-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	targetPath := filepath.Join(tmpDir, "new-lfs-repo")
+
+	gitSvc := NewGitService()
+	result := gitSvc.InitRepoWithLFS(targetPath, lfsSvc)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify it's a git repo
+	info := gitSvc.DetectRepo(targetPath)
+	if !info.IsRepo {
+		t.Error("Expected directory to be a valid git repo after init")
+	}
+
+	// Verify message mentions LFS
+	if !strings.Contains(result.Message, "LFS") {
+		t.Errorf("Expected message to mention LFS, got: %s", result.Message)
+	}
+}
+
+func TestInitRepoWithLFS_NilLFSService(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "init-nil-lfs-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	gitSvc := NewGitService()
+	result := gitSvc.InitRepoWithLFS(tmpDir, nil)
+
+	if result.Success {
+		t.Error("Expected failure when LFS service is nil")
+	}
+	if !strings.Contains(result.Error, "LFS service is required") {
+		t.Errorf("Expected 'LFS service is required' error, got: %s", result.Error)
+	}
+}
+
 func TestStatus_EmptyRepo(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)

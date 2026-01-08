@@ -1086,6 +1086,30 @@ export class LFSLock {
 }
 
 /**
+ * LFSService provides Git LFS operations via CLI
+ */
+export class LFSService {
+    /**
+     * Creates a new LFSService instance.
+     * @param {Partial<LFSService>} [$$source = {}] - The source object to create the LFSService.
+     */
+    constructor($$source = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LFSService instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LFSService}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LFSService(/** @type {Partial<LFSService>} */($$parsedSource));
+    }
+}
+
+/**
  * LockFileInfo contains information about Git lock files in the repository
  */
 export class LockFileInfo {
