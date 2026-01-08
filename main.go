@@ -41,6 +41,7 @@ func main() {
 	fileDialogService := services.NewFileDialogService()
 	terminalService := services.NewTerminalService()
 	progressService := services.NewProgressService()
+	settingsService := services.NewSettingsService()
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -53,7 +54,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(services.NewGitService()),
 			application.NewService(services.NewLFSService()),
-			application.NewService(services.NewSettingsService()),
+			application.NewService(settingsService),
 			application.NewService(services.NewFileSystemService()),
 			application.NewService(fileDialogService),
 			application.NewService(terminalService),
@@ -71,6 +72,7 @@ func main() {
 	fileDialogService.SetApp(app)
 	terminalService.SetApp(app)
 	progressService.SetApp(app)
+	settingsService.SetApp(app)
 
 	// Create application menu
 	menu := app.NewMenu()
