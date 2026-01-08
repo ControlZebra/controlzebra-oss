@@ -135,6 +135,11 @@ export function RepoProvider({ children }) {
 
   // Open a folder by path (may or may not be a git repo)
   const openRepo = useCallback(async (path) => {
+    // Prevent duplicate calls while already loading
+    if (isLoading) return false;
+    // Skip if already open at this path
+    if (path === repoPath) return true;
+    
     setIsLoading(true);
     setSelectedFileIndex(null);
     
@@ -169,7 +174,7 @@ export function RepoProvider({ children }) {
       setIsLoading(false);
       return false;
     }
-  }, [showMessage]);
+  }, [isLoading, repoPath, showMessage]);
 
   // Initialize git in current folder
   const initializeGitRepo = useCallback(async () => {
