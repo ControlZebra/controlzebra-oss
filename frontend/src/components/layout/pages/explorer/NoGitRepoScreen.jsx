@@ -1,20 +1,29 @@
 /**
  * NoGitRepoScreen - Warning screen when a folder is opened but has no git initialized.
  * Provides a friendly message and option to initialize version control.
+ * When "Start Tracking Changes" is clicked, transitions to the GitInitForm.
  */
-import { memo } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { AlertTriangle, GitBranch } from 'lucide-react';
 import { ICON_SIZES } from '../../../../constants';
 import { Button } from '../../../ui';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../../ui/card';
+import GitInitForm from './GitInitForm';
 
 // Memoized icon styles
 const iconStyleLg = { width: 48, height: 48 };
 const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
-function NoGitRepoScreen({ folderName, onInitialize, isLoading }) {
+/**
+ * WarningCard - The initial warning state showing no version control message.
+ */
+const WarningCard = memo(function WarningCard({ folderName, onStartTracking, isFading }) {
   return (
-    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
+    <div 
+      className={`flex-1 flex items-center justify-center p-8 transition-opacity duration-500 ${
+        isFading ? 'opacity-0' : 'opacity-100 animate-screen-enter'
+      }`}
+    >
       <Card className="max-w-md w-full">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center">
@@ -35,8 +44,7 @@ function NoGitRepoScreen({ folderName, onInitialize, isLoading }) {
         
         <CardFooter className="flex justify-center pt-2">
           <Button 
-            onClick={onInitialize} 
-            loading={isLoading}
+            onClick={onStartTracking} 
             className="gap-2"
           >
             <GitBranch style={iconStyleSm} />
@@ -45,6 +53,66 @@ function NoGitRepoScreen({ folderName, onInitialize, isLoading }) {
         </CardFooter>
       </Card>
     </div>
+  );
+});
+
+function NoGitRepoScreen({ folderName, onInitialize, isLoading }) {
+  const [showForm, setShowForm] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+
+  // Reset to initial view when folder changes
+  useEffect(() => {
+    setShowForm(false);
+    setIsFading(false);
+  }, [folderName]);
+
+  // Handle the transition from warning card to form
+  const handleStartTracking = useCallback(() => {
+    setIsFading(true);
+    // After fade animation completes (500ms), show the form
+    setTimeout(() => {
+      setShowForm(true);
+      setIsFading(false);
+    }, 500);
+  }, []);
+
+  // Handle going back from the form to the warning card
+  const handleBackFromForm = useCallback(() => {
+    setIsFading(true);
+    setTimeout(() => {
+      setShowForm(false);
+      setIsFading(false);
+    }, 500);
+  }, []);
+
+  // Handle form submission (will be connected to backend later)
+  const handleFormSubmit = useCallback((data) => {
+    console.log('Repository initialization data:', data);
+    // TODO: Connect to backend - call onInitialize with form data
+    // onInitialize(data);
+  }, []);
+
+  // Show the initialization form
+  if (showForm) {
+    return (
+      <div className={`transition-opacity duration-500 ${isFading ? 'opacity-0' : 'opacity-100'}`}>
+        <GitInitForm
+          folderName={folderName}
+          onBack={handleBackFromForm}
+          onSubmit={handleFormSubmit}
+          isLoading={isLoading}
+        />
+      </div>
+    );
+  }
+
+  // Show the warning card
+  return (
+    <WarningCard
+      folderName={folderName}
+      onStartTracking={handleStartTracking}
+      isFading={isFading}
+    />
   );
 }
 
