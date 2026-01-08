@@ -263,13 +263,11 @@ export function InitRepo(path) {
 /**
  * InitRepoWithLFS initializes a new Git repository with LFS enabled.
  * Creates the directory if it doesn't exist, runs git init, then git lfs install.
- * The lfsService parameter is required to perform LFS initialization.
  * @param {string} path
- * @param {$models.LFSService | null} lfsService
  * @returns {$CancellablePromise<$models.OperationResult>}
  */
-export function InitRepoWithLFS(path, lfsService) {
-    return $Call.ByID(4162144414, path, lfsService).then(/** @type {($result: any) => any} */(($result) => {
+export function InitRepoWithLFS(path) {
+    return $Call.ByID(4162144414, path).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
