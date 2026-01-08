@@ -8,7 +8,7 @@ function AllSyncedScreen({ repoPath }) {
   const folderName = repoPath?.split('/').pop() || 'Repository';
   
   return (
-    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
+    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter overflow-y-auto">
       <div className="max-w-md text-center">
         
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">

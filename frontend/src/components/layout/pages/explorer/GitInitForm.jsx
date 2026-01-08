@@ -1139,7 +1139,7 @@ function GitInitForm({ folderName, onBack, onSubmit, isLoading }) {
   }, [onSubmit]);
 
   return (
-    <div className="flex-1 flex items-center justify-center p-8 animate-fade-in">
+    <div className="flex-1 flex items-center justify-center p-8 animate-fade-in overflow-y-auto">
       <Card className="max-w-2xl w-full">
         <CardContent className="p-6">
           {!mode && (
