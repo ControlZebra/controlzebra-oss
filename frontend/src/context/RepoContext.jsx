@@ -37,6 +37,7 @@ import {
   ResetSoftHead,
   DiscardAll,
   DiscardFile,
+  InitRepo,
 } from '../../bindings/changeme/services/gitservice';
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
@@ -131,7 +132,7 @@ export function RepoProvider({ children }) {
     await Promise.all([refreshStatus(), refreshCommits()]);
   }, [refreshStatus, refreshCommits]);
 
-  // Open a repository by path
+  // Open a folder by path (may or may not be a git repo)
   const openRepo = useCallback(async (path) => {
     setIsLoading(true);
     setSelectedFileIndex(null);
@@ -139,34 +140,72 @@ export function RepoProvider({ children }) {
     try {
       const info = await DetectRepo(path);
       
-      if (!info.isRepo) {
-        showMessage('error', info.error || 'Not a valid Git repository');
-        setIsLoading(false);
-        return false;
-      }
-      
+      // Allow opening non-git folders - just track that it's not a repo
       setRepoPath(path);
       setRepoInfo(info);
       
       // Add to recent folders list (localStorage)
       addRecentFolder(path);
       
-      // Persist last opened repo to settings
+      // Persist last opened folder to settings
       try {
         await SaveAppSettings({ lastRepoPath: path, theme: 'dark' });
       } catch (err) {
         console.error('Failed to save settings:', err);
       }
       
-      showMessage('success', `Opened repository: ${path.split('/').pop()}`);
+      const folderName = path.split('/').pop();
+      if (info.isRepo) {
+        showMessage('success', `Opened repository: ${folderName}`);
+      } else {
+        showMessage('info', `Opened folder: ${folderName} (no version control)`);
+      }
+      
       setIsLoading(false);
       return true;
     } catch (err) {
-      showMessage('error', `Failed to open repository: ${err.message || err}`);
+      showMessage('error', `Failed to open folder: ${err.message || err}`);
       setIsLoading(false);
       return false;
     }
   }, [showMessage]);
+
+  // Initialize git in current folder
+  const initializeGitRepo = useCallback(async () => {
+    if (!repoPath) {
+      showMessage('error', 'No folder open');
+      return false;
+    }
+    
+    if (repoInfo?.isRepo) {
+      showMessage('info', 'Folder is already a Git repository');
+      return true;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const result = await InitRepo(repoPath);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to initialize repository');
+        setIsLoading(false);
+        return false;
+      }
+      
+      // Re-detect the repo to get updated info
+      const info = await DetectRepo(repoPath);
+      setRepoInfo(info);
+      
+      showMessage('success', 'Version control initialized successfully');
+      setIsLoading(false);
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to initialize: ${err.message || err}`);
+      setIsLoading(false);
+      return false;
+    }
+  }, [repoPath, repoInfo, showMessage]);
 
   // Close the current repository
   const closeRepo = useCallback(async () => {
@@ -212,9 +251,10 @@ export function RepoProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Start polling when repo is open
+  // Start polling when git repo is open
   useEffect(() => {
-    if (repoPath) {
+    // Only poll for git repos
+    if (repoPath && repoInfo?.isRepo) {
       // Initial fetch
       refreshAll();
       
@@ -227,7 +267,7 @@ export function RepoProvider({ children }) {
         }
       };
     }
-  }, [repoPath, refreshAll, refreshStatus]);
+  }, [repoPath, repoInfo?.isRepo, refreshAll, refreshStatus]);
 
   // Listen for folder-selected event from native menu
   useEffect(() => {
@@ -615,6 +655,7 @@ export function RepoProvider({ children }) {
     // Actions
     openRepo,
     closeRepo,
+    initializeGitRepo,
     commitChanges,
     syncRepo,
     refreshStatus,
@@ -642,7 +683,7 @@ export function RepoProvider({ children }) {
     isLoading, isSyncing, isCommitting, isDiffLoading,
     progressModal, handleProgressComplete,
     showMessage,
-    openRepo, closeRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    openRepo, closeRepo, initializeGitRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch,
     undoLastCommit, discardAllChanges, discardFileChanges,

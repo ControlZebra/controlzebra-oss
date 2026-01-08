@@ -67,6 +67,7 @@ function TopBar() {
   const branchName = repoInfo?.branch || 'main';
   const hasChanges = repoStatus?.changedFiles?.length > 0;
   const hasCommits = commits?.length > 0;
+  const isGitRepo = repoInfo?.isRepo ?? false;
 
   return (
     <>
@@ -77,14 +78,18 @@ function TopBar() {
             {repoPath ? repoName : 'Rewind Logic'}
           </span>
           
-          {repoPath && (
+          {repoPath && isGitRepo && (
             <span className="text-theme-muted text-xs">• {branchName}</span>
+          )}
+          
+          {repoPath && !isGitRepo && (
+            <span className="text-yellow-500/80 text-xs">• No version control</span>
           )}
         </div>
 
-        {/* Right: Action buttons */}
+        {/* Right: Action buttons - only show when git repo is active */}
         <div className="absolute right-3 flex items-center gap-2">
-          {repoPath && (
+          {repoPath && isGitRepo && (
             <>
               {/* Undo Last Save */}
               <Button 
