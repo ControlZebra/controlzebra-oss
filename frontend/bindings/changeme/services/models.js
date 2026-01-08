@@ -515,6 +515,107 @@ export class ConflictedFile {
 }
 
 /**
+ * CustomLFSGroup represents a user-defined LFS extension group
+ */
+export class CustomLFSGroup {
+    /**
+     * Creates a new CustomLFSGroup instance.
+     * @param {Partial<CustomLFSGroup>} [$$source = {}] - The source object to create the CustomLFSGroup.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("color" in $$source)) {
+            /**
+             * Tailwind color class like "text-cyan-400"
+             * @member
+             * @type {string}
+             */
+            this["color"] = "";
+        }
+        if (!("extensions" in $$source)) {
+            /**
+             * e.g., [".bin", ".dat"]
+             * @member
+             * @type {string[]}
+             */
+            this["extensions"] = [];
+        }
+        if (!("description" in $$source)) {
+            /**
+             * Optional description
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CustomLFSGroup instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CustomLFSGroup}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("extensions" in $$parsedSource) {
+            $$parsedSource["extensions"] = $$createField3_0($$parsedSource["extensions"]);
+        }
+        return new CustomLFSGroup(/** @type {Partial<CustomLFSGroup>} */($$parsedSource));
+    }
+}
+
+/**
+ * CustomLFSGroupsData contains all custom LFS groups
+ */
+export class CustomLFSGroupsData {
+    /**
+     * Creates a new CustomLFSGroupsData instance.
+     * @param {Partial<CustomLFSGroupsData>} [$$source = {}] - The source object to create the CustomLFSGroupsData.
+     */
+    constructor($$source = {}) {
+        if (!("groups" in $$source)) {
+            /**
+             * @member
+             * @type {CustomLFSGroup[]}
+             */
+            this["groups"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CustomLFSGroupsData instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CustomLFSGroupsData}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("groups" in $$parsedSource) {
+            $$parsedSource["groups"] = $$createField0_0($$parsedSource["groups"]);
+        }
+        return new CustomLFSGroupsData(/** @type {Partial<CustomLFSGroupsData>} */($$parsedSource));
+    }
+}
+
+/**
  * DiffHunk represents a single hunk in a diff
  */
 export class DiffHunk {
@@ -581,7 +682,7 @@ export class DiffHunk {
      * @returns {DiffHunk}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType7;
+        const $$createField5_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField5_0($$parsedSource["lines"]);
@@ -686,12 +787,57 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType9;
+        const $$createField1_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
         }
         return new DirectoryContents(/** @type {Partial<DirectoryContents>} */($$parsedSource));
+    }
+}
+
+/**
+ * ExportLFSGroupsResult contains the result of an export operation
+ */
+export class ExportLFSGroupsResult {
+    /**
+     * Creates a new ExportLFSGroupsResult instance.
+     * @param {Partial<ExportLFSGroupsResult>} [$$source = {}] - The source object to create the ExportLFSGroupsResult.
+     */
+    constructor($$source = {}) {
+        if (!("success" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["success"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["path"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ExportLFSGroupsResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ExportLFSGroupsResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ExportLFSGroupsResult(/** @type {Partial<ExportLFSGroupsResult>} */($$parsedSource));
     }
 }
 
@@ -766,7 +912,7 @@ export class FileDiff {
      * @returns {FileDiff}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType11;
+        const $$createField4_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("hunks" in $$parsedSource) {
             $$parsedSource["hunks"] = $$createField4_0($$parsedSource["hunks"]);
@@ -922,6 +1068,51 @@ export class GitVersion {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new GitVersion(/** @type {Partial<GitVersion>} */($$parsedSource));
+    }
+}
+
+/**
+ * ImportLFSGroupsResult contains the result of an import operation
+ */
+export class ImportLFSGroupsResult {
+    /**
+     * Creates a new ImportLFSGroupsResult instance.
+     * @param {Partial<ImportLFSGroupsResult>} [$$source = {}] - The source object to create the ImportLFSGroupsResult.
+     */
+    constructor($$source = {}) {
+        if (!("success" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["success"] = false;
+        }
+        if (!("importedCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["importedCount"] = 0;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ImportLFSGroupsResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ImportLFSGroupsResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ImportLFSGroupsResult(/** @type {Partial<ImportLFSGroupsResult>} */($$parsedSource));
     }
 }
 
@@ -1484,7 +1675,7 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType13;
+        const $$createField3_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -1677,11 +1868,13 @@ const $$createType2 = $Create.Array($Create.Any);
 const $$createType3 = CommitFileInfo.createFrom;
 const $$createType4 = $Create.Array($$createType3);
 const $$createType5 = CommitStats.createFrom;
-const $$createType6 = DiffLine.createFrom;
+const $$createType6 = CustomLFSGroup.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = FileEntry.createFrom;
+const $$createType8 = DiffLine.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = DiffHunk.createFrom;
+const $$createType10 = FileEntry.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = FileStatus.createFrom;
+const $$createType12 = DiffHunk.createFrom;
 const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = FileStatus.createFrom;
+const $$createType15 = $Create.Array($$createType14);

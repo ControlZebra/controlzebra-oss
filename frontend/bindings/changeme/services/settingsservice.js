@@ -13,7 +13,43 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as application$0 from "../../github.com/wailsapp/wails/v3/pkg/application/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
+
+/**
+ * AddCustomLFSGroup adds a new custom LFS group
+ * @param {$models.CustomLFSGroup} group
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AddCustomLFSGroup(group) {
+    return $Call.ByID(1211594618, group).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * DeleteCustomLFSGroup deletes a custom LFS group by ID
+ * @param {string} groupID
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function DeleteCustomLFSGroup(groupID) {
+    return $Call.ByID(2398974410, groupID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ExportCustomLFSGroups exports custom LFS groups to a JSON file
+ * @returns {$CancellablePromise<$models.ExportLFSGroupsResult>}
+ */
+export function ExportCustomLFSGroups() {
+    return $Call.ByID(1742709208).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
 
 /**
  * GetAppSettings returns the current app settings
@@ -21,7 +57,17 @@ import * as $models from "./models.js";
  */
 export function GetAppSettings() {
     return $Call.ByID(2022119110).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType2($result);
+    }));
+}
+
+/**
+ * GetCustomLFSGroups returns all custom LFS groups
+ * @returns {$CancellablePromise<$models.CustomLFSGroupsData>}
+ */
+export function GetCustomLFSGroups() {
+    return $Call.ByID(4181572774).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
     }));
 }
 
@@ -33,7 +79,18 @@ export function GetAppSettings() {
  */
 export function GetUserProfile(repoPath) {
     return $Call.ByID(2720888796, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType4($result);
+    }));
+}
+
+/**
+ * ImportCustomLFSGroups imports custom LFS groups from a JSON file
+ * @param {boolean} merge
+ * @returns {$CancellablePromise<$models.ImportLFSGroupsResult>}
+ */
+export function ImportCustomLFSGroups(merge) {
+    return $Call.ByID(4108003661, merge).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
     }));
 }
 
@@ -47,6 +104,24 @@ export function SaveAppSettings(settings) {
 }
 
 /**
+ * SaveCustomLFSGroups saves all custom LFS groups
+ * @param {$models.CustomLFSGroupsData} data
+ * @returns {$CancellablePromise<void>}
+ */
+export function SaveCustomLFSGroups(data) {
+    return $Call.ByID(3907170261, data);
+}
+
+/**
+ * SetApp sets the application reference (called after app initialization)
+ * @param {application$0.App | null} app
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetApp(app) {
+    return $Call.ByID(3275849951, app);
+}
+
+/**
  * SetUserProfile sets the git user config
  * @param {string} repoPath
  * @param {$models.UserProfile} profile
@@ -55,11 +130,25 @@ export function SaveAppSettings(settings) {
  */
 export function SetUserProfile(repoPath, profile, global) {
     return $Call.ByID(3132053776, repoPath, profile, global).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * UpdateCustomLFSGroup updates an existing custom LFS group
+ * @param {$models.CustomLFSGroup} group
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function UpdateCustomLFSGroup(group) {
+    return $Call.ByID(1123005424, group).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
     }));
 }
 
 // Private type creation functions
-const $$createType0 = $models.AppSettings.createFrom;
-const $$createType1 = $models.UserProfile.createFrom;
-const $$createType2 = $models.OperationResult.createFrom;
+const $$createType0 = $models.OperationResult.createFrom;
+const $$createType1 = $models.ExportLFSGroupsResult.createFrom;
+const $$createType2 = $models.AppSettings.createFrom;
+const $$createType3 = $models.CustomLFSGroupsData.createFrom;
+const $$createType4 = $models.UserProfile.createFrom;
+const $$createType5 = $models.ImportLFSGroupsResult.createFrom;

@@ -9,6 +9,7 @@ import { useLayout } from '../../../../context';
 import GitConfigForm from './GitConfigForm';
 import AccountsSettings from './AccountsSettings';
 import GeneralSettings from './GeneralSettings';
+import LFSGroupsSettings from './LFSGroupsSettings';
 
 function SettingsPage() {
   const { selectedSettingsCategory } = useLayout();
@@ -19,6 +20,8 @@ function SettingsPage() {
     switch (selectedSettingsCategory) {
       case 'git-config':
         return <GitConfigForm />;
+      case 'lfs-groups':
+        return <LFSGroupsSettings />;
       case 'general':
         return <GeneralSettings />;
       case 'accounts':

@@ -3,7 +3,7 @@
  * Allows users to either clone an existing repository or initialize a new one.
  * Supports Git LFS configuration with customizable attributes.
  */
-import { memo, useState, useCallback, useMemo } from 'react';
+import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   GitBranch,
   Download,
@@ -20,10 +20,14 @@ import {
   Shield,
   ChevronDown,
   ChevronRight,
+  Factory,
+  Cog,
+  Video,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../../constants';
 import { Button, Input, Label, Badge } from '../../../ui';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../../ui/card';
+import { GetCustomLFSGroups } from '../../../../../bindings/changeme/services/settingsservice';
 
 // Memoized icon styles
 const iconStyleLg = { width: 48, height: 48 };
@@ -31,26 +35,113 @@ const iconStyleMd = { width: ICON_SIZES.md, height: ICON_SIZES.md };
 const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const iconStyleXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
-// Common LFS patterns for industrial automation files
-const COMMON_LFS_PATTERNS = [
-  { pattern: '*.acd', description: 'Rockwell Studio 5000 projects' },
-  { pattern: '*.L5K', description: 'Rockwell L5K exports' },
-  { pattern: '*.L5X', description: 'Rockwell L5X exports' },
-  { pattern: '*.ap*', description: 'TIA Portal projects' },
-  { pattern: '*.zap*', description: 'TIA Portal archives' },
-  { pattern: '*.apa', description: 'TIA Portal archives' },
-  { pattern: '*.mer', description: 'FactoryTalk ME applications' },
-  { pattern: '*.avi', description: 'Video files' },
-  { pattern: '*.pdf', description: 'PDF documents' },
-  { pattern: '*.dwg', description: 'AutoCAD drawings' },
-  { pattern: '*.dxf', description: 'CAD exchange format' },
-  { pattern: '*.step', description: 'STEP CAD files' },
-  { pattern: '*.stp', description: 'STEP CAD files' },
-  { pattern: '*.stl', description: '3D model files' },
-];
+// ============================================================================
+// LFS Extension Groups - Predefined groups organized by category
+// ============================================================================
+const LFS_EXTENSION_GROUPS = {
+  industrial_automation: {
+    label: 'Industrial Automation',
+    icon: Factory,
+    color: 'text-orange-400',
+    bgColor: 'bg-orange-500/10',
+    platforms: [
+      {
+        platform: 'Siemens TIA Portal',
+        extensions: ['.ap14', '.ap15', '.ap16', '.ap17', '.ap18', '.ap19', '.zap19'],
+        description: 'Proprietary project and compressed archive files.',
+      },
+      {
+        platform: 'Rockwell Studio 5000',
+        extensions: ['.acd'],
+        description: 'Logix Designer project files.',
+      },
+      {
+        platform: 'Schneider EcoStruxure',
+        extensions: ['.stu', '.sta'],
+        description: 'Unity Pro / Control Expert project and archive files.',
+      },
+    ],
+  },
+  cad_cam: {
+    label: 'CAD / CAM',
+    icon: Cog,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/10',
+    platforms: [
+      {
+        platform: 'AutoCAD',
+        extensions: ['.dwg', '.dxf'],
+        description: 'Standard drawing formats.',
+      },
+      {
+        platform: 'SOLIDWORKS',
+        extensions: ['.sldprt', '.sldasm', '.slddrw'],
+        description: 'Part, Assembly, and Drawing files.',
+      },
+      {
+        platform: 'Autodesk Fusion',
+        extensions: ['.f3d', '.f3z'],
+        description: 'Cloud-based archive formats.',
+      },
+      {
+        platform: '3D Exchange Standards',
+        extensions: ['.step', '.stp', '.iges', '.igs', '.stl', '.obj', '.fbx'],
+        description: 'Universal formats for CAD and Robotics simulations.',
+      },
+    ],
+  },
+  multimedia_editing: {
+    label: 'Multimedia / Editing',
+    icon: Video,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    platforms: [
+      {
+        platform: 'Adobe Creative Cloud',
+        extensions: ['.psd', '.psb', '.ai', '.indd', '.prproj', '.aep'],
+        description: 'Professional design and video project files.',
+      },
+      {
+        platform: 'Audio DAWs',
+        extensions: ['.logicx', '.cpr', '.ptx', '.als', '.flp'],
+        description: 'Project files for Logic, Cubase, Pro Tools, Ableton, and FL Studio.',
+      },
+      {
+        platform: 'General Media - Video',
+        extensions: ['.mp4', '.mov', '.mkv', '.avi', '.m4v', '.webm', '.flv', '.wmv'],
+        description: 'Compressed and container video formats.',
+      },
+      {
+        platform: 'General Media - Audio',
+        extensions: ['.wav', '.aif', '.mp3', '.flac', '.ogg', '.m4a', '.aac', '.wma'],
+        description: 'Lossless and lossy audio assets.',
+      },
+      {
+        platform: 'General Media - Imagery',
+        extensions: ['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.bmp', '.webp', '.heic'],
+        description: 'Standard raster image assets.',
+      },
+      {
+        platform: 'General Media - RAW Photography',
+        extensions: ['.cr2', '.cr3', '.nef', '.arw', '.dng'],
+        description: 'Uncompressed camera RAW files (highly recommended for LFS).',
+      },
+    ],
+  },
+};
+
+// Flatten groups for individual pattern suggestions
+const COMMON_LFS_PATTERNS = Object.values(LFS_EXTENSION_GROUPS).flatMap(category =>
+  category.platforms.flatMap(platform =>
+    platform.extensions.map(ext => ({
+      pattern: `*${ext}`,
+      description: `${platform.platform}`,
+    }))
+  )
+);
 
 // ============================================================================
-// LFS Attribute Tag Input Component
+// LFS Attribute Tag Input Component with Grouped Dropdown
 // ============================================================================
 const LFSAttributeInput = memo(function LFSAttributeInput({ 
   attributes, 
@@ -59,17 +150,116 @@ const LFSAttributeInput = memo(function LFSAttributeInput({
   suggestions = COMMON_LFS_PATTERNS 
 }) {
   const [inputValue, setInputValue] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState({});
+  const [activeTab, setActiveTab] = useState('groups'); // 'groups', 'custom', or 'search'
+  const [customGroups, setCustomGroups] = useState([]);
+  const [customGroupsLoaded, setCustomGroupsLoaded] = useState(false);
 
-  // Filter suggestions based on input and already added attributes
+  // Define loadCustomGroups before the useEffect that depends on it
+  const loadCustomGroups = useCallback(async () => {
+    try {
+      const data = await GetCustomLFSGroups();
+      setCustomGroups(data.groups || []);
+    } catch (error) {
+      console.error('Failed to load custom LFS groups:', error);
+    } finally {
+      setCustomGroupsLoaded(true);
+    }
+  }, []);
+
+  // Load custom groups when dropdown opens
+  useEffect(() => {
+    if (showDropdown && !customGroupsLoaded) {
+      loadCustomGroups();
+    }
+  }, [showDropdown, customGroupsLoaded, loadCustomGroups]);
+
+  // Get already added patterns as a set for filtering
+  const addedPatterns = useMemo(() => 
+    new Set(attributes.map(a => a.pattern)),
+    [attributes]
+  );
+
+  // Filter suggestions based on input for search mode (include custom groups in search)
   const filteredSuggestions = useMemo(() => {
-    if (!inputValue && !showSuggestions) return [];
-    const addedPatterns = new Set(attributes.map(a => a.pattern));
-    return suggestions.filter(s => 
+    if (!inputValue) return [];
+    
+    // Combine predefined and custom group patterns
+    const allPatterns = [...suggestions];
+    customGroups.forEach(group => {
+      group.extensions.forEach(ext => {
+        allPatterns.push({
+          pattern: `*${ext}`,
+          description: `${group.name} (Custom)`,
+        });
+      });
+    });
+    
+    return allPatterns.filter(s => 
       !addedPatterns.has(s.pattern) &&
-      (inputValue === '' || s.pattern.toLowerCase().includes(inputValue.toLowerCase()))
+      (s.pattern.toLowerCase().includes(inputValue.toLowerCase()) ||
+       s.description.toLowerCase().includes(inputValue.toLowerCase()))
     );
-  }, [inputValue, attributes, suggestions, showSuggestions]);
+  }, [inputValue, addedPatterns, suggestions, customGroups]);
+
+  // Toggle category expansion
+  const toggleCategory = useCallback((categoryKey) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [categoryKey]: !prev[categoryKey],
+    }));
+  }, []);
+
+  // Add entire platform group
+  const handleAddPlatformGroup = useCallback((platform) => {
+    platform.extensions.forEach(ext => {
+      const pattern = `*${ext}`;
+      if (!addedPatterns.has(pattern)) {
+        onAdd({ pattern, description: platform.platform });
+      }
+    });
+  }, [addedPatterns, onAdd]);
+
+  // Add entire custom group
+  const handleAddCustomGroup = useCallback((group) => {
+    group.extensions.forEach(ext => {
+      const pattern = `*${ext}`;
+      if (!addedPatterns.has(pattern)) {
+        onAdd({ pattern, description: group.name });
+      }
+    });
+  }, [addedPatterns, onAdd]);
+
+  // Add single extension
+  const handleAddExtension = useCallback((ext, platformName) => {
+    const pattern = `*${ext}`;
+    if (!addedPatterns.has(pattern)) {
+      onAdd({ pattern, description: platformName });
+    }
+  }, [addedPatterns, onAdd]);
+
+  // Check if a platform is fully added
+  const isPlatformFullyAdded = useCallback((platform) => {
+    return platform.extensions.every(ext => addedPatterns.has(`*${ext}`));
+  }, [addedPatterns]);
+
+  // Check if a platform is partially added
+  const isPlatformPartiallyAdded = useCallback((platform) => {
+    const added = platform.extensions.filter(ext => addedPatterns.has(`*${ext}`));
+    return added.length > 0 && added.length < platform.extensions.length;
+  }, [addedPatterns]);
+
+  // Check if a custom group is fully added
+  const isCustomGroupFullyAdded = useCallback((group) => {
+    return group.extensions.every(ext => addedPatterns.has(`*${ext}`));
+  }, [addedPatterns]);
+
+  // Check if a custom group is partially added
+  const isCustomGroupPartiallyAdded = useCallback((group) => {
+    const added = group.extensions.filter(ext => addedPatterns.has(`*${ext}`));
+    return added.length > 0 && added.length < group.extensions.length;
+  }, [addedPatterns]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && inputValue.trim()) {
@@ -80,24 +270,25 @@ const LFSAttributeInput = memo(function LFSAttributeInput({
       );
       onAdd(matchedSuggestion || { pattern: inputValue.trim(), description: 'Custom pattern' });
       setInputValue('');
-      setShowSuggestions(false);
     }
   }, [inputValue, filteredSuggestions, onAdd]);
 
   const handleSuggestionClick = useCallback((suggestion) => {
     onAdd(suggestion);
     setInputValue('');
-    setShowSuggestions(false);
   }, [onAdd]);
 
   const handleInputFocus = useCallback(() => {
-    setShowSuggestions(true);
+    setShowDropdown(true);
   }, []);
 
   const handleInputBlur = useCallback(() => {
-    // Delay to allow click on suggestion
-    setTimeout(() => setShowSuggestions(false), 200);
+    // Delay to allow click on dropdown items
+    setTimeout(() => setShowDropdown(false), 250);
   }, []);
+
+  // Determine if we should show custom tab
+  const hasCustomGroups = customGroups.length > 0;
 
   return (
     <div className="space-y-2">
@@ -133,40 +324,298 @@ const LFSAttributeInput = memo(function LFSAttributeInput({
         </div>
       )}
       
-      {/* Input with suggestions dropdown */}
+      {/* Input with grouped dropdown */}
       <div className="relative">
         <Input
           type="text"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setActiveTab(e.target.value ? 'search' : 'groups');
+          }}
           onKeyDown={handleKeyDown}
           onFocus={handleInputFocus}
           onBlur={handleInputBlur}
-          placeholder="e.g., *.pdf, *.acd, *.zip"
+          placeholder="Click to browse groups or type to search..."
           className="w-full"
         />
         
-        {/* Suggestions dropdown */}
-        {showSuggestions && filteredSuggestions.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 max-h-48 overflow-y-auto rounded border border-theme-default bg-theme-surface shadow-lg">
-            {filteredSuggestions.map((suggestion, index) => (
+        {/* Dropdown with tabs */}
+        {showDropdown && (
+          <div className="absolute z-20 w-full mt-1 max-h-72 overflow-hidden rounded-lg border border-theme-default bg-theme-surface shadow-xl">
+            {/* Tab buttons */}
+            <div className="flex border-b border-theme-default bg-theme-base/50">
               <button
-                key={suggestion.pattern}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="w-full px-3 py-2 text-left text-sm hover-bg-theme-interactive transition-colors flex items-center justify-between"
+                onClick={() => setActiveTab('groups')}
+                className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                  activeTab === 'groups'
+                    ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+                    : 'text-theme-secondary hover:text-theme-primary'
+                }`}
               >
-                <span className="text-theme-primary font-mono">{suggestion.pattern}</span>
-                <span className="text-theme-muted text-xs">{suggestion.description}</span>
+                Predefined
               </button>
-            ))}
+              {hasCustomGroups && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setActiveTab('custom')}
+                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                    activeTab === 'custom'
+                      ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5'
+                      : 'text-theme-secondary hover:text-theme-primary'
+                  }`}
+                >
+                  My Groups ({customGroups.length})
+                </button>
+              )}
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setActiveTab('search')}
+                className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                  activeTab === 'search'
+                    ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+                    : 'text-theme-secondary hover:text-theme-primary'
+                }`}
+              >
+                Search
+              </button>
+            </div>
+
+            <div className="max-h-56 overflow-y-auto">
+              {activeTab === 'groups' ? (
+                /* Predefined Groups View */
+                <div className="py-1">
+                  {Object.entries(LFS_EXTENSION_GROUPS).map(([categoryKey, category]) => {
+                    const CategoryIcon = category.icon;
+                    const isExpanded = expandedCategories[categoryKey];
+                    
+                    return (
+                      <div key={categoryKey} className="border-b border-theme-default last:border-b-0">
+                        {/* Category Header */}
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => toggleCategory(categoryKey)}
+                          className="w-full px-3 py-2.5 flex items-center gap-2 hover-bg-theme-interactive transition-colors"
+                        >
+                          <div className={`p-1.5 rounded ${category.bgColor}`}>
+                            <CategoryIcon style={iconStyleSm} className={category.color} />
+                          </div>
+                          <span className="flex-1 text-left text-sm font-medium text-theme-primary">
+                            {category.label}
+                          </span>
+                          <span className="text-xs text-theme-muted mr-2">
+                            {category.platforms.length} platforms
+                          </span>
+                          {isExpanded ? (
+                            <ChevronDown style={iconStyleXs} className="text-theme-muted" />
+                          ) : (
+                            <ChevronRight style={iconStyleXs} className="text-theme-muted" />
+                          )}
+                        </button>
+                        
+                        {/* Platforms within category */}
+                        {isExpanded && (
+                          <div className="bg-theme-base/30">
+                            {category.platforms.map((platform, idx) => {
+                              const isFullyAdded = isPlatformFullyAdded(platform);
+                              const isPartiallyAdded = isPlatformPartiallyAdded(platform);
+                              
+                              return (
+                                <div
+                                  key={`${categoryKey}-${idx}`}
+                                  className="border-t border-theme-default/50"
+                                >
+                                  {/* Platform Header */}
+                                  <div className="px-4 py-2 flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm text-theme-primary font-medium">
+                                          {platform.platform}
+                                        </span>
+                                        {isFullyAdded && (
+                                          <Badge variant="success" className="text-[10px] py-0 px-1.5">
+                                            Added
+                                          </Badge>
+                                        )}
+                                        {isPartiallyAdded && !isFullyAdded && (
+                                          <Badge variant="warning" className="text-[10px] py-0 px-1.5">
+                                            Partial
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-theme-muted mt-0.5 truncate">
+                                        {platform.description}
+                                      </p>
+                                    </div>
+                                    {!isFullyAdded && (
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => handleAddPlatformGroup(platform)}
+                                        className="ml-2 px-2 py-1 text-xs bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 transition-colors flex items-center gap-1"
+                                      >
+                                        <Plus style={{ width: 10, height: 10 }} />
+                                        Add All
+                                      </button>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Extension chips */}
+                                  <div className="px-4 pb-2 flex flex-wrap gap-1">
+                                    {platform.extensions.map((ext) => {
+                                      const pattern = `*${ext}`;
+                                      const isAdded = addedPatterns.has(pattern);
+                                      
+                                      return (
+                                        <button
+                                          key={ext}
+                                          type="button"
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => !isAdded && handleAddExtension(ext, platform.platform)}
+                                          disabled={isAdded}
+                                          className={`px-2 py-0.5 text-xs rounded font-mono transition-colors ${
+                                            isAdded
+                                              ? 'bg-green-500/20 text-green-400 cursor-default'
+                                              : 'bg-theme-muted/30 text-theme-secondary hover:bg-blue-500/20 hover:text-blue-400'
+                                          }`}
+                                        >
+                                          {isAdded && <Check style={{ width: 10, height: 10, display: 'inline', marginRight: 2 }} />}
+                                          {ext}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : activeTab === 'custom' ? (
+                /* Custom Groups View */
+                <div className="py-1">
+                  {customGroups.map((group) => {
+                    const isFullyAdded = isCustomGroupFullyAdded(group);
+                    const isPartiallyAdded = isCustomGroupPartiallyAdded(group);
+                    
+                    return (
+                      <div key={group.id} className="border-b border-theme-default last:border-b-0">
+                        {/* Group Header */}
+                        <div className="px-3 py-2.5 flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className="p-1.5 rounded bg-purple-500/10">
+                              <FileCode style={iconStyleSm} className="text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-theme-primary">
+                                  {group.name}
+                                </span>
+                                {isFullyAdded && (
+                                  <Badge variant="success" className="text-[10px] py-0 px-1.5">
+                                    Added
+                                  </Badge>
+                                )}
+                                {isPartiallyAdded && !isFullyAdded && (
+                                  <Badge variant="warning" className="text-[10px] py-0 px-1.5">
+                                    Partial
+                                  </Badge>
+                                )}
+                              </div>
+                              {group.description && (
+                                <p className="text-xs text-theme-muted mt-0.5 truncate">
+                                  {group.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {!isFullyAdded && (
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleAddCustomGroup(group)}
+                              className="ml-2 px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded hover:bg-purple-500/30 transition-colors flex items-center gap-1"
+                            >
+                              <Plus style={{ width: 10, height: 10 }} />
+                              Add All
+                            </button>
+                          )}
+                        </div>
+                        
+                        {/* Extension chips */}
+                        <div className="px-3 pb-2 flex flex-wrap gap-1">
+                          {group.extensions.map((ext) => {
+                            const pattern = `*${ext}`;
+                            const isAdded = addedPatterns.has(pattern);
+                            
+                            return (
+                              <button
+                                key={ext}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => !isAdded && handleAddExtension(ext, group.name)}
+                                disabled={isAdded}
+                                className={`px-2 py-0.5 text-xs rounded font-mono transition-colors ${
+                                  isAdded
+                                    ? 'bg-green-500/20 text-green-400 cursor-default'
+                                    : 'bg-purple-500/10 text-purple-300 hover:bg-purple-500/30 hover:text-purple-200'
+                                }`}
+                              >
+                                {isAdded && <Check style={{ width: 10, height: 10, display: 'inline', marginRight: 2 }} />}
+                                {ext}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Search View */
+                <div>
+                  {filteredSuggestions.length > 0 ? (
+                    filteredSuggestions.slice(0, 15).map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.pattern}-${index}`}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="w-full px-3 py-2 text-left text-sm hover-bg-theme-interactive transition-colors flex items-center justify-between"
+                      >
+                        <span className="text-theme-primary font-mono">{suggestion.pattern}</span>
+                        <span className="text-theme-muted text-xs">{suggestion.description}</span>
+                      </button>
+                    ))
+                  ) : inputValue ? (
+                    <div className="px-3 py-4 text-center">
+                      <p className="text-sm text-theme-secondary">No matching extensions found</p>
+                      <p className="text-xs text-theme-muted mt-1">
+                        Press Enter to add "{inputValue}" as a custom pattern
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="px-3 py-4 text-center text-theme-muted text-sm">
+                      Type to search for file extensions...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
       
       <p className="text-xs text-theme-muted">
-        Press Enter to add a pattern. Click suggestions or type custom patterns like *.bin
+        Browse predefined groups, your custom groups, or type patterns like *.bin
       </p>
     </div>
   );
