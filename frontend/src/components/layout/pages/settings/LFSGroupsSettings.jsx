@@ -2,7 +2,7 @@
  * LFSGroupsSettings - Manage custom LFS extension groups.
  * Allows users to create, edit, delete, import, and export custom LFS groups.
  */
-import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Plus,
   Trash2,
@@ -10,11 +10,10 @@ import {
   Download,
   Upload,
   X,
-  Check,
   FileCode,
   FolderArchive,
-  AlertCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ICON_SIZES } from '../../../../constants';
 import { Button, Input, Label, Badge } from '../../../ui';
 import {
@@ -378,27 +377,6 @@ function LFSGroupsSettings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [notification, setNotification] = useState(null);
-  const notificationTimeoutRef = useRef(null);
-
-  // Notification helper - defined first so it can be used by loadGroups
-  const showNotification = useCallback((message, type = 'success') => {
-    // Clear any existing timeout to prevent stale closures
-    if (notificationTimeoutRef.current) {
-      clearTimeout(notificationTimeoutRef.current);
-    }
-    setNotification({ message, type });
-    notificationTimeoutRef.current = setTimeout(() => setNotification(null), 3000);
-  }, []);
-
-  // Cleanup notification timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (notificationTimeoutRef.current) {
-        clearTimeout(notificationTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const loadGroups = useCallback(async () => {
     setIsLoading(true);
@@ -407,11 +385,11 @@ function LFSGroupsSettings() {
       setGroups(data.groups || []);
     } catch (error) {
       console.error('Failed to load LFS groups:', error);
-      showNotification('Failed to load groups', 'error');
+      toast.error('Failed to load groups');
     } finally {
       setIsLoading(false);
     }
-  }, [showNotification]);
+  }, []);
 
   // Load groups on mount
   useEffect(() => {
@@ -441,24 +419,24 @@ function LFSGroupsSettings() {
         if (!result.success) {
           throw new Error(result.error);
         }
-        showNotification('Group updated successfully');
+        toast.success('Group updated successfully');
       } else {
         const result = await AddCustomLFSGroup(groupData);
         if (!result.success) {
           throw new Error(result.error);
         }
-        showNotification('Group created successfully');
+        toast.success('Group created successfully');
       }
 
       await loadGroups();
       handleCloseModal();
     } catch (error) {
       console.error('Failed to save group:', error);
-      showNotification(error.message || 'Failed to save group', 'error');
+      toast.error(error.message || 'Failed to save group');
     } finally {
       setIsSaving(false);
     }
-  }, [editingGroup, loadGroups, handleCloseModal, showNotification]);
+  }, [editingGroup, loadGroups, handleCloseModal]);
 
   const handleDeleteGroup = useCallback(async (groupId) => {
     if (!confirm('Are you sure you want to delete this group?')) return;
@@ -468,63 +446,45 @@ function LFSGroupsSettings() {
       if (!result.success) {
         throw new Error(result.error);
       }
-      showNotification('Group deleted successfully');
+      toast.success('Group deleted successfully');
       await loadGroups();
     } catch (error) {
       console.error('Failed to delete group:', error);
-      showNotification(error.message || 'Failed to delete group', 'error');
+      toast.error(error.message || 'Failed to delete group');
     }
-  }, [loadGroups, showNotification]);
+  }, [loadGroups]);
 
   const handleExport = useCallback(async () => {
     try {
       const result = await ExportCustomLFSGroups();
       if (result.success) {
-        showNotification(`Exported to ${result.path}`);
+        toast.success(`Exported to ${result.path}`);
       } else if (result.error !== 'Export cancelled') {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Failed to export groups:', error);
-      showNotification(error.message || 'Failed to export groups', 'error');
+      toast.error(error.message || 'Failed to export groups');
     }
-  }, [showNotification]);
+  }, []);
 
   const handleImport = useCallback(async (merge = true) => {
     try {
       const result = await ImportCustomLFSGroups(merge);
       if (result.success) {
-        showNotification(`Imported ${result.importedCount} group(s)`);
+        toast.success(`Imported ${result.importedCount} group(s)`);
         await loadGroups();
       } else if (result.error !== 'Import cancelled') {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Failed to import groups:', error);
-      showNotification(error.message || 'Failed to import groups', 'error');
+      toast.error(error.message || 'Failed to import groups');
     }
-  }, [loadGroups, showNotification]);
+  }, [loadGroups]);
 
   return (
     <div className="bg-theme-surface rounded-lg border border-theme-default">
-      {/* Notification toast */}
-      {notification && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in ${
-            notification.type === 'error'
-              ? 'bg-red-500/90 text-white'
-              : 'bg-green-500/90 text-white'
-          }`}
-        >
-          {notification.type === 'error' ? (
-            <AlertCircle style={iconStyleSm} />
-          ) : (
-            <Check style={iconStyleSm} />
-          )}
-          <span className="text-sm">{notification.message}</span>
-        </div>
-      )}
-
       {/* Header */}
       <div className="p-6 border-b border-theme-default">
         <div className="flex items-center justify-between mb-4">

@@ -20,7 +20,7 @@ const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const WarningCard = memo(function WarningCard({ folderName, onStartTracking, isFading }) {
   return (
     <div 
-      className={`flex-1 flex items-center justify-center p-8 transition-opacity duration-500 ${
+      className={`flex-1 flex items-center justify-center p-8 transition-opacity duration-500 overflow-y-auto ${
         isFading ? 'opacity-0' : 'opacity-100 animate-screen-enter'
       }`}
     >
@@ -95,7 +95,7 @@ function NoGitRepoScreen({ folderName, onInitialize, isLoading }) {
   // Show the initialization form
   if (showForm) {
     return (
-      <div className={`transition-opacity duration-500 ${isFading ? 'opacity-0' : 'opacity-100'}`}>
+      <div className={`flex-1 overflow-y-auto transition-opacity duration-500 ${isFading ? 'opacity-0' : 'opacity-100'}`}>
         <GitInitForm
           folderName={folderName}
           onBack={handleBackFromForm}

@@ -15,7 +15,7 @@ function MergeRequestScreen({ branchName }) {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
+    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter overflow-y-auto">
       <div className="max-w-lg w-full text-center">
         {/* Header */}
         <h1 className="text-5xl font-light text-theme-primary mb-2">Great work!</h1>

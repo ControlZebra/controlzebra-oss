@@ -30,7 +30,7 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
   }, []);
 
   return (
-    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter">
+    <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter overflow-y-auto">
       <div className="max-w-lg text-center">
         <h1 className="text-5xl font-light text-theme-primary mb-2">Welcome!</h1>
         <p className="text-theme-secondary mb-8">Start version control for your project folder</p>

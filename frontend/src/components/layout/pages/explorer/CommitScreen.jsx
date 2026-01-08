@@ -186,7 +186,7 @@ function CommitScreen({
             placeholder="Describe your changes... (Shift+Enter for new line, Ctrl+Enter to save)"
             disabled={isCommitting || isSyncing}
             rows={4}
-            className="text-base bg-neutral-700 border-neutral-600"
+            className="text-base"
           />
         </div>
 
