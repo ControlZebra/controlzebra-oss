@@ -162,7 +162,7 @@ func TestInitRepoWithLFS_Success(t *testing.T) {
 	targetPath := filepath.Join(tmpDir, "new-lfs-repo")
 
 	gitSvc := NewGitService()
-	result := gitSvc.InitRepoWithLFS(targetPath, lfsSvc)
+	result := gitSvc.InitRepoWithLFS(targetPath)
 
 	if !result.Success {
 		t.Errorf("Expected success, got error: %s", result.Error)
@@ -177,24 +177,6 @@ func TestInitRepoWithLFS_Success(t *testing.T) {
 	// Verify message mentions LFS
 	if !strings.Contains(result.Message, "LFS") {
 		t.Errorf("Expected message to mention LFS, got: %s", result.Message)
-	}
-}
-
-func TestInitRepoWithLFS_NilLFSService(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "init-nil-lfs-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	gitSvc := NewGitService()
-	result := gitSvc.InitRepoWithLFS(tmpDir, nil)
-
-	if result.Success {
-		t.Error("Expected failure when LFS service is nil")
-	}
-	if !strings.Contains(result.Error, "LFS service is required") {
-		t.Errorf("Expected 'LFS service is required' error, got: %s", result.Error)
 	}
 }
 

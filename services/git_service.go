@@ -130,12 +130,7 @@ func (g *GitService) InitRepo(path string) OperationResult {
 
 // InitRepoWithLFS initializes a new Git repository with LFS enabled.
 // Creates the directory if it doesn't exist, runs git init, then git lfs install.
-// The lfsService parameter is required to perform LFS initialization.
-func (g *GitService) InitRepoWithLFS(path string, lfsService *LFSService) OperationResult {
-	if lfsService == nil {
-		return failedOp("LFS service is required")
-	}
-
+func (g *GitService) InitRepoWithLFS(path string) OperationResult {
 	// First initialize the git repo
 	initResult := g.InitRepo(path)
 	if !initResult.Success {
@@ -143,6 +138,7 @@ func (g *GitService) InitRepoWithLFS(path string, lfsService *LFSService) Operat
 	}
 
 	// Then initialize LFS
+	lfsService := NewLFSService()
 	lfsResult := lfsService.InitializeLFS(path)
 	if !lfsResult.Success {
 		// Git init succeeded but LFS failed - report partial success
