@@ -870,6 +870,114 @@ func TestCheckoutBranch_NonExistent(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// ResetHardHead Tests
+// ============================================================================
+
+func TestResetHardHead_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create and commit a file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("original"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Modify the file and add an untracked file
+	if err := os.WriteFile(testFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+	newFile := filepath.Join(repoPath, "new.txt")
+	if err := os.WriteFile(newFile, []byte("new content"), 0644); err != nil {
+		t.Fatalf("Failed to create new file: %v", err)
+	}
+
+	// Verify changes exist
+	status := svc.Status(repoPath)
+	if !status.HasChanges {
+		t.Fatal("Expected changes before reset")
+	}
+
+	// Reset hard with confirmation
+	result := svc.ResetHardHead(repoPath, true)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	// Verify no changes
+	newStatus := svc.Status(repoPath)
+	if newStatus.HasChanges {
+		t.Errorf("Expected no changes after reset, got %d files", len(newStatus.ChangedFiles))
+	}
+
+	// Verify file content is restored
+	content, _ := os.ReadFile(testFile)
+	if string(content) != "original" {
+		t.Errorf("Expected 'original', got '%s'", string(content))
+	}
+
+	// Verify untracked file is removed
+	if _, err := os.Stat(newFile); !os.IsNotExist(err) {
+		t.Error("Expected untracked file to be removed")
+	}
+}
+
+func TestResetHardHead_WithoutConfirmation(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create changes
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Try to reset without confirmation
+	result := svc.ResetHardHead(repoPath, false)
+
+	if result.Success {
+		t.Error("Expected failure without confirmation")
+	}
+	if !strings.Contains(result.Error, "requires confirmation") {
+		t.Errorf("Expected error about confirmation, got: %s", result.Error)
+	}
+}
+
+func TestResetHardHead_NoChanges(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Try to reset when there are no changes
+	result := svc.ResetHardHead(repoPath, true)
+
+	if result.Success {
+		t.Error("Expected failure when no changes to rewind")
+	}
+	if !strings.Contains(result.Error, "No changes to rewind") {
+		t.Errorf("Expected error about no changes, got: %s", result.Error)
+	}
+}
+
+// ============================================================================
+// ResetSoftHead Tests
+// ============================================================================
+
 func TestResetSoftHead_Success(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)

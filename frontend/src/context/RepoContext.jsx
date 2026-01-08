@@ -35,6 +35,7 @@ import {
   CheckoutBranch,
   CreateBranchAndCheckout,
   ResetSoftHead,
+  ResetHardHead,
   DiscardAll,
   DiscardFile,
   InitRepo,
@@ -590,6 +591,31 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, clearSelection, refreshAll]);
 
+  // Rewind to last snapshot (git reset --hard HEAD)
+  const rewindToLastSnapshot = useCallback(async () => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    try {
+      const result = await ResetHardHead(repoPath, true);
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to rewind');
+        return false;
+      }
+      
+      showMessage('success', result.message || 'Rewound to last snapshot');
+      clearSelection();
+      await refreshAll();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to rewind: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearSelection, refreshAll]);
+
   // Discard changes to a single file
   const discardFileChanges = useCallback(async (filePath) => {
     if (!repoPath) {
@@ -677,6 +703,7 @@ export function RepoProvider({ children }) {
     undoLastCommit,
     discardAllChanges,
     discardFileChanges,
+    rewindToLastSnapshot,
   }), [
     repoPath, repoInfo, repoStatus, commits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -686,7 +713,7 @@ export function RepoProvider({ children }) {
     openRepo, closeRepo, initializeGitRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch,
-    undoLastCommit, discardAllChanges, discardFileChanges,
+    undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
   ]);
 
   return (

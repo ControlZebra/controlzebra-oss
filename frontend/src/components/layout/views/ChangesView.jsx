@@ -11,10 +11,12 @@ import {
   HelpCircle,
   RefreshCw,
   Bookmark,
+  RotateCcw,
 } from 'lucide-react';
 import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../constants';
 import { useRepo } from '../../../context';
 import { Button, Textarea } from '../../ui';
+import { RewindConfirmModal } from '../';
 
 // Status icon configuration - maps status to icon and color class
 const STATUS_CONFIG = {
@@ -70,10 +72,13 @@ function ChangesView() {
     isSyncing,
     loadWorkingDiff,
     clearSelection,
+    resetHardHead,
   } = useRepo();
 
   const [message, setMessage] = useState('');
   const [justCommitted, setJustCommitted] = useState(false);
+  const [isRewindModalOpen, setIsRewindModalOpen] = useState(false);
+  const [isRewinding, setIsRewinding] = useState(false);
 
   // Handle file selection - load diff when selected
   const handleSelect = useCallback((index) => {
@@ -117,6 +122,16 @@ function ChangesView() {
     setJustCommitted(false);
   }, [syncRepo]);
 
+  // Handle rewind confirmation
+  const handleRewindConfirm = useCallback(async () => {
+    setIsRewinding(true);
+    const success = await resetHardHead();
+    setIsRewinding(false);
+    if (success) {
+      setIsRewindModalOpen(false);
+    }
+  }, [resetHardHead]);
+
   // Keyboard shortcuts: Ctrl/Cmd+Enter to save or sync
   const handleKeyDown = useCallback((e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -157,11 +172,11 @@ function ChangesView() {
           className="text-sm"
         />
         
-        {/* Action Button - switches between Save and Sync based on state */}
-        <div className="mt-2">
+        {/* Action Buttons - Save and Rewind, or Sync based on state */}
+        <div className="mt-2 flex gap-2">
           {showSyncButton ? (
             <Button 
-              className="w-full"
+              className="flex-1"
               onClick={handleSync}
               loading={isSyncing}
             >
@@ -175,21 +190,32 @@ function ChangesView() {
               )}
             </Button>
           ) : (
-            <Button 
-              className="w-full"
-              onClick={handleSave}
-              disabled={!message.trim() || !hasChanges}
-              loading={isCommitting}
-            >
-              {isCommitting ? (
-                'Saving...'
-              ) : (
-                <>
-                  <Bookmark style={iconStyle} />
-                  <span>Save Changes</span>
-                </>
-              )}
-            </Button>
+            <>
+              <Button 
+                className="flex-1"
+                onClick={handleSave}
+                disabled={!message.trim() || !hasChanges}
+                loading={isCommitting}
+              >
+                {isCommitting ? (
+                  'Saving...'
+                ) : (
+                  <>
+                    <Bookmark style={iconStyle} />
+                    <span>Save Snapshot</span>
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={() => setIsRewindModalOpen(true)}
+                disabled={!hasChanges || isCommitting}
+                title="Rewind all changes to last snapshot"
+              >
+                <RotateCcw style={iconStyle} />
+                <span>Rewind</span>
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -217,6 +243,14 @@ function ChangesView() {
           </p>
         )}
       </div>
+
+      {/* Rewind Confirmation Modal */}
+      <RewindConfirmModal
+        open={isRewindModalOpen}
+        onClose={() => setIsRewindModalOpen(false)}
+        onConfirm={handleRewindConfirm}
+        isLoading={isRewinding}
+      />
     </div>
   );
 }

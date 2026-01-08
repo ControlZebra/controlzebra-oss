@@ -1327,6 +1327,30 @@ func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string)
 	return successOp(fmt.Sprintf("Created and switched to new branch '%s'", branchName))
 }
 
+// ResetHardHead resets the working directory to HEAD, discarding all uncommitted changes.
+// This is the "Rewind" feature - returns to the last committed state.
+// Requires confirm=true as a safety measure for destructive operations.
+func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResult {
+	if err := requireConfirmation(confirm); err != nil {
+		return failedOp(err.Error())
+	}
+
+	status := g.Status(repoPath)
+	if !status.HasChanges {
+		return failedOp("No changes to rewind")
+	}
+
+	result := g.runner.RunGit(repoPath, "reset", "--hard", "HEAD")
+	if !result.Success {
+		return failedOp("Failed to rewind: " + getErrorMessage(result))
+	}
+
+	// Clean untracked files (but not ignored files)
+	g.runner.RunGit(repoPath, "clean", "-fd")
+
+	return successOp("Rewound to last snapshot. All uncommitted changes have been discarded.")
+}
+
 // ResetSoftHead undoes the last n commits, keeping changes staged.
 // This is the "Undo Last Save" feature - changes remain in the working directory.
 // Requires confirm=true as a safety measure for destructive operations.
