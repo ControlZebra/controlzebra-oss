@@ -34,6 +34,7 @@ import {
   Branches,
   CheckoutBranch,
   CreateBranchAndCheckout,
+  StashAndSwitchBranch,
   ResetSoftHead,
   ResetHardHead,
   DiscardAll,
@@ -544,6 +545,52 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
 
+  // Create new branch, switch to it, and commit changes
+  // This is a compound action that combines stash → branch → pop → commit
+  const branchAndCommit = useCallback(async (branchName, message) => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+    
+    if (!branchName || !branchName.trim()) {
+      showMessage('error', 'Branch name is required');
+      return false;
+    }
+    
+    if (!message || !message.trim()) {
+      showMessage('error', 'Commit message is required');
+      return false;
+    }
+    
+    try {
+      // Step 1: Stash changes and switch to new branch
+      const switchResult = await StashAndSwitchBranch(repoPath, branchName.trim(), true);
+      
+      if (!switchResult.success) {
+        showMessage('error', switchResult.error || 'Failed to create branch and move changes');
+        return false;
+      }
+      
+      // Step 2: Commit the changes (they are now staged after stash pop)
+      const commitResult = await CommitAll(repoPath, message.trim());
+      
+      if (!commitResult.success) {
+        showMessage('error', commitResult.error || 'Branch created but failed to save changes');
+        return false;
+      }
+      
+      showMessage('success', `Created branch "${branchName}" and saved changes`);
+      clearSelection();
+      await refreshAll();
+      await refreshBranches();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
+
   // ===== v2: Recovery Operations =====
   
   // Undo last commit (keeps changes staged)
@@ -703,6 +750,7 @@ export function RepoProvider({ children }) {
     refreshBranches,
     switchBranch,
     createBranch,
+    branchAndCommit,
     
     // v2: Recovery actions
     undoLastCommit,
@@ -717,7 +765,7 @@ export function RepoProvider({ children }) {
     showMessage,
     openRepo, closeRepo, initializeGitRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
-    refreshBranches, switchBranch, createBranch,
+    refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
   ]);
 

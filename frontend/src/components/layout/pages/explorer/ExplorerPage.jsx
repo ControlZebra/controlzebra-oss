@@ -29,7 +29,8 @@ function ExplorerPage() {
     repoStatus, 
     openRepo, 
     initializeGitRepo,
-    commitChanges, 
+    commitChanges,
+    branchAndCommit,
     syncRepo,
     rewindToLastSnapshot,
     isLoading,
@@ -103,8 +104,10 @@ function ExplorerPage() {
       <CommitScreen
         changedFiles={changedFiles}
         onCommit={commitChanges}
+        onBranchAndCommit={branchAndCommit}
         onSync={syncRepo}
         onRewind={handleRewind}
+        currentBranch={branchName}
         isCommitting={isCommitting}
         isSyncing={isSyncing}
         isRewinding={isRewinding}
