@@ -1,5 +1,5 @@
 # Rewind Logic v2 Frontend UX Implementation Plan
- 
+
 ## Overview
 This document outlines the step-by-step UX implementation plan for the v2 frontend, based on the completed backend and product requirements. It covers protected branch warnings, conflict resolution, LFS integration, stash recovery, and more.
 
