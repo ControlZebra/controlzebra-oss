@@ -11,6 +11,7 @@ export {
 } from "./alert-dialog";
 export { Badge, badgeVariants } from "./badge";
 export { Button, buttonVariants } from "./button";
+export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "./button-group";
 export {
   Card,
   CardHeader,
@@ -19,6 +20,23 @@ export {
   CardDescription,
   CardContent,
 } from "./card";
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuGroup,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuRadioGroup,
+} from "./dropdown-menu";
 export { Input } from "./input";
 export { Label } from "./label";
 export { Progress } from "./progress";

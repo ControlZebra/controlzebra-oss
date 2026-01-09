@@ -101,10 +101,10 @@ Goal: make the app useful for reviewing work, recovering from common mistakes, a
   - `git checkout -b <name>` and `git checkout <branch>`. ✅
 
 ### UX deliverables (v2 additions) 🔲
-- Protected branch warnings:
-  - Show warning banner when user has changes on `main`/`master`/protected branches. 🔲
-  - Configurable protected branch list in settings. 🔲
-  - Prompt: "You're editing a protected branch. Start a new task?" 🔲
+- Nudge to branch:
+  - Show nudge banner when user has uncommitted changes on `master` branch. 🔲
+  - Prompt: "You have unsaved work on master. Start a new branch?" 🔲
+  - Quick action button to create branch and move changes. 🔲
 - Safe branching with stash:
   - "Move Changes to New Branch" action in TopBar/BranchModal. 🔲
   - Stash → create branch → pop workflow for safe branch switching. 🔲
@@ -139,10 +139,7 @@ Goal: make the app useful for reviewing work, recovering from common mistakes, a
   - `DiscardFile(repoPath, path, confirm)` ✅
 
 ### Backend deliverables (v2 additions) ✅
-- `GitService` - Branch protection & stash:
-  - `IsProtectedBranch(repoPath, branchName)` → check against configurable list ✅
-  - `GetProtectedBranches(repoPath)` → return list of protected branches ✅
-  - `SetProtectedBranches(repoPath, branches)` → update protected branch list ✅
+- `GitService` - Stash operations:
   - `StashPush(repoPath, message)` → create a new stash ✅
   - `StashPop(repoPath)` → apply and remove most recent stash ✅
   - `StashAndSwitchBranch(repoPath, targetBranch, createNew)` → safe branch switch workflow ✅
@@ -209,9 +206,10 @@ Goal: make the app useful for reviewing work, recovering from common mistakes, a
   - New actions: `undoLastCommit`, `discardAllChanges`, `discardFileChanges`
 
 ### Frontend deliverables (v2 additions) 🔲
-- **ProtectedBranchWarning** (`components/common/ProtectedBranchWarning.jsx`):
-  - Banner component shown when on protected branch with changes 🔲
-  - "Start New Task" quick action button 🔲
+- **MasterBranchNudge** (`components/common/MasterBranchNudge.jsx`):
+  - Banner shown when user has uncommitted changes on `master` branch 🔲
+  - "Start New Branch" quick action button 🔲
+  - Dismissible for current session 🔲
 - **BranchModal** enhancements:
   - "Move Changes" option when creating new branch with uncommitted changes 🔲
   - LFS lock warnings before branch switch 🔲
@@ -235,8 +233,8 @@ Goal: make the app useful for reviewing work, recovering from common mistakes, a
   - Three-way diff view showing base, ours, theirs 🔲
   - Highlight conflict markers in file content 🔲
 - **RepoContext** additions:
-  - New state: `isProtectedBranch`, `lfsEnabled`, `lfsLocks`, `conflictState`, `conflictedFiles` 🔲
-  - New actions: `moveChangesToNewBranch`, `resolveConflict`, `abortMerge`, `completeMerge` 🔲
+  - New state: `showMasterNudge`, `lfsEnabled`, `lfsLocks`, `conflictState`, `conflictedFiles` 🔲
+  - New actions: `moveChangesToNewBranch`, `dismissMasterNudge`, `resolveConflict`, `abortMerge`, `completeMerge` 🔲
 
 ### Non-goals (deferred to v3+)
 - Proprietary binary parsing.
@@ -381,21 +379,21 @@ This section tracks the current implementation status and prioritizes remaining 
 
 These items block a complete v2 release and should be prioritized.
 
-#### P0: v2 Frontend — Protected Branch Workflow
-**Effort: Medium | Impact: High**
+#### P0: v2 Frontend — Master Branch Nudge ✅ COMPLETE
+**Effort: Low | Impact: High**
 
-1. [ ] **ProtectedBranchWarning Component** (`components/common/ProtectedBranchWarning.jsx`)
-   - Banner shown when user has uncommitted changes on `main`/`master`/protected branches
-   - "Start New Task" quick action button to create a new branch
-   - Configurable protected branch list in settings
+1. [x] **MasterBranchNudge Component** (`components/common/MasterBranchNudge.jsx`)
+   - Banner shown when user has uncommitted changes on `master` branch
+   - On the Commitscreen.jsx replace the create snapshot button with "Branch and Save" action button to create a branch and move changes with commit
+   - The action button side dropdown to give option to Save on master branch.
 
-2. [ ] **RepoContext: Protected Branch State**
-   - Add `isProtectedBranch` state
-   - Call `IsProtectedBranch()` on branch change and when changes exist
-   - Auto-show warning banner in TopBar or below it
+2. [x] **RepoContext: Master Nudge State**
+   - Add `showMasterNudge` state (true when on master with uncommitted changes)
+   - Check on status refresh: if branch is `master` and changes exist, show nudge
 
-3. [ ] **BranchModal Enhancement: "Move Changes to New Branch"**
-   - When user has uncommitted changes and creates a new branch
+3. [x] **Branch and Save Enhancement: **
+   - Show when user has uncommitted changes 
+   - creates a new branch
    - Use `StashAndSwitchBranch()` for safe migration
    - Handle stash pop failures with clear messaging
 
@@ -467,11 +465,7 @@ These prepare the codebase for v3 features.
 
 ### 🟢 LOW PRIORITY — Nice to Have
 
-14. [ ] **Settings: Protected Branches List Editor**
-    - UI to add/remove branches from protected list
-    - Per-repo or global setting option
-
-15. [ ] **Stash UI** (beyond auto-stash)
+14. [ ] **Stash UI** (beyond auto-stash)
     - View stash list
     - Manually stash/pop/drop stashes
     - Stash with custom message
@@ -489,9 +483,9 @@ These prepare the codebase for v3 features.
 - Items 4, 5 — ConflictView + RepoContext conflict state
 - This unblocks users from completing sync operations that result in conflicts
 
-**Sprint 2: Protected Branch Safety**
-- Items 1, 2, 3 — Warning banner + move changes workflow
-- Prevents users from accidentally committing to protected branches
+**Sprint 2: Master Branch Nudge**
+- Items 1, 2, 3 — Nudge banner + move changes workflow
+- Encourages users to work on feature branches instead of master
 
 **Sprint 3: LFS Polish**
 - Items 7, 8, 9, 10 — StatusBar indicator, file badges, settings panel

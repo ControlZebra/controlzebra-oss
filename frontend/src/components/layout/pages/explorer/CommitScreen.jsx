@@ -1,6 +1,7 @@
 /**
  * CommitScreen - Quick save form when there are uncommitted changes.
  * Shows commit message input and changed files table.
+ * Features a split button for "Branch and Save" with dropdown for "Save on master".
  */
 import { memo, useState, useCallback } from 'react';
 import {
@@ -11,9 +12,25 @@ import {
   HelpCircle,
   RefreshCw,
   RotateCcw,
+  ChevronDown,
+  GitBranch,
 } from 'lucide-react';
 import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../../constants';
-import { Button, Textarea, Card, CardContent } from '../../../ui';
+import { 
+  Button, 
+  Textarea, 
+  Card, 
+  CardContent,
+  Input,
+} from '../../../ui';
+import { ButtonGroup } from '../../../ui/button-group';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../ui/dropdown-menu';
+import { MasterBranchNudge } from '../../../common';
 import { RewindConfirmModal } from '../../';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -120,13 +137,24 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
 });
 
 // ============================================================================
+// Helper: Check if branch is a protected/main branch
+// ============================================================================
+function isProtectedBranch(branchName) {
+  if (!branchName) return false;
+  const protectedBranches = ['main', 'master', 'develop', 'production'];
+  return protectedBranches.includes(branchName.toLowerCase());
+}
+
+// ============================================================================
 // Main CommitScreen Component
 // ============================================================================
 function CommitScreen({ 
   changedFiles, 
-  onCommit, 
+  onCommit,
+  onBranchAndCommit,
   onSync,
   onRewind,
+  currentBranch,
   isCommitting,
   isSyncing,
   isRewinding,
@@ -134,6 +162,14 @@ function CommitScreen({
   const [message, setMessage] = useState('');
   const [justCommitted, setJustCommitted] = useState(false);
   const [showRewindModal, setShowRewindModal] = useState(false);
+  const [showBranchInput, setShowBranchInput] = useState(false);
+  const [branchName, setBranchName] = useState('');
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
+  // Show nudge when on a protected branch with uncommitted changes
+  const showMasterNudge = isProtectedBranch(currentBranch) && 
+                          changedFiles?.length > 0 && 
+                          !nudgeDismissed;
 
   const handleMessageChange = useCallback((e) => {
     setMessage(e.target.value);
@@ -181,7 +217,49 @@ function CommitScreen({
     }
   }, [handleSave, handleSync, justCommitted, changedFiles.length]);
 
+  // Branch and Save handlers
+  const handleBranchAndSaveClick = useCallback(() => {
+    setShowBranchInput(true);
+    setBranchName('');
+  }, []);
+
+  const handleBranchNameChange = useCallback((e) => {
+    setBranchName(e.target.value);
+  }, []);
+
+  const handleBranchAndSaveConfirm = useCallback(async () => {
+    if (!message.trim() || !branchName.trim()) return;
+    const success = await onBranchAndCommit(branchName, message);
+    if (success) {
+      setMessage('');
+      setBranchName('');
+      setShowBranchInput(false);
+      setJustCommitted(true);
+      setNudgeDismissed(false); // Reset for next time
+    }
+  }, [message, branchName, onBranchAndCommit]);
+
+  const handleBranchAndSaveCancel = useCallback(() => {
+    setShowBranchInput(false);
+    setBranchName('');
+  }, []);
+
+  const handleBranchInputKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && branchName.trim()) {
+      e.preventDefault();
+      handleBranchAndSaveConfirm();
+    }
+    if (e.key === 'Escape') {
+      handleBranchAndSaveCancel();
+    }
+  }, [branchName, handleBranchAndSaveConfirm, handleBranchAndSaveCancel]);
+
+  const handleDismissNudge = useCallback(() => {
+    setNudgeDismissed(true);
+  }, []);
+
   const showSyncButton = justCommitted && changedFiles.length === 0;
+  const onProtectedBranch = isProtectedBranch(currentBranch);
 
   return (
     <div className="flex-1 flex flex-col items-center p-8 overflow-auto animate-screen-enter">
@@ -191,6 +269,14 @@ function CommitScreen({
           <h1 className="text-5xl font-light text-theme-primary mb-2">Welcome!</h1>
           <p className="text-sm text-theme-muted">Recommended next step</p>
         </div>
+
+        {/* Master Branch Nudge */}
+        {showMasterNudge && (
+          <MasterBranchNudge 
+            branchName={currentBranch} 
+            onDismiss={handleDismissNudge}
+          />
+        )}
 
         {/* Prompt message */}
         <p className="text-center text-sm text-theme-muted mb-6">
@@ -210,23 +296,93 @@ function CommitScreen({
           />
         </div>
 
-        {/* Action button */}
+        {/* Branch name input (shown when Branch and Save is clicked) */}
+        {showBranchInput && (
+          <div className="mb-4 p-4 bg-theme-surface border border-theme-default rounded-lg">
+            <label className="block text-sm font-medium text-theme-secondary mb-2">
+              <GitBranch style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm, display: 'inline', marginRight: 6 }} />
+              New branch name
+            </label>
+            <div className="flex gap-2">
+              <Input
+                value={branchName}
+                onChange={handleBranchNameChange}
+                onKeyDown={handleBranchInputKeyDown}
+                placeholder="feature/my-changes"
+                disabled={isCommitting}
+                autoFocus
+                className="flex-1"
+              />
+              <Button
+                onClick={handleBranchAndSaveConfirm}
+                disabled={!branchName.trim() || !message.trim()}
+                loading={isCommitting}
+              >
+                Create & Save
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleBranchAndSaveCancel}
+                disabled={isCommitting}
+              >
+                Cancel
+              </Button>
+            </div>
+            <p className="text-xs text-theme-muted mt-2">
+              This will create a new branch, move your changes there, and save them.
+            </p>
+          </div>
+        )}
+
+        {/* Action buttons */}
         <div className="flex justify-center gap-3 mb-8">
           {showSyncButton ? (
             <Button onClick={handleSync} loading={isSyncing} size="lg">
               <RefreshCw style={iconStyle} />
               Sync with remote
             </Button>
-          ) : (
+          ) : !showBranchInput ? (
             <>
-              <Button 
-                onClick={handleSave} 
-                disabled={!message.trim()} 
-                loading={isCommitting}
-                size="lg"
-              >
-                Create Snapshot
-              </Button>
+              {/* Split button for Branch and Save / Save on master */}
+              {onProtectedBranch ? (
+                <ButtonGroup>
+                  <Button 
+                    onClick={handleBranchAndSaveClick}
+                    disabled={!message.trim() || isCommitting} 
+                    loading={isCommitting}
+                    size="lg"
+                  >
+                    <GitBranch style={iconStyle} />
+                    Branch and Save
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="default"
+                        size="lg"
+                        disabled={!message.trim() || isCommitting}
+                        className="px-2 border-l border-blue-500/30"
+                      >
+                        <ChevronDown style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleSave}>
+                        Save on {currentBranch}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ButtonGroup>
+              ) : (
+                <Button 
+                  onClick={handleSave} 
+                  disabled={!message.trim()} 
+                  loading={isCommitting}
+                  size="lg"
+                >
+                  Save Snapshot
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={handleRewindClick}
@@ -237,7 +393,7 @@ function CommitScreen({
                 Rewind
               </Button>
             </>
-          )}
+          ) : null}
         </div>
 
         {/* Changed files table */}

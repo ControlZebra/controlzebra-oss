@@ -43,10 +43,11 @@ Scope:
   - Discard My Changes
   - Undo Last Save
 
-### Branch protection & safe branching
-- Protected branch warnings:
-  - Warn user when making changes on `main`, `master`, or team-configured protected branches
-  - Show clear guidance: "You're editing a protected branch. Consider starting a new task."
+### Master branch nudge & safe branching
+- Nudge to branch:
+  - When user has uncommitted changes on `master`, show a friendly nudge
+  - Prompt: "You have unsaved work on master. Start a new branch?"
+  - Dismissible for current session, reappears on next launch
 - Safe branch creation with stash:
   - When user has uncommitted changes and wants to switch/create branch:
     1. `git stash push -m "auto-stash before branch switch"`
