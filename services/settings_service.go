@@ -490,12 +490,3 @@ func (s *SettingsService) SetUserProfile(repoPath string, profile UserProfile, g
 		Message: "Profile updated successfully",
 	}
 }
-
-// GetMachineName returns the hostname of the current machine
-func (s *SettingsService) GetMachineName() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "local"
-	}
-	return hostname
-}

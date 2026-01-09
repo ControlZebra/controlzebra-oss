@@ -32,7 +32,7 @@ import {
 } from '../../../ui/dropdown-menu';
 import { MasterBranchNudge } from '../../../common';
 import { RewindConfirmModal } from '../../';
-import { GetUserProfile, GetMachineName } from '../../../../../bindings/changeme/services/settingsservice';
+import { GetUserProfile } from '../../../../../bindings/changeme/services/settingsservice';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -148,9 +148,9 @@ function isProtectedBranch(branchName) {
 
 // ============================================================================
 // Helper: Generate default branch name
-// Format: [username]/[machine]/[YYYY-MMM-DD]/[description]
+// Format: [username]/[YYYY-MMM-DD]/[description]
 // ============================================================================
-function generateDefaultBranchName(userName, machineName) {
+function generateDefaultBranchName(userName) {
   // Extract username from email (remove domain) or use name
   let user = 'user';
   if (userName) {
@@ -163,15 +163,12 @@ function generateDefaultBranchName(userName, machineName) {
     }
   }
   
-  // Sanitize machine name
-  const machine = (machineName || 'local').toLowerCase().replace(/[^a-z0-9-]/g, '-');
-  
   // Format date as YYYY-MMM-DD
   const now = new Date();
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dateStr = `${now.getFullYear()}-${months[now.getMonth()]}-${String(now.getDate()).padStart(2, '0')}`;
   
-  return `${user}/${machine}/${dateStr}/changes`;
+  return `${user}/${dateStr}/changes`;
 }
 
 // ============================================================================
@@ -197,17 +194,13 @@ function CommitScreen({
   const [defaultBranchName, setDefaultBranchName] = useState('');
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
-  // Fetch user profile and machine name for default branch name
+  // Fetch user profile for default branch name
   useEffect(() => {
     const fetchDefaults = async () => {
       try {
-        const [profile, machineName] = await Promise.all([
-          GetUserProfile(repoPath || ''),
-          GetMachineName(),
-        ]);
+        const profile = await GetUserProfile(repoPath || '');
         const defaultName = generateDefaultBranchName(
-          profile?.email || profile?.name,
-          machineName
+          profile?.email || profile?.name
         );
         setDefaultBranchName(defaultName);
       } catch (err) {
