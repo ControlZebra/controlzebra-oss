@@ -72,6 +72,14 @@ export function GetCustomLFSGroups() {
 }
 
 /**
+ * GetMachineName returns the hostname of the current machine
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetMachineName() {
+    return $Call.ByID(2232920278);
+}
+
+/**
  * GetUserProfile returns the git user config (global or for a specific repo)
  * Uses concurrent goroutines to fetch name and email in parallel
  * @param {string} repoPath

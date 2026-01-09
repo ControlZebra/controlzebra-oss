@@ -3,7 +3,7 @@
  * Shows commit message input and changed files table.
  * Features a split button for "Branch and Save" with dropdown for "Save on master".
  */
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import {
   FileText,
   Plus,
@@ -32,6 +32,7 @@ import {
 } from '../../../ui/dropdown-menu';
 import { MasterBranchNudge } from '../../../common';
 import { RewindConfirmModal } from '../../';
+import { GetUserProfile, GetMachineName } from '../../../../../bindings/changeme/services/settingsservice';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -146,6 +147,34 @@ function isProtectedBranch(branchName) {
 }
 
 // ============================================================================
+// Helper: Generate default branch name
+// Format: [username]/[machine]/[YYYY-MMM-DD]/[description]
+// ============================================================================
+function generateDefaultBranchName(userName, machineName) {
+  // Extract username from email (remove domain) or use name
+  let user = 'user';
+  if (userName) {
+    if (userName.includes('@')) {
+      // It's an email, extract the part before @
+      user = userName.split('@')[0];
+    } else {
+      // Use the name, replace spaces with dashes and lowercase
+      user = userName.toLowerCase().replace(/\s+/g, '-');
+    }
+  }
+  
+  // Sanitize machine name
+  const machine = (machineName || 'local').toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  
+  // Format date as YYYY-MMM-DD
+  const now = new Date();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dateStr = `${now.getFullYear()}-${months[now.getMonth()]}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  return `${user}/${machine}/${dateStr}/changes`;
+}
+
+// ============================================================================
 // Main CommitScreen Component
 // ============================================================================
 function CommitScreen({ 
@@ -155,6 +184,7 @@ function CommitScreen({
   onSync,
   onRewind,
   currentBranch,
+  repoPath,
   isCommitting,
   isSyncing,
   isRewinding,
@@ -164,7 +194,29 @@ function CommitScreen({
   const [showRewindModal, setShowRewindModal] = useState(false);
   const [showBranchInput, setShowBranchInput] = useState(false);
   const [branchName, setBranchName] = useState('');
+  const [defaultBranchName, setDefaultBranchName] = useState('');
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
+  // Fetch user profile and machine name for default branch name
+  useEffect(() => {
+    const fetchDefaults = async () => {
+      try {
+        const [profile, machineName] = await Promise.all([
+          GetUserProfile(repoPath || ''),
+          GetMachineName(),
+        ]);
+        const defaultName = generateDefaultBranchName(
+          profile?.email || profile?.name,
+          machineName
+        );
+        setDefaultBranchName(defaultName);
+      } catch (err) {
+        console.error('Failed to fetch defaults for branch name:', err);
+        setDefaultBranchName('feature/changes');
+      }
+    };
+    fetchDefaults();
+  }, [repoPath]);
 
   // Show nudge when on a protected branch with uncommitted changes
   const showMasterNudge = isProtectedBranch(currentBranch) && 
@@ -220,8 +272,8 @@ function CommitScreen({
   // Branch and Save handlers
   const handleBranchAndSaveClick = useCallback(() => {
     setShowBranchInput(true);
-    setBranchName('');
-  }, []);
+    setBranchName(defaultBranchName);
+  }, [defaultBranchName]);
 
   const handleBranchNameChange = useCallback((e) => {
     setBranchName(e.target.value);

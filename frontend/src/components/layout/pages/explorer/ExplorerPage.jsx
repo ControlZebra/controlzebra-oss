@@ -108,6 +108,7 @@ function ExplorerPage() {
         onSync={syncRepo}
         onRewind={handleRewind}
         currentBranch={branchName}
+        repoPath={repoPath}
         isCommitting={isCommitting}
         isSyncing={isSyncing}
         isRewinding={isRewinding}
