@@ -326,3 +326,177 @@ Optional additions (if/when valuable):
 - Keep git operations and provider auth independent.
 - Prefer small, testable Go service methods over “one mega command”.
 - Emit events for operation output so the UI can show progress without freezing.
+---
+
+## High Priority Items — Implementation Checklist (Updated: January 2026)
+
+This section tracks the current implementation status and prioritizes remaining work.
+
+### ✅ COMPLETED
+
+#### v1 Core (MVP)
+- [x] Repository selection/open with git detection
+- [x] Current branch and sync status display
+- [x] Changed files view from `git status`
+- [x] Save Changes (`git add .` + `git commit`)
+- [x] Sync (`git pull`)
+- [x] Share (`git push`)
+- [x] Git config for user.name/email
+- [x] CommandRunner with timeout support
+- [x] SettingsService for app persistence
+
+#### v2 Core Features
+- [x] History view with real commit list
+- [x] Commit details in MainArea
+- [x] Diff viewing (side-by-side with syntax highlighting)
+- [x] Branch switching/creation UI (BranchModal)
+- [x] Undo Last Save (ResetSoftHead with confirmation)
+- [x] Discard All Changes (with confirmation)
+- [x] Discard single file changes
+- [x] DiffViewer component with hunk headers
+
+#### v2 Backend Services (Go)
+- [x] GitService: GetRecentCommits, ShowCommit, DiffWorking, DiffCommitFile
+- [x] GitService: Branches, CheckoutBranch, CreateBranchAndCheckout
+- [x] GitService: ResetSoftHead, ResetHardHead, DiscardAll, DiscardFile
+- [x] GitService: StashPush, StashPop, StashList, StashDrop
+- [x] GitService: IsProtectedBranch, GetProtectedBranches, SetProtectedBranches
+- [x] GitService: StashAndSwitchBranch (safe branch switching workflow)
+- [x] GitService: GetMergeState, GetConflictedFiles, AbortMerge, CompleteMerge
+- [x] GitService: ResolveConflictKeepOurs, ResolveConflictKeepTheirs, MarkResolved
+- [x] LFSService: IsLFSInstalled, GetLFSVersion, IsLFSEnabled
+- [x] LFSService: InitializeLFS, GetTrackedPatterns, TrackPattern, UntrackPattern
+- [x] LFSService: GetPresetPatterns (industrial file patterns)
+- [x] LFSService: LFSStatus, LFSLocks, LFSLock, LFSUnlock
+- [x] LFSService: CheckLocksBeforeBranchSwitch
+
+#### v2 Partial Frontend
+- [x] LFS-enabled repo initialization (GitInitForm with LFS options)
+- [x] LFS Groups Settings panel (custom extension groups management)
+- [x] Progress modal for operations
+
+---
+
+### 🔴 HIGH PRIORITY — Pending Implementation
+
+These items block a complete v2 release and should be prioritized.
+
+#### P0: v2 Frontend — Protected Branch Workflow
+**Effort: Medium | Impact: High**
+
+1. [ ] **ProtectedBranchWarning Component** (`components/common/ProtectedBranchWarning.jsx`)
+   - Banner shown when user has uncommitted changes on `main`/`master`/protected branches
+   - "Start New Task" quick action button to create a new branch
+   - Configurable protected branch list in settings
+
+2. [ ] **RepoContext: Protected Branch State**
+   - Add `isProtectedBranch` state
+   - Call `IsProtectedBranch()` on branch change and when changes exist
+   - Auto-show warning banner in TopBar or below it
+
+3. [ ] **BranchModal Enhancement: "Move Changes to New Branch"**
+   - When user has uncommitted changes and creates a new branch
+   - Use `StashAndSwitchBranch()` for safe migration
+   - Handle stash pop failures with clear messaging
+
+#### P0: v2 Frontend — Conflict Resolution UI
+**Effort: High | Impact: High**
+
+4. [ ] **ConflictView Component** (`components/layout/views/ConflictView.jsx`)
+   - Automatically shown when repo enters merge conflict state
+   - List conflicted files with visual distinction
+   - Per-file buttons: "Keep Mine" / "Keep Theirs" / "Open to Edit"
+   - "Complete Merge" and "Abort Sync" action buttons
+   - Plain-language guidance explaining what happened
+
+5. [ ] **RepoContext: Conflict State**
+   - Add `mergeState`, `conflictedFiles` state
+   - Call `GetMergeState()` after sync/pull operations
+   - Add actions: `resolveConflict(file, strategy)`, `abortMerge()`, `completeMerge(message)`
+
+6. [ ] **ConflictDiffViewer** (optional, can defer)
+   - Three-way diff showing base/ours/theirs
+   - Highlight conflict markers in file content
+
+#### P1: v2 Frontend — LFS Status Indicators
+**Effort: Medium | Impact: Medium**
+
+7. [ ] **LFSIndicator in StatusBar**
+   - Show "LFS" badge when repo has LFS enabled
+   - Click to show LFS status popup
+
+8. [ ] **LFS File Badges in ChangesView**
+   - Icon/badge for LFS-tracked files in the file list
+   - Lock icon with owner tooltip for locked files
+
+9. [ ] **LFS Lock Warnings in BranchModal**
+   - Check `CheckLocksBeforeBranchSwitch()` before switching
+   - Warn if switching affects locked files
+   - Offer to auto-unlock owned locks
+
+#### P1: v2 Frontend — LFS Settings Panel
+**Effort: Medium | Impact: Medium**
+
+10. [ ] **LFSSettingsPanel** (`components/settings/LFSSettingsPanel.jsx`)
+    - "Enable LFS" button for repos without LFS
+    - View/edit tracked patterns list
+    - Add/remove patterns with `.gitattributes` sync
+    - Preset patterns dropdown for industrial files
+
+---
+
+### 🟡 MEDIUM PRIORITY — v3 Prerequisites
+
+These prepare the codebase for v3 features.
+
+11. [ ] **GitHub/GitLab CLI Auth Integration**
+    - ProfileView: "Connect GitHub Account" using `gh auth login`
+    - ProfileView: "Connect GitLab Account" using `glab auth login`
+    - Auth status detection and display
+
+12. [ ] **Binary File Detection**
+    - Detect non-text files in file list
+    - Show "Binary file changed" placeholder in DiffViewer
+    - Prepare for v3 industrial file parsing
+
+13. [ ] **Comprehensive Error Messages**
+    - Review all error paths for user-friendly messaging
+    - Add contextual help for common errors (upstream not set, auth required, etc.)
+
+---
+
+### 🟢 LOW PRIORITY — Nice to Have
+
+14. [ ] **Settings: Protected Branches List Editor**
+    - UI to add/remove branches from protected list
+    - Per-repo or global setting option
+
+15. [ ] **Stash UI** (beyond auto-stash)
+    - View stash list
+    - Manually stash/pop/drop stashes
+    - Stash with custom message
+
+16. [ ] **Keyboard Shortcuts**
+    - Save: Cmd/Ctrl+S
+    - Sync: Cmd/Ctrl+Shift+S
+    - New branch: Cmd/Ctrl+B
+
+---
+
+### Implementation Order Recommendation
+
+**Sprint 1: Conflict Resolution (Critical Path)**
+- Items 4, 5 — ConflictView + RepoContext conflict state
+- This unblocks users from completing sync operations that result in conflicts
+
+**Sprint 2: Protected Branch Safety**
+- Items 1, 2, 3 — Warning banner + move changes workflow
+- Prevents users from accidentally committing to protected branches
+
+**Sprint 3: LFS Polish**
+- Items 7, 8, 9, 10 — StatusBar indicator, file badges, settings panel
+- Completes the LFS user experience
+
+**Sprint 4: Git Provider Integration**
+- Item 11 — GitHub/GitLab auth
+- Enables push to GitHub/GitLab without manual CLI auth
