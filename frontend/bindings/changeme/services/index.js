@@ -21,6 +21,7 @@ export {
 
 export {
     AppSettings,
+    BranchConflictCheckResult,
     BranchInfo,
     BranchList,
     CommitDetail,
@@ -47,6 +48,7 @@ export {
     OpenFileResult,
     OpenFolderDialogResult,
     OperationResult,
+    ParentBranchResult,
     PresetPattern,
     RepoInfo,
     RepoStatus,

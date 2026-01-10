@@ -10,6 +10,7 @@ import { VIEWS } from '../../../constants';
 export { ExplorerPage } from './explorer';
 export { default as ChangesPage } from './ChangesPage';
 export { default as HistoryPage } from './HistoryPage';
+export { default as MergeChangesPage } from './MergeChangesPage';
 export { default as ProfilePage } from './ProfilePage';
 export { SettingsPage } from './settings';
 
@@ -17,6 +18,7 @@ export { SettingsPage } from './settings';
 import { ExplorerPage } from './explorer';
 import ChangesPage from './ChangesPage';
 import HistoryPage from './HistoryPage';
+import MergeChangesPage from './MergeChangesPage';
 import ProfilePage from './ProfilePage';
 import { SettingsPage } from './settings';
 
@@ -28,6 +30,7 @@ export const VIEW_REGISTRY = {
   [VIEWS.EXPLORER]: ExplorerPage,
   [VIEWS.CHANGES]: ChangesPage,
   [VIEWS.HISTORY]: HistoryPage,
+  [VIEWS.MERGE_CHANGES]: MergeChangesPage,
   [VIEWS.SETTINGS]: SettingsPage,
   [VIEWS.PROFILE]: ProfilePage,
 };

@@ -40,6 +40,34 @@ export function Branches(repoPath) {
 }
 
 /**
+ * CheckBranchConflicts checks for potential merge conflicts between the current branch (child)
+ * and a parent branch without actually performing the merge.
+ * This uses `git merge-tree --write-tree` which performs a merge simulation.
+ * 
+ * The method:
+ * 1. Auto-detects parent branch if not provided
+ * 2. Fetches the parent branch from origin to ensure we have the latest
+ * 3. Runs git merge-tree to detect conflicts
+ * 4. Returns the list of conflicted files if any
+ * 
+ * Parameters:
+ *   - repoPath: Path to the git repository
+ *   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+ *     If empty, the parent branch will be auto-detected.
+ * 
+ * Returns:
+ *   - BranchConflictCheckResult with conflict information
+ * @param {string} repoPath
+ * @param {string} parentBranch
+ * @returns {$CancellablePromise<$models.BranchConflictCheckResult>}
+ */
+export function CheckBranchConflicts(repoPath, parentBranch) {
+    return $Call.ByID(3130135130, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
  * CheckLockFile checks if a .git/index.lock file exists in the repository.
  * This lock file is created by Git during operations and can be left behind if
  * a process crashes or is interrupted.
@@ -48,7 +76,7 @@ export function Branches(repoPath) {
  */
 export function CheckLockFile(repoPath) {
     return $Call.ByID(3861435054, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -109,7 +137,7 @@ export function CreateBranchAndCheckout(repoPath, branchName) {
  */
 export function DetectRepo(path) {
     return $Call.ByID(2042099950, path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -122,7 +150,7 @@ export function DetectRepo(path) {
  */
 export function DiffCommitFile(repoPath, hash, filePath) {
     return $Call.ByID(2514426657, repoPath, hash, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -136,7 +164,7 @@ export function DiffCommitFile(repoPath, hash, filePath) {
  */
 export function DiffCommits(repoPath, fromHash, toHash, filePath) {
     return $Call.ByID(2294437908, repoPath, fromHash, toHash, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -148,7 +176,7 @@ export function DiffCommits(repoPath, fromHash, toHash, filePath) {
  */
 export function DiffWorking(repoPath, filePath) {
     return $Call.ByID(1394051649, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -188,7 +216,7 @@ export function DiscardFile(repoPath, filePath, confirm) {
  */
 export function GetConflictedFiles(repoPath) {
     return $Call.ByID(3264929955, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -199,7 +227,7 @@ export function GetConflictedFiles(repoPath) {
  */
 export function GetGitVersion() {
     return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -210,7 +238,24 @@ export function GetGitVersion() {
  */
 export function GetMergeState(repoPath) {
     return $Call.ByID(477378934, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
+    }));
+}
+
+/**
+ * GetParentBranch attempts to detect the parent branch of the current branch.
+ * It uses multiple heuristics in order of reliability:
+ * 1. Upstream tracking branch (git config branch.<name>.merge)
+ * 2. Merge-base with common default branches (main, master, develop)
+ * 3. Falls back to "main" or "master" if they exist
+ * 
+ * Returns the detected parent branch name and the source of detection.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.ParentBranchResult>}
+ */
+export function GetParentBranch(repoPath) {
+    return $Call.ByID(4140919983, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType11($result);
     }));
 }
 
@@ -222,7 +267,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType12($result);
     }));
 }
 
@@ -234,7 +279,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType14($result);
     }));
 }
 
@@ -411,7 +456,7 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType15($result);
     }));
 }
 
@@ -451,7 +496,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType17($result);
     }));
 }
 
@@ -487,7 +532,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType18($result);
     }));
 }
 
@@ -513,18 +558,20 @@ export function Sync(repoPath) {
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.BranchList.createFrom;
-const $$createType2 = $models.LockFileInfo.createFrom;
-const $$createType3 = $models.RepoInfo.createFrom;
-const $$createType4 = $models.FileDiff.createFrom;
-const $$createType5 = $models.ConflictedFile.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = $models.GitVersion.createFrom;
-const $$createType8 = $Create.Nullable($$createType7);
-const $$createType9 = $models.MergeState.createFrom;
-const $$createType10 = $Create.Array($Create.Any);
-const $$createType11 = $models.CommitInfo.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = $models.CommitDetail.createFrom;
-const $$createType14 = $models.StashEntry.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = $models.RepoStatus.createFrom;
+const $$createType2 = $models.BranchConflictCheckResult.createFrom;
+const $$createType3 = $models.LockFileInfo.createFrom;
+const $$createType4 = $models.RepoInfo.createFrom;
+const $$createType5 = $models.FileDiff.createFrom;
+const $$createType6 = $models.ConflictedFile.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.GitVersion.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = $models.MergeState.createFrom;
+const $$createType11 = $models.ParentBranchResult.createFrom;
+const $$createType12 = $Create.Array($Create.Any);
+const $$createType13 = $models.CommitInfo.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = $models.CommitDetail.createFrom;
+const $$createType16 = $models.StashEntry.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = $models.RepoStatus.createFrom;

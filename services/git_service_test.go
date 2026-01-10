@@ -2004,3 +2004,206 @@ func TestResolveConflictKeepTheirs_EmptyPath(t *testing.T) {
 		t.Error("Expected failure for empty path")
 	}
 }
+
+// TestGetParentBranch_NoParent tests that GetParentBranch fails gracefully in a fresh repo
+func TestGetParentBranch_NoParent(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit (default branch is likely "master" in fresh repo)
+	filePath := filepath.Join(repoPath, "file.txt")
+	os.WriteFile(filePath, []byte("content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Since we're on the default branch, GetParentBranch should fail
+	result := svc.GetParentBranch(repoPath)
+
+	// It might succeed if it finds master as the parent of itself or fail - both are acceptable
+	// The key is it shouldn't crash
+	t.Logf("GetParentBranch result: Success=%v, ParentBranch=%s, Source=%s, Error=%s",
+		result.Success, result.ParentBranch, result.Source, result.Error)
+}
+
+// TestGetParentBranch_WithParent tests parent detection when on a feature branch
+func TestGetParentBranch_WithParent(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Rename default branch to "main" for predictable test
+	cmd := exec.Command("git", "branch", "-M", "main")
+	cmd.Dir = repoPath
+	cmd.Run()
+
+	// Create initial commit on main
+	filePath := filepath.Join(repoPath, "file.txt")
+	os.WriteFile(filePath, []byte("content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create and switch to feature branch
+	svc.CreateBranchAndCheckout(repoPath, "feature")
+
+	// GetParentBranch should detect "main" as parent
+	result := svc.GetParentBranch(repoPath)
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+	if result.ParentBranch != "main" {
+		t.Errorf("Expected parent branch 'main', got '%s'", result.ParentBranch)
+	}
+	if result.Source != "merge-base" && result.Source != "default" {
+		t.Errorf("Expected source 'merge-base' or 'default', got '%s'", result.Source)
+	}
+}
+
+// TestCheckBranchConflicts_AutoDetectParent tests that empty parent branch triggers auto-detection
+func TestCheckBranchConflicts_AutoDetectParent(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Rename default branch to "main" for predictable test
+	cmd := exec.Command("git", "branch", "-M", "main")
+	cmd.Dir = repoPath
+	cmd.Run()
+
+	// Create initial commit on main
+	filePath := filepath.Join(repoPath, "file.txt")
+	os.WriteFile(filePath, []byte("initial content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create and switch to feature branch
+	svc.CreateBranchAndCheckout(repoPath, "feature")
+
+	// Make a conflicting change
+	os.WriteFile(filePath, []byte("feature content"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	// Switch to main and make a conflicting change
+	svc.CheckoutBranch(repoPath, "main")
+	os.WriteFile(filePath, []byte("main content"), 0644)
+	svc.CommitAll(repoPath, "Main commit")
+
+	// Switch to feature and check conflicts with auto-detected parent
+	svc.CheckoutBranch(repoPath, "feature")
+	result := svc.CheckBranchConflicts(repoPath, "") // Empty string triggers auto-detection
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+	if result.ParentBranch != "main" {
+		t.Errorf("Expected auto-detected parent 'main', got '%s'", result.ParentBranch)
+	}
+	if !result.HasConflicts {
+		t.Error("Expected conflicts for overlapping changes")
+	}
+}
+
+// TestCheckBranchConflicts_NoConflicts tests conflict detection when branches can merge cleanly
+func TestCheckBranchConflicts_NoConflicts(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit on main
+	filePath := filepath.Join(repoPath, "file.txt")
+	os.WriteFile(filePath, []byte("initial content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create and switch to feature branch
+	svc.CreateBranchAndCheckout(repoPath, "feature")
+
+	// Make a change on feature branch
+	os.WriteFile(filePath, []byte("feature content"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	// Switch back to main and make a non-conflicting change
+	svc.CheckoutBranch(repoPath, "main")
+	newFilePath := filepath.Join(repoPath, "newfile.txt")
+	os.WriteFile(newFilePath, []byte("new file"), 0644)
+	svc.CommitAll(repoPath, "Main commit")
+
+	// Switch to feature and check conflicts with main
+	svc.CheckoutBranch(repoPath, "feature")
+	result := svc.CheckBranchConflicts(repoPath, "main")
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+	if result.HasConflicts {
+		t.Error("Expected no conflicts for non-overlapping changes")
+	}
+}
+
+// TestCheckBranchConflicts_WithConflicts tests conflict detection when branches have conflicting changes
+func TestCheckBranchConflicts_WithConflicts(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit on main
+	filePath := filepath.Join(repoPath, "file.txt")
+	os.WriteFile(filePath, []byte("initial content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create and switch to feature branch
+	svc.CreateBranchAndCheckout(repoPath, "feature")
+
+	// Make a change on feature branch (modify same line)
+	os.WriteFile(filePath, []byte("feature content - modified line 1"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	// Switch back to main and make a conflicting change
+	svc.CheckoutBranch(repoPath, "main")
+	os.WriteFile(filePath, []byte("main content - modified line 1"), 0644)
+	svc.CommitAll(repoPath, "Main commit")
+
+	// Switch to feature and check conflicts with main
+	svc.CheckoutBranch(repoPath, "feature")
+	result := svc.CheckBranchConflicts(repoPath, "main")
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+	if !result.HasConflicts {
+		t.Error("Expected conflicts for overlapping changes")
+	}
+	if len(result.ConflictedFiles) != 1 {
+		t.Errorf("Expected 1 conflicted file, got %d", len(result.ConflictedFiles))
+	}
+	if result.ConflictedFiles[0].Path != "file.txt" {
+		t.Errorf("Expected conflicted file 'file.txt', got '%s'", result.ConflictedFiles[0].Path)
+	}
+}
+
+// TestCheckBranchConflicts_NonExistentBranch tests error handling for non-existent branch
+func TestCheckBranchConflicts_NonExistentBranch(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	filePath := filepath.Join(repoPath, "file.txt")
+	os.WriteFile(filePath, []byte("content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	result := svc.CheckBranchConflicts(repoPath, "nonexistent-branch")
+
+	if result.Success {
+		t.Error("Expected failure for non-existent branch")
+	}
+	if !strings.Contains(result.Error, "not found") {
+		t.Errorf("Expected error about branch not found, got: %s", result.Error)
+	}
+}
+
+// NOTE: TestCheckBranchConflicts_RealRepo was removed - it was used for manual testing
+// with the actual rewind-logic repository. The unit tests above cover the functionality.

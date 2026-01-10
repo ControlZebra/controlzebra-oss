@@ -40,6 +40,8 @@ import {
   DiscardAll,
   DiscardFile,
   InitRepo,
+  CheckBranchConflicts,
+  GetParentBranch,
 } from '../../bindings/changeme/services/gitservice';
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
@@ -64,6 +66,13 @@ export function RepoProvider({ children }) {
   const [selectedCommit, setSelectedCommit] = useState(null); // CommitDetail object
   const [selectedCommitFile, setSelectedCommitFile] = useState(null); // File path in commit
   const [currentDiff, setCurrentDiff] = useState(null); // FileDiff object
+  
+  // ===== Conflict State (v2 Merge Changes) =====
+  const [conflictedFiles, setConflictedFiles] = useState([]);
+  const [selectedConflictFile, setSelectedConflictFile] = useState(null);
+  const [conflictCheckResult, setConflictCheckResult] = useState(null); // Full result from CheckBranchConflicts
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
+  const [detectedParentBranch, setDetectedParentBranch] = useState(null); // Auto-detected parent branch info
   
   // ===== Loading States =====
   const [isLoading, setIsLoading] = useState(false);
@@ -694,6 +703,86 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshStatus]);
 
+  // Check for merge conflicts against a parent branch
+  // Pass empty string to auto-detect parent branch
+  const checkBranchConflicts = useCallback(async (parentBranch = '') => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return null;
+    }
+    
+    setIsCheckingConflicts(true);
+    setConflictedFiles([]);
+    setSelectedConflictFile(null);
+    setConflictCheckResult(null);
+    
+    try {
+      // Pass empty string to trigger auto-detect on backend
+      const result = await CheckBranchConflicts(repoPath, parentBranch);
+      
+      setConflictCheckResult(result);
+      
+      // Store detected parent branch if returned
+      if (result.parentBranch) {
+        setDetectedParentBranch({
+          name: result.parentBranch,
+          source: result.parentBranchSource || 'auto-detected',
+        });
+      }
+      
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to check conflicts');
+        setIsCheckingConflicts(false);
+        return result;
+      }
+      
+      if (result.hasConflicts) {
+        setConflictedFiles(result.conflictedFiles || []);
+        const parentInfo = result.parentBranch ? ` against ${result.parentBranch}` : '';
+        showMessage('info', `Found ${result.conflictedFiles?.length || 0} conflicting file(s)${parentInfo}`);
+      } else {
+        // conflictedFiles already cleared at start of function
+        const parentInfo = result.parentBranch ? ` with ${result.parentBranch}` : '';
+        showMessage('success', result.message || `No conflicts detected${parentInfo} - clean merge possible`);
+      }
+      
+      setIsCheckingConflicts(false);
+      return result;
+    } catch (err) {
+      showMessage('error', `Failed to check conflicts: ${err.message || err}`);
+      setIsCheckingConflicts(false);
+      return null;
+    }
+  }, [repoPath, showMessage]);
+
+  // Get parent branch info (for display or pre-selection)
+  const fetchParentBranch = useCallback(async () => {
+    if (!repoPath) return null;
+    
+    try {
+      const result = await GetParentBranch(repoPath);
+      if (result.parentBranch) {
+        setDetectedParentBranch({
+          name: result.parentBranch,
+          source: result.source || 'auto-detected',
+        });
+        return result;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to detect parent branch:', err);
+      return null;
+    }
+  }, [repoPath]);
+
+  // Clear conflict check results
+  const clearConflicts = useCallback(() => {
+    setConflictedFiles([]);
+    setSelectedConflictFile(null);
+    setConflictCheckResult(null);
+    setDetectedParentBranch(null);
+  }, []);
+
   // Also refresh branches when repo changes
   useEffect(() => {
     if (repoPath) {
@@ -757,6 +846,17 @@ export function RepoProvider({ children }) {
     discardAllChanges,
     discardFileChanges,
     rewindToLastSnapshot,
+    
+    // v2: Conflict checking actions
+    conflictedFiles,
+    selectedConflictFile,
+    setSelectedConflictFile,
+    conflictCheckResult,
+    isCheckingConflicts,
+    checkBranchConflicts,
+    clearConflicts,
+    detectedParentBranch,
+    fetchParentBranch,
   }), [
     repoPath, repoInfo, repoStatus, commits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -767,6 +867,8 @@ export function RepoProvider({ children }) {
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
+    conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, checkBranchConflicts, clearConflicts,
+    detectedParentBranch, fetchParentBranch,
   ]);
 
   return (
