@@ -69,6 +69,14 @@ export class BranchConflictCheckResult {
              */
             this["conflictedFiles"] = [];
         }
+        if (!("parentBranch" in $$source)) {
+            /**
+             * The parent branch used for checking
+             * @member
+             * @type {string}
+             */
+            this["parentBranch"] = "";
+        }
         if (!("success" in $$source)) {
             /**
              * @member
@@ -1562,6 +1570,59 @@ export class OperationResult {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new OperationResult(/** @type {Partial<OperationResult>} */($$parsedSource));
+    }
+}
+
+/**
+ * ParentBranchResult contains the detected parent branch information
+ */
+export class ParentBranchResult {
+    /**
+     * Creates a new ParentBranchResult instance.
+     * @param {Partial<ParentBranchResult>} [$$source = {}] - The source object to create the ParentBranchResult.
+     */
+    constructor($$source = {}) {
+        if (!("parentBranch" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["parentBranch"] = "";
+        }
+        if (!("source" in $$source)) {
+            /**
+             * "upstream", "merge-base", "default", or "none"
+             * @member
+             * @type {string}
+             */
+            this["source"] = "";
+        }
+        if (!("success" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["success"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ParentBranchResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ParentBranchResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ParentBranchResult(/** @type {Partial<ParentBranchResult>} */($$parsedSource));
     }
 }
 

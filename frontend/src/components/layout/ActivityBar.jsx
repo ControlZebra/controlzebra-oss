@@ -9,6 +9,7 @@ import {
   Folder,
   GitBranch,
   Clock,
+  Flag,
   Settings,
   UserCircle,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const TOP_NAV_ITEMS = [
   { id: VIEWS.EXPLORER, Icon: Folder, label: 'Explorer', requiresGit: false },
   { id: VIEWS.CHANGES, Icon: GitBranch, label: 'Changes', requiresGit: true },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History', requiresGit: true },
+  { id: VIEWS.MERGE_CHANGES, Icon: Flag, label: 'Merge Changes', requiresGit: true },
 ];
 
 // Bottom navigation items (user-specific)

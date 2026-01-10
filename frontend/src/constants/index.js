@@ -23,6 +23,7 @@ export const VIEWS = {
   EXPLORER: 'explorer',
   CHANGES: 'changes',
   HISTORY: 'history',
+  MERGE_CHANGES: 'merge-changes',
   SETTINGS: 'settings',
   PROFILE: 'profile',
 };

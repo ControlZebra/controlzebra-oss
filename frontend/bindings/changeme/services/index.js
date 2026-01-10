@@ -48,6 +48,7 @@ export {
     OpenFileResult,
     OpenFolderDialogResult,
     OperationResult,
+    ParentBranchResult,
     PresetPattern,
     RepoInfo,
     RepoStatus,
