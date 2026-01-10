@@ -21,6 +21,7 @@ export {
 
 export {
     AppSettings,
+    BranchConflictCheckResult,
     BranchInfo,
     BranchList,
     CommitDetail,

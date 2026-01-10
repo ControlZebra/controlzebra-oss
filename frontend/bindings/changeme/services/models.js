@@ -47,6 +47,69 @@ export class AppSettings {
 }
 
 /**
+ * BranchConflictCheckResult contains the result of checking for conflicts between branches
+ */
+export class BranchConflictCheckResult {
+    /**
+     * Creates a new BranchConflictCheckResult instance.
+     * @param {Partial<BranchConflictCheckResult>} [$$source = {}] - The source object to create the BranchConflictCheckResult.
+     */
+    constructor($$source = {}) {
+        if (!("hasConflicts" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasConflicts"] = false;
+        }
+        if (!("conflictedFiles" in $$source)) {
+            /**
+             * @member
+             * @type {ConflictedFile[]}
+             */
+            this["conflictedFiles"] = [];
+        }
+        if (!("success" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["success"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["message"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BranchConflictCheckResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {BranchConflictCheckResult}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("conflictedFiles" in $$parsedSource) {
+            $$parsedSource["conflictedFiles"] = $$createField1_0($$parsedSource["conflictedFiles"]);
+        }
+        return new BranchConflictCheckResult(/** @type {Partial<BranchConflictCheckResult>} */($$parsedSource));
+    }
+}
+
+/**
  * BranchInfo represents a git branch
  */
 export class BranchInfo {
@@ -153,8 +216,8 @@ export class BranchList {
      * @returns {BranchList}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType1;
-        const $$createField2_0 = $$createType1;
+        const $$createField1_0 = $$createType3;
+        const $$createField2_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("local" in $$parsedSource) {
             $$parsedSource["local"] = $$createField1_0($$parsedSource["local"]);
@@ -279,9 +342,9 @@ export class CommitDetail {
      * @returns {CommitDetail}
      */
     static createFrom($$source = {}) {
-        const $$createField8_0 = $$createType2;
-        const $$createField9_0 = $$createType4;
-        const $$createField10_0 = $$createType5;
+        const $$createField8_0 = $$createType4;
+        const $$createField9_0 = $$createType6;
+        const $$createField10_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parentHashes" in $$parsedSource) {
             $$parsedSource["parentHashes"] = $$createField8_0($$parsedSource["parentHashes"]);
@@ -571,7 +634,7 @@ export class CustomLFSGroup {
      * @returns {CustomLFSGroup}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType2;
+        const $$createField3_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("extensions" in $$parsedSource) {
             $$parsedSource["extensions"] = $$createField3_0($$parsedSource["extensions"]);
@@ -606,7 +669,7 @@ export class CustomLFSGroupsData {
      * @returns {CustomLFSGroupsData}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType7;
+        const $$createField0_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("groups" in $$parsedSource) {
             $$parsedSource["groups"] = $$createField0_0($$parsedSource["groups"]);
@@ -682,7 +745,7 @@ export class DiffHunk {
      * @returns {DiffHunk}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType9;
+        const $$createField5_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lines" in $$parsedSource) {
             $$parsedSource["lines"] = $$createField5_0($$parsedSource["lines"]);
@@ -787,7 +850,7 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType11;
+        const $$createField1_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
@@ -912,7 +975,7 @@ export class FileDiff {
      * @returns {FileDiff}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType13;
+        const $$createField4_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("hunks" in $$parsedSource) {
             $$parsedSource["hunks"] = $$createField4_0($$parsedSource["hunks"]);
@@ -1675,7 +1738,7 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType15;
+        const $$createField3_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -1862,19 +1925,21 @@ export class UserProfile {
 }
 
 // Private type creation functions
-const $$createType0 = BranchInfo.createFrom;
+const $$createType0 = ConflictedFile.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $Create.Array($Create.Any);
-const $$createType3 = CommitFileInfo.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = CommitStats.createFrom;
-const $$createType6 = CustomLFSGroup.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = DiffLine.createFrom;
+const $$createType2 = BranchInfo.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = CommitFileInfo.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = CommitStats.createFrom;
+const $$createType8 = CustomLFSGroup.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = FileEntry.createFrom;
+const $$createType10 = DiffLine.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = DiffHunk.createFrom;
+const $$createType12 = FileEntry.createFrom;
 const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = FileStatus.createFrom;
+const $$createType14 = DiffHunk.createFrom;
 const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = FileStatus.createFrom;
+const $$createType17 = $Create.Array($$createType16);
