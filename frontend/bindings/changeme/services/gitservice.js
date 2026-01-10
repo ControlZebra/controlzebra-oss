@@ -45,13 +45,15 @@ export function Branches(repoPath) {
  * This uses `git merge-tree --write-tree` which performs a merge simulation.
  * 
  * The method:
- * 1. Fetches the parent branch from origin to ensure we have the latest
- * 2. Runs git merge-tree to detect conflicts
- * 3. Returns the list of conflicted files if any
+ * 1. Auto-detects parent branch if not provided
+ * 2. Fetches the parent branch from origin to ensure we have the latest
+ * 3. Runs git merge-tree to detect conflicts
+ * 4. Returns the list of conflicted files if any
  * 
  * Parameters:
  *   - repoPath: Path to the git repository
- *   - parentBranch: Name of the parent branch to check against (e.g., "main", "master")
+ *   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+ *     If empty, the parent branch will be auto-detected.
  * 
  * Returns:
  *   - BranchConflictCheckResult with conflict information
@@ -241,6 +243,23 @@ export function GetMergeState(repoPath) {
 }
 
 /**
+ * GetParentBranch attempts to detect the parent branch of the current branch.
+ * It uses multiple heuristics in order of reliability:
+ * 1. Upstream tracking branch (git config branch.<name>.merge)
+ * 2. Merge-base with common default branches (main, master, develop)
+ * 3. Falls back to "main" or "master" if they exist
+ * 
+ * Returns the detected parent branch name and the source of detection.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.ParentBranchResult>}
+ */
+export function GetParentBranch(repoPath) {
+    return $Call.ByID(4140919983, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType11($result);
+    }));
+}
+
+/**
  * GetProtectedBranches returns the list of protected branch names.
  * Reads from .rewind-logic/config.json in the repo, falls back to defaults.
  * @param {string} repoPath
@@ -248,7 +267,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -260,7 +279,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType14($result);
     }));
 }
 
@@ -437,7 +456,7 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
 }
 
@@ -477,7 +496,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType17($result);
     }));
 }
 
@@ -513,7 +532,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
@@ -548,10 +567,11 @@ const $$createType7 = $Create.Array($$createType6);
 const $$createType8 = $models.GitVersion.createFrom;
 const $$createType9 = $Create.Nullable($$createType8);
 const $$createType10 = $models.MergeState.createFrom;
-const $$createType11 = $Create.Array($Create.Any);
-const $$createType12 = $models.CommitInfo.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = $models.CommitDetail.createFrom;
-const $$createType15 = $models.StashEntry.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = $models.RepoStatus.createFrom;
+const $$createType11 = $models.ParentBranchResult.createFrom;
+const $$createType12 = $Create.Array($Create.Any);
+const $$createType13 = $models.CommitInfo.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = $models.CommitDetail.createFrom;
+const $$createType16 = $models.StashEntry.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = $models.RepoStatus.createFrom;
