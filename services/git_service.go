@@ -1929,6 +1929,287 @@ func (g *GitService) CompleteMerge(repoPath string, message string) OperationRes
 	return successOp("Merge completed successfully")
 }
 
+// ParentBranchResult contains the detected parent branch information
+type ParentBranchResult struct {
+	ParentBranch string `json:"parentBranch"`
+	Source       string `json:"source"` // "upstream", "merge-base", "default", or "none"
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
+}
+
+// GetParentBranch attempts to detect the parent branch of the current branch.
+// It uses multiple heuristics in order of reliability:
+// 1. Upstream tracking branch (git config branch.<name>.merge)
+// 2. Merge-base with common default branches (main, master, develop)
+// 3. Falls back to "main" or "master" if they exist
+//
+// Returns the detected parent branch name and the source of detection.
+func (g *GitService) GetParentBranch(repoPath string) ParentBranchResult {
+	// Verify repo exists
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return ParentBranchResult{
+			Success: false,
+			Error:   "Not a valid git repository",
+		}
+	}
+
+	currentBranch := repoInfo.Branch
+	if currentBranch == "" {
+		return ParentBranchResult{
+			Success: false,
+			Error:   "Could not determine current branch (detached HEAD?)",
+		}
+	}
+
+	// Strategy 1: Check upstream tracking branch
+	// git config branch.<name>.merge gives us the remote ref being tracked
+	upstreamResult := g.runner.RunGit(repoPath, "config", "--get", "branch."+currentBranch+".merge")
+	if upstreamResult.Success {
+		upstream := trimOutput(upstreamResult.Stdout)
+		// upstream is like "refs/heads/main" - extract just the branch name
+		if strings.HasPrefix(upstream, "refs/heads/") {
+			branchName := strings.TrimPrefix(upstream, "refs/heads/")
+			// Make sure it's not the same as current branch
+			if branchName != currentBranch {
+				return ParentBranchResult{
+					ParentBranch: branchName,
+					Source:       "upstream",
+					Success:      true,
+				}
+			}
+		}
+	}
+
+	// Strategy 2: Find merge-base with common default branches
+	// Check which default branches exist and find the one with the most recent common ancestor
+	defaultBranches := []string{"main", "master", "develop", "development"}
+	for _, defaultBranch := range defaultBranches {
+		// Skip if current branch is the default branch
+		if currentBranch == defaultBranch {
+			continue
+		}
+
+		// Check if the branch exists locally or remotely
+		refCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", defaultBranch)
+		if !refCheck.Success {
+			// Try origin/<branch>
+			refCheck = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+defaultBranch)
+			if !refCheck.Success {
+				continue
+			}
+		}
+
+		// Check if current branch was created from this default branch
+		// by seeing if there's a merge-base
+		mergeBaseResult := g.runner.RunGit(repoPath, "merge-base", currentBranch, defaultBranch)
+		if mergeBaseResult.Success {
+			return ParentBranchResult{
+				ParentBranch: defaultBranch,
+				Source:       "merge-base",
+				Success:      true,
+			}
+		}
+	}
+
+	// Strategy 3: Fall back to first existing default branch
+	for _, defaultBranch := range defaultBranches {
+		if currentBranch == defaultBranch {
+			continue
+		}
+		refCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", defaultBranch)
+		if refCheck.Success {
+			return ParentBranchResult{
+				ParentBranch: defaultBranch,
+				Source:       "default",
+				Success:      true,
+			}
+		}
+		// Try origin/<branch>
+		refCheck = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+defaultBranch)
+		if refCheck.Success {
+			return ParentBranchResult{
+				ParentBranch: defaultBranch,
+				Source:       "default",
+				Success:      true,
+			}
+		}
+	}
+
+	// No parent branch could be detected
+	return ParentBranchResult{
+		Success: false,
+		Source:  "none",
+		Error:   "Could not detect parent branch",
+	}
+}
+
+// BranchConflictCheckResult contains the result of checking for conflicts between branches
+type BranchConflictCheckResult struct {
+	HasConflicts    bool             `json:"hasConflicts"`
+	ConflictedFiles []ConflictedFile `json:"conflictedFiles"`
+	ParentBranch    string           `json:"parentBranch"` // The parent branch used for checking
+	Success         bool             `json:"success"`
+	Error           string           `json:"error,omitempty"`
+	Message         string           `json:"message,omitempty"`
+}
+
+// CheckBranchConflicts checks for potential merge conflicts between the current branch (child)
+// and a parent branch without actually performing the merge.
+// This uses `git merge-tree --write-tree` which performs a merge simulation.
+//
+// The method:
+// 1. Auto-detects parent branch if not provided
+// 2. Fetches the parent branch from origin to ensure we have the latest
+// 3. Runs git merge-tree to detect conflicts
+// 4. Returns the list of conflicted files if any
+//
+// Parameters:
+//   - repoPath: Path to the git repository
+//   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+//     If empty, the parent branch will be auto-detected.
+//
+// Returns:
+//   - BranchConflictCheckResult with conflict information
+func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) BranchConflictCheckResult {
+	// Verify repo exists
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return BranchConflictCheckResult{
+			Success: false,
+			Error:   "Not a valid git repository",
+		}
+	}
+
+	// Auto-detect parent branch if not provided
+	if parentBranch == "" {
+		parentResult := g.GetParentBranch(repoPath)
+		if !parentResult.Success {
+			return BranchConflictCheckResult{
+				Success: false,
+				Error:   "Could not detect parent branch: " + parentResult.Error,
+			}
+		}
+		parentBranch = parentResult.ParentBranch
+	}
+
+	// Step 1: Fetch the parent branch from origin to ensure we have latest
+	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", parentBranch)
+	if !fetchResult.Success {
+		// Fetch might fail if no remote or branch doesn't exist on remote
+		// We can still try merge-tree with local branches
+		errMsg := getErrorMessage(fetchResult)
+		// Check if it's a "no remote" error vs other errors
+		if strings.Contains(errMsg, "does not appear to be a git repository") ||
+			strings.Contains(errMsg, "Could not read from remote") {
+			// No remote configured, try with local branch reference
+			// Continue without fetch
+		} else if strings.Contains(errMsg, "couldn't find remote ref") {
+			// Remote exists but branch doesn't - still try local
+		}
+		// For other fetch errors, we'll still try the merge-tree with local refs
+	}
+
+	// Step 2: Determine the parent ref to use
+	// Try origin/<parentBranch> first, then fall back to local branch
+	parentRef := ""
+
+	// Check if origin/<parentBranch> exists
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
+	if refCheckResult.Success {
+		parentRef = "origin/" + parentBranch
+	} else {
+		// Try local branch
+		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", parentBranch)
+		if localRefCheck.Success {
+			parentRef = parentBranch
+		} else {
+			return BranchConflictCheckResult{
+				Success: false,
+				Error:   fmt.Sprintf("Branch '%s' not found locally or on remote", parentBranch),
+			}
+		}
+	}
+
+	// Step 3: Run merge-tree with --name-only for cleaner output
+	mergeTreeResult := g.runner.RunGit(repoPath, "merge-tree", "--write-tree", "--name-only", "HEAD", parentRef)
+
+	// Parse the output
+	// Output format:
+	// - First line is always the tree OID
+	// - If exit code is 1, there are conflicts
+	// - Subsequent lines (with --name-only) are conflicted file paths
+	// - Informational messages come after a blank line
+
+	conflictedFiles := []ConflictedFile{}
+	output := mergeTreeResult.Stdout
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	// Exit code 1 means conflicts exist
+	if mergeTreeResult.ExitCode == 1 {
+		// Skip the first line (tree OID) and parse conflicted files
+		// Lines between tree OID and blank line (or end) are file paths
+		inConflictSection := false
+		for i, line := range lines {
+			line = strings.TrimSpace(line)
+
+			// Skip the first line (tree OID - 40 char hex string)
+			if i == 0 && len(line) >= 40 && isHexString(line[:40]) {
+				inConflictSection = true
+				continue
+			}
+
+			// Empty line marks end of conflict section
+			if line == "" {
+				break
+			}
+
+			// If we're in conflict section and have a non-empty line, it's a file path
+			if inConflictSection && line != "" {
+				conflictedFiles = append(conflictedFiles, ConflictedFile{
+					Path:   line,
+					Status: "potential-conflict",
+				})
+			}
+		}
+
+		return BranchConflictCheckResult{
+			Success:         true,
+			HasConflicts:    true,
+			ConflictedFiles: conflictedFiles,
+			ParentBranch:    parentBranch,
+			Message:         fmt.Sprintf("Found %d potential conflict(s) with '%s'", len(conflictedFiles), parentBranch),
+		}
+	}
+
+	// Exit code 0 means clean merge possible
+	if mergeTreeResult.ExitCode == 0 {
+		return BranchConflictCheckResult{
+			Success:         true,
+			HasConflicts:    false,
+			ConflictedFiles: []ConflictedFile{},
+			ParentBranch:    parentBranch,
+			Message:         fmt.Sprintf("No conflicts with '%s' - merge will be clean", parentBranch),
+		}
+	}
+
+	// Other exit codes indicate an error
+	return BranchConflictCheckResult{
+		Success: false,
+		Error:   fmt.Sprintf("Failed to check conflicts: %s", getErrorMessage(mergeTreeResult)),
+	}
+}
+
+// isHexString checks if a string contains only hexadecimal characters
+func isHexString(s string) bool {
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 // ============================================================================
 // Recovery Utilities
 // ============================================================================
