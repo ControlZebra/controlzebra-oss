@@ -307,6 +307,22 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, repoInfo?.isRepo, refreshAll, refreshStatus]);
 
+  // Reset conflict check state when local changes are detected
+  // This ensures users re-check for conflicts after making new changes
+  useEffect(() => {
+    if (repoStatus?.hasChanges && conflictCheckResult) {
+      // If we have a conflict check result and new local changes are detected,
+      // clear the conflict state to force a re-check
+      setConflictCheckResult(null);
+      setConflictedFiles([]);
+      setSelectedConflictFile(null);
+      setFileResolutions({});
+      setMergeState(null);
+      setConflictSidesInfo(null);
+      // Keep detectedParentBranch so user doesn't have to re-select
+    }
+  }, [repoStatus?.hasChanges, conflictCheckResult]);
+
   // Listen for folder-selected event from native menu
   useEffect(() => {
     const unsubscribe = Events.On('folder-selected', async (event) => {
