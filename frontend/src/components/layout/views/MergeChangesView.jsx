@@ -118,16 +118,17 @@ function MergeChangesView() {
           </div>
         )}
 
-        {/* Show success state - no conflicts */}
+        {/* Show success state - ready to merge (no conflicts) */}
         {!isCheckingConflicts && conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && (
           <div className="px-3 py-4 text-center">
             <CheckCircle2 
               style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }} 
               className="text-green-400 mx-auto mb-2" 
             />
-            <p className="text-green-400 text-sm font-medium">No Conflicts!</p>
+            <p className="text-green-400 text-sm font-medium">Ready to Merge</p>
             <p className="text-theme-muted text-xs mt-1">
-              No conflicts to display
+              No conflicts with{' '}
+              <span className="text-theme-secondary">{conflictCheckResult.parentBranch || 'parent branch'}</span>
             </p>
           </div>
         )}

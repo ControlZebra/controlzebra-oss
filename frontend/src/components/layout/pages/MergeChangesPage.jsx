@@ -512,36 +512,78 @@ const InitialCheckPanel = memo(function InitialCheckPanel({
 });
 
 /**
- * NoConflictsResult - Shown when check completes with no conflicts
+ * CleanMergeReady - Shown when check completes with no conflicts, allows user to complete merge
  */
-const NoConflictsResult = memo(function NoConflictsResult({
+const CleanMergeReady = memo(function CleanMergeReady({
   parentBranch,
-  message,
-  onCheckAgain,
-  onClear,
-  isCheckingConflicts,
+  onCompleteMerge,
+  onAbortMerge,
+  isResolving,
 }) {
+  const [mergeMessage, setMergeMessage] = useState('');
+
+  const handleCompleteMerge = useCallback(() => {
+    onCompleteMerge(mergeMessage);
+  }, [mergeMessage, onCompleteMerge]);
+
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-md w-full">
+      <div className="text-center max-w-lg w-full">
         <CheckCircle2 style={largeIconStyle} className="text-green-400 mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          No Conflicts Detected
+          Ready to Merge
         </h2>
         <p className="text-theme-muted text-sm mb-4">
-          A clean merge is possible with <span className="text-green-400 font-medium">{parentBranch || 'the parent branch'}</span>.
+          No conflicts with <span className="text-green-400 font-medium">{parentBranch || 'the parent branch'}</span>.
+          You can safely complete the merge.
         </p>
-        <p className="text-theme-muted text-xs mb-6">
-          {message || 'You can safely merge this branch.'}
-        </p>
-        
-        <div className="flex gap-2 justify-center">
-          <Button onClick={onCheckAgain} disabled={isCheckingConflicts} variant="outline">
-            <Search style={iconStyle} className="mr-2" />
-            Check Again
+
+        {/* Merge completion section */}
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6 text-left">
+          <div className="flex items-center gap-2 mb-3">
+            <GitMerge style={iconStyle} className="text-green-400" />
+            <span className="text-green-400 font-medium">Complete the merge</span>
+          </div>
+          <p className="text-theme-muted text-sm mb-4">
+            Add an optional commit message for this merge.
+          </p>
+          <textarea
+            value={mergeMessage}
+            onChange={(e) => setMergeMessage(e.target.value)}
+            placeholder="Merge commit message (optional)"
+            className="w-full px-3 py-2 bg-theme-base border border-theme-default rounded-lg text-sm text-theme-primary placeholder:text-theme-muted resize-none focus:outline-none focus:ring-1 focus:ring-green-500"
+            rows={3}
+          />
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-3 justify-center">
+          <Button
+            onClick={handleCompleteMerge}
+            disabled={isResolving}
+            variant="default"
+            className="min-w-[140px]"
+          >
+            {isResolving ? (
+              <>
+                <Loader2 style={iconStyle} className="mr-2 animate-spin" />
+                Merging...
+              </>
+            ) : (
+              <>
+                <GitMerge style={iconStyle} className="mr-2" />
+                Complete Merge
+              </>
+            )}
           </Button>
-          <Button onClick={onClear} variant="outline">
-            Clear Results
+          <Button
+            onClick={onAbortMerge}
+            disabled={isResolving}
+            variant="outline"
+            className="text-red-400 border-red-400/50 hover:bg-red-500/10"
+          >
+            <X style={iconStyle} className="mr-2" />
+            Cancel
           </Button>
         </div>
       </div>
@@ -639,15 +681,14 @@ function MergeChangesPage() {
     );
   }
 
-  // No conflicts found
+  // No conflicts found - show clean merge screen
   if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts) {
     return (
-      <NoConflictsResult
+      <CleanMergeReady
         parentBranch={conflictCheckResult.parentBranch}
-        message={conflictCheckResult.message}
-        onCheckAgain={() => handleCheckConflicts('')}
-        onClear={handleClearResults}
-        isCheckingConflicts={isCheckingConflicts}
+        onCompleteMerge={handleCompleteMerge}
+        onAbortMerge={handleClearResults}
+        isResolving={isResolvingConflict}
       />
     );
   }
