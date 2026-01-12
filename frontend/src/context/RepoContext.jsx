@@ -134,10 +134,15 @@ export function RepoProvider({ children }) {
         return;
       }
       setRepoStatus(status);
+      
+      // Update repoInfo.branch if it changed (e.g., after branch switch)
+      if (status.branch && status.branch !== repoInfo?.branch) {
+        setRepoInfo(prev => prev ? { ...prev, branch: status.branch } : prev);
+      }
     } catch (err) {
       console.error('Failed to refresh status:', err);
     }
-  }, [repoPath]);
+  }, [repoPath, repoInfo?.branch]);
 
   // Fetch commits with graph data (parent hashes and refs) for git graph visualization
   const refreshCommits = useCallback(async () => {
@@ -984,6 +989,9 @@ export function RepoProvider({ children }) {
 
     console.log('[completeMerge] Starting merge completion with message:', message);
 
+    // Store parent branch before clearing conflicts
+    const parentBranchName = detectedParentBranch?.name;
+
     try {
       const result = await CompleteMerge(repoPath, message || '');
       console.log('[completeMerge] Result:', result);
@@ -996,14 +1004,34 @@ export function RepoProvider({ children }) {
 
       showMessage('success', result.message || 'Merge completed successfully');
       clearConflicts();
+      clearSelection();
       await refreshAll();
+      await refreshBranches();
+
+      // After successful merge, checkout to the parent branch
+      if (parentBranchName) {
+        console.log('[completeMerge] Switching to parent branch:', parentBranchName);
+        try {
+          const checkoutResult = await CheckoutBranch(repoPath, parentBranchName);
+          if (checkoutResult.success) {
+            showMessage('success', `Switched to ${parentBranchName}`);
+            await refreshAll();
+            await refreshBranches();
+          } else {
+            console.error('[completeMerge] Failed to switch to parent branch:', checkoutResult.error);
+          }
+        } catch (checkoutErr) {
+          console.error('[completeMerge] Error switching to parent branch:', checkoutErr);
+        }
+      }
+
       return true;
     } catch (err) {
       console.error('[completeMerge] Exception:', err);
       showMessage('error', `Failed to complete merge: ${err.message || err}`);
       return false;
     }
-  }, [repoPath, conflictedFiles, fileResolutions, showMessage, clearConflicts, refreshAll]);
+  }, [repoPath, conflictedFiles, fileResolutions, showMessage, clearConflicts, clearSelection, refreshAll, refreshBranches, detectedParentBranch]);
 
   // Refresh merge state from backend
   const refreshMergeState = useCallback(async () => {
