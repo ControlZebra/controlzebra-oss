@@ -16,7 +16,11 @@ function ChangesPage() {
 
   // Working tree file selected
   if (selectedFileIndex !== null && currentDiff) {
-    return <DiffViewer fileDiff={currentDiff} showHeader={true} />;
+    return (
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <DiffViewer fileDiff={currentDiff} showHeader={true} />
+      </div>
+    );
   }
 
   return <EmptyState activeView={VIEWS.CHANGES} />;

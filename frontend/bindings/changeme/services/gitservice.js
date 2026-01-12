@@ -142,40 +142,27 @@ export function DetectRepo(path) {
 }
 
 /**
- * DiffCommitFile returns the diff for a specific file in a commit compared to its parent
+ * DiffCommitFileRaw returns the raw unified diff text for a specific file in a commit
  * @param {string} repoPath
  * @param {string} hash
  * @param {string} filePath
- * @returns {$CancellablePromise<$models.FileDiff>}
+ * @returns {$CancellablePromise<$models.RawDiffResult>}
  */
-export function DiffCommitFile(repoPath, hash, filePath) {
-    return $Call.ByID(2514426657, repoPath, hash, filePath).then(/** @type {($result: any) => any} */(($result) => {
+export function DiffCommitFileRaw(repoPath, hash, filePath) {
+    return $Call.ByID(2647393501, repoPath, hash, filePath).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType5($result);
     }));
 }
 
 /**
- * DiffCommits returns the diff between two commits for a specific file (or all files if path is empty)
- * @param {string} repoPath
- * @param {string} fromHash
- * @param {string} toHash
- * @param {string} filePath
- * @returns {$CancellablePromise<$models.FileDiff>}
- */
-export function DiffCommits(repoPath, fromHash, toHash, filePath) {
-    return $Call.ByID(2294437908, repoPath, fromHash, toHash, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
-    }));
-}
-
-/**
- * DiffWorking returns the diff of a file in the working tree vs HEAD
+ * DiffWorkingRaw returns the raw unified diff text of a file in the working tree vs HEAD
+ * This is designed to be consumed by react-diff-view's parseDiff function
  * @param {string} repoPath
  * @param {string} filePath
- * @returns {$CancellablePromise<$models.FileDiff>}
+ * @returns {$CancellablePromise<$models.RawDiffResult>}
  */
-export function DiffWorking(repoPath, filePath) {
-    return $Call.ByID(1394051649, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
+export function DiffWorkingRaw(repoPath, filePath) {
+    return $Call.ByID(1687348157, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType5($result);
     }));
 }
@@ -561,7 +548,7 @@ const $$createType1 = $models.BranchList.createFrom;
 const $$createType2 = $models.BranchConflictCheckResult.createFrom;
 const $$createType3 = $models.LockFileInfo.createFrom;
 const $$createType4 = $models.RepoInfo.createFrom;
-const $$createType5 = $models.FileDiff.createFrom;
+const $$createType5 = $models.RawDiffResult.createFrom;
 const $$createType6 = $models.ConflictedFile.createFrom;
 const $$createType7 = $Create.Array($$createType6);
 const $$createType8 = $models.GitVersion.createFrom;

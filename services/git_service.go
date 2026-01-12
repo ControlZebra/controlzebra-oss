@@ -17,8 +17,6 @@ import (
 var (
 	// Matches git version string: "git version 2.39.0"
 	gitVersionRegex = regexp.MustCompile(`git version (\d+)\.(\d+)\.?(\d*)`)
-	// Matches diff hunk header: @@ -1,5 +1,7 @@
-	hunkHeaderRegex = regexp.MustCompile(`@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 	// Matches rename with braces: dir/{old => new}.txt
 	renameWithBracesRegex = regexp.MustCompile(`(.*)?\{(.*) => (.*)\}(.*)`)
 )
@@ -580,35 +578,6 @@ func (g *GitService) GetRecentCommits(repoPath string, limit int) ([]CommitInfo,
 // v2 Types and Methods - History, Diffs, Branches, Recovery
 // ============================================================================
 
-// DiffHunk represents a single hunk in a diff
-type DiffHunk struct {
-	OldStart int        `json:"oldStart"` // Starting line in old file
-	OldCount int        `json:"oldCount"` // Number of lines in old file
-	NewStart int        `json:"newStart"` // Starting line in new file
-	NewCount int        `json:"newCount"` // Number of lines in new file
-	Header   string     `json:"header"`   // The @@ header line
-	Lines    []DiffLine `json:"lines"`    // Lines in this hunk
-}
-
-// DiffLine represents a single line in a diff
-type DiffLine struct {
-	Type    string `json:"type"`    // "context", "add", "delete"
-	Content string `json:"content"` // Line content (without +/- prefix)
-	OldLine int    `json:"oldLine"` // Line number in old file (0 if added)
-	NewLine int    `json:"newLine"` // Line number in new file (0 if deleted)
-}
-
-// FileDiff represents the diff for a single file
-type FileDiff struct {
-	Path     string     `json:"path"`
-	OldPath  string     `json:"oldPath,omitempty"` // For renames
-	Status   string     `json:"status"`            // "added", "modified", "deleted", "renamed"
-	Binary   bool       `json:"binary"`            // True if binary file
-	Hunks    []DiffHunk `json:"hunks"`
-	HasError bool       `json:"hasError"`
-	Error    string     `json:"error,omitempty"`
-}
-
 // CommitDetail contains detailed information about a single commit
 type CommitDetail struct {
 	Hash         string           `json:"hash"`
@@ -895,17 +864,28 @@ func (g *GitService) parseNameStatus(output string) map[string]string {
 	return statusMap
 }
 
-// DiffWorking returns the diff of a file in the working tree vs HEAD
-func (g *GitService) DiffWorking(repoPath string, filePath string) FileDiff {
-	result := FileDiff{
-		Path:  filePath,
-		Hunks: []DiffHunk{},
+// RawDiffResult contains raw unified diff text for react-diff-view parsing
+type RawDiffResult struct {
+	Path     string `json:"path"`
+	OldPath  string `json:"oldPath,omitempty"`
+	Status   string `json:"status"` // "added", "modified", "deleted", "renamed"
+	Binary   bool   `json:"binary"`
+	RawDiff  string `json:"rawDiff"` // Raw unified diff text
+	HasError bool   `json:"hasError"`
+	Error    string `json:"error,omitempty"`
+}
+
+// DiffWorkingRaw returns the raw unified diff text of a file in the working tree vs HEAD
+// This is designed to be consumed by react-diff-view's parseDiff function
+func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffResult {
+	result := RawDiffResult{
+		Path:   filePath,
+		Status: "modified",
 	}
 
 	// Check if file exists
 	fullPath := filepath.Join(repoPath, filePath)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		// File was deleted
 		result.Status = "deleted"
 	}
 
@@ -922,7 +902,7 @@ func (g *GitService) DiffWorking(repoPath string, filePath string) FileDiff {
 		result.Status = "added"
 	}
 
-	// Also try staged diff
+	// Also try staged diff if working tree diff is empty
 	if diffResult.Stdout == "" {
 		stagedResult := g.runner.RunGit(repoPath, "diff", "--cached", "--", filePath)
 		if stagedResult.Success && stagedResult.Stdout != "" {
@@ -931,84 +911,35 @@ func (g *GitService) DiffWorking(repoPath string, filePath string) FileDiff {
 	}
 
 	if diffResult.Stdout == "" {
-		// No changes in working tree, might be untracked
+		// Check if untracked file
 		statusResult := g.runner.RunGit(repoPath, "status", "--porcelain", "--", filePath)
 		if statusResult.Success && strings.HasPrefix(statusResult.Stdout, "??") {
-			// Untracked file - show as new file
+			// Untracked file - create a synthetic diff
 			result.Status = "added"
 			content, err := os.ReadFile(fullPath)
 			if err == nil {
-				result.Hunks = g.createAddedFileHunks(string(content))
+				result.RawDiff = g.createRawAddedFileDiff(filePath, string(content))
 			}
 			return result
 		}
 		return result
 	}
 
-	return g.parseDiffOutput(diffResult.Stdout, filePath)
-}
-
-// createAddedFileHunks creates hunks for a newly added file
-func (g *GitService) createAddedFileHunks(content string) []DiffHunk {
-	lines := strings.Split(content, "\n")
-	diffLines := []DiffLine{}
-
-	for i, line := range lines {
-		diffLines = append(diffLines, DiffLine{
-			Type:    "add",
-			Content: line,
-			OldLine: 0,
-			NewLine: i + 1,
-		})
-	}
-
-	return []DiffHunk{{
-		OldStart: 0,
-		OldCount: 0,
-		NewStart: 1,
-		NewCount: len(lines),
-		Header:   fmt.Sprintf("@@ -0,0 +1,%d @@", len(lines)),
-		Lines:    diffLines,
-	}}
-}
-
-// DiffCommits returns the diff between two commits for a specific file (or all files if path is empty)
-func (g *GitService) DiffCommits(repoPath string, fromHash string, toHash string, filePath string) FileDiff {
-	result := FileDiff{
-		Path:  filePath,
-		Hunks: []DiffHunk{},
-	}
-
-	if fromHash == "" || toHash == "" {
-		result.HasError = true
-		result.Error = "Both commit hashes are required"
+	// Check for binary file
+	if strings.Contains(diffResult.Stdout, "Binary files") {
+		result.Binary = true
 		return result
 	}
 
-	args := []string{"diff", fromHash, toHash}
-	if filePath != "" {
-		args = append(args, "--", filePath)
-	}
-
-	diffResult := g.runner.RunGit(repoPath, args...)
-	if !diffResult.Success {
-		result.HasError = true
-		result.Error = "Failed to get diff: " + diffResult.Stderr
-		return result
-	}
-
-	if diffResult.Stdout == "" {
-		return result // No changes
-	}
-
-	return g.parseDiffOutput(diffResult.Stdout, filePath)
+	result.RawDiff = diffResult.Stdout
+	return result
 }
 
-// DiffCommitFile returns the diff for a specific file in a commit compared to its parent
-func (g *GitService) DiffCommitFile(repoPath string, hash string, filePath string) FileDiff {
-	result := FileDiff{
-		Path:  filePath,
-		Hunks: []DiffHunk{},
+// DiffCommitFileRaw returns the raw unified diff text for a specific file in a commit
+func (g *GitService) DiffCommitFileRaw(repoPath string, hash string, filePath string) RawDiffResult {
+	result := RawDiffResult{
+		Path:   filePath,
+		Status: "modified",
 	}
 
 	if hash == "" {
@@ -1027,152 +958,37 @@ func (g *GitService) DiffCommitFile(repoPath string, hash string, filePath strin
 	}
 
 	if diffResult.Stdout == "" {
-		return result // No changes
+		return result
 	}
 
-	return g.parseDiffOutput(diffResult.Stdout, filePath)
-}
-
-// parseDiffOutput parses unified diff output into structured format
-func (g *GitService) parseDiffOutput(output string, defaultPath string) FileDiff {
-	result := FileDiff{
-		Path:   defaultPath,
-		Hunks:  []DiffHunk{},
-		Status: "modified",
+	// Check for binary file
+	if strings.Contains(diffResult.Stdout, "Binary files") {
+		result.Binary = true
+		return result
 	}
 
-	lines := strings.Split(output, "\n")
-	var currentHunk *DiffHunk
-	oldLineNum := 0
-	newLineNum := 0
-
-	for _, line := range lines {
-		// Check for binary file
-		if strings.HasPrefix(line, "Binary files") {
-			result.Binary = true
-			continue
-		}
-
-		// Parse file paths from diff header
-		if strings.HasPrefix(line, "--- a/") {
-			result.OldPath = strings.TrimPrefix(line, "--- a/")
-			continue
-		}
-		if strings.HasPrefix(line, "+++ b/") {
-			result.Path = strings.TrimPrefix(line, "+++ b/")
-			continue
-		}
-		if strings.HasPrefix(line, "--- /dev/null") {
-			result.Status = "added"
-			continue
-		}
-		if strings.HasPrefix(line, "+++ /dev/null") {
-			result.Status = "deleted"
-			continue
-		}
-
-		// Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
-		if strings.HasPrefix(line, "@@") {
-			if currentHunk != nil {
-				result.Hunks = append(result.Hunks, *currentHunk)
-			}
-
-			hunk := parseHunkHeader(line)
-			currentHunk = &hunk
-			oldLineNum = hunk.OldStart
-			newLineNum = hunk.NewStart
-			continue
-		}
-
-		// Skip diff metadata lines
-		if strings.HasPrefix(line, "diff --git") ||
-			strings.HasPrefix(line, "index ") ||
-			strings.HasPrefix(line, "new file mode") ||
-			strings.HasPrefix(line, "deleted file mode") ||
-			strings.HasPrefix(line, "old mode") ||
-			strings.HasPrefix(line, "new mode") ||
-			strings.HasPrefix(line, "similarity index") ||
-			strings.HasPrefix(line, "rename from") ||
-			strings.HasPrefix(line, "rename to") {
-			continue
-		}
-
-		// Parse diff content lines
-		if currentHunk != nil {
-			if strings.HasPrefix(line, "+") {
-				currentHunk.Lines = append(currentHunk.Lines, DiffLine{
-					Type:    "add",
-					Content: strings.TrimPrefix(line, "+"),
-					OldLine: 0,
-					NewLine: newLineNum,
-				})
-				newLineNum++
-			} else if strings.HasPrefix(line, "-") {
-				currentHunk.Lines = append(currentHunk.Lines, DiffLine{
-					Type:    "delete",
-					Content: strings.TrimPrefix(line, "-"),
-					OldLine: oldLineNum,
-					NewLine: 0,
-				})
-				oldLineNum++
-			} else if strings.HasPrefix(line, " ") || line == "" {
-				// Context line
-				content := line
-				if strings.HasPrefix(line, " ") {
-					content = strings.TrimPrefix(line, " ")
-				}
-				currentHunk.Lines = append(currentHunk.Lines, DiffLine{
-					Type:    "context",
-					Content: content,
-					OldLine: oldLineNum,
-					NewLine: newLineNum,
-				})
-				oldLineNum++
-				newLineNum++
-			}
-		}
-	}
-
-	// Don't forget the last hunk
-	if currentHunk != nil {
-		result.Hunks = append(result.Hunks, *currentHunk)
-	}
-
+	result.RawDiff = diffResult.Stdout
 	return result
 }
 
-// parseHunkHeader parses unified diff hunk header.
-// Format: @@ -old_start,old_count +new_start,new_count @@ optional context
-func parseHunkHeader(line string) DiffHunk {
-	hunk := DiffHunk{
-		Header: line,
-		Lines:  []DiffLine{},
+// createRawAddedFileDiff creates a synthetic unified diff for a newly added file
+func (g *GitService) createRawAddedFileDiff(filePath string, content string) string {
+	lines := strings.Split(content, "\n")
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", filePath, filePath))
+	sb.WriteString("new file mode 100644\n")
+	sb.WriteString("--- /dev/null\n")
+	sb.WriteString(fmt.Sprintf("+++ b/%s\n", filePath))
+	sb.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", len(lines)))
+
+	for _, line := range lines {
+		sb.WriteString("+")
+		sb.WriteString(line)
+		sb.WriteString("\n")
 	}
 
-	matches := hunkHeaderRegex.FindStringSubmatch(line)
-	if len(matches) >= 4 {
-		hunk.OldStart, _ = strconv.Atoi(matches[1])
-		hunk.OldCount = parseCountOrDefault(matches[2], 1)
-		hunk.NewStart, _ = strconv.Atoi(matches[3])
-		if len(matches) > 4 {
-			hunk.NewCount = parseCountOrDefault(matches[4], 1)
-		} else {
-			hunk.NewCount = 1
-		}
-	}
-
-	return hunk
-}
-
-// parseCountOrDefault parses a string to int, returning defaultVal if empty or invalid.
-func parseCountOrDefault(s string, defaultVal int) int {
-	if s == "" {
-		return defaultVal
-	}
-	if n, err := strconv.Atoi(s); err == nil {
-		return n
-	}
-	return defaultVal
+	return sb.String()
 }
 
 // Branches returns all branches in the repository

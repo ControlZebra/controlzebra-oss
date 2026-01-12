@@ -144,25 +144,25 @@ function HistoryPage() {
   // Viewing a file diff from a commit
   if (selectedCommit && selectedCommitFile && currentDiff) {
     return (
-      <>
+      <div className="flex flex-col h-full min-h-0">
         <CommitHeader commit={selectedCommit} onBack={handleBackToCommit} />
         <div className="flex-1 overflow-hidden min-h-0">
           <DiffViewer fileDiff={currentDiff} showHeader={true} />
         </div>
-      </>
+      </div>
     );
   }
 
   // Commit selected, showing file list
   if (selectedCommit) {
     return (
-      <>
+      <div className="flex flex-col h-full min-h-0">
         <CommitHeader commit={selectedCommit} />
         <CommitFileList 
           files={selectedCommit.files || []} 
           onFileSelect={handleCommitFileSelect}
         />
-      </>
+      </div>
     );
   }
 

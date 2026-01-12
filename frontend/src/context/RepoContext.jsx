@@ -29,8 +29,8 @@ import {
   Sync, 
   GetRecentCommits,
   ShowCommit,
-  DiffWorking,
-  DiffCommitFile,
+  DiffWorkingRaw,
+  DiffCommitFileRaw,
   Branches,
   CheckoutBranch,
   CreateBranchAndCheckout,
@@ -407,6 +407,7 @@ export function RepoProvider({ children }) {
   // ===== v2: Diff Operations =====
   
   // Load diff for a working tree file (changed file in ChangesView)
+  // Uses DiffWorkingRaw to get raw unified diff text for react-diff-view
   const loadWorkingDiff = useCallback(async (filePath) => {
     if (!repoPath || !filePath) {
       setCurrentDiff(null);
@@ -418,7 +419,7 @@ export function RepoProvider({ children }) {
     setSelectedCommitFile(null);
     
     try {
-      const diff = await DiffWorking(repoPath, filePath);
+      const diff = await DiffWorkingRaw(repoPath, filePath);
       setCurrentDiff(diff);
     } catch (err) {
       console.error('Failed to load diff:', err);
@@ -459,6 +460,7 @@ export function RepoProvider({ children }) {
   }, [repoPath, showMessage]);
 
   // Load diff for a file within a selected commit
+  // Uses DiffCommitFileRaw to get raw unified diff text for react-diff-view
   const loadCommitFileDiff = useCallback(async (filePath) => {
     if (!repoPath || !selectedCommit || !filePath) {
       return;
@@ -468,7 +470,7 @@ export function RepoProvider({ children }) {
     setSelectedCommitFile(filePath);
     
     try {
-      const diff = await DiffCommitFile(repoPath, selectedCommit.hash, filePath);
+      const diff = await DiffCommitFileRaw(repoPath, selectedCommit.hash, filePath);
       setCurrentDiff(diff);
     } catch (err) {
       console.error('Failed to load commit file diff:', err);
