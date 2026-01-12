@@ -182,13 +182,15 @@ type FileStatus struct {
 
 // RepoStatus contains the current state of a repository
 type RepoStatus struct {
-	Branch       string       `json:"branch"`
-	Ahead        int          `json:"ahead"`
-	Behind       int          `json:"behind"`
-	ChangedFiles []FileStatus `json:"changedFiles"`
-	HasChanges   bool         `json:"hasChanges"`
-	HasError     bool         `json:"hasError"`
-	Error        string       `json:"error,omitempty"`
+	Branch            string       `json:"branch"`
+	Ahead             int          `json:"ahead"`
+	Behind            int          `json:"behind"`
+	ChangedFiles      []FileStatus `json:"changedFiles"`
+	HasChanges        bool         `json:"hasChanges"`
+	HasUpstream       bool         `json:"hasUpstream"`       // true if branch has upstream tracking
+	TotalLocalCommits int          `json:"totalLocalCommits"` // total commits on current branch (useful when no upstream)
+	HasError          bool         `json:"hasError"`
+	Error             string       `json:"error,omitempty"`
 }
 
 // Status returns the current status of the repository
@@ -201,10 +203,10 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	var branchResult, aheadBehindResult, statusResult CommandResult
+	var branchResult, aheadBehindResult, statusResult, commitCountResult CommandResult
 
-	// Run all three git commands concurrently
-	wg.Add(3)
+	// Run all commands concurrently
+	wg.Add(4)
 
 	// Get current branch
 	go func() {
@@ -212,7 +214,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		branchResult = g.runner.RunGit(repoPath, "branch", "--show-current")
 	}()
 
-	// Get ahead/behind counts
+	// Get ahead/behind counts (will fail if no upstream)
 	go func() {
 		defer wg.Done()
 		aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
@@ -222,6 +224,12 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	go func() {
 		defer wg.Done()
 		statusResult = g.runner.RunGit(repoPath, "status", "--porcelain")
+	}()
+
+	// Get total local commit count (useful when no upstream to detect if there are commits to push)
+	go func() {
+		defer wg.Done()
+		commitCountResult = g.runner.RunGit(repoPath, "rev-list", "--count", "HEAD")
 	}()
 
 	wg.Wait()
@@ -236,7 +244,9 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	}
 
 	// Process ahead/behind result
+	// If this succeeds, we have an upstream
 	if aheadBehindResult.Success {
+		result.HasUpstream = true
 		parts := strings.Fields(trimOutput(aheadBehindResult.Stdout))
 		if len(parts) == 2 {
 			// First is behind (upstream ahead), second is ahead (local ahead)
@@ -246,6 +256,16 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 			if n, err := strconv.Atoi(parts[1]); err == nil {
 				result.Ahead = n
 			}
+		}
+	} else {
+		// No upstream tracking branch
+		result.HasUpstream = false
+	}
+
+	// Process total commit count
+	if commitCountResult.Success {
+		if n, err := strconv.Atoi(trimOutput(commitCountResult.Stdout)); err == nil {
+			result.TotalLocalCommits = n
 		}
 	}
 
@@ -462,14 +482,52 @@ func (g *GitService) Pull(repoPath string) OperationResult {
 
 // Push pushes local commits to the remote
 func (g *GitService) Push(repoPath string) OperationResult {
+	// First, try a regular push
 	result := g.runner.RunGit(repoPath, "push")
 	if !result.Success {
 		errMsg := getErrorMessage(result)
-		// Check for common push errors
-		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
+		// Check if this is a new branch without upstream tracking
+		if strings.Contains(errMsg, "no upstream") || 
+		   strings.Contains(errMsg, "has no upstream") ||
+		   strings.Contains(errMsg, "no tracking information") ||
+		   strings.Contains(errMsg, "set-upstream") {
+			// Get the current branch name
+			branchResult := g.runner.RunGit(repoPath, "branch", "--show-current")
+			if !branchResult.Success {
+				return OperationResult{
+					Success: false,
+					Error:   "Failed to determine current branch",
+				}
+			}
+			branchName := trimOutput(branchResult.Stdout)
+			if branchName == "" {
+				return OperationResult{
+					Success: false,
+					Error:   "Cannot push: detached HEAD state",
+				}
+			}
+			
+			// Try pushing with --set-upstream to automatically configure tracking
+			pushResult := g.runner.RunGit(repoPath, "push", "--set-upstream", "origin", branchName)
+			if !pushResult.Success {
+				pushErr := getErrorMessage(pushResult)
+				// Check if there's no remote configured at all
+				if strings.Contains(pushErr, "does not appear to be a git repository") ||
+				   strings.Contains(pushErr, "No configured push destination") ||
+				   strings.Contains(pushErr, "fatal: 'origin' does not appear") {
+					return OperationResult{
+						Success: false,
+						Error:   "No remote repository configured. Add a remote first.",
+					}
+				}
+				return OperationResult{
+					Success: false,
+					Error:   "Failed to share: " + pushErr,
+				}
+			}
 			return OperationResult{
-				Success: false,
-				Error:   "No remote branch configured. Please set up a remote first.",
+				Success: true,
+				Message: "Branch published and changes shared successfully",
 			}
 		}
 		return OperationResult{

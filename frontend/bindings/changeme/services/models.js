@@ -1922,6 +1922,22 @@ export class RepoStatus {
              */
             this["hasChanges"] = false;
         }
+        if (!("hasUpstream" in $$source)) {
+            /**
+             * true if branch has upstream tracking
+             * @member
+             * @type {boolean}
+             */
+            this["hasUpstream"] = false;
+        }
+        if (!("totalLocalCommits" in $$source)) {
+            /**
+             * total commits on current branch (useful when no upstream)
+             * @member
+             * @type {number}
+             */
+            this["totalLocalCommits"] = 0;
+        }
         if (!("hasError" in $$source)) {
             /**
              * @member
