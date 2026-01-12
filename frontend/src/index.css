@@ -164,3 +164,120 @@
   animation: indeterminate 1.5s ease-in-out infinite;
   width: 50%;
 }
+
+/* ============================================================================
+   REACT-DIFF-VIEW DARK THEME OVERRIDES
+   Customizes the react-diff-view library colors for dark mode.
+   ============================================================================ */
+
+/* Light mode diff colors (default) */
+:root {
+  --diff-background-color: theme(colors.white);
+  --diff-text-color: theme(colors.neutral.700);
+  --diff-font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --diff-selection-background-color: theme(colors.blue.200);
+  --diff-selection-text-color: var(--diff-text-color);
+  --diff-gutter-insert-background-color: theme(colors.green.100);
+  --diff-gutter-insert-text-color: theme(colors.green.800);
+  --diff-gutter-delete-background-color: theme(colors.red.100);
+  --diff-gutter-delete-text-color: theme(colors.red.800);
+  --diff-gutter-selected-background-color: theme(colors.yellow.100);
+  --diff-gutter-selected-text-color: var(--diff-text-color);
+  --diff-code-insert-background-color: theme(colors.green.50);
+  --diff-code-insert-text-color: theme(colors.green.900);
+  --diff-code-delete-background-color: theme(colors.red.50);
+  --diff-code-delete-text-color: theme(colors.red.900);
+  --diff-code-insert-edit-background-color: theme(colors.green.200);
+  --diff-code-insert-edit-text-color: theme(colors.green.900);
+  --diff-code-delete-edit-background-color: theme(colors.red.200);
+  --diff-code-delete-edit-text-color: theme(colors.red.900);
+  --diff-code-selected-background-color: theme(colors.yellow.100);
+  --diff-code-selected-text-color: var(--diff-text-color);
+  --diff-omit-gutter-line-color: theme(colors.red.600);
+}
+
+/* Dark mode diff colors */
+.dark {
+  --diff-background-color: theme(colors.neutral.900);
+  --diff-text-color: theme(colors.neutral.300);
+  --diff-selection-background-color: theme(colors.blue.800);
+  --diff-selection-text-color: theme(colors.blue.100);
+  --diff-gutter-insert-background-color: theme(colors.green.900/50);
+  --diff-gutter-insert-text-color: theme(colors.green.400);
+  --diff-gutter-delete-background-color: theme(colors.red.900/50);
+  --diff-gutter-delete-text-color: theme(colors.red.400);
+  --diff-gutter-selected-background-color: theme(colors.yellow.900/50);
+  --diff-gutter-selected-text-color: theme(colors.yellow.300);
+  --diff-code-insert-background-color: theme(colors.green.900/30);
+  --diff-code-insert-text-color: theme(colors.green.300);
+  --diff-code-delete-background-color: theme(colors.red.900/30);
+  --diff-code-delete-text-color: theme(colors.red.300);
+  --diff-code-insert-edit-background-color: theme(colors.green.800/50);
+  --diff-code-insert-edit-text-color: theme(colors.green.200);
+  --diff-code-delete-edit-background-color: theme(colors.red.800/50);
+  --diff-code-delete-edit-text-color: theme(colors.red.200);
+  --diff-code-selected-background-color: theme(colors.yellow.900/50);
+  --diff-code-selected-text-color: theme(colors.yellow.300);
+  --diff-omit-gutter-line-color: theme(colors.red.500);
+}
+
+/* Additional diff viewer styling */
+.diff-viewer-container {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The scrollable wrapper that contains the diff table */
+.diff-viewer-container > .flex-1 {
+  overflow: auto;
+  min-height: 0;
+}
+
+.diff-viewer-container .diff {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 100%;
+  width: max-content;
+}
+
+.diff-viewer-container .diff-gutter {
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
+  text-align: right;
+  padding: 0 8px;
+  user-select: none;
+  border-right: 1px solid var(--color-border-default);
+  position: sticky;
+  left: 0;
+  background-color: inherit;
+}
+
+/* For split view, second gutter column needs different sticky position */
+.diff-viewer-container .diff-split .diff-gutter-col:nth-child(3) + .diff-gutter {
+  left: auto;
+}
+
+.diff-viewer-container .diff-code {
+  padding: 0 8px;
+  white-space: pre;
+}
+
+.diff-viewer-container .diff-hunk {
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+/* Style the hunk header decorations */
+.diff-viewer-container .diff-decoration {
+  background-color: var(--color-bg-muted);
+  color: var(--color-text-muted);
+}
+
+.diff-viewer-container .diff-decoration-content {
+  padding: 4px 8px;
+  font-family: var(--diff-font-family);
+  font-size: 11px;
+}
+

@@ -687,138 +687,6 @@ export class CustomLFSGroupsData {
 }
 
 /**
- * DiffHunk represents a single hunk in a diff
- */
-export class DiffHunk {
-    /**
-     * Creates a new DiffHunk instance.
-     * @param {Partial<DiffHunk>} [$$source = {}] - The source object to create the DiffHunk.
-     */
-    constructor($$source = {}) {
-        if (!("oldStart" in $$source)) {
-            /**
-             * Starting line in old file
-             * @member
-             * @type {number}
-             */
-            this["oldStart"] = 0;
-        }
-        if (!("oldCount" in $$source)) {
-            /**
-             * Number of lines in old file
-             * @member
-             * @type {number}
-             */
-            this["oldCount"] = 0;
-        }
-        if (!("newStart" in $$source)) {
-            /**
-             * Starting line in new file
-             * @member
-             * @type {number}
-             */
-            this["newStart"] = 0;
-        }
-        if (!("newCount" in $$source)) {
-            /**
-             * Number of lines in new file
-             * @member
-             * @type {number}
-             */
-            this["newCount"] = 0;
-        }
-        if (!("header" in $$source)) {
-            /**
-             * The @@ header line
-             * @member
-             * @type {string}
-             */
-            this["header"] = "";
-        }
-        if (!("lines" in $$source)) {
-            /**
-             * Lines in this hunk
-             * @member
-             * @type {DiffLine[]}
-             */
-            this["lines"] = [];
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new DiffHunk instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {DiffHunk}
-     */
-    static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType11;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("lines" in $$parsedSource) {
-            $$parsedSource["lines"] = $$createField5_0($$parsedSource["lines"]);
-        }
-        return new DiffHunk(/** @type {Partial<DiffHunk>} */($$parsedSource));
-    }
-}
-
-/**
- * DiffLine represents a single line in a diff
- */
-export class DiffLine {
-    /**
-     * Creates a new DiffLine instance.
-     * @param {Partial<DiffLine>} [$$source = {}] - The source object to create the DiffLine.
-     */
-    constructor($$source = {}) {
-        if (!("type" in $$source)) {
-            /**
-             * "context", "add", "delete"
-             * @member
-             * @type {string}
-             */
-            this["type"] = "";
-        }
-        if (!("content" in $$source)) {
-            /**
-             * Line content (without +/- prefix)
-             * @member
-             * @type {string}
-             */
-            this["content"] = "";
-        }
-        if (!("oldLine" in $$source)) {
-            /**
-             * Line number in old file (0 if added)
-             * @member
-             * @type {number}
-             */
-            this["oldLine"] = 0;
-        }
-        if (!("newLine" in $$source)) {
-            /**
-             * Line number in new file (0 if deleted)
-             * @member
-             * @type {number}
-             */
-            this["newLine"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new DiffLine instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {DiffLine}
-     */
-    static createFrom($$source = {}) {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new DiffLine(/** @type {Partial<DiffLine>} */($$parsedSource));
-    }
-}
-
-/**
  * DirectoryContents contains the contents of a directory
  */
 export class DirectoryContents {
@@ -858,7 +726,7 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType13;
+        const $$createField1_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
@@ -909,86 +777,6 @@ export class ExportLFSGroupsResult {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new ExportLFSGroupsResult(/** @type {Partial<ExportLFSGroupsResult>} */($$parsedSource));
-    }
-}
-
-/**
- * FileDiff represents the diff for a single file
- */
-export class FileDiff {
-    /**
-     * Creates a new FileDiff instance.
-     * @param {Partial<FileDiff>} [$$source = {}] - The source object to create the FileDiff.
-     */
-    constructor($$source = {}) {
-        if (!("path" in $$source)) {
-            /**
-             * @member
-             * @type {string}
-             */
-            this["path"] = "";
-        }
-        if (/** @type {any} */(false)) {
-            /**
-             * For renames
-             * @member
-             * @type {string | undefined}
-             */
-            this["oldPath"] = undefined;
-        }
-        if (!("status" in $$source)) {
-            /**
-             * "added", "modified", "deleted", "renamed"
-             * @member
-             * @type {string}
-             */
-            this["status"] = "";
-        }
-        if (!("binary" in $$source)) {
-            /**
-             * True if binary file
-             * @member
-             * @type {boolean}
-             */
-            this["binary"] = false;
-        }
-        if (!("hunks" in $$source)) {
-            /**
-             * @member
-             * @type {DiffHunk[]}
-             */
-            this["hunks"] = [];
-        }
-        if (!("hasError" in $$source)) {
-            /**
-             * @member
-             * @type {boolean}
-             */
-            this["hasError"] = false;
-        }
-        if (/** @type {any} */(false)) {
-            /**
-             * @member
-             * @type {string | undefined}
-             */
-            this["error"] = undefined;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new FileDiff instance from a string or object.
-     * @param {any} [$$source = {}]
-     * @returns {FileDiff}
-     */
-    static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType15;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("hunks" in $$parsedSource) {
-            $$parsedSource["hunks"] = $$createField4_0($$parsedSource["hunks"]);
-        }
-        return new FileDiff(/** @type {Partial<FileDiff>} */($$parsedSource));
     }
 }
 
@@ -1673,6 +1461,81 @@ export class PresetPattern {
 }
 
 /**
+ * RawDiffResult contains raw unified diff text for react-diff-view parsing
+ */
+export class RawDiffResult {
+    /**
+     * Creates a new RawDiffResult instance.
+     * @param {Partial<RawDiffResult>} [$$source = {}] - The source object to create the RawDiffResult.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["oldPath"] = undefined;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * "added", "modified", "deleted", "renamed"
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("binary" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["binary"] = false;
+        }
+        if (!("rawDiff" in $$source)) {
+            /**
+             * Raw unified diff text
+             * @member
+             * @type {string}
+             */
+            this["rawDiff"] = "";
+        }
+        if (!("hasError" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasError"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RawDiffResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RawDiffResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RawDiffResult(/** @type {Partial<RawDiffResult>} */($$parsedSource));
+    }
+}
+
+/**
  * RepoInfo contains basic information about a git repository
  */
 export class RepoInfo {
@@ -1799,7 +1662,7 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType17;
+        const $$createField3_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -1996,11 +1859,7 @@ const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = CommitStats.createFrom;
 const $$createType8 = CustomLFSGroup.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = DiffLine.createFrom;
+const $$createType10 = FileEntry.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = FileEntry.createFrom;
+const $$createType12 = FileStatus.createFrom;
 const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = DiffHunk.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = FileStatus.createFrom;
-const $$createType17 = $Create.Array($$createType16);
