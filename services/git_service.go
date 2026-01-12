@@ -346,46 +346,36 @@ type OperationResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// CommitAll stages all changes and commits with the given message
+// CommitAll stages all changes and commits with the given message.
+// This is a composite operation that combines AddAll + Commit.
+// For finer control, use AddAll() and Commit() separately.
 func (g *GitService) CommitAll(repoPath string, message string) OperationResult {
 	if message == "" {
-		return OperationResult{
-			Success: false,
-			Error:   "Commit message is required",
-		}
+		return failedOp("Commit message is required")
 	}
 
-	// First, check if there are any changes
-	status := g.Status(repoPath)
-	if !status.HasChanges {
-		return OperationResult{
-			Success: false,
-			Error:   "No changes to commit",
-		}
+	// Check if there are any changes to commit
+	hasChanges, err := g.HasChanges(repoPath)
+	if err != nil {
+		return failedOp("Failed to check status: " + err.Error())
+	}
+	if !hasChanges {
+		return failedOp("No changes to commit")
 	}
 
-	// Stage all changes
-	addResult := g.runner.RunGit(repoPath, "add", ".")
+	// Stage all changes using primitive
+	addResult := g.AddAll(repoPath)
 	if !addResult.Success {
-		return OperationResult{
-			Success: false,
-			Error:   "Failed to stage changes: " + addResult.Stderr,
-		}
+		return addResult
 	}
 
-	// Commit
-	commitResult := g.runner.RunGit(repoPath, "commit", "-m", message)
+	// Commit using primitive
+	commitResult := g.Commit(repoPath, message)
 	if !commitResult.Success {
-		return OperationResult{
-			Success: false,
-			Error:   "Failed to commit: " + commitResult.Stderr,
-		}
+		return commitResult
 	}
 
-	return OperationResult{
-		Success: true,
-		Message: "Changes saved successfully",
-	}
+	return successOp("Changes saved successfully")
 }
 
 // getErrorMessage extracts the most informative error message from a command result.
@@ -458,6 +448,332 @@ func pluralize(singular string, n int) string {
 	}
 	return singular + "s"
 }
+
+// ============================================================================
+// Primitive Git Operations - Individual Commands
+// These methods wrap single git commands for maximum reusability.
+// Composite operations (like CommitAll) should use these primitives.
+// ============================================================================
+
+// Add stages a specific file or directory for commit.
+// Equivalent to: git add <path>
+func (g *GitService) Add(repoPath string, path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	result := g.runner.RunGit(repoPath, "add", "--", path)
+	if !result.Success {
+		return failedOp("Failed to stage file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Staged '%s'", path))
+}
+
+// AddAll stages all changes in the repository.
+// Equivalent to: git add .
+func (g *GitService) AddAll(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "add", ".")
+	if !result.Success {
+		return failedOp("Failed to stage changes: " + getErrorMessage(result))
+	}
+	return successOp("All changes staged")
+}
+
+// AddFiles stages multiple files for commit.
+// Equivalent to: git add -- <paths...>
+func (g *GitService) AddFiles(repoPath string, paths []string) OperationResult {
+	if len(paths) == 0 {
+		return failedOp("At least one path is required")
+	}
+	args := append([]string{"add", "--"}, paths...)
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to stage files: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Staged %d file(s)", len(paths)))
+}
+
+// Unstage removes a file from the staging area without discarding changes.
+// Equivalent to: git restore --staged <path> (Git 2.23+) or git reset HEAD <path>
+func (g *GitService) Unstage(repoPath string, path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", "--staged", "--", path)
+	} else {
+		result = g.runner.RunGit(repoPath, "reset", "HEAD", "--", path)
+	}
+	if !result.Success {
+		return failedOp("Failed to unstage file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Unstaged '%s'", path))
+}
+
+// UnstageAll removes all files from the staging area.
+// Equivalent to: git restore --staged . (Git 2.23+) or git reset HEAD
+func (g *GitService) UnstageAll(repoPath string) OperationResult {
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", "--staged", ".")
+	} else {
+		result = g.runner.RunGit(repoPath, "reset", "HEAD")
+	}
+	if !result.Success {
+		return failedOp("Failed to unstage: " + getErrorMessage(result))
+	}
+	return successOp("All files unstaged")
+}
+
+// Restore reverts a file to its HEAD state, discarding working tree changes.
+// Does NOT affect staged changes - use Unstage first if needed.
+// Equivalent to: git restore <path> (Git 2.23+) or git checkout -- <path>
+func (g *GitService) Restore(repoPath string, path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", "--", path)
+	} else {
+		result = g.runner.RunGit(repoPath, "checkout", "--", path)
+	}
+	if !result.Success {
+		return failedOp("Failed to restore file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Restored '%s'", path))
+}
+
+// RestoreAll reverts all tracked files to HEAD state.
+// Does NOT remove untracked files - use Clean for that.
+// Equivalent to: git restore . (Git 2.23+) or git checkout -- .
+func (g *GitService) RestoreAll(repoPath string) OperationResult {
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", ".")
+	} else {
+		result = g.runner.RunGit(repoPath, "checkout", "--", ".")
+	}
+	if !result.Success {
+		return failedOp("Failed to restore files: " + getErrorMessage(result))
+	}
+	return successOp("All tracked files restored")
+}
+
+// Clean removes untracked files from the working directory.
+// Does NOT remove ignored files by default.
+// Equivalent to: git clean -fd
+func (g *GitService) Clean(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "clean", "-fd")
+	if !result.Success {
+		return failedOp("Failed to clean untracked files: " + getErrorMessage(result))
+	}
+	return successOp("Untracked files removed")
+}
+
+// CleanDryRun shows what files would be removed by Clean without actually removing them.
+// Equivalent to: git clean -fdn
+func (g *GitService) CleanDryRun(repoPath string) ([]string, error) {
+	result := g.runner.RunGit(repoPath, "clean", "-fdn")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to list untracked files: %s", getErrorMessage(result))
+	}
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	files := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// git clean -n output: "Would remove <file>"
+		if strings.HasPrefix(line, "Would remove ") {
+			files = append(files, strings.TrimPrefix(line, "Would remove "))
+		} else {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}
+
+// Commit creates a commit with staged changes.
+// Does NOT auto-stage anything - use Add/AddAll first.
+// Equivalent to: git commit -m <message>
+func (g *GitService) Commit(repoPath string, message string) OperationResult {
+	if message == "" {
+		return failedOp("Commit message is required")
+	}
+	result := g.runner.RunGit(repoPath, "commit", "-m", message)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "nothing to commit") {
+			return failedOp("Nothing staged to commit")
+		}
+		return failedOp("Failed to commit: " + errMsg)
+	}
+	return successOp("Changes committed")
+}
+
+// Fetch downloads objects and refs from the remote without merging.
+// Equivalent to: git fetch [remote] [branch]
+func (g *GitService) Fetch(repoPath string, remote string, branch string) OperationResult {
+	args := []string{"fetch"}
+	if remote != "" {
+		args = append(args, remote)
+		if branch != "" {
+			args = append(args, branch)
+		}
+	}
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to fetch: " + getErrorMessage(result))
+	}
+	return successOp("Fetched successfully")
+}
+
+// FetchAll fetches from all remotes.
+// Equivalent to: git fetch --all
+func (g *GitService) FetchAll(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "fetch", "--all")
+	if !result.Success {
+		return failedOp("Failed to fetch: " + getErrorMessage(result))
+	}
+	return successOp("Fetched from all remotes")
+}
+
+// Checkout switches to a branch or commit without safety checks.
+// For safer operations with checks, use CheckoutBranch.
+// Equivalent to: git checkout <ref>
+func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		return failedOp("Reference is required")
+	}
+	result := g.runner.RunGit(repoPath, "checkout", ref)
+	if !result.Success {
+		return failedOp("Failed to checkout: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Switched to '%s'", ref))
+}
+
+// CheckoutNewBranch creates a new branch and switches to it without safety checks.
+// For safer operations with checks, use CreateBranchAndCheckout.
+// Equivalent to: git checkout -b <branch>
+func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) OperationResult {
+	if branchName == "" {
+		return failedOp("Branch name is required")
+	}
+	result := g.runner.RunGit(repoPath, "checkout", "-b", branchName)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "already exists") {
+			return failedOp(fmt.Sprintf("Branch '%s' already exists", branchName))
+		}
+		return failedOp("Failed to create branch: " + errMsg)
+	}
+	return successOp(fmt.Sprintf("Created and switched to '%s'", branchName))
+}
+
+// ResetHard resets HEAD, index, and working tree to a specific commit.
+// WARNING: This is destructive - all uncommitted changes are lost.
+// Equivalent to: git reset --hard <ref>
+func (g *GitService) ResetHard(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		ref = "HEAD"
+	}
+	result := g.runner.RunGit(repoPath, "reset", "--hard", ref)
+	if !result.Success {
+		return failedOp("Failed to reset: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Reset to %s", ref))
+}
+
+// ResetSoft resets HEAD to a specific commit but keeps all changes staged.
+// Equivalent to: git reset --soft <ref>
+func (g *GitService) ResetSoft(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		return failedOp("Reference is required")
+	}
+	result := g.runner.RunGit(repoPath, "reset", "--soft", ref)
+	if !result.Success {
+		return failedOp("Failed to reset: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Soft reset to %s", ref))
+}
+
+// ResetMixed resets HEAD and index to a specific commit, keeping working tree changes.
+// This is the default git reset behavior.
+// Equivalent to: git reset <ref>
+func (g *GitService) ResetMixed(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		ref = "HEAD"
+	}
+	result := g.runner.RunGit(repoPath, "reset", ref)
+	if !result.Success {
+		return failedOp("Failed to reset: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Reset to %s", ref))
+}
+
+// GetCurrentBranch returns the name of the current branch.
+// Returns empty string if in detached HEAD state.
+func (g *GitService) GetCurrentBranch(repoPath string) (string, error) {
+	result := g.runner.RunGit(repoPath, "branch", "--show-current")
+	if !result.Success {
+		return "", fmt.Errorf("failed to get current branch: %s", getErrorMessage(result))
+	}
+	return trimOutput(result.Stdout), nil
+}
+
+// HasChanges returns true if the repository has uncommitted changes.
+func (g *GitService) HasChanges(repoPath string) (bool, error) {
+	result := g.runner.RunGit(repoPath, "status", "--porcelain")
+	if !result.Success {
+		return false, fmt.Errorf("failed to check status: %s", getErrorMessage(result))
+	}
+	return strings.TrimSpace(result.Stdout) != "", nil
+}
+
+// HasStagedChanges returns true if there are staged (but uncommitted) changes.
+func (g *GitService) HasStagedChanges(repoPath string) (bool, error) {
+	result := g.runner.RunGit(repoPath, "diff", "--cached", "--quiet")
+	// Exit code 0 = no staged changes, 1 = has staged changes
+	return result.ExitCode == 1, nil
+}
+
+// RemoveFile removes a file from the working tree and stages the removal.
+// Equivalent to: git rm <path>
+func (g *GitService) RemoveFile(repoPath string, path string, cached bool) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	args := []string{"rm"}
+	if cached {
+		args = append(args, "--cached") // Remove from index only, keep working tree copy
+	}
+	args = append(args, "--", path)
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to remove file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Removed '%s'", path))
+}
+
+// MoveFile renames/moves a file and stages the change.
+// Equivalent to: git mv <source> <destination>
+func (g *GitService) MoveFile(repoPath string, source string, destination string) OperationResult {
+	if source == "" || destination == "" {
+		return failedOp("Source and destination paths are required")
+	}
+	result := g.runner.RunGit(repoPath, "mv", source, destination)
+	if !result.Success {
+		return failedOp("Failed to move file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Moved '%s' to '%s'", source, destination))
+}
+
+// ============================================================================
+// Composite Operations - Built from primitives
+// These methods combine multiple primitives for common workflows.
+// ============================================================================
 
 // Pull fetches and merges changes from the remote
 func (g *GitService) Pull(repoPath string) OperationResult {
@@ -1349,23 +1665,29 @@ func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string)
 // ResetHardHead resets the working directory to HEAD, discarding all uncommitted changes.
 // This is the "Rewind" feature - returns to the last committed state.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a composite operation that combines ResetHard("HEAD") + Clean().
+// For finer control, use ResetHard() and Clean() separately.
 func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
 
-	status := g.Status(repoPath)
-	if !status.HasChanges {
+	hasChanges, err := g.HasChanges(repoPath)
+	if err != nil {
+		return failedOp("Failed to check status: " + err.Error())
+	}
+	if !hasChanges {
 		return failedOp("No changes to rewind")
 	}
 
-	result := g.runner.RunGit(repoPath, "reset", "--hard", "HEAD")
-	if !result.Success {
-		return failedOp("Failed to rewind: " + getErrorMessage(result))
+	// Reset tracked files using primitive
+	resetResult := g.ResetHard(repoPath, "HEAD")
+	if !resetResult.Success {
+		return failedOp("Failed to rewind: " + resetResult.Error)
 	}
 
-	// Clean untracked files (but not ignored files)
-	g.runner.RunGit(repoPath, "clean", "-fd")
+	// Clean untracked files using primitive (ignore failure - may have nothing to clean)
+	g.Clean(repoPath)
 
 	return successOp("Rewound to last snapshot. All uncommitted changes have been discarded.")
 }
@@ -1373,6 +1695,7 @@ func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResul
 // ResetSoftHead undoes the last n commits, keeping changes staged.
 // This is the "Undo Last Save" feature - changes remain in the working directory.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a wrapper around ResetSoft() with validation.
 func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
@@ -1388,9 +1711,10 @@ func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) Operati
 		return failedOp(fmt.Sprintf("Cannot undo %d commit(s). Not enough commits in history.", n))
 	}
 
-	result := g.runner.RunGit(repoPath, "reset", "--soft", fmt.Sprintf("HEAD~%d", n))
-	if !result.Success {
-		return failedOp("Failed to undo commits: " + getErrorMessage(result))
+	// Use primitive
+	resetResult := g.ResetSoft(repoPath, fmt.Sprintf("HEAD~%d", n))
+	if !resetResult.Success {
+		return failedOp("Failed to undo commits: " + resetResult.Error)
 	}
 
 	plural := pluralize("commit", n)
@@ -1400,23 +1724,32 @@ func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) Operati
 // DiscardAll discards all uncommitted changes in the working directory.
 // This includes modified files, staged changes, and untracked files.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a composite operation that combines UnstageAll() + RestoreAll() + Clean().
+// For finer control, use those methods separately.
 func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
 
-	status := g.Status(repoPath)
-	if !status.HasChanges {
+	hasChanges, err := g.HasChanges(repoPath)
+	if err != nil {
+		return failedOp("Failed to check status: " + err.Error())
+	}
+	if !hasChanges {
 		return failedOp("No changes to discard")
 	}
 
-	// Restore tracked files to HEAD state
-	if err := g.restoreFiles(repoPath, "."); err != nil {
-		return failedOp("Failed to discard changes: " + err.Error())
+	// First unstage any staged changes
+	g.UnstageAll(repoPath) // Ignore error - may have nothing staged
+
+	// Restore tracked files to HEAD state using primitive
+	restoreResult := g.RestoreAll(repoPath)
+	if !restoreResult.Success {
+		return failedOp("Failed to discard changes: " + restoreResult.Error)
 	}
 
-	// Clean untracked files (but not ignored files)
-	g.runner.RunGit(repoPath, "clean", "-fd")
+	// Clean untracked files using primitive (ignore failure - may have nothing to clean)
+	g.Clean(repoPath)
 
 	return successOp("All changes have been discarded")
 }
@@ -1424,6 +1757,8 @@ func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
 // DiscardFile discards changes to a specific file.
 // For untracked files, the file is deleted. For tracked files, changes are reverted to HEAD.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a composite operation that combines Unstage() + Restore() or file deletion.
+// For finer control, use those methods separately.
 func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
@@ -1448,9 +1783,12 @@ func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool)
 		return successOp(fmt.Sprintf("Removed untracked file '%s'", filePath))
 	}
 
-	// Restore tracked file to HEAD state
-	if err := g.restoreFiles(repoPath, filePath); err != nil {
-		return failedOp("Failed to discard changes: " + err.Error())
+	// For tracked files: first unstage if staged, then restore
+	g.Unstage(repoPath, filePath) // Ignore error - may not be staged
+
+	restoreResult := g.Restore(repoPath, filePath)
+	if !restoreResult.Success {
+		return failedOp("Failed to discard changes: " + restoreResult.Error)
 	}
 
 	return successOp(fmt.Sprintf("Discarded changes to '%s'", filePath))

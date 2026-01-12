@@ -18,6 +18,7 @@ import * as $models from "./models.js";
 /**
  * CheckLocksBeforeBranchSwitch checks for locked LFS files before switching branches.
  * Returns a list of files that are locked by the current user.
+ * This is a composite operation for convenience - use GetOwnLocks() directly for more control.
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.LFSLock[]>}
  */
@@ -28,11 +29,46 @@ export function CheckLocksBeforeBranchSwitch(repoPath) {
 }
 
 /**
+ * FilterLocksByOwner filters a list of locks to only those owned by the specified user.
+ * This is a pure function that doesn't make any git calls.
+ * @param {$models.LFSLock[]} locks
+ * @param {string} owner
+ * @returns {$CancellablePromise<$models.LFSLock[]>}
+ */
+export function FilterLocksByOwner(locks, owner) {
+    return $Call.ByID(44330752, locks, owner).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * GetGitUser returns the configured git user name for the repository.
+ * This is a standalone operation that can be used independently.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetGitUser(repoPath) {
+    return $Call.ByID(433482453, repoPath);
+}
+
+/**
  * GetLFSVersion returns the installed git-lfs version
  * @returns {$CancellablePromise<string>}
  */
 export function GetLFSVersion() {
     return $Call.ByID(3448730039);
+}
+
+/**
+ * GetOwnLocks returns locks owned by the current git user.
+ * This is a composite operation that combines LFSLocks() + GetGitUser() + filtering.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.LFSLock[]>}
+ */
+export function GetOwnLocks(repoPath) {
+    return $Call.ByID(2544434162, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
 }
 
 /**
@@ -90,6 +126,42 @@ export function IsLFSInstalled() {
 }
 
 /**
+ * LFSEnv returns LFS environment and configuration information.
+ * Equivalent to: git lfs env
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function LFSEnv(repoPath) {
+    return $Call.ByID(3973494816, repoPath);
+}
+
+/**
+ * LFSFetch downloads LFS objects for the current ref or specified refs.
+ * Equivalent to: git lfs fetch [remote] [refs...]
+ * @param {string} repoPath
+ * @param {string} remote
+ * @param {string[]} refs
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function LFSFetch(repoPath, remote, ...refs) {
+    return $Call.ByID(2098198991, repoPath, remote, refs).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * LFSFetchAll fetches LFS objects for all refs.
+ * Equivalent to: git lfs fetch --all
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function LFSFetchAll(repoPath) {
+    return $Call.ByID(2107969114, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * LFSLock locks a file to prevent others from modifying it
  * @param {string} repoPath
  * @param {string} filePath
@@ -113,13 +185,108 @@ export function LFSLocks(repoPath) {
 }
 
 /**
+ * LFSLsFiles lists LFS-tracked files in the repository.
+ * Equivalent to: git lfs ls-files
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string[]>}
+ */
+export function LFSLsFiles(repoPath) {
+    return $Call.ByID(990183995, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
+}
+
+/**
+ * LFSMigrateInfo shows migration info without making changes.
+ * Equivalent to: git lfs migrate info
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function LFSMigrateInfo(repoPath) {
+    return $Call.ByID(798354298, repoPath);
+}
+
+/**
+ * LFSPointer shows pointer information for a file.
+ * Equivalent to: git lfs pointer --file=<path>
+ * @param {string} repoPath
+ * @param {string} filePath
+ * @returns {$CancellablePromise<string>}
+ */
+export function LFSPointer(repoPath, filePath) {
+    return $Call.ByID(2540847806, repoPath, filePath);
+}
+
+/**
+ * LFSPrune removes old LFS files from the local cache.
+ * Equivalent to: git lfs prune
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function LFSPrune(repoPath) {
+    return $Call.ByID(2121661795, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * LFSPruneDryRun shows what would be removed by prune without actually removing.
+ * Equivalent to: git lfs prune --dry-run
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function LFSPruneDryRun(repoPath) {
+    return $Call.ByID(3770905889, repoPath);
+}
+
+/**
+ * LFSPull downloads LFS objects and checks them out into the working tree.
+ * Equivalent to: git lfs pull [remote]
+ * @param {string} repoPath
+ * @param {string} remote
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function LFSPull(repoPath, remote) {
+    return $Call.ByID(4084325826, repoPath, remote).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * LFSPush uploads LFS objects to the remote.
+ * Equivalent to: git lfs push [remote] [ref]
+ * @param {string} repoPath
+ * @param {string} remote
+ * @param {string} ref
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function LFSPush(repoPath, remote, ref) {
+    return $Call.ByID(4045988993, repoPath, remote, ref).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * LFSPushAll uploads all LFS objects for all refs.
+ * Equivalent to: git lfs push --all [remote]
+ * @param {string} repoPath
+ * @param {string} remote
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function LFSPushAll(repoPath, remote) {
+    return $Call.ByID(792430584, repoPath, remote).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * LFSStatus returns the status of LFS-tracked files in the working directory
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.LFSFileStatus[]>}
  */
 export function LFSStatus(repoPath) {
     return $Call.ByID(1587393747, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -171,5 +338,6 @@ const $$createType4 = $models.TrackedPattern.createFrom;
 const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = $models.OperationResult.createFrom;
 const $$createType7 = $models.LFSInfo.createFrom;
-const $$createType8 = $models.LFSFileStatus.createFrom;
-const $$createType9 = $Create.Array($$createType8);
+const $$createType8 = $Create.Array($Create.Any);
+const $$createType9 = $models.LFSFileStatus.createFrom;
+const $$createType10 = $Create.Array($$createType9);
