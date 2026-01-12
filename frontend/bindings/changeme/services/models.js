@@ -620,6 +620,120 @@ export class CommitStats {
 }
 
 /**
+ * ConflictCommitInfo contains minimal commit info for conflict resolution display
+ */
+export class ConflictCommitInfo {
+    /**
+     * Creates a new ConflictCommitInfo instance.
+     * @param {Partial<ConflictCommitInfo>} [$$source = {}] - The source object to create the ConflictCommitInfo.
+     */
+    constructor($$source = {}) {
+        if (!("hash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["hash"] = "";
+        }
+        if (!("author" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["author"] = "";
+        }
+        if (!("date" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["date"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ConflictCommitInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ConflictCommitInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ConflictCommitInfo(/** @type {Partial<ConflictCommitInfo>} */($$parsedSource));
+    }
+}
+
+/**
+ * ConflictSidesInfo contains commit info for both sides of a conflict
+ */
+export class ConflictSidesInfo {
+    /**
+     * Creates a new ConflictSidesInfo instance.
+     * @param {Partial<ConflictSidesInfo>} [$$source = {}] - The source object to create the ConflictSidesInfo.
+     */
+    constructor($$source = {}) {
+        if (!("ours" in $$source)) {
+            /**
+             * HEAD - your local changes
+             * @member
+             * @type {ConflictCommitInfo}
+             */
+            this["ours"] = (new ConflictCommitInfo());
+        }
+        if (!("theirs" in $$source)) {
+            /**
+             * The incoming branch
+             * @member
+             * @type {ConflictCommitInfo}
+             */
+            this["theirs"] = (new ConflictCommitInfo());
+        }
+        if (!("success" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["success"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ConflictSidesInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ConflictSidesInfo}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType11;
+        const $$createField1_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("ours" in $$parsedSource) {
+            $$parsedSource["ours"] = $$createField0_0($$parsedSource["ours"]);
+        }
+        if ("theirs" in $$parsedSource) {
+            $$parsedSource["theirs"] = $$createField1_0($$parsedSource["theirs"]);
+        }
+        return new ConflictSidesInfo(/** @type {Partial<ConflictSidesInfo>} */($$parsedSource));
+    }
+}
+
+/**
  * ConflictedFile represents a file with merge conflicts
  */
 export class ConflictedFile {
@@ -750,7 +864,7 @@ export class CustomLFSGroupsData {
      * @returns {CustomLFSGroupsData}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType12;
+        const $$createField0_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("groups" in $$parsedSource) {
             $$parsedSource["groups"] = $$createField0_0($$parsedSource["groups"]);
@@ -799,7 +913,7 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType14;
+        const $$createField1_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
@@ -1832,7 +1946,7 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType16;
+        const $$createField3_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -2030,9 +2144,10 @@ const $$createType7 = CommitStats.createFrom;
 const $$createType8 = GraphCommit.createFrom;
 const $$createType9 = $Create.Array($$createType8);
 const $$createType10 = $Create.Map($Create.Any, $Create.Any);
-const $$createType11 = CustomLFSGroup.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = FileEntry.createFrom;
-const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = FileStatus.createFrom;
-const $$createType16 = $Create.Array($$createType15);
+const $$createType11 = ConflictCommitInfo.createFrom;
+const $$createType12 = CustomLFSGroup.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = FileEntry.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = FileStatus.createFrom;
+const $$createType17 = $Create.Array($$createType16);

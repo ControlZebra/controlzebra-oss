@@ -1,22 +1,41 @@
 /**
  * MergeChangesView - Sidebar view for conflict checking and resolution.
  * Shows list of conflicted files when checking merge conflicts.
+ * Displays resolution status (Mine/Theirs) with icons and badges.
  * Control elements (branch selector, check button) are in MergeChangesPage.
  */
 import { memo, useCallback } from 'react';
-import { FileWarning, AlertTriangle, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { FileWarning, AlertTriangle, Loader2, CheckCircle2, XCircle, Check } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
+import { Badge } from '../../ui';
 
 // Shared icon styles
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const statusIconStyle = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
+// Get badge variant based on resolution strategy
+const getResolutionBadge = (strategy) => {
+  switch (strategy) {
+    case 'mine':
+      return { label: 'Mine', variant: 'info' };
+    case 'theirs':
+      return { label: 'Theirs', variant: 'warning' };
+    case 'both':
+      return { label: 'Both', variant: 'default' };
+    default:
+      return null;
+  }
+};
+
 /**
  * ConflictFileItem - Single file in the conflicts list.
- * Shows file name and conflict status indicator.
+ * Shows file name, conflict status, and resolution indicator.
  */
-const ConflictFileItem = memo(function ConflictFileItem({ file, isSelected, onSelect }) {
+const ConflictFileItem = memo(function ConflictFileItem({ file, isSelected, onSelect, resolution }) {
+  const isResolved = !!resolution;
+  const badgeInfo = getResolutionBadge(resolution);
+  
   return (
     <div 
       onClick={() => onSelect(file.path)}
@@ -26,12 +45,26 @@ const ConflictFileItem = memo(function ConflictFileItem({ file, isSelected, onSe
           : 'hover-bg-theme-interactive border-l-2 border-transparent'
       }`}
     >
-      <FileWarning style={iconStyle} className="text-orange-400 shrink-0" />
+      <FileWarning 
+        style={iconStyle} 
+        className={isResolved ? 'text-green-400 shrink-0' : 'text-orange-400 shrink-0'} 
+      />
       <div className="flex-1 min-w-0">
-        <p className="text-theme-primary text-sm truncate">{file.path}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-theme-primary text-sm truncate">{file.path.split('/').pop()}</p>
+          {badgeInfo && (
+            <Badge variant={badgeInfo.variant} className="text-[10px] px-1.5 py-0">
+              {badgeInfo.label}
+            </Badge>
+          )}
+        </div>
         <p className="text-theme-muted text-xs truncate">{file.status}</p>
       </div>
-      <AlertTriangle style={statusIconStyle} className="text-orange-400" />
+      {isResolved ? (
+        <Check style={statusIconStyle} className="text-green-400 shrink-0" />
+      ) : (
+        <AlertTriangle style={statusIconStyle} className="text-orange-400 shrink-0" />
+      )}
     </div>
   );
 });
@@ -44,6 +77,7 @@ function MergeChangesView() {
     setSelectedConflictFile,
     isCheckingConflicts,
     conflictCheckResult,
+    fileResolutions = {},
   } = useRepo();
 
   const handleSelect = useCallback((path) => {
@@ -54,6 +88,10 @@ function MergeChangesView() {
       setSelectedConflictFile(path);
     }
   }, [selectedConflictFile, setSelectedConflictFile]);
+
+  // Count resolved vs unresolved files
+  const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
+  const unresolvedCount = conflictedFiles.length - resolvedCount;
 
   // No repository open state
   if (!repoPath) {
@@ -120,6 +158,20 @@ function MergeChangesView() {
                   vs {conflictCheckResult.parentBranch}
                 </p>
               )}
+              {/* Resolution progress */}
+              {conflictedFiles.length > 0 && (
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-green-500 transition-all duration-300"
+                      style={{ width: `${(resolvedCount / conflictedFiles.length) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-theme-muted text-[10px]">
+                    {resolvedCount}/{conflictedFiles.length}
+                  </span>
+                </div>
+              )}
             </div>
             {conflictedFiles.map(file => (
               <ConflictFileItem 
@@ -127,6 +179,7 @@ function MergeChangesView() {
                 file={file} 
                 isSelected={selectedConflictFile === file.path}
                 onSelect={handleSelect}
+                resolution={fileResolutions[file.path]}
               />
             ))}
           </>

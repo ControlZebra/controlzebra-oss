@@ -209,13 +209,29 @@ export function GetCommitGraph(repoPath, limit) {
 }
 
 /**
+ * GetConflictSidesInfo returns commit information for both sides of a conflict.
+ * This is useful for displaying in the conflict resolution UI.
+ * Parameters:
+ *   - repoPath: Path to the git repository
+ *   - parentBranch: The branch being merged from (theirs)
+ * @param {string} repoPath
+ * @param {string} parentBranch
+ * @returns {$CancellablePromise<$models.ConflictSidesInfo>}
+ */
+export function GetConflictSidesInfo(repoPath, parentBranch) {
+    return $Call.ByID(2430449675, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
  * GetConflictedFiles returns a list of files with merge conflicts.
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.ConflictedFile[]>}
  */
 export function GetConflictedFiles(repoPath) {
     return $Call.ByID(3264929955, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -226,7 +242,7 @@ export function GetConflictedFiles(repoPath) {
  */
 export function GetGitVersion() {
     return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType11($result);
     }));
 }
 
@@ -237,7 +253,7 @@ export function GetGitVersion() {
  */
 export function GetMergeState(repoPath) {
     return $Call.ByID(477378934, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -254,7 +270,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetParentBranch(repoPath) {
     return $Call.ByID(4140919983, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
@@ -266,7 +282,7 @@ export function GetParentBranch(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType14($result);
     }));
 }
 
@@ -278,7 +294,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType16($result);
     }));
 }
 
@@ -408,6 +424,20 @@ export function ResetSoftHead(repoPath, n, confirm) {
 }
 
 /**
+ * ResolveConflictKeepBoth resolves a conflict by keeping both versions.
+ * The local version stays as-is, and the incoming version is saved with a _COPY suffix.
+ * For example: file.txt keeps local, creates file_COPY.txt with their version.
+ * @param {string} repoPath
+ * @param {string} filePath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ResolveConflictKeepBoth(repoPath, filePath) {
+    return $Call.ByID(3296033155, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * ResolveConflictKeepOurs resolves a conflict by keeping our version.
  * Runs: git checkout --ours <path> && git add <path>
  * @param {string} repoPath
@@ -455,7 +485,7 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType17($result);
     }));
 }
 
@@ -495,7 +525,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType18($result);
+        return $$createType19($result);
     }));
 }
 
@@ -531,7 +561,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType19($result);
+        return $$createType20($result);
     }));
 }
 
@@ -562,16 +592,17 @@ const $$createType3 = $models.LockFileInfo.createFrom;
 const $$createType4 = $models.RepoInfo.createFrom;
 const $$createType5 = $models.RawDiffResult.createFrom;
 const $$createType6 = $models.CommitGraphResult.createFrom;
-const $$createType7 = $models.ConflictedFile.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = $models.GitVersion.createFrom;
-const $$createType10 = $Create.Nullable($$createType9);
-const $$createType11 = $models.MergeState.createFrom;
-const $$createType12 = $models.ParentBranchResult.createFrom;
-const $$createType13 = $Create.Array($Create.Any);
-const $$createType14 = $models.CommitInfo.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = $models.CommitDetail.createFrom;
-const $$createType17 = $models.StashEntry.createFrom;
-const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = $models.RepoStatus.createFrom;
+const $$createType7 = $models.ConflictSidesInfo.createFrom;
+const $$createType8 = $models.ConflictedFile.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = $models.GitVersion.createFrom;
+const $$createType11 = $Create.Nullable($$createType10);
+const $$createType12 = $models.MergeState.createFrom;
+const $$createType13 = $models.ParentBranchResult.createFrom;
+const $$createType14 = $Create.Array($Create.Any);
+const $$createType15 = $models.CommitInfo.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = $models.CommitDetail.createFrom;
+const $$createType18 = $models.StashEntry.createFrom;
+const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = $models.RepoStatus.createFrom;
