@@ -428,7 +428,7 @@ export function RepoProvider({ children }) {
 
   // ===== v2: Diff Operations =====
   
-  // Load diff for a working tree file (changed file in ChangesView)
+  // Load diff for a working tree file (changed file in ExplorerView)
   // Uses DiffWorkingRaw to get raw unified diff text for react-diff-view
   const loadWorkingDiff = useCallback(async (filePath) => {
     if (!repoPath || !filePath) {
