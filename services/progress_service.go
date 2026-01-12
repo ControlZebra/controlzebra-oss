@@ -208,7 +208,7 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string) Operati
 		})
 
 		if strings.Contains(errMsg, "does not appear to be a git repository") ||
-		   strings.Contains(errMsg, "No configured push destination") {
+			strings.Contains(errMsg, "No configured push destination") {
 			return failedOp("No remote repository configured. Add a remote first.")
 		}
 		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {

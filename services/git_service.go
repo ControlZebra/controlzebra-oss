@@ -487,10 +487,10 @@ func (g *GitService) Push(repoPath string) OperationResult {
 	if !result.Success {
 		errMsg := getErrorMessage(result)
 		// Check if this is a new branch without upstream tracking
-		if strings.Contains(errMsg, "no upstream") || 
-		   strings.Contains(errMsg, "has no upstream") ||
-		   strings.Contains(errMsg, "no tracking information") ||
-		   strings.Contains(errMsg, "set-upstream") {
+		if strings.Contains(errMsg, "no upstream") ||
+			strings.Contains(errMsg, "has no upstream") ||
+			strings.Contains(errMsg, "no tracking information") ||
+			strings.Contains(errMsg, "set-upstream") {
 			// Get the current branch name
 			branchResult := g.runner.RunGit(repoPath, "branch", "--show-current")
 			if !branchResult.Success {
@@ -506,15 +506,15 @@ func (g *GitService) Push(repoPath string) OperationResult {
 					Error:   "Cannot push: detached HEAD state",
 				}
 			}
-			
+
 			// Try pushing with --set-upstream to automatically configure tracking
 			pushResult := g.runner.RunGit(repoPath, "push", "--set-upstream", "origin", branchName)
 			if !pushResult.Success {
 				pushErr := getErrorMessage(pushResult)
 				// Check if there's no remote configured at all
 				if strings.Contains(pushErr, "does not appear to be a git repository") ||
-				   strings.Contains(pushErr, "No configured push destination") ||
-				   strings.Contains(pushErr, "fatal: 'origin' does not appear") {
+					strings.Contains(pushErr, "No configured push destination") ||
+					strings.Contains(pushErr, "fatal: 'origin' does not appear") {
 					return OperationResult{
 						Success: false,
 						Error:   "No remote repository configured. Add a remote first.",
