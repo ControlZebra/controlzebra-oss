@@ -45,6 +45,75 @@ func cleanupTestRepo(t *testing.T, path string) {
 	os.RemoveAll(path)
 }
 
+// TestUnquoteGitPath tests the unquoteGitPath helper function
+func TestUnquoteGitPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple path",
+			input:    "file.txt",
+			expected: "file.txt",
+		},
+		{
+			name:     "path with spaces quoted",
+			input:    `"Test_file_for Conflict.md"`,
+			expected: "Test_file_for Conflict.md",
+		},
+		{
+			name:     "path with multiple spaces",
+			input:    `"path with multiple spaces.txt"`,
+			expected: "path with multiple spaces.txt",
+		},
+		{
+			name:     "path with leading/trailing whitespace",
+			input:    "  file.txt  ",
+			expected: "file.txt",
+		},
+		{
+			name:     "quoted path with whitespace around",
+			input:    `  "spaced file.txt"  `,
+			expected: "spaced file.txt",
+		},
+		{
+			name:     "path with escaped quote",
+			input:    `"file\"name.txt"`,
+			expected: `file"name.txt`,
+		},
+		{
+			name:     "path with backslash",
+			input:    `"path\\to\\file.txt"`,
+			expected: `path\to\file.txt`,
+		},
+		{
+			name:     "nested directory with spaces",
+			input:    `"My Projects/Some Folder/file.txt"`,
+			expected: "My Projects/Some Folder/file.txt",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "just quotes",
+			input:    `""`,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := unquoteGitPath(tt.input)
+			if result != tt.expected {
+				t.Errorf("unquoteGitPath(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestDetectRepo_ValidRepo(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
@@ -536,33 +605,20 @@ func TestDiffWorking_ModifiedFile(t *testing.T) {
 		t.Fatalf("Failed to modify test file: %v", err)
 	}
 
-	diff := svc.DiffWorking(repoPath, "test.txt")
+	diff := svc.DiffWorkingRaw(repoPath, "test.txt")
 
 	if diff.HasError {
 		t.Errorf("Expected no error, got: %s", diff.Error)
 	}
-	if len(diff.Hunks) == 0 {
-		t.Error("Expected at least one hunk")
+	if diff.RawDiff == "" {
+		t.Error("Expected non-empty raw diff")
 	}
 	if diff.Binary {
 		t.Error("Expected non-binary file")
 	}
 
-	// Check that we have add and delete lines
-	hasAdd := false
-	hasDelete := false
-	for _, hunk := range diff.Hunks {
-		for _, line := range hunk.Lines {
-			if line.Type == "add" {
-				hasAdd = true
-			}
-			if line.Type == "delete" {
-				hasDelete = true
-			}
-		}
-	}
-
-	if !hasAdd || !hasDelete {
+	// Check that the raw diff contains add (+) and delete (-) lines
+	if !strings.Contains(diff.RawDiff, "+") || !strings.Contains(diff.RawDiff, "-") {
 		t.Error("Expected both add and delete lines in diff")
 	}
 }
@@ -579,17 +635,18 @@ func TestDiffWorking_UntrackedFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	diff := svc.DiffWorking(repoPath, "new-file.txt")
+	diff := svc.DiffWorkingRaw(repoPath, "new-file.txt")
 
 	if diff.HasError {
 		t.Errorf("Expected no error, got: %s", diff.Error)
 	}
-	if diff.Status != "added" {
-		t.Errorf("Expected status 'added', got '%s'", diff.Status)
+	// For untracked files, the whole file is shown as added
+	if diff.RawDiff == "" {
+		t.Error("Expected non-empty raw diff for new file")
 	}
 }
 
-func TestDiffCommits_Success(t *testing.T) {
+func TestDiffCommitFileRaw_Success(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
 
@@ -602,41 +659,29 @@ func TestDiffCommits_Success(t *testing.T) {
 	}
 	svc.CommitAll(repoPath, "First commit")
 
-	commits1, _ := svc.GetRecentCommits(repoPath, 1)
-	firstHash := commits1[0].Hash
+	commits, _ := svc.GetRecentCommits(repoPath, 1)
+	hash := commits[0].Hash
 
-	// Modify and commit again
-	if err := os.WriteFile(testFile, []byte("modified content"), 0644); err != nil {
-		t.Fatalf("Failed to modify test file: %v", err)
-	}
-	svc.CommitAll(repoPath, "Second commit")
-
-	commits2, _ := svc.GetRecentCommits(repoPath, 1)
-	secondHash := commits2[0].Hash
-
-	// Get diff between commits
-	diff := svc.DiffCommits(repoPath, firstHash, secondHash, "test.txt")
+	// Get diff for commit
+	diff := svc.DiffCommitFileRaw(repoPath, hash, "test.txt")
 
 	if diff.HasError {
 		t.Errorf("Expected no error, got: %s", diff.Error)
 	}
-	if len(diff.Hunks) == 0 {
-		t.Error("Expected at least one hunk")
+	if diff.RawDiff == "" {
+		t.Error("Expected non-empty raw diff")
 	}
 }
 
-func TestDiffCommits_MissingHashes(t *testing.T) {
+func TestDiffCommitFileRaw_InvalidHash(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
 
 	svc := NewGitService()
 
-	diff := svc.DiffCommits(repoPath, "", "", "")
+	diff := svc.DiffCommitFileRaw(repoPath, "", "test.txt")
 	if !diff.HasError {
-		t.Error("Expected error for missing hashes")
-	}
-	if diff.Error != "Both commit hashes are required" {
-		t.Errorf("Expected 'Both commit hashes are required', got '%s'", diff.Error)
+		t.Error("Expected error for empty hash")
 	}
 }
 
@@ -1257,7 +1302,7 @@ func TestDiscardFile_WithoutConfirmation(t *testing.T) {
 	}
 }
 
-func TestDiffCommitFile_Success(t *testing.T) {
+func TestDiffCommitFileRaw_WithModification(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
 
@@ -1281,13 +1326,13 @@ func TestDiffCommitFile_Success(t *testing.T) {
 	hash := commits[0].Hash
 
 	// Get diff for file in commit
-	diff := svc.DiffCommitFile(repoPath, hash, "test.txt")
+	diff := svc.DiffCommitFileRaw(repoPath, hash, "test.txt")
 
 	if diff.HasError {
 		t.Errorf("Expected no error, got: %s", diff.Error)
 	}
-	if len(diff.Hunks) == 0 {
-		t.Error("Expected at least one hunk")
+	if diff.RawDiff == "" {
+		t.Error("Expected non-empty raw diff")
 	}
 }
 

@@ -43,6 +43,8 @@ import {
   CheckBranchConflicts,
   GetParentBranch,
   GetMergeState,
+  GetConflictedFiles,
+  StartMerge,
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
   ResolveConflictKeepBoth,
@@ -765,9 +767,42 @@ export function RepoProvider({ children }) {
       }
       
       if (result.hasConflicts) {
-        setConflictedFiles(result.conflictedFiles || []);
+        // Actually start the merge so we're in a real merge state
+        // This allows resolution commands (checkout --ours/--theirs) to work
+        console.log('[checkBranchConflicts] Starting merge with parent:', result.parentBranch);
+        const mergeResult = await StartMerge(repoPath, result.parentBranch);
+        console.log('[checkBranchConflicts] StartMerge result:', mergeResult);
+        
+        if (!mergeResult.success) {
+          // Error is in 'error' field, not 'message' field
+          const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
+          showMessage('error', errorMsg);
+          // Clear conflict state since we couldn't start the merge
+          // This prevents the UI from showing resolvable conflicts when there's no merge
+          setConflictCheckResult({
+            ...result,
+            success: false,
+            error: errorMsg,
+          });
+          setIsCheckingConflicts(false);
+          return null;
+        }
+        
+        // Refresh conflicted files from actual merge state
+        const mergeState = await GetMergeState(repoPath);
+        console.log('[checkBranchConflicts] Merge state after start:', mergeState);
+        
+        if (mergeState.hasConflicts) {
+          // Re-fetch the actual conflicted files from the merge
+          const actualConflicts = await GetConflictedFiles(repoPath);
+          console.log('[checkBranchConflicts] Actual conflicts:', actualConflicts);
+          setConflictedFiles(actualConflicts || result.conflictedFiles || []);
+        } else {
+          setConflictedFiles(result.conflictedFiles || []);
+        }
+        
         const parentInfo = result.parentBranch ? ` against ${result.parentBranch}` : '';
-        showMessage('info', `Found ${result.conflictedFiles?.length || 0} conflicting file(s)${parentInfo}`);
+        showMessage('info', `Merge started with ${result.conflictedFiles?.length || 0} conflict(s)${parentInfo}`);
       } else {
         // conflictedFiles already cleared at start of function
         const parentInfo = result.parentBranch ? ` with ${result.parentBranch}` : '';
@@ -829,6 +864,8 @@ export function RepoProvider({ children }) {
       return false;
     }
 
+    console.log('[resolveConflict] Starting resolution:', { repoPath, filePath, strategy });
+    
     setIsResolvingConflict(true);
     try {
       let result;
@@ -845,8 +882,11 @@ export function RepoProvider({ children }) {
         return false;
       }
 
+      console.log('[resolveConflict] Result:', result);
+
       if (!result.success) {
-        showMessage('error', result.message || 'Failed to resolve conflict');
+        // Error message is in 'error' field, not 'message' field
+        showMessage('error', result.error || result.message || 'Failed to resolve conflict');
         setIsResolvingConflict(false);
         return false;
       }
@@ -905,10 +945,15 @@ export function RepoProvider({ children }) {
       return false;
     }
 
+    console.log('[abortMerge] Aborting merge...');
+
     try {
       const result = await AbortMerge(repoPath);
+      console.log('[abortMerge] Result:', result);
+      
       if (!result.success) {
-        showMessage('error', result.message || 'Failed to abort merge');
+        // Error is in 'error' field, not 'message'
+        showMessage('error', result.error || result.message || 'Failed to abort merge');
         return false;
       }
 
@@ -917,6 +962,7 @@ export function RepoProvider({ children }) {
       await refreshStatus();
       return true;
     } catch (err) {
+      console.error('[abortMerge] Exception:', err);
       showMessage('error', `Failed to abort merge: ${err.message || err}`);
       return false;
     }
@@ -929,17 +975,22 @@ export function RepoProvider({ children }) {
       return false;
     }
 
-    // Check if all conflicts are resolved
+    // Check if all conflicts are resolved (local state)
     const unresolvedCount = conflictedFiles.filter(f => !fileResolutions[f.path]).length;
     if (unresolvedCount > 0) {
       showMessage('error', `${unresolvedCount} file(s) still need resolution`);
       return false;
     }
 
+    console.log('[completeMerge] Starting merge completion with message:', message);
+
     try {
       const result = await CompleteMerge(repoPath, message || '');
+      console.log('[completeMerge] Result:', result);
+      
       if (!result.success) {
-        showMessage('error', result.message || 'Failed to complete merge');
+        // Error is in 'error' field, not 'message'
+        showMessage('error', result.error || result.message || 'Failed to complete merge');
         return false;
       }
 
@@ -948,6 +999,7 @@ export function RepoProvider({ children }) {
       await refreshAll();
       return true;
     } catch (err) {
+      console.error('[completeMerge] Exception:', err);
       showMessage('error', `Failed to complete merge: ${err.message || err}`);
       return false;
     }
