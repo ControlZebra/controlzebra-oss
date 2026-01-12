@@ -1,45 +1,14 @@
 /**
- * HistoryView - Commit history viewer for the repository.
- * Displays recent commits with hash, message, and relative date.
+ * HistoryView - Git graph visualization for repository commit history.
+ * Displays commits with branch/merge topology similar to `git log --graph`.
  * Clicking a commit loads its details in MainArea.
  */
 import { memo, useCallback } from 'react';
-import { Hash } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
-
-// Shared icon style
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-
-/**
- * CommitItem - Single commit in the history list.
- * Shows commit message, short hash, and relative date.
- */
-const CommitItem = memo(function CommitItem({ commit, isSelected, onSelect }) {
-  return (
-    <div 
-      onClick={() => onSelect(commit.hash)}
-      className={`flex items-start gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-        isSelected 
-          ? 'bg-blue-600/30 border-l-2 border-blue-500' 
-          : 'hover-bg-theme-interactive border-l-2 border-transparent'
-      }`}
-    >
-      <Hash style={iconStyle} className="text-theme-secondary mt-0.5 shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-theme-primary text-sm truncate">{commit.message}</p>
-        <p className="text-theme-muted text-xs">
-          <span className="font-mono">{commit.shortHash}</span>
-          <span className="mx-1">•</span>
-          <span>{commit.relativeDate}</span>
-        </p>
-      </div>
-    </div>
-  );
-});
+import { GitGraph } from '../../common';
 
 function HistoryView() {
-  const { repoPath, commits, selectedCommit, selectCommit } = useRepo();
+  const { repoPath, graphCommits, selectedCommit, selectCommit } = useRepo();
 
   const handleSelect = useCallback((hash) => {
     // Toggle selection if clicking the same commit
@@ -60,25 +29,14 @@ function HistoryView() {
     );
   }
 
-  // Empty history state
-  if (commits.length === 0) {
-    return (
-      <p className="px-3 py-4 text-theme-muted text-sm text-center">
-        No commit history
-      </p>
-    );
-  }
-
   return (
-    <div className="py-1">
-      {commits.map(commit => (
-        <CommitItem 
-          key={commit.hash} 
-          commit={commit} 
-          isSelected={selectedCommit?.hash === commit.hash}
-          onSelect={handleSelect}
-        />
-      ))}
+    <div className="h-full overflow-auto">
+      <GitGraph
+        commits={graphCommits}
+        selectedHash={selectedCommit?.hash}
+        onSelectCommit={handleSelect}
+        className="py-2"
+      />
     </div>
   );
 }

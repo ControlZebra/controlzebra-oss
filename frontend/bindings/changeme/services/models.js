@@ -429,6 +429,79 @@ export class CommitFileInfo {
 }
 
 /**
+ * CommitGraphResult contains commits and branch information for graph visualization
+ */
+export class CommitGraphResult {
+    /**
+     * Creates a new CommitGraphResult instance.
+     * @param {Partial<CommitGraphResult>} [$$source = {}] - The source object to create the CommitGraphResult.
+     */
+    constructor($$source = {}) {
+        if (!("commits" in $$source)) {
+            /**
+             * @member
+             * @type {GraphCommit[]}
+             */
+            this["commits"] = [];
+        }
+        if (!("branches" in $$source)) {
+            /**
+             * branch name -> commit hash
+             * @member
+             * @type {{ [_: string]: string }}
+             */
+            this["branches"] = {};
+        }
+        if (!("tags" in $$source)) {
+            /**
+             * tag name -> commit hash
+             * @member
+             * @type {{ [_: string]: string }}
+             */
+            this["tags"] = {};
+        }
+        if (!("hasError" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasError"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CommitGraphResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CommitGraphResult}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType9;
+        const $$createField1_0 = $$createType10;
+        const $$createField2_0 = $$createType10;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("commits" in $$parsedSource) {
+            $$parsedSource["commits"] = $$createField0_0($$parsedSource["commits"]);
+        }
+        if ("branches" in $$parsedSource) {
+            $$parsedSource["branches"] = $$createField1_0($$parsedSource["branches"]);
+        }
+        if ("tags" in $$parsedSource) {
+            $$parsedSource["tags"] = $$createField2_0($$parsedSource["tags"]);
+        }
+        return new CommitGraphResult(/** @type {Partial<CommitGraphResult>} */($$parsedSource));
+    }
+}
+
+/**
  * CommitInfo represents a single commit
  */
 export class CommitInfo {
@@ -677,7 +750,7 @@ export class CustomLFSGroupsData {
      * @returns {CustomLFSGroupsData}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType9;
+        const $$createField0_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("groups" in $$parsedSource) {
             $$parsedSource["groups"] = $$createField0_0($$parsedSource["groups"]);
@@ -726,7 +799,7 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType11;
+        const $$createField1_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
@@ -927,6 +1000,103 @@ export class GitVersion {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new GitVersion(/** @type {Partial<GitVersion>} */($$parsedSource));
+    }
+}
+
+/**
+ * GraphCommit represents a commit with parent references for graph visualization
+ */
+export class GraphCommit {
+    /**
+     * Creates a new GraphCommit instance.
+     * @param {Partial<GraphCommit>} [$$source = {}] - The source object to create the GraphCommit.
+     */
+    constructor($$source = {}) {
+        if (!("hash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["hash"] = "";
+        }
+        if (!("shortHash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["shortHash"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+        if (!("author" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["author"] = "";
+        }
+        if (!("authorEmail" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["authorEmail"] = "";
+        }
+        if (!("date" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["date"] = "";
+        }
+        if (!("relativeDate" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["relativeDate"] = "";
+        }
+        if (!("parents" in $$source)) {
+            /**
+             * Parent commit hashes
+             * @member
+             * @type {string[]}
+             */
+            this["parents"] = [];
+        }
+        if (!("refs" in $$source)) {
+            /**
+             * Branch and tag refs pointing to this commit
+             * @member
+             * @type {string[]}
+             */
+            this["refs"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GraphCommit instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {GraphCommit}
+     */
+    static createFrom($$source = {}) {
+        const $$createField7_0 = $$createType4;
+        const $$createField8_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("parents" in $$parsedSource) {
+            $$parsedSource["parents"] = $$createField7_0($$parsedSource["parents"]);
+        }
+        if ("refs" in $$parsedSource) {
+            $$parsedSource["refs"] = $$createField8_0($$parsedSource["refs"]);
+        }
+        return new GraphCommit(/** @type {Partial<GraphCommit>} */($$parsedSource));
     }
 }
 
@@ -1662,7 +1832,7 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType13;
+        const $$createField3_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -1857,9 +2027,12 @@ const $$createType4 = $Create.Array($Create.Any);
 const $$createType5 = CommitFileInfo.createFrom;
 const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = CommitStats.createFrom;
-const $$createType8 = CustomLFSGroup.createFrom;
+const $$createType8 = GraphCommit.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = FileEntry.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = FileStatus.createFrom;
-const $$createType13 = $Create.Array($$createType12);
+const $$createType10 = $Create.Map($Create.Any, $Create.Any);
+const $$createType11 = CustomLFSGroup.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = FileEntry.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = FileStatus.createFrom;
+const $$createType16 = $Create.Array($$createType15);

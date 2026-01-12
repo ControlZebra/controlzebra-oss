@@ -197,13 +197,25 @@ export function DiscardFile(repoPath, filePath, confirm) {
 }
 
 /**
+ * GetCommitGraph returns commits with parent references and branch/tag info for graph visualization
+ * @param {string} repoPath
+ * @param {number} limit
+ * @returns {$CancellablePromise<$models.CommitGraphResult>}
+ */
+export function GetCommitGraph(repoPath, limit) {
+    return $Call.ByID(607520174, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * GetConflictedFiles returns a list of files with merge conflicts.
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.ConflictedFile[]>}
  */
 export function GetConflictedFiles(repoPath) {
     return $Call.ByID(3264929955, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -214,7 +226,7 @@ export function GetConflictedFiles(repoPath) {
  */
 export function GetGitVersion() {
     return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -225,7 +237,7 @@ export function GetGitVersion() {
  */
 export function GetMergeState(repoPath) {
     return $Call.ByID(477378934, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType11($result);
     }));
 }
 
@@ -242,7 +254,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetParentBranch(repoPath) {
     return $Call.ByID(4140919983, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -254,7 +266,7 @@ export function GetParentBranch(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
@@ -266,7 +278,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
 }
 
@@ -443,7 +455,7 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType16($result);
     }));
 }
 
@@ -483,7 +495,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
@@ -519,7 +531,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType18($result);
+        return $$createType19($result);
     }));
 }
 
@@ -549,16 +561,17 @@ const $$createType2 = $models.BranchConflictCheckResult.createFrom;
 const $$createType3 = $models.LockFileInfo.createFrom;
 const $$createType4 = $models.RepoInfo.createFrom;
 const $$createType5 = $models.RawDiffResult.createFrom;
-const $$createType6 = $models.ConflictedFile.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.GitVersion.createFrom;
-const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = $models.MergeState.createFrom;
-const $$createType11 = $models.ParentBranchResult.createFrom;
-const $$createType12 = $Create.Array($Create.Any);
-const $$createType13 = $models.CommitInfo.createFrom;
-const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = $models.CommitDetail.createFrom;
-const $$createType16 = $models.StashEntry.createFrom;
-const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = $models.RepoStatus.createFrom;
+const $$createType6 = $models.CommitGraphResult.createFrom;
+const $$createType7 = $models.ConflictedFile.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = $models.GitVersion.createFrom;
+const $$createType10 = $Create.Nullable($$createType9);
+const $$createType11 = $models.MergeState.createFrom;
+const $$createType12 = $models.ParentBranchResult.createFrom;
+const $$createType13 = $Create.Array($Create.Any);
+const $$createType14 = $models.CommitInfo.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = $models.CommitDetail.createFrom;
+const $$createType17 = $models.StashEntry.createFrom;
+const $$createType18 = $Create.Array($$createType17);
+const $$createType19 = $models.RepoStatus.createFrom;

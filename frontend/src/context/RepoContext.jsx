@@ -27,7 +27,7 @@ import {
   Status, 
   CommitAll, 
   Sync, 
-  GetRecentCommits,
+  GetCommitGraph,
   ShowCommit,
   DiffWorkingRaw,
   DiffCommitFileRaw,
@@ -58,7 +58,7 @@ export function RepoProvider({ children }) {
   const [repoPath, setRepoPath] = useState(null);
   const [repoInfo, setRepoInfo] = useState(null);
   const [repoStatus, setRepoStatus] = useState(null);
-  const [commits, setCommits] = useState([]);
+  const [graphCommits, setGraphCommits] = useState([]); // Commits with parent hashes and refs for git graph
   const [branches, setBranches] = useState(null);
   
   // ===== Selection State (v2) =====
@@ -126,15 +126,19 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath]);
 
-  // Fetch recent commits
+  // Fetch commits with graph data (parent hashes and refs) for git graph visualization
   const refreshCommits = useCallback(async () => {
     if (!repoPath) return;
     
     try {
-      const recentCommits = await GetRecentCommits(repoPath, 50);
-      setCommits(recentCommits || []);
+      const result = await GetCommitGraph(repoPath, 50);
+      if (result.hasError) {
+        console.error('Failed to fetch graph commits:', result.error);
+        return;
+      }
+      setGraphCommits(result.commits || []);
     } catch (err) {
-      console.error('Failed to fetch commits:', err);
+      console.error('Failed to fetch graph commits:', err);
     }
   }, [repoPath]);
 
@@ -229,7 +233,7 @@ export function RepoProvider({ children }) {
     setRepoPath(null);
     setRepoInfo(null);
     setRepoStatus(null);
-    setCommits([]);
+    setGraphCommits([]);
     setBranches(null);
     setSelectedFileIndex(null);
     setSelectedCommit(null);
@@ -798,7 +802,8 @@ export function RepoProvider({ children }) {
     repoPath,
     repoInfo,
     repoStatus,
-    commits,
+    commits: graphCommits, // Alias for backward compatibility
+    graphCommits,
     branches,
     selectedFileIndex,
     setSelectedFileIndex,
@@ -860,7 +865,7 @@ export function RepoProvider({ children }) {
     detectedParentBranch,
     fetchParentBranch,
   }), [
-    repoPath, repoInfo, repoStatus, commits, branches, selectedFileIndex,
+    repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
     progressModal, handleProgressComplete,
