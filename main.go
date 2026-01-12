@@ -42,6 +42,7 @@ func main() {
 	terminalService := services.NewTerminalService()
 	progressService := services.NewProgressService()
 	settingsService := services.NewSettingsService()
+	repoSettingsService := services.NewRepositorySettingsService()
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -59,6 +60,7 @@ func main() {
 			application.NewService(fileDialogService),
 			application.NewService(terminalService),
 			application.NewService(progressService),
+			application.NewService(repoSettingsService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -73,6 +75,7 @@ func main() {
 	terminalService.SetApp(app)
 	progressService.SetApp(app)
 	settingsService.SetApp(app)
+	repoSettingsService.SetApp(app)
 
 	// Create application menu
 	menu := app.NewMenu()

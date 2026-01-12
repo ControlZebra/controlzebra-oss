@@ -7,6 +7,7 @@ import * as FileSystemService from "./filesystemservice.js";
 import * as GitService from "./gitservice.js";
 import * as LFSService from "./lfsservice.js";
 import * as ProgressService from "./progressservice.js";
+import * as RepositorySettingsService from "./repositorysettingsservice.js";
 import * as SettingsService from "./settingsservice.js";
 import * as TerminalService from "./terminalservice.js";
 export {
@@ -15,12 +16,16 @@ export {
     GitService,
     LFSService,
     ProgressService,
+    RepositorySettingsService,
     SettingsService,
     TerminalService
 };
 
 export {
     AppSettings,
+    BackgroundTaskConfig,
+    BackgroundTaskStatus,
+    BackgroundTaskType,
     BranchConflictCheckResult,
     BranchInfo,
     BranchList,
@@ -36,24 +41,32 @@ export {
     CustomLFSGroupsData,
     DirectoryContents,
     ExportLFSGroupsResult,
+    FetchSettings,
     FileEntry,
     FileStatus,
+    GitRemoteInfo,
     GitVersion,
     GraphCommit,
     ImportLFSGroupsResult,
     LFSFileStatus,
     LFSInfo,
     LFSLock,
+    LFSSettings,
     LockFileInfo,
+    MaintenanceSettings,
     MergeState,
     OpenFileResult,
     OpenFolderDialogResult,
     OperationResult,
     ParentBranchResult,
     PresetPattern,
+    ProtectedBranchSettings,
     RawDiffResult,
+    RecoveryDiagnostics,
+    ReflogEntry,
     RepoInfo,
     RepoStatus,
+    RepositorySettings,
     StashEntry,
     TerminalResult,
     TrackedPattern,
