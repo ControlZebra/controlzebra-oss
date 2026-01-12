@@ -8,7 +8,6 @@ import { VIEWS } from '../../../constants';
 
 // Page components
 export { ExplorerPage } from './explorer';
-export { default as ChangesPage } from './ChangesPage';
 export { default as HistoryPage } from './HistoryPage';
 export { default as MergeChangesPage } from './MergeChangesPage';
 export { default as ProfilePage } from './ProfilePage';
@@ -17,7 +16,6 @@ export { RepoSettingsPage } from './repo-settings';
 
 // Import for registry
 import { ExplorerPage } from './explorer';
-import ChangesPage from './ChangesPage';
 import HistoryPage from './HistoryPage';
 import MergeChangesPage from './MergeChangesPage';
 import ProfilePage from './ProfilePage';
@@ -30,7 +28,6 @@ import { RepoSettingsPage } from './repo-settings';
  */
 export const VIEW_REGISTRY = {
   [VIEWS.EXPLORER]: ExplorerPage,
-  [VIEWS.CHANGES]: ChangesPage,
   [VIEWS.HISTORY]: HistoryPage,
   [VIEWS.MERGE_CHANGES]: MergeChangesPage,
   [VIEWS.REPO_SETTINGS]: RepoSettingsPage,

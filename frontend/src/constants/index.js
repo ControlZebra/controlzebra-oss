@@ -21,7 +21,6 @@ export const ICON_SIZES = {
 // ============================================================================
 export const VIEWS = {
   EXPLORER: 'explorer',
-  CHANGES: 'changes',
   HISTORY: 'history',
   MERGE_CHANGES: 'merge-changes',
   REPO_SETTINGS: 'repo-settings',

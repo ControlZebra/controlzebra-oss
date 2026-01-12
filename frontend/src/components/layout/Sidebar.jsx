@@ -1,11 +1,10 @@
 import { memo, useMemo, useCallback, useRef } from 'react';
 import { VIEWS } from '../../constants';
 import { useLayout } from '../../context';
-import { ExplorerView, ChangesView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView } from './views';
+import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView } from './views';
 
 const VIEW_CONFIG = {
   [VIEWS.EXPLORER]: { title: 'Explorer', Component: ExplorerView },
-  [VIEWS.CHANGES]: { title: 'Source Control', Component: ChangesView },
   [VIEWS.HISTORY]: { title: 'Commit History', Component: HistoryView },
   [VIEWS.MERGE_CHANGES]: { title: 'Merge Changes', Component: MergeChangesView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
@@ -21,7 +20,7 @@ function Sidebar() {
   const isResizing = useRef(false);
 
   const { title, Component } = useMemo(
-    () => VIEW_CONFIG[activeView] || VIEW_CONFIG[VIEWS.CHANGES],
+    () => VIEW_CONFIG[activeView] || VIEW_CONFIG[VIEWS.HISTORY],
     [activeView]
   );
 
