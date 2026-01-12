@@ -13,6 +13,7 @@ export { default as HistoryPage } from './HistoryPage';
 export { default as MergeChangesPage } from './MergeChangesPage';
 export { default as ProfilePage } from './ProfilePage';
 export { SettingsPage } from './settings';
+export { RepoSettingsPage } from './repo-settings';
 
 // Import for registry
 import { ExplorerPage } from './explorer';
@@ -21,6 +22,7 @@ import HistoryPage from './HistoryPage';
 import MergeChangesPage from './MergeChangesPage';
 import ProfilePage from './ProfilePage';
 import { SettingsPage } from './settings';
+import { RepoSettingsPage } from './repo-settings';
 
 /**
  * VIEW_REGISTRY - Maps view IDs to page components.
@@ -31,6 +33,7 @@ export const VIEW_REGISTRY = {
   [VIEWS.CHANGES]: ChangesPage,
   [VIEWS.HISTORY]: HistoryPage,
   [VIEWS.MERGE_CHANGES]: MergeChangesPage,
+  [VIEWS.REPO_SETTINGS]: RepoSettingsPage,
   [VIEWS.SETTINGS]: SettingsPage,
   [VIEWS.PROFILE]: ProfilePage,
 };

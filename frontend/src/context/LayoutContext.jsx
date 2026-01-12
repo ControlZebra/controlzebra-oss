@@ -30,6 +30,9 @@ export function LayoutProvider({ children }) {
   // Settings category state (shared between sidebar and main area)
   const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('git-config');
   
+  // Repository settings category state (for repo-specific settings view)
+  const [selectedRepoSettingsCategory, setSelectedRepoSettingsCategory] = useState('remote-sync');
+  
   // Theme state
   const [theme, setTheme] = useState('system');
 
@@ -84,6 +87,10 @@ export function LayoutProvider({ children }) {
     selectedSettingsCategory,
     setSelectedSettingsCategory,
     
+    // Repository Settings
+    selectedRepoSettingsCategory,
+    setSelectedRepoSettingsCategory,
+    
     // Theme
     theme,
     setTheme,
@@ -95,6 +102,7 @@ export function LayoutProvider({ children }) {
     bottomPanelHeight, 
     activeBottomPanel,
     selectedSettingsCategory,
+    selectedRepoSettingsCategory,
     theme, 
     toggleSidebar, 
     toggleBottomPanel
