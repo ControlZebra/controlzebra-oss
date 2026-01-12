@@ -143,11 +143,19 @@ function computeGraphLayout(commits) {
     }
   });
   
-  // Resolve connections to parent rows
+  // Resolve connections to parent rows and columns
+  // We need to update toColumn because in branch-out scenarios,
+  // multiple children may reserve different lanes for the same parent,
+  // but the parent will only occupy one actual column.
   connections.forEach(conn => {
     const parentRow = commitToRow.get(conn.toParentHash);
     if (parentRow !== undefined) {
       conn.toRow = parentRow;
+    }
+    // Update toColumn to the parent's actual column
+    const actualParentColumn = commitToColumn.get(conn.toParentHash);
+    if (actualParentColumn !== undefined) {
+      conn.toColumn = actualParentColumn;
     }
   });
   
