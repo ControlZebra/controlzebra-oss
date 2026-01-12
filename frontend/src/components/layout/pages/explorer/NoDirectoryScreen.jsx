@@ -12,7 +12,6 @@ import { getRecentFolders, removeRecentFolder, getFolderName, MAX_RECENT_DISPLAY
 // Memoized icon styles to avoid recreating objects on each render
 const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const iconStyleXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
-const iconStyleLg = { width: 32, height: 32 };
 
 function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
   const [recentFolders, setRecentFolders] = useState([]);
@@ -63,13 +62,16 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
                         {path}
                       </div>
                     </div>
-                    <button
+                    <span
                       onClick={(e) => handleRemoveRecent(e, path)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && handleRemoveRecent(e, path)}
                       className="opacity-0 group-hover:opacity-100 p-1 hover:bg-theme-subtle rounded transition-opacity"
                       title="Remove from recent"
                     >
                       <X style={iconStyleXs} className="text-theme-muted" />
-                    </button>
+                    </span>
                   </button>
                 </li>
               ))}

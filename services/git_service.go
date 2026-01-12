@@ -575,6 +575,132 @@ func (g *GitService) GetRecentCommits(repoPath string, limit int) ([]CommitInfo,
 }
 
 // ============================================================================
+// Git Graph Types and Methods - For visualization
+// ============================================================================
+
+// GraphCommit represents a commit with parent references for graph visualization
+type GraphCommit struct {
+	Hash         string   `json:"hash"`
+	ShortHash    string   `json:"shortHash"`
+	Message      string   `json:"message"`
+	Author       string   `json:"author"`
+	AuthorEmail  string   `json:"authorEmail"`
+	Date         string   `json:"date"`
+	RelativeDate string   `json:"relativeDate"`
+	Parents      []string `json:"parents"`      // Parent commit hashes
+	Refs         []string `json:"refs"`         // Branch and tag refs pointing to this commit
+}
+
+// CommitGraphResult contains commits and branch information for graph visualization
+type CommitGraphResult struct {
+	Commits  []GraphCommit         `json:"commits"`
+	Branches map[string]string     `json:"branches"` // branch name -> commit hash
+	Tags     map[string]string     `json:"tags"`     // tag name -> commit hash
+	HasError bool                  `json:"hasError"`
+	Error    string                `json:"error,omitempty"`
+}
+
+// GetCommitGraph returns commits with parent references and branch/tag info for graph visualization
+func (g *GitService) GetCommitGraph(repoPath string, limit int) CommitGraphResult {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	result := CommitGraphResult{
+		Commits:  []GraphCommit{},
+		Branches: make(map[string]string),
+		Tags:     make(map[string]string),
+	}
+
+	// Get commits with parent hashes and refs
+	// Format: hash|short_hash|parents|refs|message|author|email|date|relative_date
+	// %P = parent hashes (space-separated), %D = ref names
+	format := "%H|%h|%P|%D|%s|%an|%ae|%ci|%cr"
+	cmdResult := g.runner.RunGit(repoPath, "log", "-n", strconv.Itoa(limit), "--pretty=format:"+format, "--all")
+	if !cmdResult.Success {
+		result.HasError = true
+		result.Error = cmdResult.Stderr
+		return result
+	}
+
+	lines := strings.Split(cmdResult.Stdout, "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, "|", 9)
+		if len(parts) < 9 {
+			continue
+		}
+
+		// Parse parent hashes (space-separated)
+		var parents []string
+		if parts[2] != "" {
+			parents = strings.Split(parts[2], " ")
+		}
+
+		// Parse refs (comma-separated, may include "HEAD -> branch", "tag: v1.0.0", etc.)
+		var refs []string
+		if parts[3] != "" {
+			refParts := strings.Split(parts[3], ", ")
+			for _, ref := range refParts {
+				ref = strings.TrimSpace(ref)
+				// Clean up ref formatting
+				ref = strings.TrimPrefix(ref, "HEAD -> ")
+				ref = strings.TrimPrefix(ref, "tag: ")
+				if ref != "" && ref != "HEAD" {
+					refs = append(refs, ref)
+				}
+			}
+		}
+
+		result.Commits = append(result.Commits, GraphCommit{
+			Hash:         parts[0],
+			ShortHash:    parts[1],
+			Parents:      parents,
+			Refs:         refs,
+			Message:      parts[4],
+			Author:       parts[5],
+			AuthorEmail:  parts[6],
+			Date:         parts[7],
+			RelativeDate: parts[8],
+		})
+	}
+
+	// Get branch to commit mapping
+	branchResult := g.runner.RunGit(repoPath, "branch", "-a", "--format=%(refname:short)|%(objectname)")
+	if branchResult.Success {
+		for _, line := range strings.Split(branchResult.Stdout, "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, "|", 2)
+			if len(parts) == 2 {
+				branchName := strings.TrimPrefix(parts[0], "origin/")
+				result.Branches[branchName] = parts[1]
+			}
+		}
+	}
+
+	// Get tag to commit mapping
+	tagResult := g.runner.RunGit(repoPath, "tag", "--format=%(refname:short)|%(objectname)")
+	if tagResult.Success {
+		for _, line := range strings.Split(tagResult.Stdout, "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, "|", 2)
+			if len(parts) == 2 {
+				result.Tags[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	return result
+}
+
+// ============================================================================
 // v2 Types and Methods - History, Diffs, Branches, Recovery
 // ============================================================================
 
