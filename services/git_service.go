@@ -587,17 +587,17 @@ type GraphCommit struct {
 	AuthorEmail  string   `json:"authorEmail"`
 	Date         string   `json:"date"`
 	RelativeDate string   `json:"relativeDate"`
-	Parents      []string `json:"parents"`      // Parent commit hashes
-	Refs         []string `json:"refs"`         // Branch and tag refs pointing to this commit
+	Parents      []string `json:"parents"` // Parent commit hashes
+	Refs         []string `json:"refs"`    // Branch and tag refs pointing to this commit
 }
 
 // CommitGraphResult contains commits and branch information for graph visualization
 type CommitGraphResult struct {
-	Commits  []GraphCommit         `json:"commits"`
-	Branches map[string]string     `json:"branches"` // branch name -> commit hash
-	Tags     map[string]string     `json:"tags"`     // tag name -> commit hash
-	HasError bool                  `json:"hasError"`
-	Error    string                `json:"error,omitempty"`
+	Commits  []GraphCommit     `json:"commits"`
+	Branches map[string]string `json:"branches"` // branch name -> commit hash
+	Tags     map[string]string `json:"tags"`     // tag name -> commit hash
+	HasError bool              `json:"hasError"`
+	Error    string            `json:"error,omitempty"`
 }
 
 // GetCommitGraph returns commits with parent references and branch/tag info for graph visualization
