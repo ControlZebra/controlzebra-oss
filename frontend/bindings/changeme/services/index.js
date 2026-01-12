@@ -29,6 +29,8 @@ export {
     CommitGraphResult,
     CommitInfo,
     CommitStats,
+    ConflictCommitInfo,
+    ConflictSidesInfo,
     ConflictedFile,
     CustomLFSGroup,
     CustomLFSGroupsData,

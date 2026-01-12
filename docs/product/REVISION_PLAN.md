@@ -400,11 +400,22 @@ These items block a complete v2 release and should be prioritized.
 #### P0: v2 Frontend — Conflict Resolution UI
 **Effort: High | Impact: High**
 
-4. [ ] **ConflictView Component** (`components/layout/views/ConflictView.jsx`)
-   - Automatically shown when repo enters merge conflict state
-   - List conflicted files with visual distinction
-   - Per-file buttons: "Keep Mine" / "Keep Theirs" / "Open to Edit"
-   - "Complete Merge" and "Abort Sync" action buttons
+4. [ ] **MergeChangesPage Component** (`components/layout/views/ConflictView.jsx`)
+   - Left sidebar is reserved to show list of conflict files
+   - Create a 3 step process for the merge
+      - Check for conflicts with autodetect/user selected branch
+         - (Completed) When conflicts are deteched show them in the sidebar. 
+         - The conflict file list item should show file name & a tag/label for the conflict resolution strategy (Mine/Theirs/Unknown)
+         - Add a red '!' icon for each file listitem
+      - Conflict resolution
+         - When no file in the listitem is selected, show the default conflict resolution screen. merge changes button (greyed out disabled) along with message "You have X file conflicts. Click on each file to resolve the conflicts"
+         - When clicked on the file name in the sidebar, the main area should show two cards side by side: one for each commit - showing the author name as H1, timestamp & short hash below the name, then a paragraph for commit message (shortened with 'see more'). Also show "Keep Mine" / "Keep Theirs" above those cards. Add a explanation for each choice, when selected
+         - Allow user to select multiple cards with shift+click. if both cards are selected, show exaplanation that explains "Keep both (local copy becomes fileName_COPY)"
+         - Add a confirm button below the conflict resolution UI, When conflict strategy for a file is selected, user is allowed to click the confirm button.
+         - When confirm button is clicked the red "!" icon will become a green tick icon for the listitem along with a tag/label for Mine/Theirs. Also show the default conflict resolution screen mentioned in the first item in this section. 
+         - when all file conflict strategies are received from the user, enable the merge changes button with commit textarea for merge commit on the default conflict resolution screen. 
+
+   - Always show "Abort Merge" button on the screen
    - Plain-language guidance explaining what happened
 
 5. [ ] **RepoContext: Conflict State**
@@ -412,9 +423,7 @@ These items block a complete v2 release and should be prioritized.
    - Call `GetMergeState()` after sync/pull operations
    - Add actions: `resolveConflict(file, strategy)`, `abortMerge()`, `completeMerge(message)`
 
-6. [ ] **ConflictDiffViewer** (optional, can defer)
-   - Three-way diff showing base/ours/theirs
-   - Highlight conflict markers in file content
+
 
 #### P1: v2 Frontend — LFS Status Indicators
 **Effort: Medium | Impact: Medium**

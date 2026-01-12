@@ -42,6 +42,13 @@ import {
   InitRepo,
   CheckBranchConflicts,
   GetParentBranch,
+  GetMergeState,
+  ResolveConflictKeepOurs,
+  ResolveConflictKeepTheirs,
+  ResolveConflictKeepBoth,
+  AbortMerge,
+  CompleteMerge,
+  GetConflictSidesInfo,
 } from '../../bindings/changeme/services/gitservice';
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
@@ -73,6 +80,10 @@ export function RepoProvider({ children }) {
   const [conflictCheckResult, setConflictCheckResult] = useState(null); // Full result from CheckBranchConflicts
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
   const [detectedParentBranch, setDetectedParentBranch] = useState(null); // Auto-detected parent branch info
+  const [fileResolutions, setFileResolutions] = useState({}); // { [filePath]: 'mine' | 'theirs' | 'both' }
+  const [mergeState, setMergeState] = useState(null); // Current merge state from backend
+  const [isResolvingConflict, setIsResolvingConflict] = useState(false);
+  const [conflictSidesInfo, setConflictSidesInfo] = useState(null); // Commit info for both sides of conflict
   
   // ===== Loading States =====
   const [isLoading, setIsLoading] = useState(false);
@@ -721,6 +732,7 @@ export function RepoProvider({ children }) {
     setConflictedFiles([]);
     setSelectedConflictFile(null);
     setConflictCheckResult(null);
+    setConflictSidesInfo(null);
     
     try {
       // Pass empty string to trigger auto-detect on backend
@@ -734,6 +746,16 @@ export function RepoProvider({ children }) {
           name: result.parentBranch,
           source: result.parentBranchSource || 'auto-detected',
         });
+        
+        // Fetch commit info for both sides of the conflict
+        try {
+          const sidesInfo = await GetConflictSidesInfo(repoPath, result.parentBranch);
+          if (sidesInfo.success) {
+            setConflictSidesInfo(sidesInfo);
+          }
+        } catch (sidesErr) {
+          console.error('Failed to get conflict sides info:', sidesErr);
+        }
       }
       
       if (!result.success) {
@@ -787,7 +809,163 @@ export function RepoProvider({ children }) {
     setSelectedConflictFile(null);
     setConflictCheckResult(null);
     setDetectedParentBranch(null);
+    setFileResolutions({});
+    setMergeState(null);
+    setConflictSidesInfo(null);
   }, []);
+
+  // Set resolution strategy for a file (doesn't apply it yet)
+  const setFileResolution = useCallback((filePath, strategy) => {
+    setFileResolutions(prev => ({
+      ...prev,
+      [filePath]: strategy, // 'mine' | 'theirs' | 'both'
+    }));
+  }, []);
+
+  // Apply resolution for a single file
+  const resolveConflict = useCallback(async (filePath, strategy) => {
+    if (!repoPath || !filePath) {
+      showMessage('error', 'Invalid file path');
+      return false;
+    }
+
+    setIsResolvingConflict(true);
+    try {
+      let result;
+      if (strategy === 'mine') {
+        result = await ResolveConflictKeepOurs(repoPath, filePath);
+      } else if (strategy === 'theirs') {
+        result = await ResolveConflictKeepTheirs(repoPath, filePath);
+      } else if (strategy === 'both') {
+        // 'both' strategy - keep both versions, rename one as _COPY
+        result = await ResolveConflictKeepBoth(repoPath, filePath);
+      } else {
+        showMessage('error', 'Invalid resolution strategy');
+        setIsResolvingConflict(false);
+        return false;
+      }
+
+      if (!result.success) {
+        showMessage('error', result.message || 'Failed to resolve conflict');
+        setIsResolvingConflict(false);
+        return false;
+      }
+
+      // Update local state
+      setFileResolutions(prev => ({
+        ...prev,
+        [filePath]: strategy,
+      }));
+
+      showMessage('success', result.message || `Resolved "${filePath.split('/').pop()}"`);
+      setIsResolvingConflict(false);
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to resolve: ${err.message || err}`);
+      setIsResolvingConflict(false);
+      return false;
+    }
+  }, [repoPath, showMessage]);
+
+  // Apply all pending resolutions
+  const applyAllResolutions = useCallback(async () => {
+    if (!repoPath) return false;
+
+    const pending = conflictedFiles.filter(f => fileResolutions[f.path] && fileResolutions[f.path] !== 'both');
+    
+    if (pending.length === 0) {
+      showMessage('info', 'No resolutions to apply');
+      return false;
+    }
+
+    setIsResolvingConflict(true);
+    let successCount = 0;
+    
+    for (const file of pending) {
+      const strategy = fileResolutions[file.path];
+      const success = await resolveConflict(file.path, strategy);
+      if (success) successCount++;
+    }
+
+    setIsResolvingConflict(false);
+    
+    if (successCount === pending.length) {
+      showMessage('success', `Resolved ${successCount} file(s)`);
+      return true;
+    } else {
+      showMessage('warning', `Resolved ${successCount} of ${pending.length} file(s)`);
+      return false;
+    }
+  }, [repoPath, conflictedFiles, fileResolutions, resolveConflict, showMessage]);
+
+  // Abort the current merge
+  const abortMerge = useCallback(async () => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+
+    try {
+      const result = await AbortMerge(repoPath);
+      if (!result.success) {
+        showMessage('error', result.message || 'Failed to abort merge');
+        return false;
+      }
+
+      showMessage('success', result.message || 'Merge aborted');
+      clearConflicts();
+      await refreshStatus();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to abort merge: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearConflicts, refreshStatus]);
+
+  // Complete the merge with a commit message
+  const completeMerge = useCallback(async (message) => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+
+    // Check if all conflicts are resolved
+    const unresolvedCount = conflictedFiles.filter(f => !fileResolutions[f.path]).length;
+    if (unresolvedCount > 0) {
+      showMessage('error', `${unresolvedCount} file(s) still need resolution`);
+      return false;
+    }
+
+    try {
+      const result = await CompleteMerge(repoPath, message || '');
+      if (!result.success) {
+        showMessage('error', result.message || 'Failed to complete merge');
+        return false;
+      }
+
+      showMessage('success', result.message || 'Merge completed successfully');
+      clearConflicts();
+      await refreshAll();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to complete merge: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, conflictedFiles, fileResolutions, showMessage, clearConflicts, refreshAll]);
+
+  // Refresh merge state from backend
+  const refreshMergeState = useCallback(async () => {
+    if (!repoPath) return null;
+    
+    try {
+      const state = await GetMergeState(repoPath);
+      setMergeState(state);
+      return state;
+    } catch (err) {
+      console.error('Failed to get merge state:', err);
+      return null;
+    }
+  }, [repoPath]);
 
   // Also refresh branches when repo changes
   useEffect(() => {
@@ -864,6 +1042,18 @@ export function RepoProvider({ children }) {
     clearConflicts,
     detectedParentBranch,
     fetchParentBranch,
+    conflictSidesInfo,
+    
+    // v2: Conflict resolution actions
+    fileResolutions,
+    setFileResolution,
+    mergeState,
+    isResolvingConflict,
+    resolveConflict,
+    applyAllResolutions,
+    abortMerge,
+    completeMerge,
+    refreshMergeState,
   }), [
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -875,7 +1065,9 @@ export function RepoProvider({ children }) {
     refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
     conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, checkBranchConflicts, clearConflicts,
-    detectedParentBranch, fetchParentBranch,
+    detectedParentBranch, fetchParentBranch, conflictSidesInfo,
+    fileResolutions, setFileResolution, mergeState, isResolvingConflict,
+    resolveConflict, applyAllResolutions, abortMerge, completeMerge, refreshMergeState,
   ]);
 
   return (

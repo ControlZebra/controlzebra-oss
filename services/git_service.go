@@ -1799,6 +1799,49 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 	return successOp(fmt.Sprintf("Resolved '%s' by keeping their version", filePath))
 }
 
+// ResolveConflictKeepBoth resolves a conflict by keeping both versions.
+// The local version stays as-is, and the incoming version is saved with a _COPY suffix.
+// For example: file.txt keeps local, creates file_COPY.txt with their version.
+func (g *GitService) ResolveConflictKeepBoth(repoPath string, filePath string) OperationResult {
+	if filePath == "" {
+		return failedOp("File path is required")
+	}
+
+	// Use git show to get the incoming version (stage 3 is "theirs")
+	theirsResult := g.runner.RunGit(repoPath, "show", ":3:"+filePath)
+	if !theirsResult.Success {
+		return failedOp("Failed to get incoming version: " + getErrorMessage(theirsResult))
+	}
+	theirsContent := theirsResult.Stdout
+
+	// Generate the copy filename
+	ext := filepath.Ext(filePath)
+	baseName := strings.TrimSuffix(filePath, ext)
+	copyPath := baseName + "_COPY" + ext
+	fullCopyPath := filepath.Join(repoPath, copyPath)
+
+	// Write the incoming version to the copy file
+	if err := os.WriteFile(fullCopyPath, []byte(theirsContent), 0644); err != nil {
+		return failedOp("Failed to write copy file: " + err.Error())
+	}
+
+	// Now resolve the original file by keeping ours
+	result := g.runner.RunGit(repoPath, "checkout", "--ours", "--", filePath)
+	if !result.Success {
+		// Clean up the copy file we created
+		os.Remove(fullCopyPath)
+		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
+	}
+
+	// Stage both files
+	addResult := g.runner.RunGit(repoPath, "add", "--", filePath, copyPath)
+	if !addResult.Success {
+		return failedOp("Failed to stage resolved files: " + getErrorMessage(addResult))
+	}
+
+	return successOp(fmt.Sprintf("Kept both versions: '%s' (local) and '%s' (incoming)", filepath.Base(filePath), filepath.Base(copyPath)))
+}
+
 // MarkResolved marks a file as resolved after manual editing.
 // Runs: git add <path>
 func (g *GitService) MarkResolved(repoPath string, filePath string) OperationResult {
@@ -2150,6 +2193,70 @@ func isHexString(s string) bool {
 		}
 	}
 	return true
+}
+
+// ConflictCommitInfo contains minimal commit info for conflict resolution display
+type ConflictCommitInfo struct {
+	Hash    string `json:"hash"`
+	Author  string `json:"author"`
+	Date    string `json:"date"`
+	Message string `json:"message"`
+}
+
+// ConflictSidesInfo contains commit info for both sides of a conflict
+type ConflictSidesInfo struct {
+	Ours    ConflictCommitInfo `json:"ours"`    // HEAD - your local changes
+	Theirs  ConflictCommitInfo `json:"theirs"`  // The incoming branch
+	Success bool               `json:"success"`
+	Error   string             `json:"error,omitempty"`
+}
+
+// GetConflictSidesInfo returns commit information for both sides of a conflict.
+// This is useful for displaying in the conflict resolution UI.
+// Parameters:
+//   - repoPath: Path to the git repository
+//   - parentBranch: The branch being merged from (theirs)
+func (g *GitService) GetConflictSidesInfo(repoPath string, parentBranch string) ConflictSidesInfo {
+	result := ConflictSidesInfo{}
+
+	// Get "ours" commit info (HEAD)
+	oursFormat := "%H|%an|%ci|%s"
+	oursResult := g.runner.RunGit(repoPath, "log", "-1", "--pretty=format:"+oursFormat, "HEAD")
+	if oursResult.Success {
+		parts := strings.SplitN(trimOutput(oursResult.Stdout), "|", 4)
+		if len(parts) >= 4 {
+			result.Ours = ConflictCommitInfo{
+				Hash:    parts[0],
+				Author:  parts[1],
+				Date:    parts[2],
+				Message: parts[3],
+			}
+		}
+	}
+
+	// Get "theirs" commit info (parent branch)
+	// Try origin/<parentBranch> first, then local
+	theirsRef := parentBranch
+	refCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
+	if refCheck.Success {
+		theirsRef = "origin/" + parentBranch
+	}
+
+	theirsResult := g.runner.RunGit(repoPath, "log", "-1", "--pretty=format:"+oursFormat, theirsRef)
+	if theirsResult.Success {
+		parts := strings.SplitN(trimOutput(theirsResult.Stdout), "|", 4)
+		if len(parts) >= 4 {
+			result.Theirs = ConflictCommitInfo{
+				Hash:    parts[0],
+				Author:  parts[1],
+				Date:    parts[2],
+				Message: parts[3],
+			}
+		}
+	}
+
+	result.Success = true
+	return result
 }
 
 // ============================================================================
