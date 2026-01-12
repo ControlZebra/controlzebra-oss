@@ -490,6 +490,20 @@ export function ShowCommit(repoPath, hash) {
 }
 
 /**
+ * StartMerge begins an actual merge with the specified branch.
+ * Uses --no-commit to allow the user to resolve conflicts before committing.
+ * This is called after CheckBranchConflicts confirms there will be conflicts.
+ * @param {string} repoPath
+ * @param {string} parentBranch
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function StartMerge(repoPath, parentBranch) {
+    return $Call.ByID(427657069, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * StashAndSwitchBranch performs a safe branch switch by stashing changes first.
  * Flow: stash push → checkout (or checkout -b if createNew) → stash pop
  * If the stash pop fails due to conflicts, the stash is preserved.

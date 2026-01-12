@@ -10,7 +10,7 @@ import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { 
   Flag, AlertTriangle, CheckCircle2, Loader2, Wand2, Search, 
   ChevronDown, ChevronUp, XCircle, User, Clock, GitCommit,
-  Check, X, Copy, GitMerge
+  Check, X, GitMerge
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
@@ -91,7 +91,6 @@ const FileResolutionUI = memo(function FileResolutionUI({
   filePath,
   fileStatus,
   currentResolution,
-  onSelectResolution,
   onConfirm,
   isResolving,
   parentBranch,
@@ -567,7 +566,6 @@ function MergeChangesPage() {
     checkBranchConflicts,
     clearConflicts,
     fileResolutions = {},
-    setFileResolution,
     resolveConflict,
     abortMerge,
     completeMerge,
@@ -664,7 +662,6 @@ function MergeChangesPage() {
           filePath={selectedConflictFile}
           fileStatus={selectedFile?.status}
           currentResolution={fileResolutions[selectedConflictFile]}
-          onSelectResolution={setFileResolution}
           onConfirm={handleConfirmResolution}
           isResolving={isResolvingConflict}
           parentBranch={conflictCheckResult?.parentBranch}

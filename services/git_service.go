@@ -154,6 +154,25 @@ func trimOutput(s string) string {
 	return strings.TrimSpace(s)
 }
 
+// unquoteGitPath removes Git's quoting from paths containing spaces or special characters.
+// Git uses "path with spaces" format in porcelain output. Also handles escaped characters.
+func unquoteGitPath(path string) string {
+	path = strings.TrimSpace(path)
+	// Git wraps paths with spaces/special chars in double quotes
+	if len(path) >= 2 && path[0] == '"' && path[len(path)-1] == '"' {
+		// Remove surrounding quotes
+		path = path[1 : len(path)-1]
+		// Handle common escape sequences used by Git
+		// Important: Process \\\\ FIRST before other escapes to avoid double processing
+		path = strings.ReplaceAll(path, "\\\\", "\x00BACKSLASH\x00") // Temporary placeholder
+		path = strings.ReplaceAll(path, "\\\"", "\"")
+		path = strings.ReplaceAll(path, "\\n", "\n")
+		path = strings.ReplaceAll(path, "\\t", "\t")
+		path = strings.ReplaceAll(path, "\x00BACKSLASH\x00", "\\") // Restore backslashes
+	}
+	return path
+}
+
 // FileStatus represents the status of a changed file
 type FileStatus struct {
 	Path   string `json:"path"`
@@ -248,13 +267,13 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		// Porcelain format: XY filename
 		// X = index status, Y = worktree status
 		xy := line[:2]
-		filePath := strings.TrimSpace(line[3:])
+		filePath := unquoteGitPath(line[3:])
 
 		// Handle renamed files (format: "R  old -> new")
 		if strings.Contains(filePath, " -> ") {
 			parts := strings.Split(filePath, " -> ")
 			if len(parts) == 2 {
-				filePath = parts[1]
+				filePath = unquoteGitPath(parts[1])
 			}
 		}
 
@@ -1722,7 +1741,7 @@ func (g *GitService) GetConflictedFiles(repoPath string) ([]ConflictedFile, erro
 		}
 
 		xy := line[:2]
-		path := strings.TrimSpace(line[3:])
+		path := unquoteGitPath(line[3:])
 
 		// Conflict indicators in porcelain format:
 		// UU = both modified (most common)
@@ -1764,9 +1783,17 @@ func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) O
 		return failedOp("File path is required")
 	}
 
+	// Debug: Check merge state first
+	state := g.GetMergeState(repoPath)
+	if !state.InMerge && !state.InRebase {
+		return failedOp("No merge in progress - cannot resolve conflict")
+	}
+
 	result := g.runner.RunGit(repoPath, "checkout", "--ours", "--", filePath)
 	if !result.Success {
-		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
+		errMsg := getErrorMessage(result)
+		// Provide more context in error
+		return failedOp(fmt.Sprintf("Failed to resolve conflict for '%s': %s", filePath, errMsg))
 	}
 
 	// Stage the resolved file
@@ -1785,9 +1812,16 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 		return failedOp("File path is required")
 	}
 
+	// Debug: Check merge state first
+	state := g.GetMergeState(repoPath)
+	if !state.InMerge && !state.InRebase {
+		return failedOp("No merge in progress - cannot resolve conflict")
+	}
+
 	result := g.runner.RunGit(repoPath, "checkout", "--theirs", "--", filePath)
 	if !result.Success {
-		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
+		errMsg := getErrorMessage(result)
+		return failedOp(fmt.Sprintf("Failed to resolve conflict for '%s': %s", filePath, errMsg))
 	}
 
 	// Stage the resolved file
@@ -1855,6 +1889,87 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 	}
 
 	return successOp(fmt.Sprintf("Marked '%s' as resolved", filePath))
+}
+
+// StartMerge begins an actual merge with the specified branch.
+// Uses --no-commit to allow the user to resolve conflicts before committing.
+// This is called after CheckBranchConflicts confirms there will be conflicts.
+func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationResult {
+	if parentBranch == "" {
+		return failedOp("Parent branch is required")
+	}
+
+	// Check if already in a merge state - if so, we can continue with existing merge
+	state := g.GetMergeState(repoPath)
+	if state.InMerge {
+		// Already in merge state - this is fine, just return success
+		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if len(conflicted) > 0 {
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("Merge already in progress with %d conflict(s) to resolve", len(conflicted)),
+			}
+		}
+		return successOp("Merge already in progress - ready to commit")
+	}
+	if state.InRebase {
+		return failedOp("Cannot start merge: rebase in progress. Abort the rebase first.")
+	}
+
+	// Check for uncommitted changes - merge requires a clean working tree
+	// (unless they are changes that won't conflict with the merge)
+	status := g.Status(repoPath)
+	if status.HasChanges {
+		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
+	}
+
+	// Determine the ref to merge (prefer origin/<branch> if it exists)
+	parentRef := ""
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
+	if refCheckResult.Success {
+		parentRef = "origin/" + parentBranch
+	} else {
+		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", parentBranch)
+		if localRefCheck.Success {
+			parentRef = parentBranch
+		} else {
+			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", parentBranch))
+		}
+	}
+
+	// Start the merge with --no-commit so user can resolve conflicts
+	result := g.runner.RunGit(repoPath, "merge", "--no-commit", "--no-ff", parentRef)
+
+	// Exit code 1 with conflicts is expected - that's what we want
+	if !result.Success {
+		// Check if it's a conflict situation (this is expected)
+		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if len(conflicted) > 0 {
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("Merge started with %d conflict(s) to resolve", len(conflicted)),
+			}
+		}
+
+		// Check if merge was started but no conflicts
+		mergeState := g.GetMergeState(repoPath)
+		if mergeState.InMerge {
+			return successOp("Merge started - no conflicts detected")
+		}
+
+		// Actual error - provide detailed message
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "not something we can merge") {
+			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", parentBranch))
+		}
+		if strings.Contains(errMsg, "uncommitted changes") {
+			return failedOp("Cannot merge: you have uncommitted changes. Commit or stash them first.")
+		}
+		return failedOp("Failed to start merge: " + errMsg)
+	}
+
+	// Clean merge (no conflicts) - still in merge state waiting for commit
+	return successOp("Merge started - no conflicts detected")
 }
 
 // AbortMerge aborts the current merge operation.
@@ -2205,8 +2320,8 @@ type ConflictCommitInfo struct {
 
 // ConflictSidesInfo contains commit info for both sides of a conflict
 type ConflictSidesInfo struct {
-	Ours    ConflictCommitInfo `json:"ours"`    // HEAD - your local changes
-	Theirs  ConflictCommitInfo `json:"theirs"`  // The incoming branch
+	Ours    ConflictCommitInfo `json:"ours"`   // HEAD - your local changes
+	Theirs  ConflictCommitInfo `json:"theirs"` // The incoming branch
 	Success bool               `json:"success"`
 	Error   string             `json:"error,omitempty"`
 }
