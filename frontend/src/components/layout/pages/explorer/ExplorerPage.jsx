@@ -95,6 +95,8 @@ function ExplorerPage() {
   const changedFiles = repoStatus?.changedFiles || [];
   const hasChanges = changedFiles.length > 0;
   const ahead = repoStatus?.ahead || 0;
+  const hasUpstream = repoStatus?.hasUpstream ?? true; // Default to true for backwards compat
+  const totalLocalCommits = repoStatus?.totalLocalCommits || 0;
   const branchName = repoStatus?.branch || 'main';
   const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
 
@@ -117,10 +119,14 @@ function ExplorerPage() {
   }
 
   // Repository open, no changes, but commits ahead of remote (ready to push)
-  if (ahead > 0) {
+  // Also show when there's no upstream but we have local commits to push
+  const needsPush = ahead > 0 || (!hasUpstream && totalLocalCommits > 0);
+  if (needsPush) {
     return (
       <ReadyToPushScreen
         ahead={ahead}
+        hasUpstream={hasUpstream}
+        totalLocalCommits={totalLocalCommits}
         onSync={syncRepo}
         isSyncing={isSyncing}
       />

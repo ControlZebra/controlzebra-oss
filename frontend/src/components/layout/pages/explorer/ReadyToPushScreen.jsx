@@ -3,15 +3,20 @@
  * Encourages syncing to cloud while noting it's optional.
  */
 import { memo } from 'react';
-import { Cloud, Save } from 'lucide-react';
+import { Cloud, Save, Upload } from 'lucide-react';
 import { ICON_SIZES } from '../../../../constants';
 import { Button } from '../../../ui';
 
 function ReadyToPushScreen({ 
   ahead = 0,
+  hasUpstream = true,
+  totalLocalCommits = 0,
   onSync, 
   isSyncing,
 }) {
+  // Determine the count to show - either ahead count or total commits if no upstream
+  const pendingCount = hasUpstream ? ahead : totalLocalCommits;
+  
   return (
     <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter overflow-y-auto">
       <div className="max-w-lg w-full text-center">
@@ -26,11 +31,17 @@ function ReadyToPushScreen({
 
         {/* Explanation */}
         <p className="text-theme-secondary text-base mb-2">
-          You have {ahead} snapshot{ahead !== 1 ? 's' : ''} pending backup.
+          You have {pendingCount} snapshot{pendingCount !== 1 ? 's' : ''} pending backup.
         </p>
-        <p className="text-theme-muted text-sm mb-8">
-          Feel free to continue making changes or sync to cloud for a secure backup.
-        </p>
+        {!hasUpstream ? (
+          <p className="text-theme-muted text-sm mb-8">
+            This branch hasn't been published yet. Sync to create a backup in the cloud.
+          </p>
+        ) : (
+          <p className="text-theme-muted text-sm mb-8">
+            Feel free to continue making changes or sync to cloud for a secure backup.
+          </p>
+        )}
 
         {/* Sync action */}
         <Button 
@@ -40,8 +51,12 @@ function ReadyToPushScreen({
           variant="secondary"
           className="w-[70%] h-10 text-lg"
         >
-          <Cloud style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
-          Sync to cloud
+          {hasUpstream ? (
+            <Cloud style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
+          ) : (
+            <Upload style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
+          )}
+          {hasUpstream ? 'Sync to cloud' : 'Publish to cloud'}
         </Button>
 
         

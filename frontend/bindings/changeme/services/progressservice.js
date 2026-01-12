@@ -54,6 +54,7 @@ export function SetApp(app) {
 
 /**
  * SyncWithProgress performs git pull --rebase + push with progress updates
+ * For branches without an upstream, it skips pull and just pushes with --set-upstream
  * @param {string} repoPath
  * @param {string} operationID
  * @returns {$CancellablePromise<$models.OperationResult>}
