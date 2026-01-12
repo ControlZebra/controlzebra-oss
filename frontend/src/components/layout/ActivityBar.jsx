@@ -10,6 +10,7 @@ import {
   GitBranch,
   Clock,
   Flag,
+  Sliders,
   Settings,
   UserCircle,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ const TOP_NAV_ITEMS = [
   { id: VIEWS.CHANGES, Icon: GitBranch, label: 'Changes', requiresGit: true },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History', requiresGit: true },
   { id: VIEWS.MERGE_CHANGES, Icon: Flag, label: 'Merge Changes', requiresGit: true },
+  { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];
 
 // Bottom navigation items (user-specific)

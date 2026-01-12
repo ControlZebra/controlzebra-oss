@@ -24,6 +24,7 @@ export const VIEWS = {
   CHANGES: 'changes',
   HISTORY: 'history',
   MERGE_CHANGES: 'merge-changes',
+  REPO_SETTINGS: 'repo-settings',
   SETTINGS: 'settings',
   PROFILE: 'profile',
 };
@@ -68,6 +69,19 @@ export const SETTINGS_CATEGORIES = [
   { id: 'lfs-groups', name: 'LFS Groups', description: 'Custom file extension groups' },
   { id: 'general', name: 'General', description: 'App preferences' },
   { id: 'accounts', name: 'Accounts', description: 'GitHub & GitLab' },
+];
+
+// ============================================================================
+// REPOSITORY SETTINGS CATEGORIES
+// Configuration for the repository-level settings view sidebar.
+// Organized from user's perspective.
+// ============================================================================
+export const REPO_SETTINGS_CATEGORIES = [
+  { id: 'remote-sync', name: 'Remote Sync', description: 'How and when to sync with remote' },
+  { id: 'large-files', name: 'Large Files (LFS)', description: 'Storage and download settings for large files' },
+  { id: 'branch-protection', name: 'Branch Protection', description: 'Prevent accidental commits to important branches' },
+  { id: 'performance', name: 'Performance', description: 'Optimization and maintenance tasks' },
+  { id: 'troubleshooting', name: 'Troubleshooting', description: 'Diagnose and fix repository issues' },
 ];
 
 // ============================================================================
