@@ -373,25 +373,29 @@
   color: #9ca3af; /* gray */
 }
 
-/* List view column spacing - increase gap between date and size */
-.chonky-container .chonky-listFileEntry {
-  gap: 1rem; /* Increase overall spacing between columns */
+/* List view column spacing - target JSS-generated class names */
+/* Chonky uses react-jss which generates classes like listFileEntry-0-2-123 */
+.chonky-container [class*="listFileEntry-"] {
+  gap: 0.5rem;
 }
 
-.chonky-container .chonky-listFileEntryProperty {
-  min-width: 100px;
-  margin-right: 0.5rem;
+/* Target property columns (date and size) - they have flex: 0 1 150px by default */
+.chonky-container [class*="listFileEntryProperty-"] {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
 }
 
-/* Specific spacing for size and date columns */
-.chonky-container .chonky-listFileEntrySize {
-  min-width: 80px;
-  text-align: right;
-  margin-left: 1rem;
+/* First property column is date (4th child) - needs more width for full date display */
+.chonky-container [class*="listFileEntry-"] > [class*="listFileEntryProperty-"]:first-of-type {
+  min-width: 180px;
+  text-align: left;
+  padding-right: 1.5rem;
 }
 
-.chonky-container .chonky-listFileEntryDate {
-  min-width: 160px;
+/* Second property column is size (5th child) */
+.chonky-container [class*="listFileEntry-"] > [class*="listFileEntryProperty-"]:last-of-type {
+  min-width: 70px;
   text-align: right;
 }
 
