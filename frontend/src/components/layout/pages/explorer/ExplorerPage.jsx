@@ -1,13 +1,13 @@
 /**
- * ExplorerPage - Main area showing file tree or welcome screen.
+ * ExplorerPage - Main area showing file browser or welcome screen.
  * 
  * When no folder is open: Shows welcome screen with open folder option
- * When folder is open: Shows file tree explorer
+ * When folder is open: Shows Chonky file browser
  */
 import { memo, useState, useCallback } from 'react';
 import { useRepo } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/changeme/services/filedialogservice';
-import { FileTreeView } from '../../../common';
+import { ChonkyFileBrowser } from '../../../common';
 import NoDirectoryScreen from './NoDirectoryScreen';
 
 function ExplorerPage() {
@@ -38,8 +38,8 @@ function ExplorerPage() {
     );
   }
 
-  // Folder open - show file tree
-  return <FileTreeView repoPath={repoPath} />;
+  // Folder open - show Chonky file browser
+  return <ChonkyFileBrowser repoPath={repoPath} />;
 }
 
 export default memo(ExplorerPage);
