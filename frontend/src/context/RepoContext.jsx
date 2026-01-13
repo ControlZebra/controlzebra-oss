@@ -786,9 +786,10 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshStatus]);
 
-  // Check for merge conflicts against a parent branch
-  // Pass empty string to auto-detect parent branch
-  const checkBranchConflicts = useCallback(async (parentBranch = '') => {
+  // Check for merge conflicts when merging source branch INTO target branch
+  // By default: merges current branch INTO detected parent branch
+  // Pass { targetBranch, sourceBranch } for custom merge directions
+  const checkBranchConflicts = useCallback(async (targetBranch = '', sourceBranch = '') => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return null;
@@ -801,21 +802,22 @@ export function RepoProvider({ children }) {
     setConflictSidesInfo(null);
     
     try {
-      // Pass empty string to trigger auto-detect on backend
-      const result = await CheckBranchConflicts(repoPath, parentBranch);
+      // Pass targetBranch and optional sourceBranch to backend
+      // Backend will auto-detect if empty
+      const result = await CheckBranchConflicts(repoPath, targetBranch, sourceBranch);
       
       setConflictCheckResult(result);
       
-      // Store detected parent branch if returned
-      if (result.parentBranch) {
+      // Store detected target branch info (for backward compat, also store as parent)
+      if (result.targetBranch || result.parentBranch) {
         setDetectedParentBranch({
-          name: result.parentBranch,
+          name: result.targetBranch || result.parentBranch,
           source: result.parentBranchSource || 'auto-detected',
         });
         
         // Fetch commit info for both sides of the conflict
         try {
-          const sidesInfo = await GetConflictSidesInfo(repoPath, result.parentBranch);
+          const sidesInfo = await GetConflictSidesInfo(repoPath, result.targetBranch || result.parentBranch);
           if (sidesInfo.success) {
             setConflictSidesInfo(sidesInfo);
           }
@@ -830,11 +832,16 @@ export function RepoProvider({ children }) {
         return result;
       }
       
+      // Get branch names for messages
+      const target = result.targetBranch || result.parentBranch;
+      const source = result.sourceBranch || repoInfo?.branch;
+      
       if (result.hasConflicts) {
         // Actually start the merge so we're in a real merge state
         // This allows resolution commands (checkout --ours/--theirs) to work
-        console.log('[checkBranchConflicts] Starting merge with parent:', result.parentBranch);
-        const mergeResult = await StartMerge(repoPath, result.parentBranch);
+        // StartMerge now: checks out target, merges source into it
+        console.log('[checkBranchConflicts] Starting merge:', source, 'into', target);
+        const mergeResult = await StartMerge(repoPath, target, source);
         console.log('[checkBranchConflicts] StartMerge result:', mergeResult);
         
         if (!mergeResult.success) {
@@ -865,13 +872,12 @@ export function RepoProvider({ children }) {
           setConflictedFiles(result.conflictedFiles || []);
         }
         
-        const parentInfo = result.parentBranch ? ` against ${result.parentBranch}` : '';
-        showMessage('info', `Merge started with ${result.conflictedFiles?.length || 0} conflict(s)${parentInfo}`);
+        showMessage('info', `Merge started: ${source} → ${target} with ${result.conflictedFiles?.length || 0} conflict(s)`);
       } else {
         // No conflicts detected - still need to start the merge so CompleteMerge works
         // StartMerge with --no-commit will put Git in merge state ready to commit
-        console.log('[checkBranchConflicts] No conflicts - starting clean merge with parent:', result.parentBranch);
-        const mergeResult = await StartMerge(repoPath, result.parentBranch);
+        console.log('[checkBranchConflicts] No conflicts - starting clean merge:', source, 'into', target);
+        const mergeResult = await StartMerge(repoPath, target, source);
         console.log('[checkBranchConflicts] Clean merge StartMerge result:', mergeResult);
         
         if (!mergeResult.success) {
@@ -886,9 +892,46 @@ export function RepoProvider({ children }) {
           return null;
         }
         
+        // Check for special cases: already up to date or auto-completed
+        if (mergeResult.error === 'already_up_to_date') {
+          console.log('[checkBranchConflicts] Target already contains all changes from source');
+          showMessage('info', `${target} already contains all changes from ${source} - nothing to merge`);
+          setConflictCheckResult({
+            ...result,
+            success: true,
+            alreadyUpToDate: true,
+            message: mergeResult.message,
+          });
+          setIsCheckingConflicts(false);
+          return { ...result, alreadyUpToDate: true };
+        }
+        
+        if (mergeResult.error === 'auto_completed') {
+          console.log('[checkBranchConflicts] Merge auto-completed without needing a commit');
+          showMessage('success', `Merged ${source} into ${target} successfully`);
+          // Don't call clearConflicts() - we need to preserve state for the UI to show success
+          // Instead, set the autoCompleted flag in conflictCheckResult
+          setConflictCheckResult({
+            ...result,
+            success: true,
+            autoCompleted: true,
+            message: mergeResult.message,
+          });
+          await refreshAll();
+          setIsCheckingConflicts(false);
+          return { ...result, autoCompleted: true };
+        }
+        
+        // Debug: Verify we're actually in merge state after StartMerge
+        const mergeStateAfterStart = await GetMergeState(repoPath);
+        console.log('[checkBranchConflicts] Merge state after clean StartMerge:', mergeStateAfterStart);
+        if (!mergeStateAfterStart.inMerge) {
+          console.warn('[checkBranchConflicts] WARNING: StartMerge returned success but we are NOT in merge state!');
+          console.warn('[checkBranchConflicts] This will cause CompleteMerge to fail.');
+        }
+        
         // conflictedFiles already cleared at start of function
-        const parentInfo = result.parentBranch ? ` with ${result.parentBranch}` : '';
-        showMessage('success', result.message || `No conflicts detected${parentInfo} - ready to merge`);
+        showMessage('success', result.message || `No conflicts - ready to merge ${source} into ${target}`);
       }
       
       setIsCheckingConflicts(false);
@@ -1070,6 +1113,16 @@ export function RepoProvider({ children }) {
     const parentBranchName = detectedParentBranch?.name;
 
     try {
+      // Debug: Check merge state before attempting to complete
+      const mergeStateBeforeComplete = await GetMergeState(repoPath);
+      console.log('[completeMerge] Merge state before complete:', mergeStateBeforeComplete);
+      
+      if (!mergeStateBeforeComplete.inMerge) {
+        console.warn('[completeMerge] WARNING: No merge in progress according to GetMergeState');
+        console.log('[completeMerge] conflictCheckResult:', conflictCheckResult);
+        console.log('[completeMerge] conflictedFiles:', conflictedFiles);
+      }
+      
       const result = await CompleteMerge(repoPath, message || '');
       console.log('[completeMerge] Result:', result);
       

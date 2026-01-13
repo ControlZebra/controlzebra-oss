@@ -2287,12 +2287,46 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 	return successOp(fmt.Sprintf("Marked '%s' as resolved", filePath))
 }
 
-// StartMerge begins an actual merge with the specified branch.
+// StartMerge begins an actual merge.
 // Uses --no-commit to allow the user to resolve conflicts before committing.
 // This is called after CheckBranchConflicts confirms there will be conflicts.
-func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationResult {
-	if parentBranch == "" {
-		return failedOp("Parent branch is required")
+//
+// Default behavior (when sourceBranch is empty):
+// - Merges the current branch INTO the targetBranch
+// - First checks out targetBranch, then merges the original current branch
+//
+// Parameterized behavior (when both are provided):
+// - Checks out targetBranch
+// - Merges sourceBranch into it
+//
+// Parameters:
+//   - repoPath: Path to the git repository
+//   - targetBranch: The branch to merge INTO (e.g., "main") - required
+//   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
+func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBranch ...string) OperationResult {
+	if targetBranch == "" {
+		return failedOp("Target branch is required")
+	}
+
+	// Determine source branch (default to current branch if not provided)
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return failedOp("Not a valid git repository")
+	}
+
+	source := ""
+	if len(sourceBranch) > 0 && sourceBranch[0] != "" {
+		source = sourceBranch[0]
+	} else {
+		source = repoInfo.Branch
+		if source == "" {
+			return failedOp("Could not determine current branch (detached HEAD?)")
+		}
+	}
+
+	// Don't allow merging a branch into itself
+	if source == targetBranch {
+		return failedOp("Cannot merge a branch into itself")
 	}
 
 	// Check if already in a merge state - if so, we can continue with existing merge
@@ -2313,28 +2347,45 @@ func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationR
 	}
 
 	// Check for uncommitted changes - merge requires a clean working tree
-	// (unless they are changes that won't conflict with the merge)
 	status := g.Status(repoPath)
 	if status.HasChanges {
 		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
 	}
 
-	// Determine the ref to merge (prefer origin/<branch> if it exists)
-	parentRef := ""
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
-	if refCheckResult.Success {
-		parentRef = "origin/" + parentBranch
-	} else {
-		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", parentBranch)
-		if localRefCheck.Success {
-			parentRef = parentBranch
-		} else {
-			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", parentBranch))
+	// Store current branch so we know what we're merging from
+	originalBranch := repoInfo.Branch
+
+	// Step 1: Checkout the target branch
+	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
+	if !checkoutResult.Success {
+		// Try fetching and checking out if it's a remote branch
+		g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
+		if !checkoutResult.Success {
+			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
 		}
 	}
 
-	// Start the merge with --no-commit so user can resolve conflicts
-	result := g.runner.RunGit(repoPath, "merge", "--no-commit", "--no-ff", parentRef)
+	// Step 2: Determine the source ref to merge
+	sourceRef := ""
+	// For local branches, use the branch name directly
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", source)
+	if refCheckResult.Success {
+		sourceRef = source
+	} else {
+		// Try origin/<branch>
+		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+source)
+		if refCheckResult.Success {
+			sourceRef = "origin/" + source
+		} else {
+			// Checkout back to original branch on failure
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
+			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", source))
+		}
+	}
+
+	// Step 3: Start the merge with --no-commit so user can resolve conflicts
+	result := g.runner.RunGit(repoPath, "merge", "--no-commit", "--no-ff", sourceRef)
 
 	// Exit code 1 with conflicts is expected - that's what we want
 	if !result.Success {
@@ -2356,15 +2407,38 @@ func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationR
 		// Actual error - provide detailed message
 		errMsg := getErrorMessage(result)
 		if strings.Contains(errMsg, "not something we can merge") {
-			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", parentBranch))
+			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", source))
 		}
 		if strings.Contains(errMsg, "uncommitted changes") {
 			return failedOp("Cannot merge: you have uncommitted changes. Commit or stash them first.")
 		}
+		// Checkout back to original branch on failure
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
 		return failedOp("Failed to start merge: " + errMsg)
 	}
 
-	// Clean merge (no conflicts) - still in merge state waiting for commit
+	// Merge command succeeded (exit code 0)
+	// Check if we're actually in merge state - if not, it means "Already up to date"
+	mergeState := g.GetMergeState(repoPath)
+	if !mergeState.InMerge {
+		// Check if the output indicates "already up to date"
+		outputLower := strings.ToLower(result.Stdout)
+		if strings.Contains(outputLower, "already up to date") || strings.Contains(outputLower, "already up-to-date") {
+			return OperationResult{
+				Success: true,
+				Message: "Already up to date - nothing to merge",
+				Error:   "already_up_to_date", // Use error field as a status indicator
+			}
+		}
+		// No merge state and not "already up to date" - something unexpected
+		return OperationResult{
+			Success: true,
+			Message: "Merge completed automatically - no commit needed",
+			Error:   "auto_completed",
+		}
+	}
+
+	// Clean merge with changes staged, waiting for commit
 	return successOp("Merge started - no conflicts detected")
 }
 
@@ -2544,30 +2618,40 @@ func (g *GitService) GetParentBranch(repoPath string) ParentBranchResult {
 type BranchConflictCheckResult struct {
 	HasConflicts    bool             `json:"hasConflicts"`
 	ConflictedFiles []ConflictedFile `json:"conflictedFiles"`
-	ParentBranch    string           `json:"parentBranch"` // The parent branch used for checking
+	ParentBranch    string           `json:"parentBranch"` // The target branch to merge INTO (kept for backward compat)
+	TargetBranch    string           `json:"targetBranch"` // The target branch to merge INTO
+	SourceBranch    string           `json:"sourceBranch"` // The source branch being merged
 	Success         bool             `json:"success"`
 	Error           string           `json:"error,omitempty"`
 	Message         string           `json:"message,omitempty"`
 }
 
-// CheckBranchConflicts checks for potential merge conflicts between the current branch (child)
-// and a parent branch without actually performing the merge.
+// CheckBranchConflicts checks for potential merge conflicts when merging the source branch
+// INTO the target branch without actually performing the merge.
 // This uses `git merge-tree --write-tree` which performs a merge simulation.
 //
+// Default behavior (when sourceBranch is empty):
+// - Checks conflicts for merging current branch INTO targetBranch
+//
+// Parameterized behavior (when both are provided):
+// - Checks conflicts for merging sourceBranch INTO targetBranch
+//
 // The method:
-// 1. Auto-detects parent branch if not provided
-// 2. Fetches the parent branch from origin to ensure we have the latest
-// 3. Runs git merge-tree to detect conflicts
+// 1. Auto-detects target branch (parent) if not provided
+// 2. Fetches the target branch from origin to ensure we have the latest
+// 3. Runs git merge-tree to detect conflicts (simulating merge into target)
 // 4. Returns the list of conflicted files if any
 //
 // Parameters:
 //   - repoPath: Path to the git repository
-//   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+//   - targetBranch: Name of the target branch to merge INTO (e.g., "main", "master").
 //     If empty, the parent branch will be auto-detected.
+//   - sourceBranch: Optional. Name of the source branch to merge FROM.
+//     If empty, defaults to the current branch.
 //
 // Returns:
 //   - BranchConflictCheckResult with conflict information
-func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) BranchConflictCheckResult {
+func (g *GitService) CheckBranchConflicts(repoPath string, targetBranch string, sourceBranch ...string) BranchConflictCheckResult {
 	// Verify repo exists
 	repoInfo := g.DetectRepo(repoPath)
 	if !repoInfo.IsRepo {
@@ -2577,20 +2661,42 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 		}
 	}
 
-	// Auto-detect parent branch if not provided
-	if parentBranch == "" {
+	// Determine source branch (default to current branch if not provided)
+	source := ""
+	if len(sourceBranch) > 0 && sourceBranch[0] != "" {
+		source = sourceBranch[0]
+	} else {
+		source = repoInfo.Branch
+		if source == "" {
+			return BranchConflictCheckResult{
+				Success: false,
+				Error:   "Could not determine current branch (detached HEAD?)",
+			}
+		}
+	}
+
+	// Auto-detect target branch if not provided
+	if targetBranch == "" {
 		parentResult := g.GetParentBranch(repoPath)
 		if !parentResult.Success {
 			return BranchConflictCheckResult{
 				Success: false,
-				Error:   "Could not detect parent branch: " + parentResult.Error,
+				Error:   "Could not detect target branch: " + parentResult.Error,
 			}
 		}
-		parentBranch = parentResult.ParentBranch
+		targetBranch = parentResult.ParentBranch
 	}
 
-	// Step 1: Fetch the parent branch from origin to ensure we have latest
-	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", parentBranch)
+	// Don't allow checking merge of a branch into itself
+	if source == targetBranch {
+		return BranchConflictCheckResult{
+			Success: false,
+			Error:   "Cannot merge a branch into itself",
+		}
+	}
+
+	// Step 1: Fetch the target branch from origin to ensure we have latest
+	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
 	if !fetchResult.Success {
 		// Fetch might fail if no remote or branch doesn't exist on remote
 		// We can still try merge-tree with local branches
@@ -2606,29 +2712,48 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 		// For other fetch errors, we'll still try the merge-tree with local refs
 	}
 
-	// Step 2: Determine the parent ref to use
-	// Try origin/<parentBranch> first, then fall back to local branch
-	parentRef := ""
+	// Step 2: Determine the target ref to use
+	// Try origin/<targetBranch> first, then fall back to local branch
+	targetRef := ""
 
-	// Check if origin/<parentBranch> exists
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
+	// Check if origin/<targetBranch> exists
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+targetBranch)
 	if refCheckResult.Success {
-		parentRef = "origin/" + parentBranch
+		targetRef = "origin/" + targetBranch
 	} else {
 		// Try local branch
-		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", parentBranch)
+		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", targetBranch)
 		if localRefCheck.Success {
-			parentRef = parentBranch
+			targetRef = targetBranch
 		} else {
 			return BranchConflictCheckResult{
 				Success: false,
-				Error:   fmt.Sprintf("Branch '%s' not found locally or on remote", parentBranch),
+				Error:   fmt.Sprintf("Branch '%s' not found locally or on remote", targetBranch),
 			}
 		}
 	}
 
-	// Step 3: Run merge-tree with --name-only for cleaner output
-	mergeTreeResult := g.runner.RunGit(repoPath, "merge-tree", "--write-tree", "--name-only", "HEAD", parentRef)
+	// Step 3: Determine the source ref
+	sourceRef := ""
+	refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", source)
+	if refCheckResult.Success {
+		sourceRef = source
+	} else {
+		// Try origin/<source>
+		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+source)
+		if refCheckResult.Success {
+			sourceRef = "origin/" + source
+		} else {
+			return BranchConflictCheckResult{
+				Success: false,
+				Error:   fmt.Sprintf("Source branch '%s' not found locally or on remote", source),
+			}
+		}
+	}
+
+	// Step 4: Run merge-tree with --name-only for cleaner output
+	// Order is: git merge-tree <target> <source> to simulate merging source INTO target
+	mergeTreeResult := g.runner.RunGit(repoPath, "merge-tree", "--write-tree", "--name-only", targetRef, sourceRef)
 
 	// Parse the output
 	// Output format:
@@ -2673,8 +2798,10 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 			Success:         true,
 			HasConflicts:    true,
 			ConflictedFiles: conflictedFiles,
-			ParentBranch:    parentBranch,
-			Message:         fmt.Sprintf("Found %d potential conflict(s) with '%s'", len(conflictedFiles), parentBranch),
+			ParentBranch:    targetBranch, // Keep for backward compat
+			TargetBranch:    targetBranch,
+			SourceBranch:    source,
+			Message:         fmt.Sprintf("Found %d potential conflict(s) when merging '%s' into '%s'", len(conflictedFiles), source, targetBranch),
 		}
 	}
 
@@ -2684,8 +2811,10 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 			Success:         true,
 			HasConflicts:    false,
 			ConflictedFiles: []ConflictedFile{},
-			ParentBranch:    parentBranch,
-			Message:         fmt.Sprintf("No conflicts with '%s' - merge will be clean", parentBranch),
+			ParentBranch:    targetBranch, // Keep for backward compat
+			TargetBranch:    targetBranch,
+			SourceBranch:    source,
+			Message:         fmt.Sprintf("No conflicts - '%s' can be merged cleanly into '%s'", source, targetBranch),
 		}
 	}
 
