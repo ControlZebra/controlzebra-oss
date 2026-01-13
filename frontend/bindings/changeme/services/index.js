@@ -4,6 +4,7 @@
 
 import * as FileDialogService from "./filedialogservice.js";
 import * as FileSystemService from "./filesystemservice.js";
+import * as FileWatcherService from "./filewatcherservice.js";
 import * as GitService from "./gitservice.js";
 import * as LFSService from "./lfsservice.js";
 import * as ProgressService from "./progressservice.js";
@@ -13,6 +14,7 @@ import * as TerminalService from "./terminalservice.js";
 export {
     FileDialogService,
     FileSystemService,
+    FileWatcherService,
     GitService,
     LFSService,
     ProgressService,
