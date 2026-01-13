@@ -5,15 +5,12 @@
 import { memo, useState, useCallback, useEffect, useMemo } from 'react';
 import {
   FileText,
-  Plus,
-  Pencil,
-  Trash2,
-  HelpCircle,
   RotateCcw,
   ChevronDown,
   GitBranch,
 } from 'lucide-react';
-import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS, isProtectedBranch } from '../../../constants';
+import { FILE_STATUS, isProtectedBranch } from '../../../constants';
+import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName } from '../../../lib/gitHelpers';
 import { Button, Textarea } from '../../ui';
 import { ButtonGroup } from '../../ui/button-group';
 import {
@@ -26,36 +23,9 @@ import { MasterBranchNudge } from '../../common';
 import { RewindConfirmModal, BranchNameModal } from '../';
 import { GetUserProfile } from '../../../../bindings/changeme/services/settingsservice';
 
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const iconStyleXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
-
-// Status icon configuration
-const STATUS_CONFIG = {
-  [FILE_STATUS.ADDED]: { Icon: Plus, className: FILE_STATUS_COLORS[FILE_STATUS.ADDED], label: 'A' },
-  [FILE_STATUS.MODIFIED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.MODIFIED], label: 'M' },
-  [FILE_STATUS.DELETED]: { Icon: Trash2, className: FILE_STATUS_COLORS[FILE_STATUS.DELETED], label: 'D' },
-  [FILE_STATUS.RENAMED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.RENAMED], label: 'R' },
-  [FILE_STATUS.UNTRACKED]: { Icon: HelpCircle, className: FILE_STATUS_COLORS[FILE_STATUS.UNTRACKED], label: '?' },
-};
-
-// Generate default branch name
-function generateDefaultBranchName(userName) {
-  let user = 'user';
-  if (userName) {
-    if (userName.includes('@')) {
-      user = userName.split('@')[0];
-    } else {
-      user = userName.toLowerCase().replace(/\s+/g, '-');
-    }
-  }
-  const now = new Date();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dateStr = `${now.getFullYear()}-${months[now.getMonth()]}-${String(now.getDate()).padStart(2, '0')}`;
-  return `${user}/${dateStr}/changes`;
-}
-
 /**
  * ChangedFileItem - Single file in the changed files list.
+ * Uses shortLabel for compact display.
  */
 const ChangedFileItem = memo(function ChangedFileItem({ file }) {
   const statusConfig = STATUS_CONFIG[file.status] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
@@ -63,8 +33,8 @@ const ChangedFileItem = memo(function ChangedFileItem({ file }) {
   
   return (
     <div className="flex items-center gap-2 px-2 py-1 hover-bg-theme-interactive rounded text-sm">
-      <StatusIcon style={iconStyleXs} className={statusConfig.className} />
-      <FileText style={iconStyleXs} className="text-theme-muted shrink-0" />
+      <StatusIcon style={ICON_STYLES.xs} className={statusConfig.className} />
+      <FileText style={ICON_STYLES.xs} className="text-theme-muted shrink-0" />
       <span className="text-theme-primary truncate flex-1" title={file.path}>
         {file.name}
       </span>
@@ -191,7 +161,7 @@ function SidebarCommitPanel({
                 size="sm"
                 className="flex-1"
               >
-                <GitBranch style={iconStyleXs} />
+                <GitBranch style={ICON_STYLES.xs} />
                 Branch & Save
               </Button>
               <DropdownMenu>
@@ -202,7 +172,7 @@ function SidebarCommitPanel({
                     disabled={!message.trim() || isCommitting}
                     className="px-1.5 border-l border-blue-500/30"
                   >
-                    <ChevronDown style={iconStyleXs} />
+                    <ChevronDown style={ICON_STYLES.xs} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -230,7 +200,7 @@ function SidebarCommitPanel({
             size="sm"
             title="Discard all changes"
           >
-            <RotateCcw style={iconStyleXs} />
+            <RotateCcw style={ICON_STYLES.xs} />
           </Button>
         </div>
       </div>

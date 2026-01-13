@@ -6,16 +6,13 @@
 import { memo, useState, useCallback, useEffect } from 'react';
 import {
   FileText,
-  Plus,
-  Pencil,
-  Trash2,
-  HelpCircle,
   RefreshCw,
   RotateCcw,
   ChevronDown,
   GitBranch,
 } from 'lucide-react';
-import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../../constants';
+import { FILE_STATUS, isProtectedBranch } from '../../../../constants';
+import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName, shortenPath } from '../../../../lib/gitHelpers';
 import { 
   Button, 
   Textarea, 
@@ -33,43 +30,6 @@ import {
 import { MasterBranchNudge } from '../../../common';
 import { RewindConfirmModal } from '../../';
 import { GetUserProfile } from '../../../../../bindings/changeme/services/settingsservice';
-
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-
-// Status icon configuration
-const STATUS_CONFIG = {
-  [FILE_STATUS.ADDED]: { Icon: Plus, className: FILE_STATUS_COLORS[FILE_STATUS.ADDED], label: 'Added' },
-  [FILE_STATUS.MODIFIED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.MODIFIED], label: 'Modified' },
-  [FILE_STATUS.DELETED]: { Icon: Trash2, className: FILE_STATUS_COLORS[FILE_STATUS.DELETED], label: 'Deleted' },
-  [FILE_STATUS.RENAMED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.RENAMED], label: 'Renamed' },
-  [FILE_STATUS.UNTRACKED]: { Icon: HelpCircle, className: FILE_STATUS_COLORS[FILE_STATUS.UNTRACKED], label: 'New' },
-};
-
-/**
- * Shorten a file path macOS-style: .../parent/file.ext
- */
-function shortenPath(fullPath, maxLength = 30) {
-  if (!fullPath || fullPath.length <= maxLength) return fullPath;
-  
-  const parts = fullPath.split('/').filter(Boolean);
-  if (parts.length === 0) return fullPath;
-  
-  const fileName = parts[parts.length - 1];
-  
-  if (fileName.length >= maxLength - 4) {
-    return `.../${fileName.slice(0, maxLength - 4)}`;
-  }
-  
-  if (parts.length >= 2) {
-    const parent = parts[parts.length - 2];
-    const shortPath = `.../${parent}/${fileName}`;
-    if (shortPath.length <= maxLength) {
-      return shortPath;
-    }
-  }
-  
-  return `.../${fileName}`;
-}
 
 // ============================================================================
 // Changed Files Table
@@ -103,7 +63,7 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       <StatusIcon 
-                        style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} 
+                        style={ICON_STYLES.xs} 
                         className={statusConfig.className} 
                       />
                       <span className={`text-xs ${statusConfig.className}`}>
@@ -113,7 +73,7 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <FileText style={iconStyle} className="text-theme-muted shrink-0" />
+                      <FileText style={ICON_STYLES.sm} className="text-theme-muted shrink-0" />
                       <span className="text-sm text-theme-primary truncate">{file.name}</span>
                     </div>
                   </td>
@@ -136,40 +96,6 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }) {
     </Card>
   );
 });
-
-// ============================================================================
-// Helper: Check if branch is a protected/main branch
-// ============================================================================
-function isProtectedBranch(branchName) {
-  if (!branchName) return false;
-  const protectedBranches = ['main', 'master', 'develop', 'production'];
-  return protectedBranches.includes(branchName.toLowerCase());
-}
-
-// ============================================================================
-// Helper: Generate default branch name
-// Format: [username]/[YYYY-MMM-DD]/[description]
-// ============================================================================
-function generateDefaultBranchName(userName) {
-  // Extract username from email (remove domain) or use name
-  let user = 'user';
-  if (userName) {
-    if (userName.includes('@')) {
-      // It's an email, extract the part before @
-      user = userName.split('@')[0];
-    } else {
-      // Use the name, replace spaces with dashes and lowercase
-      user = userName.toLowerCase().replace(/\s+/g, '-');
-    }
-  }
-  
-  // Format date as YYYY-MMM-DD
-  const now = new Date();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dateStr = `${now.getFullYear()}-${months[now.getMonth()]}-${String(now.getDate()).padStart(2, '0')}`;
-  
-  return `${user}/${dateStr}/changes`;
-}
 
 // ============================================================================
 // Main CommitScreen Component
@@ -344,8 +270,8 @@ function CommitScreen({
         {/* Branch name input (shown when Branch and Save is clicked) */}
         {showBranchInput && (
           <div className="mb-4 p-4 bg-theme-surface border border-theme-default rounded-lg">
-            <label className="block text-sm font-medium text-theme-secondary mb-2">
-              <GitBranch style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm, display: 'inline', marginRight: 6 }} />
+            <label className="block text-sm font-medium text-theme-secondary mb-2 flex items-center gap-1.5">
+              <GitBranch style={ICON_STYLES.sm} />
               New branch name
             </label>
             <div className="flex gap-2">
@@ -383,7 +309,7 @@ function CommitScreen({
         <div className="flex justify-center gap-3 mb-8">
           {showSyncButton ? (
             <Button onClick={handleSync} loading={isSyncing} size="lg">
-              <RefreshCw style={iconStyle} />
+              <RefreshCw style={ICON_STYLES.sm} />
               Sync with remote
             </Button>
           ) : !showBranchInput ? (
@@ -397,7 +323,7 @@ function CommitScreen({
                     loading={isCommitting}
                     size="lg"
                   >
-                    <GitBranch style={iconStyle} />
+                    <GitBranch style={ICON_STYLES.sm} />
                     Branch and Save
                   </Button>
                   <DropdownMenu>
@@ -408,7 +334,7 @@ function CommitScreen({
                         disabled={!message.trim() || isCommitting}
                         className="px-2 border-l border-blue-500/30"
                       >
-                        <ChevronDown style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
+                        <ChevronDown style={ICON_STYLES.sm} />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -434,7 +360,7 @@ function CommitScreen({
                 disabled={isCommitting || isSyncing}
                 size="lg"
               >
-                <RotateCcw style={iconStyle} />
+                <RotateCcw style={ICON_STYLES.sm} />
                 Rewind
               </Button>
             </>

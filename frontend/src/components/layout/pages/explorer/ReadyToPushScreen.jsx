@@ -4,7 +4,7 @@
  */
 import { memo } from 'react';
 import { Cloud, Save, Upload } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { Button } from '../../../ui';
 
 function ReadyToPushScreen({ 
@@ -26,7 +26,7 @@ function ReadyToPushScreen({
 
         {/* Snapshot saved icon */}
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/10 mb-6">
-          <Save style={{ width: 32, height: 32 }} className="text-blue-400" />
+          <Save style={ICON_STYLES.xl} className="text-blue-400" />
         </div>
 
         {/* Explanation */}
@@ -52,9 +52,9 @@ function ReadyToPushScreen({
           className="w-[70%] h-10 text-lg"
         >
           {hasUpstream ? (
-            <Cloud style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
+            <Cloud style={ICON_STYLES.md} />
           ) : (
-            <Upload style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
+            <Upload style={ICON_STYLES.md} />
           )}
           {hasUpstream ? 'Sync to cloud' : 'Publish to cloud'}
         </Button>
