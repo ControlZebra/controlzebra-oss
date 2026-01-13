@@ -350,10 +350,20 @@ export function RepoProvider({ children }) {
     };
   }, [repoPath, repoInfo?.isRepo, refreshStatus]);
 
-  // Reset conflict check state when local changes are detected
+  // Reset conflict check state when local changes are detected AFTER a conflict check completed
   // This ensures users re-check for conflicts after making new changes
+  // BUT: Don't reset if we're actively resolving conflicts (conflictedFiles.length > 0)
+  // or if we just completed a successful merge (success states like alreadyUpToDate or autoCompleted)
   useEffect(() => {
     if (repoStatus?.hasChanges && conflictCheckResult) {
+      // Don't reset if we're actively resolving conflicts
+      if (conflictedFiles.length > 0) {
+        return;
+      }
+      // Don't reset if we're in a successful clean merge state (waiting for user to complete)
+      if (conflictCheckResult.success && !conflictCheckResult.hasConflicts) {
+        return;
+      }
       // If we have a conflict check result and new local changes are detected,
       // clear the conflict state to force a re-check
       setConflictCheckResult(null);
@@ -364,7 +374,7 @@ export function RepoProvider({ children }) {
       setConflictSidesInfo(null);
       // Keep detectedParentBranch so user doesn't have to re-select
     }
-  }, [repoStatus?.hasChanges, conflictCheckResult]);
+  }, [repoStatus?.hasChanges, conflictCheckResult, conflictedFiles.length]);
 
   // Listen for folder-selected event from native menu
   useEffect(() => {
