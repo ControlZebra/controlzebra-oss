@@ -54,6 +54,7 @@ import {
 } from '../../bindings/changeme/services/gitservice';
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
+import { WatchDirectory, StopWatching } from '../../bindings/changeme/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
 
@@ -199,6 +200,14 @@ export function RepoProvider({ children }) {
         showMessage('info', `Opened folder: ${folderName} (no version control)`);
       }
       
+      // Start file watcher for event-based UI refresh
+      try {
+        await WatchDirectory(path);
+      } catch (err) {
+        console.error('Failed to start file watcher:', err);
+        // Non-fatal, continue without file watching
+      }
+      
       setIsLoading(false);
       return true;
     } catch (err) {
@@ -258,6 +267,13 @@ export function RepoProvider({ children }) {
     setSelectedCommitFile(null);
     setCurrentDiff(null);
     
+    // Stop file watcher
+    try {
+      await StopWatching();
+    } catch (err) {
+      console.error('Failed to stop file watcher:', err);
+    }
+    
     // Stop polling
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
@@ -296,7 +312,7 @@ export function RepoProvider({ children }) {
       // Initial fetch
       refreshAll();
       
-      // Start polling for status updates
+      // Start polling for status updates (fallback, less frequent with file watcher)
       pollIntervalRef.current = setInterval(refreshStatus, STATUS_POLL_INTERVAL);
       
       return () => {
@@ -306,6 +322,33 @@ export function RepoProvider({ children }) {
       };
     }
   }, [repoPath, repoInfo?.isRepo, refreshAll, refreshStatus]);
+  
+  // Event-based refresh: listen for file changes and refresh status immediately
+  useEffect(() => {
+    if (!repoPath || !repoInfo?.isRepo) return;
+    
+    const handleFilesChanged = () => {
+      // Debounce rapid file changes by using a short delay
+      // This prevents excessive refreshes during bulk operations (like git checkout)
+      if (handleFilesChanged.timeoutId) {
+        clearTimeout(handleFilesChanged.timeoutId);
+      }
+      handleFilesChanged.timeoutId = setTimeout(() => {
+        refreshStatus();
+      }, 300);
+    };
+    
+    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    
+    return () => {
+      if (handleFilesChanged.timeoutId) {
+        clearTimeout(handleFilesChanged.timeoutId);
+      }
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [repoPath, repoInfo?.isRepo, refreshStatus]);
 
   // Reset conflict check state when local changes are detected
   // This ensures users re-check for conflicts after making new changes

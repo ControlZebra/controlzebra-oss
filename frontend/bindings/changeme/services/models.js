@@ -1038,6 +1038,13 @@ export class DirectoryContents {
              */
             this["error"] = undefined;
         }
+        if (!("includeHidden" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["includeHidden"] = false;
+        }
 
         Object.assign(this, $$source);
     }
@@ -1193,6 +1200,21 @@ export class FileEntry {
              * @type {string}
              */
             this["extension"] = "";
+        }
+        if (!("modTime" in $$source)) {
+            /**
+             * Unix timestamp in milliseconds
+             * @member
+             * @type {number}
+             */
+            this["modTime"] = 0;
+        }
+        if (!("isHidden" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isHidden"] = false;
         }
 
         Object.assign(this, $$source);
