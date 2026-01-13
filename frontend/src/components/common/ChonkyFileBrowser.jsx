@@ -48,11 +48,12 @@ const GIT_STATUS_COLORS = {
 /**
  * Convert FileSystemService entries to Chonky FileData format.
  * Includes git status information if available.
+ * Always sorts directories first, then files.
  */
 function toChonkyFiles(entries, gitStatusMap = {}) {
   if (!entries || entries.length === 0) return [];
   
-  return entries.map((entry) => {
+  const files = entries.map((entry) => {
     const relativePath = entry.path;
     const gitStatus = gitStatusMap[entry.name] || gitStatusMap[relativePath];
     
@@ -68,6 +69,13 @@ function toChonkyFiles(entries, gitStatusMap = {}) {
       gitStatus: gitStatus || null,
       color: gitStatus ? GIT_STATUS_COLORS[gitStatus] : undefined,
     };
+  });
+  
+  // Sort: directories first, then files (both alphabetically by name)
+  return files.sort((a, b) => {
+    if (a.isDir && !b.isDir) return -1;
+    if (!a.isDir && b.isDir) return 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
 }
 
@@ -208,8 +216,20 @@ const DiscardChangesAction = defineFileAction({
   },
 });
 
+const RefreshAction = defineFileAction({
+  id: 'refresh_files',
+  requiresSelection: false,
+  button: {
+    name: 'Refresh',
+    toolbar: true,
+    icon: ChonkyIconName.loading,
+  },
+  hotkeys: ['ctrl+r', 'cmd+r'],
+});
+
 // All custom actions to pass to FileBrowser
 const customFileActions = [
+  RefreshAction,
   OpenInTerminalAction,
   RevealInFinderAction,
   CopyPathAction,
@@ -336,6 +356,12 @@ function ChonkyFileBrowser({ repoPath }) {
       // Handle ToggleHiddenFiles
       if (id === ChonkyActions.ToggleHiddenFiles.id) {
         setShowHiddenFiles(prev => !prev);
+        return;
+      }
+
+      // Handle Refresh action
+      if (id === 'refresh_files') {
+        setRefreshTrigger(prev => prev + 1);
         return;
       }
 
@@ -469,7 +495,6 @@ function ChonkyFileBrowser({ repoPath }) {
   const disabledActions = useMemo(() => [
     ChonkyActions.SelectAllFiles.id,
     ChonkyActions.ClearSelection.id,
-    ChonkyActions.ToggleShowFoldersFirst.id,
   ], []);
 
   // Error state
@@ -489,6 +514,7 @@ function ChonkyFileBrowser({ repoPath }) {
         onFileAction={handleFileAction}
         fileActions={customFileActions}
         defaultFileViewActionId={ChonkyActions.EnableListView.id}
+        defaultSortActionId={ChonkyActions.SortFilesByName.id}
         disableDefaultFileActions={disabledActions}
         disableDragAndDrop={false}
         clearSelectionOnOutsideClick={true}
