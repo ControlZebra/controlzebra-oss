@@ -281,3 +281,83 @@
   font-size: 11px;
 }
 
+/* ============================================================================
+   CHONKY FILE BROWSER STYLES
+   Custom theming for Chonky to match our dark/light theme.
+   ============================================================================ */
+
+/* Container to fill available space */
+.chonky-container {
+  height: 100%;
+}
+
+.chonky-container .chonky-chonkyRoot {
+  height: 100%;
+  background-color: var(--color-bg-surface);
+  border: none;
+}
+
+/* Dark theme overrides for Chonky */
+.dark .chonky-container .chonky-chonkyRoot {
+  --chonky-color-background-primary: var(--color-bg-surface);
+  --chonky-color-background-secondary: var(--color-bg-elevated);
+  --chonky-color-text-primary: var(--color-text-primary);
+  --chonky-color-text-secondary: var(--color-text-secondary);
+  --chonky-color-border: var(--color-border-default);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-surface);
+}
+
+.dark .chonky-container .chonky-navbarWrapper,
+.dark .chonky-container .chonky-toolbarWrapper {
+  background-color: var(--color-bg-surface);
+  border-color: var(--color-border-default);
+}
+
+.dark .chonky-container .chonky-fileListWrapper {
+  background-color: var(--color-bg-surface);
+}
+
+.dark .chonky-container .chonky-fileEntry {
+  color: var(--color-text-primary);
+}
+
+.dark .chonky-container .chonky-fileEntry:hover {
+  background-color: var(--color-interactive-hover);
+}
+
+.dark .chonky-container .chonky-fileEntrySelected {
+  background-color: var(--color-accent-primary);
+  color: var(--color-text-inverted);
+}
+
+.dark .chonky-container .chonky-breadcrumb,
+.dark .chonky-container .chonky-breadcrumbsContainer button {
+  color: var(--color-text-primary);
+}
+
+.dark .chonky-container .chonky-breadcrumbsContainer button:hover {
+  background-color: var(--color-interactive-hover);
+}
+
+.dark .chonky-container .chonky-toolbarButton {
+  color: var(--color-text-secondary);
+}
+
+.dark .chonky-container .chonky-toolbarButton:hover {
+  background-color: var(--color-interactive-hover);
+  color: var(--color-text-primary);
+}
+
+.dark .chonky-container .chonky-searchFieldInput {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+}
+
+/* Light theme - use defaults with minor tweaks */
+.chonky-container .chonky-chonkyRoot {
+  --chonky-color-background-primary: var(--color-bg-surface);
+  --chonky-color-background-secondary: var(--color-bg-elevated);
+}
+

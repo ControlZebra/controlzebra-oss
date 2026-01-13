@@ -9,4 +9,4 @@ export { default as LoadingState } from './LoadingState';
 export { default as GitLabIcon } from './GitLabIcon';
 export { default as MasterBranchNudge } from './MasterBranchNudge';
 export { default as GitGraph } from './GitGraph';
-export { default as FileTreeView } from './FileTreeView';
+export { default as ChonkyFileBrowser } from './ChonkyFileBrowser';
