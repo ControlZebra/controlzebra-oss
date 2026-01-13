@@ -868,9 +868,27 @@ export function RepoProvider({ children }) {
         const parentInfo = result.parentBranch ? ` against ${result.parentBranch}` : '';
         showMessage('info', `Merge started with ${result.conflictedFiles?.length || 0} conflict(s)${parentInfo}`);
       } else {
+        // No conflicts detected - still need to start the merge so CompleteMerge works
+        // StartMerge with --no-commit will put Git in merge state ready to commit
+        console.log('[checkBranchConflicts] No conflicts - starting clean merge with parent:', result.parentBranch);
+        const mergeResult = await StartMerge(repoPath, result.parentBranch);
+        console.log('[checkBranchConflicts] Clean merge StartMerge result:', mergeResult);
+        
+        if (!mergeResult.success) {
+          const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
+          showMessage('error', errorMsg);
+          setConflictCheckResult({
+            ...result,
+            success: false,
+            error: errorMsg,
+          });
+          setIsCheckingConflicts(false);
+          return null;
+        }
+        
         // conflictedFiles already cleared at start of function
         const parentInfo = result.parentBranch ? ` with ${result.parentBranch}` : '';
-        showMessage('success', result.message || `No conflicts detected${parentInfo} - clean merge possible`);
+        showMessage('success', result.message || `No conflicts detected${parentInfo} - ready to merge`);
       }
       
       setIsCheckingConflicts(false);
