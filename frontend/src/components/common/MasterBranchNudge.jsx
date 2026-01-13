@@ -3,17 +3,43 @@
  * Encourages users to work on feature branches instead of committing directly to main.
  */
 import { memo } from 'react';
-import { GitBranch, AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import { Button } from '../ui';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const iconStyleXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 function MasterBranchNudge({ 
   branchName = 'master', 
   onDismiss,
+  compact = false,
   className = '' 
 }) {
+  if (compact) {
+    return (
+      <div 
+        className={`
+          bg-amber-100 dark:bg-amber-500/10 
+          border border-amber-300 dark:border-amber-500/30 
+          rounded p-2 text-xs
+          flex items-center gap-2
+          ${className}
+        `}
+      >
+        <AlertCircle style={iconStyleXs} className="text-amber-600 dark:text-amber-500 shrink-0" />
+        <span className="text-amber-800 dark:text-amber-200 flex-1">
+          On <code className="font-mono">{branchName}</code>
+        </span>
+        {onDismiss && (
+          <button onClick={onDismiss} className="text-amber-600 dark:text-amber-400 hover:text-amber-700">
+            <X style={iconStyleXs} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div 
       className={`
