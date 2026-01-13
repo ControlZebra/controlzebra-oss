@@ -61,7 +61,7 @@ import { addRecentFolder } from '../lib/recentFolders';
 const RepoContext = createContext(null);
 
 // Polling interval for status updates (in ms)
-const STATUS_POLL_INTERVAL = 3000;
+const STATUS_POLL_INTERVAL = 30000;
 
 export function RepoProvider({ children }) {
   // ===== Repository State =====
