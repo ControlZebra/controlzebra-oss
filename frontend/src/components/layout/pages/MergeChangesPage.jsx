@@ -562,6 +562,10 @@ function MergeChangesPage() {
   // Effective target branch
   const effectiveTarget = targetBranch || detectedParentBranch?.name || 'main';
 
+  // Effective source branch - use conflictCheckResult.sourceBranch after merge starts
+  // because currentBranch changes to target after StartMerge
+  const effectiveSource = conflictCheckResult?.sourceBranch || currentBranch;
+
   // Handle check for conflicts
   const handleCheck = useCallback(async () => {
     setError(null);
@@ -643,7 +647,7 @@ function MergeChangesPage() {
   if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && conflictedFiles.length === 0) {
     return (
       <CleanMergePanel
-        sourceBranch={currentBranch}
+        sourceBranch={effectiveSource}
         targetBranch={effectiveTarget}
         onComplete={handleComplete}
         onAbort={handleAbort}
@@ -673,7 +677,7 @@ function MergeChangesPage() {
       <ConflictsOverviewPanel
         conflictedFiles={conflictedFiles}
         fileResolutions={fileResolutions}
-        sourceBranch={currentBranch}
+        sourceBranch={effectiveSource}
         targetBranch={effectiveTarget}
         onSelectFile={setSelectedConflictFile}
         onComplete={handleComplete}
