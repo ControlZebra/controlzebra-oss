@@ -627,9 +627,11 @@ function MergeChangesPage() {
     await checkBranchConflicts(parentBranch);
   }, [checkBranchConflicts]);
 
-  const handleClearResults = useCallback(() => {
+  const handleClearResults = useCallback(async () => {
+    // When a merge was started (even clean merge), we need to abort it first
+    await abortMerge();
     clearConflicts();
-  }, [clearConflicts]);
+  }, [abortMerge, clearConflicts]);
 
   const handleConfirmResolution = useCallback(async (filePath, strategy) => {
     const success = await resolveConflict(filePath, strategy);
