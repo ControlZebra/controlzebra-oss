@@ -76,6 +76,7 @@ function MergeChangesView() {
     fileResolutions = {},
     detectedParentBranch,
     repoInfo,
+    mergeState,
   } = useRepo();
 
   const handleSelect = useCallback((path) => {
@@ -91,6 +92,27 @@ function MergeChangesView() {
     return (
       <div className="px-3 py-4 text-center">
         <p className="text-theme-muted text-sm">No repository open</p>
+      </div>
+    );
+  }
+
+  // Interrupted rebase state - show warning
+  if (mergeState?.inRebase && !conflictCheckResult) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <AlertTriangle
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-orange-400 mx-auto mb-2"
+        />
+        <p className="text-orange-400 text-sm font-medium">Interrupted Rebase</p>
+        <p className="text-theme-muted text-xs mt-1">
+          Use the main panel to recover
+        </p>
+        {mergeState.hasConflicts && (
+          <p className="text-orange-400/80 text-xs mt-2">
+            {conflictedFiles.length} file{conflictedFiles.length !== 1 ? 's' : ''} need attention
+          </p>
+        )}
       </div>
     );
   }
