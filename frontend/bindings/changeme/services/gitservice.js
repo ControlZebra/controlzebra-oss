@@ -78,29 +78,38 @@ export function Branches(repoPath) {
 }
 
 /**
- * CheckBranchConflicts checks for potential merge conflicts between the current branch (child)
- * and a parent branch without actually performing the merge.
+ * CheckBranchConflicts checks for potential merge conflicts when merging the source branch
+ * INTO the target branch without actually performing the merge.
  * This uses `git merge-tree --write-tree` which performs a merge simulation.
  * 
+ * Default behavior (when sourceBranch is empty):
+ * - Checks conflicts for merging current branch INTO targetBranch
+ * 
+ * Parameterized behavior (when both are provided):
+ * - Checks conflicts for merging sourceBranch INTO targetBranch
+ * 
  * The method:
- * 1. Auto-detects parent branch if not provided
- * 2. Fetches the parent branch from origin to ensure we have the latest
- * 3. Runs git merge-tree to detect conflicts
+ * 1. Auto-detects target branch (parent) if not provided
+ * 2. Fetches the target branch from origin to ensure we have the latest
+ * 3. Runs git merge-tree to detect conflicts (simulating merge into target)
  * 4. Returns the list of conflicted files if any
  * 
  * Parameters:
  *   - repoPath: Path to the git repository
- *   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+ *   - targetBranch: Name of the target branch to merge INTO (e.g., "main", "master").
  *     If empty, the parent branch will be auto-detected.
+ *   - sourceBranch: Optional. Name of the source branch to merge FROM.
+ *     If empty, defaults to the current branch.
  * 
  * Returns:
  *   - BranchConflictCheckResult with conflict information
  * @param {string} repoPath
- * @param {string} parentBranch
+ * @param {string} targetBranch
+ * @param {string[]} sourceBranch
  * @returns {$CancellablePromise<$models.BranchConflictCheckResult>}
  */
-export function CheckBranchConflicts(repoPath, parentBranch) {
-    return $Call.ByID(3130135130, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+export function CheckBranchConflicts(repoPath, targetBranch, ...sourceBranch) {
+    return $Call.ByID(3130135130, repoPath, targetBranch, sourceBranch).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType2($result);
     }));
 }
@@ -754,15 +763,29 @@ export function ShowCommit(repoPath, hash) {
 }
 
 /**
- * StartMerge begins an actual merge with the specified branch.
+ * StartMerge begins an actual merge.
  * Uses --no-commit to allow the user to resolve conflicts before committing.
  * This is called after CheckBranchConflicts confirms there will be conflicts.
+ * 
+ * Default behavior (when sourceBranch is empty):
+ * - Merges the current branch INTO the targetBranch
+ * - First checks out targetBranch, then merges the original current branch
+ * 
+ * Parameterized behavior (when both are provided):
+ * - Checks out targetBranch
+ * - Merges sourceBranch into it
+ * 
+ * Parameters:
+ *   - repoPath: Path to the git repository
+ *   - targetBranch: The branch to merge INTO (e.g., "main") - required
+ *   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
  * @param {string} repoPath
- * @param {string} parentBranch
+ * @param {string} targetBranch
+ * @param {string[]} sourceBranch
  * @returns {$CancellablePromise<$models.OperationResult>}
  */
-export function StartMerge(repoPath, parentBranch) {
-    return $Call.ByID(427657069, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+export function StartMerge(repoPath, targetBranch, ...sourceBranch) {
+    return $Call.ByID(427657069, repoPath, targetBranch, sourceBranch).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }

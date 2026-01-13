@@ -206,11 +206,27 @@ export class BranchConflictCheckResult {
         }
         if (!("parentBranch" in $$source)) {
             /**
-             * The parent branch used for checking
+             * The target branch to merge INTO (kept for backward compat)
              * @member
              * @type {string}
              */
             this["parentBranch"] = "";
+        }
+        if (!("targetBranch" in $$source)) {
+            /**
+             * The target branch to merge INTO
+             * @member
+             * @type {string}
+             */
+            this["targetBranch"] = "";
+        }
+        if (!("sourceBranch" in $$source)) {
+            /**
+             * The source branch being merged
+             * @member
+             * @type {string}
+             */
+            this["sourceBranch"] = "";
         }
         if (!("success" in $$source)) {
             /**
