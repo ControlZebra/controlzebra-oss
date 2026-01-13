@@ -3,17 +3,14 @@
  */
 import { memo } from 'react';
 import { AlertTriangle, GitBranch } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { Button } from '../../ui';
-
-const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const iconStyleLg = { width: ICON_SIZES.lg, height: ICON_SIZES.lg };
 
 function SidebarNoRepoPanel({ folderName, onInitialize, isLoading }) {
   return (
     <div className="p-4 text-center">
       <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-yellow-500/10 mb-3">
-        <AlertTriangle style={iconStyleLg} className="text-yellow-500" />
+        <AlertTriangle style={ICON_STYLES.lg} className="text-yellow-500" />
       </div>
       <p className="text-theme-primary text-sm font-medium mb-1">No Version Control</p>
       <p className="text-theme-muted text-xs mb-4">
@@ -25,7 +22,7 @@ function SidebarNoRepoPanel({ folderName, onInitialize, isLoading }) {
         size="sm"
         className="w-full"
       >
-        <GitBranch style={iconStyleSm} />
+        <GitBranch style={ICON_STYLES.sm} />
         Start Tracking
       </Button>
     </div>

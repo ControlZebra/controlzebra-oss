@@ -11,7 +11,8 @@
  */
 import { memo, useState, useCallback } from 'react';
 import { FolderOpen } from 'lucide-react';
-import { ICON_SIZES, MAIN_BRANCHES } from '../../../constants';
+import { MAIN_BRANCHES } from '../../../constants';
+import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { useRepo } from '../../../context';
 import { OpenFolderDialog } from '../../../../bindings/changeme/services/filedialogservice';
 import { Button } from '../../ui';
@@ -22,8 +23,6 @@ import {
   SidebarNoRepoPanel,
   SidebarMergePanel,
 } from '../sidebar-panels';
-
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
 function ExplorerView() {
   const { 
@@ -83,7 +82,7 @@ function ExplorerView() {
           loading={isOpeningFolder}
           className="w-full"
         >
-          <FolderOpen style={iconStyle} />
+          <FolderOpen style={ICON_STYLES.sm} />
           Open Folder
         </Button>
         <p className="text-theme-muted text-xs mt-3">
