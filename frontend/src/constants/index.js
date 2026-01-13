@@ -84,6 +84,27 @@ export const REPO_SETTINGS_CATEGORIES = [
 ];
 
 // ============================================================================
+// PROTECTED BRANCHES
+// Default protected branch names. These branches trigger nudges/warnings.
+// Can be overridden by repository settings.
+// ============================================================================
+export const DEFAULT_PROTECTED_BRANCHES = ['main', 'master', 'develop', 'production'];
+
+// Main branches (subset of protected) where merge requests aren't suggested
+export const MAIN_BRANCHES = ['main', 'master'];
+
+/**
+ * Check if a branch name is in the protected list.
+ * @param {string} branchName - The branch name to check
+ * @param {string[]} protectedList - Optional custom list of protected branches
+ * @returns {boolean}
+ */
+export function isProtectedBranch(branchName, protectedList = DEFAULT_PROTECTED_BRANCHES) {
+  if (!branchName) return false;
+  return protectedList.includes(branchName.toLowerCase());
+}
+
+// ============================================================================
 // FILE EXTENSION COLORS
 // Color classes for file icons based on extension.
 // ============================================================================

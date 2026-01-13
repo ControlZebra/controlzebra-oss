@@ -2,7 +2,7 @@
  * BranchNameModal - Modal for entering a branch name when using "Branch and Save".
  * Used when committing from a protected branch.
  */
-import { memo, useState, useCallback, useEffect } from 'react';
+import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { GitBranch } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import { Button, Input } from '../ui';
@@ -18,11 +18,16 @@ function BranchNameModal({
   currentBranch = 'main',
 }) {
   const [branchName, setBranchName] = useState('');
+  const inputRef = useRef(null);
 
-  // Reset state when modal opens
+  // Reset state when modal opens and focus input
   useEffect(() => {
     if (open) {
       setBranchName(defaultBranchName);
+      // Focus input after state update
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
     }
   }, [open, defaultBranchName]);
 
@@ -43,11 +48,18 @@ function BranchNameModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
+    <div 
+      className="fixed inset-0 z-50" 
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="branch-modal-title"
+    >
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
       
       {/* Modal */}
@@ -56,7 +68,7 @@ function BranchNameModal({
           {/* Header */}
           <div className="px-4 py-3 border-b border-theme-default flex items-center gap-2">
             <GitBranch style={iconStyle} className="text-theme-secondary" />
-            <h2 className="text-theme-primary font-medium flex-1">
+            <h2 id="branch-modal-title" className="text-theme-primary font-medium flex-1">
               Create Branch & Save
             </h2>
           </div>
@@ -64,14 +76,15 @@ function BranchNameModal({
           {/* Content */}
           <div className="p-4 space-y-3">
             <div>
-              <label className="block text-xs text-theme-secondary mb-1">
+              <label htmlFor="branch-name-input" className="block text-xs text-theme-secondary mb-1">
                 Branch name
               </label>
               <Input
+                ref={inputRef}
+                id="branch-name-input"
                 value={branchName}
                 onChange={(e) => setBranchName(e.target.value)}
                 placeholder="feature/my-changes"
-                autoFocus
                 disabled={isLoading}
               />
             </div>

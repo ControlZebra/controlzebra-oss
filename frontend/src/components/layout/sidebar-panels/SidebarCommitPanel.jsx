@@ -2,7 +2,7 @@
  * SidebarCommitPanel - Compact commit form for sidebar.
  * Shows commit message input, action buttons, and changed files list.
  */
-import { memo, useState, useCallback, useEffect } from 'react';
+import { memo, useState, useCallback, useEffect, useMemo } from 'react';
 import {
   FileText,
   Plus,
@@ -13,7 +13,7 @@ import {
   ChevronDown,
   GitBranch,
 } from 'lucide-react';
-import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS } from '../../../constants';
+import { ICON_SIZES, FILE_STATUS, FILE_STATUS_COLORS, isProtectedBranch } from '../../../constants';
 import { Button, Textarea } from '../../ui';
 import { ButtonGroup } from '../../ui/button-group';
 import {
@@ -37,13 +37,6 @@ const STATUS_CONFIG = {
   [FILE_STATUS.RENAMED]: { Icon: Pencil, className: FILE_STATUS_COLORS[FILE_STATUS.RENAMED], label: 'R' },
   [FILE_STATUS.UNTRACKED]: { Icon: HelpCircle, className: FILE_STATUS_COLORS[FILE_STATUS.UNTRACKED], label: '?' },
 };
-
-// Check if branch is protected
-function isProtectedBranch(branchName) {
-  if (!branchName) return false;
-  const protectedBranches = ['main', 'master', 'develop', 'production'];
-  return protectedBranches.includes(branchName.toLowerCase());
-}
 
 // Generate default branch name
 function generateDefaultBranchName(userName) {
@@ -129,9 +122,16 @@ function SidebarCommitPanel({
     fetchDefaults();
   }, [repoPath]);
 
-  const showMasterNudge = isProtectedBranch(currentBranch) && 
-                          changedFiles?.length > 0 && 
-                          !nudgeDismissed;
+  // Memoize computed values to prevent unnecessary re-renders
+  const onProtectedBranch = useMemo(
+    () => isProtectedBranch(currentBranch),
+    [currentBranch]
+  );
+
+  const showMasterNudge = useMemo(
+    () => onProtectedBranch && changedFiles?.length > 0 && !nudgeDismissed,
+    [onProtectedBranch, changedFiles?.length, nudgeDismissed]
+  );
 
   const handleSave = useCallback(async () => {
     if (!message.trim()) return;
@@ -156,8 +156,6 @@ function SidebarCommitPanel({
       setShowRewindModal(false);
     }
   }, [onRewind]);
-
-  const onProtectedBranch = isProtectedBranch(currentBranch);
 
   return (
     <div className="flex flex-col h-full">

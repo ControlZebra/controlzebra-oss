@@ -11,7 +11,7 @@
  */
 import { memo, useState, useCallback } from 'react';
 import { FolderOpen } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES, MAIN_BRANCHES } from '../../../constants';
 import { useRepo } from '../../../context';
 import { OpenFolderDialog } from '../../../../bindings/changeme/services/filedialogservice';
 import { Button } from '../../ui';
@@ -24,9 +24,6 @@ import {
 } from '../sidebar-panels';
 
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-
-// Main branches where we don't suggest merge requests
-const MAIN_BRANCHES = ['main', 'master'];
 
 function ExplorerView() {
   const { 
