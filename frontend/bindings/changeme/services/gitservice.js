@@ -16,6 +16,54 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * AbortAM aborts the current AM (patch application) operation.
+ * Runs: git am --abort
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortAM(repoPath) {
+    return $Call.ByID(4060428791, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortBisect aborts the current bisect session.
+ * Runs: git bisect reset
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortBisect(repoPath) {
+    return $Call.ByID(674756595, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortCherryPick aborts the current cherry-pick operation.
+ * Runs: git cherry-pick --abort
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortCherryPick(repoPath) {
+    return $Call.ByID(741767237, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortCurrentOperation aborts whatever stuck operation is currently in progress.
+ * This is a convenience method that detects the state and calls the appropriate abort.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortCurrentOperation(repoPath) {
+    return $Call.ByID(557036051, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * AbortMerge aborts the current merge operation.
  * Returns the repository to the state before the merge started.
  * @param {string} repoPath
@@ -23,6 +71,18 @@ import * as $models from "./models.js";
  */
 export function AbortMerge(repoPath) {
     return $Call.ByID(195671387, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortRevert aborts the current revert operation.
+ * Runs: git revert --abort
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortRevert(repoPath) {
+    return $Call.ByID(1535209807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -115,6 +175,17 @@ export function CheckBranchConflicts(repoPath, targetBranch, ...sourceBranch) {
 }
 
 /**
+ * CheckForStaleLocks returns a list of any lock files found in .git directory.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string[]>}
+ */
+export function CheckForStaleLocks(repoPath) {
+    return $Call.ByID(1379031881, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * CheckLockFile checks if a .git/index.lock file exists in the repository.
  * This lock file is created by Git during operations and can be left behind if
  * a process crashes or is interrupted.
@@ -123,7 +194,7 @@ export function CheckBranchConflicts(repoPath, targetBranch, ...sourceBranch) {
  */
 export function CheckLockFile(repoPath) {
     return $Call.ByID(3861435054, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -189,7 +260,7 @@ export function Clean(repoPath) {
  */
 export function CleanDryRun(repoPath) {
     return $Call.ByID(690549608, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType3($result);
     }));
 }
 
@@ -234,6 +305,42 @@ export function CompleteMerge(repoPath, message) {
 }
 
 /**
+ * ContinueCherryPick continues the cherry-pick after conflicts are resolved.
+ * Runs: git cherry-pick --continue
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ContinueCherryPick(repoPath) {
+    return $Call.ByID(709235012, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ContinueRebase continues an in-progress rebase after conflicts are resolved.
+ * This should be called after the user resolves conflicts and stages the changes.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ContinueRebase(repoPath) {
+    return $Call.ByID(3466209024, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ContinueRevert continues the revert after conflicts are resolved.
+ * Runs: git revert --continue
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ContinueRevert(repoPath) {
+    return $Call.ByID(1624394218, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * CreateBranchAndCheckout creates a new branch and switches to it.
  * Fails if there are uncommitted changes or if the branch name is invalid.
  * @param {string} repoPath
@@ -242,6 +349,19 @@ export function CompleteMerge(repoPath, message) {
  */
 export function CreateBranchAndCheckout(repoPath, branchName) {
     return $Call.ByID(820271594, repoPath, branchName).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * CreateBranchFromDetached creates a new branch from the current detached HEAD position.
+ * This saves the user's work by attaching it to a named branch.
+ * @param {string} repoPath
+ * @param {string} branchName
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CreateBranchFromDetached(repoPath, branchName) {
+    return $Call.ByID(3193978003, repoPath, branchName).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -343,6 +463,17 @@ export function FetchAll(repoPath) {
 }
 
 /**
+ * GetBisectState returns information about the current bisect session.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<{ [_: string]: any }>}
+ */
+export function GetBisectState(repoPath) {
+    return $Call.ByID(1232794478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
  * GetCommitGraph returns commits with parent references and branch/tag info for graph visualization
  * @param {string} repoPath
  * @param {number} limit
@@ -350,7 +481,7 @@ export function FetchAll(repoPath) {
  */
 export function GetCommitGraph(repoPath, limit) {
     return $Call.ByID(607520174, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -366,7 +497,7 @@ export function GetCommitGraph(repoPath, limit) {
  */
 export function GetConflictSidesInfo(repoPath, parentBranch) {
     return $Call.ByID(2430449675, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -377,7 +508,7 @@ export function GetConflictSidesInfo(repoPath, parentBranch) {
  */
 export function GetConflictedFiles(repoPath) {
     return $Call.ByID(3264929955, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType11($result);
     }));
 }
 
@@ -398,18 +529,19 @@ export function GetCurrentBranch(repoPath) {
  */
 export function GetGitVersion() {
     return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
 /**
- * GetMergeState detects if the repository is in a merge or rebase state.
+ * GetMergeState detects if the repository is in any stuck/interrupted state.
+ * Checks for: merge, rebase, cherry-pick, revert, bisect, AM, detached HEAD, and stale locks.
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.MergeState>}
  */
 export function GetMergeState(repoPath) {
     return $Call.ByID(477378934, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType14($result);
     }));
 }
 
@@ -426,7 +558,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetParentBranch(repoPath) {
     return $Call.ByID(4140919983, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
 }
 
@@ -438,7 +570,19 @@ export function GetParentBranch(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * GetRebaseProgress returns information about the current rebase progress.
+ * This helps users understand where they are in a multi-commit rebase.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<{ [_: string]: any }>}
+ */
+export function GetRebaseProgress(repoPath) {
+    return $Call.ByID(3394304404, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
     }));
 }
 
@@ -450,7 +594,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType17($result);
     }));
 }
 
@@ -504,6 +648,15 @@ export function InitRepoWithLFS(path) {
     return $Call.ByID(4162144414, path).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
+}
+
+/**
+ * IsDetachedHead checks if the repository is in a detached HEAD state.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function IsDetachedHead(repoPath) {
+    return $Call.ByID(4162478497, repoPath);
 }
 
 /**
@@ -567,6 +720,19 @@ export function Push(repoPath) {
 }
 
 /**
+ * RemoveAllStaleLocks removes all stale lock files from the .git directory.
+ * This is a convenience method that removes all known lock files at once.
+ * @param {string} repoPath
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RemoveAllStaleLocks(repoPath, confirm) {
+    return $Call.ByID(2698533175, repoPath, confirm).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * RemoveFile removes a file from the working tree and stages the removal.
  * Equivalent to: git rm <path>
  * @param {string} repoPath
@@ -592,6 +758,20 @@ export function RemoveFile(repoPath, path, cached) {
  */
 export function RemoveLockFile(repoPath) {
     return $Call.ByID(2787472740, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * RemoveStaleLock removes a specific lock file from the .git directory.
+ * This is a potentially dangerous operation - requires confirmation.
+ * @param {string} repoPath
+ * @param {string} lockFile
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RemoveStaleLock(repoPath, lockFile, confirm) {
+    return $Call.ByID(3593242617, repoPath, lockFile, confirm).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -758,7 +938,55 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
+    }));
+}
+
+/**
+ * SkipAMPatch skips the current patch in an AM sequence.
+ * Runs: git am --skip
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function SkipAMPatch(repoPath) {
+    return $Call.ByID(322271250, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * SkipCherryPickCommit skips the current commit in a cherry-pick sequence.
+ * Runs: git cherry-pick --skip
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function SkipCherryPickCommit(repoPath) {
+    return $Call.ByID(1767693211, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * SkipRebaseCommit skips the current commit in an in-progress rebase.
+ * Use this when the current commit's changes are no longer needed.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function SkipRebaseCommit(repoPath) {
+    return $Call.ByID(1957011319, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * SkipRevertCommit skips the current commit in a revert sequence.
+ * Runs: git revert --skip
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function SkipRevertCommit(repoPath) {
+    return $Call.ByID(1196204825, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
     }));
 }
 
@@ -826,7 +1054,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType19($result);
+        return $$createType20($result);
     }));
 }
 
@@ -862,7 +1090,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType20($result);
+        return $$createType21($result);
     }));
 }
 
@@ -875,7 +1103,7 @@ export function SupportsRestore() {
 }
 
 /**
- * Sync performs a git pull --rebase followed by git push
+ * Sync performs a git pull (merge) followed by git push
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.OperationResult>}
  */
@@ -914,21 +1142,22 @@ export function UnstageAll(repoPath) {
 const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.BranchList.createFrom;
 const $$createType2 = $models.BranchConflictCheckResult.createFrom;
-const $$createType3 = $models.LockFileInfo.createFrom;
-const $$createType4 = $Create.Array($Create.Any);
+const $$createType3 = $Create.Array($Create.Any);
+const $$createType4 = $models.LockFileInfo.createFrom;
 const $$createType5 = $models.RepoInfo.createFrom;
 const $$createType6 = $models.RawDiffResult.createFrom;
-const $$createType7 = $models.CommitGraphResult.createFrom;
-const $$createType8 = $models.ConflictSidesInfo.createFrom;
-const $$createType9 = $models.ConflictedFile.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = $models.GitVersion.createFrom;
-const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = $models.MergeState.createFrom;
-const $$createType14 = $models.ParentBranchResult.createFrom;
-const $$createType15 = $models.CommitInfo.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = $models.CommitDetail.createFrom;
-const $$createType18 = $models.StashEntry.createFrom;
-const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = $models.RepoStatus.createFrom;
+const $$createType7 = $Create.Map($Create.Any, $Create.Any);
+const $$createType8 = $models.CommitGraphResult.createFrom;
+const $$createType9 = $models.ConflictSidesInfo.createFrom;
+const $$createType10 = $models.ConflictedFile.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.GitVersion.createFrom;
+const $$createType13 = $Create.Nullable($$createType12);
+const $$createType14 = $models.MergeState.createFrom;
+const $$createType15 = $models.ParentBranchResult.createFrom;
+const $$createType16 = $models.CommitInfo.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = $models.CommitDetail.createFrom;
+const $$createType19 = $models.StashEntry.createFrom;
+const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = $models.RepoStatus.createFrom;

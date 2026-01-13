@@ -96,8 +96,8 @@ type RepositorySettings struct {
 	MaintenanceTask BackgroundTaskConfig `json:"maintenanceTask"`
 
 	// Detailed settings
-	FetchSettings      FetchSettings           `json:"fetchSettings"`
-	LFSSettings        LFSSettings             `json:"lfsSettings"`
+	FetchSettings       FetchSettings           `json:"fetchSettings"`
+	LFSSettings         LFSSettings             `json:"lfsSettings"`
 	MaintenanceSettings MaintenanceSettings     `json:"maintenanceSettings"`
 	ProtectedBranches   ProtectedBranchSettings `json:"protectedBranches"`
 
@@ -108,13 +108,13 @@ type RepositorySettings struct {
 
 // BackgroundTaskStatus represents the current status of a background task
 type BackgroundTaskStatus struct {
-	TaskType    BackgroundTaskType `json:"taskType"`
-	IsRunning   bool               `json:"isRunning"`
-	LastRun     *time.Time         `json:"lastRun,omitempty"`
-	LastResult  *OperationResult   `json:"lastResult,omitempty"`
-	NextRun     *time.Time         `json:"nextRun,omitempty"`
-	RunCount    int                `json:"runCount"`
-	ErrorCount  int                `json:"errorCount"`
+	TaskType   BackgroundTaskType `json:"taskType"`
+	IsRunning  bool               `json:"isRunning"`
+	LastRun    *time.Time         `json:"lastRun,omitempty"`
+	LastResult *OperationResult   `json:"lastResult,omitempty"`
+	NextRun    *time.Time         `json:"nextRun,omitempty"`
+	RunCount   int                `json:"runCount"`
+	ErrorCount int                `json:"errorCount"`
 }
 
 // RepositorySettingsService manages repository-level configuration and background tasks
@@ -124,11 +124,11 @@ type RepositorySettingsService struct {
 	app         *application.App
 
 	// Background task management
-	mu             sync.RWMutex
-	activeRepo     string                          // Currently active repository path
-	taskStatuses   map[BackgroundTaskType]*BackgroundTaskStatus
-	taskCancels    map[string]context.CancelFunc   // repo path -> cancel function
-	taskContexts   map[string]context.Context
+	mu           sync.RWMutex
+	activeRepo   string // Currently active repository path
+	taskStatuses map[BackgroundTaskType]*BackgroundTaskStatus
+	taskCancels  map[string]context.CancelFunc // repo path -> cancel function
+	taskContexts map[string]context.Context
 }
 
 // NewRepositorySettingsService creates a new RepositorySettingsService
@@ -339,7 +339,7 @@ func (r *RepositorySettingsService) UpdateProtectedBranches(repoPath string, pro
 // ResetToDefaults resets all settings for a repository to defaults
 func (r *RepositorySettingsService) ResetToDefaults(repoPath string) OperationResult {
 	defaults := r.GetDefaultSettings(repoPath)
-	
+
 	// Preserve created timestamp if settings exist
 	existing, err := r.GetSettings(repoPath)
 	if err == nil && !existing.CreatedAt.IsZero() {
@@ -748,19 +748,22 @@ func (r *RepositorySettingsService) GetAllGitConfigs(repoPath string) (map[strin
 
 // RecoveryDiagnostics contains information about the repository state
 type RecoveryDiagnostics struct {
-	IsValidRepo      bool     `json:"isValidRepo"`
-	HasMergeConflict bool     `json:"hasMergeConflict"`
-	HasRebaseInProgress bool  `json:"hasRebaseInProgress"`
-	HasCherryPickInProgress bool `json:"hasCherryPickInProgress"`
-	IsDetachedHead   bool     `json:"isDetachedHead"`
-	CurrentBranch    string   `json:"currentBranch"`
-	HasStaleLocks    bool     `json:"hasStaleLocks"`
-	StaleLockFiles   []string `json:"staleLockFiles"`
-	HasUncommittedChanges bool `json:"hasUncommittedChanges"`
-	UnpushedCommits  int      `json:"unpushedCommits"`
-	HasCorruptedObjects bool  `json:"hasCorruptedObjects"`
-	Issues           []string `json:"issues"`
-	Suggestions      []string `json:"suggestions"`
+	IsValidRepo             bool     `json:"isValidRepo"`
+	HasMergeConflict        bool     `json:"hasMergeConflict"`
+	HasRebaseInProgress     bool     `json:"hasRebaseInProgress"`
+	HasCherryPickInProgress bool     `json:"hasCherryPickInProgress"`
+	HasRevertInProgress     bool     `json:"hasRevertInProgress"`
+	HasBisectInProgress     bool     `json:"hasBisectInProgress"`
+	HasAMInProgress         bool     `json:"hasAMInProgress"`
+	IsDetachedHead          bool     `json:"isDetachedHead"`
+	CurrentBranch           string   `json:"currentBranch"`
+	HasStaleLocks           bool     `json:"hasStaleLocks"`
+	StaleLockFiles          []string `json:"staleLockFiles"`
+	HasUncommittedChanges   bool     `json:"hasUncommittedChanges"`
+	UnpushedCommits         int      `json:"unpushedCommits"`
+	HasCorruptedObjects     bool     `json:"hasCorruptedObjects"`
+	Issues                  []string `json:"issues"`
+	Suggestions             []string `json:"suggestions"`
 }
 
 // ReflogEntry represents an entry from git reflog
@@ -828,6 +831,30 @@ func (r *RepositorySettingsService) DiagnoseRepository(repoPath string) Recovery
 		diag.HasCherryPickInProgress = true
 		diag.Issues = append(diag.Issues, "Cherry-pick in progress")
 		diag.Suggestions = append(diag.Suggestions, "Complete or abort the cherry-pick")
+	}
+
+	// Check for revert in progress
+	revertPath := filepath.Join(repoPath, ".git", "REVERT_HEAD")
+	if _, err := os.Stat(revertPath); err == nil {
+		diag.HasRevertInProgress = true
+		diag.Issues = append(diag.Issues, "Revert in progress")
+		diag.Suggestions = append(diag.Suggestions, "Complete or abort the revert")
+	}
+
+	// Check for bisect in progress
+	bisectPath := filepath.Join(repoPath, ".git", "BISECT_LOG")
+	if _, err := os.Stat(bisectPath); err == nil {
+		diag.HasBisectInProgress = true
+		diag.Issues = append(diag.Issues, "Bug search (bisect) in progress")
+		diag.Suggestions = append(diag.Suggestions, "Complete or abort the bisect session")
+	}
+
+	// Check for AM (patch application) in progress
+	amPath := filepath.Join(repoPath, ".git", "rebase-apply", "applying")
+	if _, err := os.Stat(amPath); err == nil {
+		diag.HasAMInProgress = true
+		diag.Issues = append(diag.Issues, "Patch application (git am) in progress")
+		diag.Suggestions = append(diag.Suggestions, "Complete or abort the patch application")
 	}
 
 	// Check for stale lock files
@@ -1120,7 +1147,7 @@ func (r *RepositorySettingsService) StashAndReset(repoPath string, ref string, s
 func (r *RepositorySettingsService) ClearCredentialCache(repoPath string) OperationResult {
 	// Try to clear the credential cache
 	result := r.runner.RunGit(repoPath, "credential-cache", "exit")
-	
+
 	// This command may fail if credential-cache is not being used, which is fine
 	if result.Success {
 		return successOp("Credential cache cleared")

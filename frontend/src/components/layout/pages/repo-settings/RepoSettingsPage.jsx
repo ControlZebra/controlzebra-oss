@@ -15,6 +15,10 @@ import {
   Cloud, 
   Trash2,
   Zap,
+  GitBranch,
+  RotateCcw,
+  Search,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../../constants';
@@ -50,7 +54,13 @@ import {
   AbortCherryPick,
   RepairRepository,
   ResetToDefaults,
+  RecoverFromDetachedHead,
 } from '../../../../../bindings/changeme/services/repositorysettingsservice';
+import {
+  AbortRevert,
+  AbortBisect,
+  AbortAM,
+} from '../../../../../bindings/changeme/services/gitservice';
 import { BackgroundTaskType } from '../../../../../bindings/changeme/services/models';
 
 const iconStyle = { width: ICON_SIZES.md, height: ICON_SIZES.md };
@@ -744,6 +754,94 @@ const PerformancePanel = memo(function PerformancePanel({ settings, onUpdate, re
 });
 
 // ============================================================================
+// Detached HEAD Recovery Component
+// ============================================================================
+const DetachedHeadRecovery = memo(function DetachedHeadRecovery({ 
+  repoPath, 
+  onRecovered, 
+  isFixing, 
+  setIsFixing 
+}) {
+  const [branchName, setBranchName] = useState('');
+  const [error, setError] = useState('');
+
+  const handleCreateBranch = async () => {
+    if (!branchName.trim()) {
+      setError('Please enter a branch name');
+      return;
+    }
+    
+    // Basic branch name validation
+    if (!/^[a-zA-Z0-9_/-]+$/.test(branchName)) {
+      setError('Branch name can only contain letters, numbers, underscores, hyphens, and slashes');
+      return;
+    }
+
+    setIsFixing(true);
+    setError('');
+    try {
+      const result = await RecoverFromDetachedHead(repoPath, branchName, '');
+      if (result.success) {
+        toast.success(`Created and switched to branch: ${branchName}`);
+        setBranchName('');
+        onRecovered();
+      } else {
+        setError(result.error || 'Failed to create branch');
+        toast.error(result.error || 'Failed to create branch');
+      }
+    } catch (err) {
+      setError(err.message);
+      toast.error(`Failed: ${err.message}`);
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  return (
+    <Card className="bg-theme-base border-blue-500/30">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <GitBranch style={iconStyle} className="text-blue-400" />
+          <CardTitle className="text-blue-400">Not on Any Branch (Detached HEAD)</CardTitle>
+        </div>
+        <CardDescription>
+          Your work isn't on a branch yet. Create a branch to save your changes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <Input
+            placeholder="Enter new branch name (e.g., my-saved-work)"
+            value={branchName}
+            onChange={(e) => {
+              setBranchName(e.target.value);
+              setError('');
+            }}
+            className="flex-1"
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateBranch()}
+          />
+          <Button
+            onClick={handleCreateBranch}
+            disabled={isFixing || !branchName.trim()}
+            loading={isFixing}
+          >
+            <GitBranch style={iconStyleSm} className="mr-1" />
+            Create Branch
+          </Button>
+        </div>
+        {error && (
+          <p className="text-red-400 text-sm">{error}</p>
+        )}
+        <p className="text-theme-muted text-xs">
+          This will create a new branch from your current position and switch to it, 
+          preserving all your work.
+        </p>
+      </CardContent>
+    </Card>
+  );
+});
+
+// ============================================================================
 // Troubleshooting Panel
 // ============================================================================
 const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }) {
@@ -900,6 +998,43 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }) {
             >
               <AlertTriangle style={iconStyleSm} className="mr-2" />
               Cancel Stuck Cherry-Pick
+              <span className="ml-auto text-theme-muted text-xs">Reverts to before the cherry-pick</span>
+            </Button>
+          )}
+          {diagnostics?.hasRevertInProgress && (
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handleFix(AbortRevert, 'Abort revert')}
+              disabled={isFixing}
+            >
+              <RotateCcw style={iconStyleSm} className="mr-2" />
+              Cancel Stuck Revert
+              <span className="ml-auto text-theme-muted text-xs">Reverts to before the revert started</span>
+            </Button>
+          )}
+          {diagnostics?.hasBisectInProgress && (
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handleFix(AbortBisect, 'End bisect')}
+              disabled={isFixing}
+            >
+              <Search style={iconStyleSm} className="mr-2" />
+              End Bug Search (Bisect)
+              <span className="ml-auto text-theme-muted text-xs">Exits bisect session</span>
+            </Button>
+          )}
+          {diagnostics?.hasAMInProgress && (
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handleFix(AbortAM, 'Abort patch application')}
+              disabled={isFixing}
+            >
+              <FileText style={iconStyleSm} className="mr-2" />
+              Cancel Patch Application
+              <span className="ml-auto text-theme-muted text-xs">Aborts git am operation</span>
             </Button>
           )}
           <Button
@@ -914,6 +1049,16 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }) {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Detached HEAD Recovery */}
+      {diagnostics?.isDetachedHead && (
+        <DetachedHeadRecovery 
+          repoPath={repoPath} 
+          onRecovered={runDiagnostics}
+          isFixing={isFixing}
+          setIsFixing={setIsFixing}
+        />
+      )}
     </div>
   );
 });

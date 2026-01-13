@@ -51,6 +51,22 @@ import {
   AbortMerge,
   CompleteMerge,
   GetConflictSidesInfo,
+  // Stuck state recovery methods
+  AbortCurrentOperation,
+  AbortCherryPick,
+  ContinueCherryPick,
+  SkipCherryPickCommit,
+  AbortRevert,
+  ContinueRevert,
+  SkipRevertCommit,
+  AbortBisect,
+  GetBisectState,
+  AbortAM,
+  SkipAMPatch,
+  CreateBranchFromDetached,
+  RemoveAllStaleLocks,
+  ContinueRebase,
+  SkipRebaseCommit,
 } from '../../bindings/changeme/services/gitservice';
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
@@ -196,6 +212,27 @@ export function RepoProvider({ children }) {
       const folderName = path.split('/').pop();
       if (info.isRepo) {
         showMessage('success', `Opened repository: ${folderName}`);
+        
+        // Check for interrupted merge/rebase state
+        try {
+          const state = await GetMergeState(path);
+          if (state.inMerge || state.inRebase) {
+            setMergeState(state);
+            
+            // Fetch conflicted files if in conflict state
+            if (state.hasConflicts) {
+              const conflicts = await GetConflictedFiles(path);
+              setConflictedFiles(conflicts || []);
+            }
+            
+            // Show warning toast about interrupted operation
+            const opType = state.inRebase ? 'rebase' : 'merge';
+            showMessage('warning', `Repository has an interrupted ${opType}. Use "Combine Versions" to resolve or abort.`);
+          }
+        } catch (err) {
+          console.error('Failed to check merge state:', err);
+          // Non-fatal, continue without state check
+        }
       } else {
         showMessage('info', `Opened folder: ${folderName} (no version control)`);
       }
@@ -1187,6 +1224,275 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath]);
 
+  // ===== Stuck State Recovery Actions =====
+  
+  // Abort any current stuck operation (unified abort)
+  const abortCurrentOperation = useCallback(async () => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+
+    try {
+      const result = await AbortCurrentOperation(repoPath);
+      if (!result.success) {
+        showMessage('error', result.error || result.message || 'Failed to abort operation');
+        return false;
+      }
+
+      showMessage('success', result.message || 'Operation aborted');
+      clearConflicts();
+      await refreshAll();
+      return true;
+    } catch (err) {
+      showMessage('error', `Failed to abort operation: ${err.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, clearConflicts, refreshAll]);
+
+  // Cherry-pick recovery
+  const abortCherryPick = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await AbortCherryPick(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to abort cherry-pick: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const continueCherryPick = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await ContinueCherryPick(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to continue cherry-pick: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const skipCherryPickCommit = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await SkipCherryPickCommit(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to skip commit: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  // Revert recovery
+  const abortRevert = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await AbortRevert(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to abort revert: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const continueRevert = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await ContinueRevert(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to continue revert: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const skipRevertCommit = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await SkipRevertCommit(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to skip commit: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  // Rebase recovery (continue and skip)
+  const continueRebase = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await ContinueRebase(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to continue rebase: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const skipRebaseCommit = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await SkipRebaseCommit(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to skip commit: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  // Bisect recovery
+  const abortBisect = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await AbortBisect(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to abort bisect: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const getBisectState = useCallback(async () => {
+    if (!repoPath) return null;
+    try {
+      return await GetBisectState(repoPath);
+    } catch (err) {
+      console.error('Failed to get bisect state:', err);
+      return null;
+    }
+  }, [repoPath]);
+
+  // AM (patch) recovery
+  const abortAM = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await AbortAM(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to abort patch application: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  const skipAMPatch = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await SkipAMPatch(repoPath);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to skip patch: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
+  // Detached HEAD recovery
+  const createBranchFromDetached = useCallback(async (branchName) => {
+    if (!repoPath) return false;
+    if (!branchName) {
+      showMessage('error', 'Branch name is required');
+      return false;
+    }
+    try {
+      const result = await CreateBranchFromDetached(repoPath, branchName);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        await refreshBranches();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to create branch: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll, refreshBranches]);
+
+  // Lock file recovery
+  const removeAllStaleLocks = useCallback(async () => {
+    if (!repoPath) return false;
+    try {
+      const result = await RemoveAllStaleLocks(repoPath, true);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      showMessage('error', `Failed to remove lock files: ${err.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
   // Also refresh branches when repo changes
   useEffect(() => {
     if (repoPath) {
@@ -1274,6 +1580,30 @@ export function RepoProvider({ children }) {
     abortMerge,
     completeMerge,
     refreshMergeState,
+
+    // v2: Stuck state recovery actions
+    abortCurrentOperation,
+    // Cherry-pick
+    abortCherryPick,
+    continueCherryPick,
+    skipCherryPickCommit,
+    // Revert
+    abortRevert,
+    continueRevert,
+    skipRevertCommit,
+    // Rebase
+    continueRebase,
+    skipRebaseCommit,
+    // Bisect
+    abortBisect,
+    getBisectState,
+    // AM (patch)
+    abortAM,
+    skipAMPatch,
+    // Detached HEAD
+    createBranchFromDetached,
+    // Lock files
+    removeAllStaleLocks,
   }), [
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -1288,6 +1618,15 @@ export function RepoProvider({ children }) {
     detectedParentBranch, fetchParentBranch, conflictSidesInfo,
     fileResolutions, setFileResolution, mergeState, isResolvingConflict,
     resolveConflict, applyAllResolutions, abortMerge, completeMerge, refreshMergeState,
+    // Stuck state recovery
+    abortCurrentOperation,
+    abortCherryPick, continueCherryPick, skipCherryPickCommit,
+    abortRevert, continueRevert, skipRevertCommit,
+    continueRebase, skipRebaseCommit,
+    abortBisect, getBisectState,
+    abortAM, skipAMPatch,
+    createBranchFromDetached,
+    removeAllStaleLocks,
   ]);
 
   return (

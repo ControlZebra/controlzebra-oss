@@ -858,10 +858,10 @@ func (g *GitService) Push(repoPath string) OperationResult {
 	}
 }
 
-// Sync performs a git pull --rebase followed by git push
+// Sync performs a git pull (merge) followed by git push
 func (g *GitService) Sync(repoPath string) OperationResult {
-	// First, pull with rebase
-	pullResult := g.runner.RunGit(repoPath, "pull", "--rebase")
+	// First, pull with merge (not rebase)
+	pullResult := g.runner.RunGit(repoPath, "pull", "--no-rebase")
 	if !pullResult.Success {
 		errMsg := getErrorMessage(pullResult)
 		// Check for common errors
@@ -2073,15 +2073,32 @@ func (g *GitService) SetProtectedBranches(repoPath string, branches []string) Op
 }
 
 // ============================================================================
-// v2 Additions - Conflict Resolution
+// v2 Additions - Conflict Resolution & Stuck State Detection
 // ============================================================================
 
-// MergeState represents the current merge/rebase state of a repository
+// MergeState represents the current repository operation state.
+// Extended to detect all common "stuck" states that can confuse users.
+// Priority for display: Locked > Merge/Rebase > Cherry-Pick > Revert > Bisect > AM > Detached HEAD
 type MergeState struct {
+	// Original merge/rebase states
 	InMerge      bool   `json:"inMerge"`
 	InRebase     bool   `json:"inRebase"`
 	HasConflicts bool   `json:"hasConflicts"`
 	Message      string `json:"message,omitempty"` // Merge commit message if available
+
+	// Additional stuck states
+	InCherryPick bool `json:"inCherryPick"` // .git/CHERRY_PICK_HEAD exists
+	InRevert     bool `json:"inRevert"`     // .git/REVERT_HEAD exists
+	InBisect     bool `json:"inBisect"`     // .git/BISECT_LOG exists
+	InAM         bool `json:"inAM"`         // .git/rebase-apply/applying exists
+	IsDetached   bool `json:"isDetached"`   // HEAD points to commit hash, not branch
+	HasLockFile  bool `json:"hasLockFile"`  // .git/index.lock exists (stale lock)
+
+	// Additional context
+	DetachedAt  string   `json:"detachedAt,omitempty"`  // Commit hash when detached
+	LockFiles   []string `json:"lockFiles,omitempty"`   // List of lock files found
+	StuckType   string   `json:"stuckType,omitempty"`   // Primary stuck state type for UI
+	UserMessage string   `json:"userMessage,omitempty"` // User-friendly explanation
 }
 
 // ConflictedFile represents a file with merge conflicts
@@ -2090,28 +2107,119 @@ type ConflictedFile struct {
 	Status string `json:"status"` // "both-modified", "deleted-by-us", "deleted-by-them", "both-added"
 }
 
-// GetMergeState detects if the repository is in a merge or rebase state.
+// GetMergeState detects if the repository is in any stuck/interrupted state.
+// Checks for: merge, rebase, cherry-pick, revert, bisect, AM, detached HEAD, and stale locks.
 func (g *GitService) GetMergeState(repoPath string) MergeState {
 	state := MergeState{}
+	gitDir := filepath.Join(repoPath, ".git")
 
-	// Check for merge in progress
-	mergePath := filepath.Join(repoPath, ".git", "MERGE_HEAD")
+	// Check for merge in progress (.git/MERGE_HEAD)
+	mergePath := filepath.Join(gitDir, "MERGE_HEAD")
 	if _, err := os.Stat(mergePath); err == nil {
 		state.InMerge = true
+		state.StuckType = "merge"
+		state.UserMessage = "A merge operation was interrupted. Resolve conflicts or abort to continue."
 		// Try to read the merge message
-		msgPath := filepath.Join(repoPath, ".git", "MERGE_MSG")
+		msgPath := filepath.Join(gitDir, "MERGE_MSG")
 		if msgData, err := os.ReadFile(msgPath); err == nil {
 			state.Message = strings.TrimSpace(string(msgData))
 		}
 	}
 
-	// Check for rebase in progress
-	rebasePath := filepath.Join(repoPath, ".git", "rebase-merge")
-	rebaseApplyPath := filepath.Join(repoPath, ".git", "rebase-apply")
+	// Check for rebase in progress (.git/rebase-merge or .git/rebase-apply)
+	rebasePath := filepath.Join(gitDir, "rebase-merge")
+	rebaseApplyPath := filepath.Join(gitDir, "rebase-apply")
 	if _, err := os.Stat(rebasePath); err == nil {
 		state.InRebase = true
+		if state.StuckType == "" {
+			state.StuckType = "rebase"
+			state.UserMessage = "A rebase operation was interrupted. Resolve conflicts, continue, or abort."
+		}
 	} else if _, err := os.Stat(rebaseApplyPath); err == nil {
-		state.InRebase = true
+		// Check if it's actually an AM operation (patch application)
+		applyingPath := filepath.Join(rebaseApplyPath, "applying")
+		if _, err := os.Stat(applyingPath); err == nil {
+			state.InAM = true
+			if state.StuckType == "" {
+				state.StuckType = "am"
+				state.UserMessage = "A patch application was interrupted. Skip the patch or abort."
+			}
+		} else {
+			state.InRebase = true
+			if state.StuckType == "" {
+				state.StuckType = "rebase"
+				state.UserMessage = "A rebase operation was interrupted. Resolve conflicts, continue, or abort."
+			}
+		}
+	}
+
+	// Check for cherry-pick in progress (.git/CHERRY_PICK_HEAD)
+	cherryPickPath := filepath.Join(gitDir, "CHERRY_PICK_HEAD")
+	if _, err := os.Stat(cherryPickPath); err == nil {
+		state.InCherryPick = true
+		if state.StuckType == "" {
+			state.StuckType = "cherry-pick"
+			state.UserMessage = "A cherry-pick operation was interrupted. Resolve conflicts or abort."
+		}
+	}
+
+	// Check for revert in progress (.git/REVERT_HEAD)
+	revertPath := filepath.Join(gitDir, "REVERT_HEAD")
+	if _, err := os.Stat(revertPath); err == nil {
+		state.InRevert = true
+		if state.StuckType == "" {
+			state.StuckType = "revert"
+			state.UserMessage = "Undoing a previous save caused conflicts. Resolve or abort."
+		}
+	}
+
+	// Check for bisect in progress (.git/BISECT_LOG or .git/BISECT_START)
+	bisectLogPath := filepath.Join(gitDir, "BISECT_LOG")
+	bisectStartPath := filepath.Join(gitDir, "BISECT_START")
+	if _, err := os.Stat(bisectLogPath); err == nil {
+		state.InBisect = true
+		if state.StuckType == "" {
+			state.StuckType = "bisect"
+			state.UserMessage = "Bug search in progress. Complete the search or abort to resume normal work."
+		}
+	} else if _, err := os.Stat(bisectStartPath); err == nil {
+		state.InBisect = true
+		if state.StuckType == "" {
+			state.StuckType = "bisect"
+			state.UserMessage = "Bug search in progress. Complete the search or abort to resume normal work."
+		}
+	}
+
+	// Check for detached HEAD state
+	headPath := filepath.Join(gitDir, "HEAD")
+	if headData, err := os.ReadFile(headPath); err == nil {
+		headContent := strings.TrimSpace(string(headData))
+		// If HEAD contains a commit hash instead of "ref: refs/heads/..."
+		if !strings.HasPrefix(headContent, "ref:") {
+			state.IsDetached = true
+			state.DetachedAt = headContent
+			if state.StuckType == "" {
+				state.StuckType = "detached"
+				state.UserMessage = "You're not on any branch. Create a branch to save your work."
+			}
+		}
+	}
+
+	// Check for stale lock files (.git/index.lock and others)
+	lockFiles := []string{}
+	potentialLocks := []string{"index.lock", "HEAD.lock", "config.lock"}
+	for _, lockFile := range potentialLocks {
+		lockPath := filepath.Join(gitDir, lockFile)
+		if _, err := os.Stat(lockPath); err == nil {
+			lockFiles = append(lockFiles, lockFile)
+		}
+	}
+	if len(lockFiles) > 0 {
+		state.HasLockFile = true
+		state.LockFiles = lockFiles
+		// Lock files are highest priority
+		state.StuckType = "locked"
+		state.UserMessage = "A previous operation didn't complete cleanly. Remove the lock to continue."
 	}
 
 	// Check for conflicts
@@ -2465,6 +2573,554 @@ func (g *GitService) AbortMerge(repoPath string) OperationResult {
 		return successOp("Rebase aborted")
 	}
 	return successOp("Merge aborted")
+}
+
+// ContinueRebase continues an in-progress rebase after conflicts are resolved.
+// This should be called after the user resolves conflicts and stages the changes.
+func (g *GitService) ContinueRebase(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRebase {
+		return failedOp("No rebase in progress")
+	}
+
+	// Check if there are still conflicts
+	conflicted, err := g.GetConflictedFiles(repoPath)
+	if err != nil {
+		return failedOp("Failed to check conflicts: " + err.Error())
+	}
+	if len(conflicted) > 0 {
+		return failedOp(fmt.Sprintf("Cannot continue rebase: %d file(s) still have conflicts", len(conflicted)))
+	}
+
+	result := g.runner.RunGit(repoPath, "rebase", "--continue")
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		// Check if there are still more commits to apply
+		if strings.Contains(errMsg, "No changes") {
+			// Skip this commit and continue
+			skipResult := g.runner.RunGit(repoPath, "rebase", "--skip")
+			if skipResult.Success {
+				return successOp("Commit skipped, continuing rebase")
+			}
+			return failedOp("Failed to skip commit: " + getErrorMessage(skipResult))
+		}
+		return failedOp("Failed to continue rebase: " + errMsg)
+	}
+
+	// Check if rebase completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InRebase {
+		return successOp("Rebase completed successfully")
+	}
+	return successOp("Rebase continuing")
+}
+
+// SkipRebaseCommit skips the current commit in an in-progress rebase.
+// Use this when the current commit's changes are no longer needed.
+func (g *GitService) SkipRebaseCommit(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRebase {
+		return failedOp("No rebase in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "rebase", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip commit: " + getErrorMessage(result))
+	}
+
+	// Check if rebase completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InRebase {
+		return successOp("Rebase completed successfully")
+	}
+	return successOp("Commit skipped, rebase continuing")
+}
+
+// GetRebaseProgress returns information about the current rebase progress.
+// This helps users understand where they are in a multi-commit rebase.
+func (g *GitService) GetRebaseProgress(repoPath string) map[string]interface{} {
+	progress := map[string]interface{}{
+		"inRebase":    false,
+		"current":     0,
+		"total":       0,
+		"currentHash": "",
+		"message":     "",
+	}
+
+	// Check rebase-merge directory (interactive rebase)
+	rebaseMergePath := filepath.Join(repoPath, ".git", "rebase-merge")
+	if _, err := os.Stat(rebaseMergePath); err == nil {
+		progress["inRebase"] = true
+
+		// Read current step
+		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "msgnum")); err == nil {
+			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				progress["current"] = num
+			}
+		}
+
+		// Read total steps
+		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "end")); err == nil {
+			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				progress["total"] = num
+			}
+		}
+
+		// Read current commit being applied
+		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "stopped-sha")); err == nil {
+			progress["currentHash"] = strings.TrimSpace(string(data))
+		}
+
+		// Read commit message
+		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "message")); err == nil {
+			progress["message"] = strings.TrimSpace(string(data))
+		}
+
+		return progress
+	}
+
+	// Check rebase-apply directory (am-style rebase)
+	rebaseApplyPath := filepath.Join(repoPath, ".git", "rebase-apply")
+	if _, err := os.Stat(rebaseApplyPath); err == nil {
+		progress["inRebase"] = true
+
+		// Read current step
+		if data, err := os.ReadFile(filepath.Join(rebaseApplyPath, "next")); err == nil {
+			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				progress["current"] = num
+			}
+		}
+
+		// Read total steps
+		if data, err := os.ReadFile(filepath.Join(rebaseApplyPath, "last")); err == nil {
+			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				progress["total"] = num
+			}
+		}
+	}
+
+	return progress
+}
+
+// ============================================================================
+// Cherry-Pick Operations
+// ============================================================================
+
+// AbortCherryPick aborts the current cherry-pick operation.
+// Runs: git cherry-pick --abort
+func (g *GitService) AbortCherryPick(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InCherryPick {
+		return failedOp("No cherry-pick in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "cherry-pick", "--abort")
+	if !result.Success {
+		return failedOp("Failed to abort cherry-pick: " + getErrorMessage(result))
+	}
+
+	return successOp("Cherry-pick aborted")
+}
+
+// ContinueCherryPick continues the cherry-pick after conflicts are resolved.
+// Runs: git cherry-pick --continue
+func (g *GitService) ContinueCherryPick(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InCherryPick {
+		return failedOp("No cherry-pick in progress")
+	}
+
+	// Check if there are still conflicts
+	conflicted, err := g.GetConflictedFiles(repoPath)
+	if err != nil {
+		return failedOp("Failed to check conflicts: " + err.Error())
+	}
+	if len(conflicted) > 0 {
+		return failedOp(fmt.Sprintf("Cannot continue cherry-pick: %d file(s) still have conflicts", len(conflicted)))
+	}
+
+	result := g.runner.RunGit(repoPath, "cherry-pick", "--continue")
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "No changes") {
+			// Skip this commit
+			skipResult := g.runner.RunGit(repoPath, "cherry-pick", "--skip")
+			if skipResult.Success {
+				return successOp("Commit skipped (no changes)")
+			}
+			return failedOp("Failed to skip commit: " + getErrorMessage(skipResult))
+		}
+		return failedOp("Failed to continue cherry-pick: " + errMsg)
+	}
+
+	// Check if cherry-pick completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InCherryPick {
+		return successOp("Cherry-pick completed successfully")
+	}
+	return successOp("Cherry-pick continuing")
+}
+
+// SkipCherryPickCommit skips the current commit in a cherry-pick sequence.
+// Runs: git cherry-pick --skip
+func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InCherryPick {
+		return failedOp("No cherry-pick in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "cherry-pick", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip commit: " + getErrorMessage(result))
+	}
+
+	// Check if cherry-pick completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InCherryPick {
+		return successOp("Cherry-pick completed successfully")
+	}
+	return successOp("Commit skipped, cherry-pick continuing")
+}
+
+// ============================================================================
+// Revert Operations
+// ============================================================================
+
+// AbortRevert aborts the current revert operation.
+// Runs: git revert --abort
+func (g *GitService) AbortRevert(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRevert {
+		return failedOp("No revert in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "revert", "--abort")
+	if !result.Success {
+		return failedOp("Failed to abort revert: " + getErrorMessage(result))
+	}
+
+	return successOp("Revert aborted")
+}
+
+// ContinueRevert continues the revert after conflicts are resolved.
+// Runs: git revert --continue
+func (g *GitService) ContinueRevert(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRevert {
+		return failedOp("No revert in progress")
+	}
+
+	// Check if there are still conflicts
+	conflicted, err := g.GetConflictedFiles(repoPath)
+	if err != nil {
+		return failedOp("Failed to check conflicts: " + err.Error())
+	}
+	if len(conflicted) > 0 {
+		return failedOp(fmt.Sprintf("Cannot continue revert: %d file(s) still have conflicts", len(conflicted)))
+	}
+
+	result := g.runner.RunGit(repoPath, "revert", "--continue")
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "No changes") {
+			// Skip this commit
+			skipResult := g.runner.RunGit(repoPath, "revert", "--skip")
+			if skipResult.Success {
+				return successOp("Commit skipped (no changes)")
+			}
+			return failedOp("Failed to skip commit: " + getErrorMessage(skipResult))
+		}
+		return failedOp("Failed to continue revert: " + errMsg)
+	}
+
+	// Check if revert completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InRevert {
+		return successOp("Revert completed successfully")
+	}
+	return successOp("Revert continuing")
+}
+
+// SkipRevertCommit skips the current commit in a revert sequence.
+// Runs: git revert --skip
+func (g *GitService) SkipRevertCommit(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRevert {
+		return failedOp("No revert in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "revert", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip commit: " + getErrorMessage(result))
+	}
+
+	// Check if revert completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InRevert {
+		return successOp("Revert completed successfully")
+	}
+	return successOp("Commit skipped, revert continuing")
+}
+
+// ============================================================================
+// Bisect Operations
+// ============================================================================
+
+// AbortBisect aborts the current bisect session.
+// Runs: git bisect reset
+func (g *GitService) AbortBisect(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InBisect {
+		return failedOp("No bisect in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "bisect", "reset")
+	if !result.Success {
+		return failedOp("Failed to abort bisect: " + getErrorMessage(result))
+	}
+
+	return successOp("Bug search aborted, returned to normal state")
+}
+
+// GetBisectState returns information about the current bisect session.
+func (g *GitService) GetBisectState(repoPath string) map[string]interface{} {
+	info := map[string]interface{}{
+		"inBisect":    false,
+		"stepsLeft":   0,
+		"good":        "",
+		"bad":         "",
+		"currentHash": "",
+	}
+
+	state := g.GetMergeState(repoPath)
+	if !state.InBisect {
+		return info
+	}
+
+	info["inBisect"] = true
+
+	// Read bisect log
+	bisectLogPath := filepath.Join(repoPath, ".git", "BISECT_LOG")
+	if data, err := os.ReadFile(bisectLogPath); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "# good:") {
+				parts := strings.Fields(line)
+				if len(parts) >= 3 {
+					info["good"] = parts[2]
+				}
+			} else if strings.HasPrefix(line, "# bad:") {
+				parts := strings.Fields(line)
+				if len(parts) >= 3 {
+					info["bad"] = parts[2]
+				}
+			}
+		}
+	}
+
+	// Get current HEAD
+	headResult := g.runner.RunGit(repoPath, "rev-parse", "--short", "HEAD")
+	if headResult.Success {
+		info["currentHash"] = strings.TrimSpace(headResult.Stdout)
+	}
+
+	return info
+}
+
+// ============================================================================
+// AM (Apply Mailbox) Operations
+// ============================================================================
+
+// AbortAM aborts the current AM (patch application) operation.
+// Runs: git am --abort
+func (g *GitService) AbortAM(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InAM {
+		return failedOp("No patch application in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "am", "--abort")
+	if !result.Success {
+		return failedOp("Failed to abort patch application: " + getErrorMessage(result))
+	}
+
+	return successOp("Patch application aborted")
+}
+
+// SkipAMPatch skips the current patch in an AM sequence.
+// Runs: git am --skip
+func (g *GitService) SkipAMPatch(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InAM {
+		return failedOp("No patch application in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "am", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip patch: " + getErrorMessage(result))
+	}
+
+	// Check if AM completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InAM {
+		return successOp("Patch application completed")
+	}
+	return successOp("Patch skipped, continuing")
+}
+
+// ============================================================================
+// Detached HEAD Operations
+// ============================================================================
+
+// IsDetachedHead checks if the repository is in a detached HEAD state.
+func (g *GitService) IsDetachedHead(repoPath string) bool {
+	state := g.GetMergeState(repoPath)
+	return state.IsDetached
+}
+
+// CreateBranchFromDetached creates a new branch from the current detached HEAD position.
+// This saves the user's work by attaching it to a named branch.
+func (g *GitService) CreateBranchFromDetached(repoPath string, branchName string) OperationResult {
+	if branchName == "" {
+		return failedOp("Branch name is required")
+	}
+
+	state := g.GetMergeState(repoPath)
+	if !state.IsDetached {
+		return failedOp("Not in detached HEAD state")
+	}
+
+	// Create and checkout the new branch
+	result := g.runner.RunGit(repoPath, "checkout", "-b", branchName)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "already exists") {
+			return failedOp(fmt.Sprintf("Branch '%s' already exists. Choose a different name.", branchName))
+		}
+		return failedOp("Failed to create branch: " + errMsg)
+	}
+
+	return successOp(fmt.Sprintf("Created branch '%s' and switched to it. Your work is now saved.", branchName))
+}
+
+// ============================================================================
+// Lock File Operations
+// ============================================================================
+
+// CheckForStaleLocks returns a list of any lock files found in .git directory.
+func (g *GitService) CheckForStaleLocks(repoPath string) []string {
+	state := g.GetMergeState(repoPath)
+	return state.LockFiles
+}
+
+// RemoveStaleLock removes a specific lock file from the .git directory.
+// This is a potentially dangerous operation - requires confirmation.
+func (g *GitService) RemoveStaleLock(repoPath string, lockFile string, confirm bool) OperationResult {
+	if !confirm {
+		return failedOp("Confirmation required to remove lock file")
+	}
+
+	// Only allow removing known lock files (security)
+	allowedLocks := map[string]bool{
+		"index.lock":  true,
+		"HEAD.lock":   true,
+		"config.lock": true,
+	}
+
+	if !allowedLocks[lockFile] {
+		return failedOp(fmt.Sprintf("Unknown lock file: %s", lockFile))
+	}
+
+	lockPath := filepath.Join(repoPath, ".git", lockFile)
+
+	// Check if lock file exists
+	if _, err := os.Stat(lockPath); os.IsNotExist(err) {
+		return failedOp("Lock file not found")
+	}
+
+	// Remove the lock file
+	if err := os.Remove(lockPath); err != nil {
+		return failedOp("Failed to remove lock file: " + err.Error())
+	}
+
+	return successOp(fmt.Sprintf("Removed %s - you can now continue working", lockFile))
+}
+
+// RemoveAllStaleLocks removes all stale lock files from the .git directory.
+// This is a convenience method that removes all known lock files at once.
+func (g *GitService) RemoveAllStaleLocks(repoPath string, confirm bool) OperationResult {
+	if !confirm {
+		return failedOp("Confirmation required to remove lock files")
+	}
+
+	state := g.GetMergeState(repoPath)
+	if !state.HasLockFile || len(state.LockFiles) == 0 {
+		return failedOp("No lock files found")
+	}
+
+	removed := []string{}
+	failed := []string{}
+
+	for _, lockFile := range state.LockFiles {
+		lockPath := filepath.Join(repoPath, ".git", lockFile)
+		if err := os.Remove(lockPath); err != nil {
+			failed = append(failed, lockFile)
+		} else {
+			removed = append(removed, lockFile)
+		}
+	}
+
+	if len(failed) > 0 {
+		return failedOp(fmt.Sprintf("Removed %d lock(s), failed to remove: %s", len(removed), strings.Join(failed, ", ")))
+	}
+
+	return successOp(fmt.Sprintf("Removed %d lock file(s) - you can now continue working", len(removed)))
+}
+
+// ============================================================================
+// Unified Abort Operation
+// ============================================================================
+
+// AbortCurrentOperation aborts whatever stuck operation is currently in progress.
+// This is a convenience method that detects the state and calls the appropriate abort.
+func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+
+	// Priority order for abort (most critical first)
+	if state.HasLockFile {
+		return g.RemoveAllStaleLocks(repoPath, true)
+	}
+	if state.InMerge {
+		result := g.runner.RunGit(repoPath, "merge", "--abort")
+		if result.Success {
+			return successOp("Merge aborted")
+		}
+		return failedOp("Failed to abort merge: " + getErrorMessage(result))
+	}
+	if state.InRebase {
+		result := g.runner.RunGit(repoPath, "rebase", "--abort")
+		if result.Success {
+			return successOp("Rebase aborted")
+		}
+		return failedOp("Failed to abort rebase: " + getErrorMessage(result))
+	}
+	if state.InCherryPick {
+		return g.AbortCherryPick(repoPath)
+	}
+	if state.InRevert {
+		return g.AbortRevert(repoPath)
+	}
+	if state.InBisect {
+		return g.AbortBisect(repoPath)
+	}
+	if state.InAM {
+		return g.AbortAM(repoPath)
+	}
+	if state.IsDetached {
+		return failedOp("Cannot abort detached HEAD - create a branch to save your work instead")
+	}
+
+	return failedOp("No operation in progress to abort")
 }
 
 // CompleteMerge completes the merge by committing after all conflicts are resolved.

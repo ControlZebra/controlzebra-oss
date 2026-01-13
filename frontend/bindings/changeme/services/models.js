@@ -1835,7 +1835,9 @@ export class MaintenanceSettings {
 }
 
 /**
- * MergeState represents the current merge/rebase state of a repository
+ * MergeState represents the current repository operation state.
+ * Extended to detect all common "stuck" states that can confuse users.
+ * Priority for display: Locked > Merge/Rebase > Cherry-Pick > Revert > Bisect > AM > Detached HEAD
  */
 export class MergeState {
     /**
@@ -1845,6 +1847,7 @@ export class MergeState {
     constructor($$source = {}) {
         if (!("inMerge" in $$source)) {
             /**
+             * Original merge/rebase states
              * @member
              * @type {boolean}
              */
@@ -1872,6 +1875,88 @@ export class MergeState {
              */
             this["message"] = undefined;
         }
+        if (!("inCherryPick" in $$source)) {
+            /**
+             * Additional stuck states
+             * .git/CHERRY_PICK_HEAD exists
+             * @member
+             * @type {boolean}
+             */
+            this["inCherryPick"] = false;
+        }
+        if (!("inRevert" in $$source)) {
+            /**
+             * .git/REVERT_HEAD exists
+             * @member
+             * @type {boolean}
+             */
+            this["inRevert"] = false;
+        }
+        if (!("inBisect" in $$source)) {
+            /**
+             * .git/BISECT_LOG exists
+             * @member
+             * @type {boolean}
+             */
+            this["inBisect"] = false;
+        }
+        if (!("inAM" in $$source)) {
+            /**
+             * .git/rebase-apply/applying exists
+             * @member
+             * @type {boolean}
+             */
+            this["inAM"] = false;
+        }
+        if (!("isDetached" in $$source)) {
+            /**
+             * HEAD points to commit hash, not branch
+             * @member
+             * @type {boolean}
+             */
+            this["isDetached"] = false;
+        }
+        if (!("hasLockFile" in $$source)) {
+            /**
+             * .git/index.lock exists (stale lock)
+             * @member
+             * @type {boolean}
+             */
+            this["hasLockFile"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Additional context
+             * Commit hash when detached
+             * @member
+             * @type {string | undefined}
+             */
+            this["detachedAt"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * List of lock files found
+             * @member
+             * @type {string[] | undefined}
+             */
+            this["lockFiles"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Primary stuck state type for UI
+             * @member
+             * @type {string | undefined}
+             */
+            this["stuckType"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * User-friendly explanation
+             * @member
+             * @type {string | undefined}
+             */
+            this["userMessage"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -1882,7 +1967,11 @@ export class MergeState {
      * @returns {MergeState}
      */
     static createFrom($$source = {}) {
+        const $$createField11_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lockFiles" in $$parsedSource) {
+            $$parsedSource["lockFiles"] = $$createField11_0($$parsedSource["lockFiles"]);
+        }
         return new MergeState(/** @type {Partial<MergeState>} */($$parsedSource));
     }
 }
@@ -2278,6 +2367,27 @@ export class RecoveryDiagnostics {
              */
             this["hasCherryPickInProgress"] = false;
         }
+        if (!("hasRevertInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasRevertInProgress"] = false;
+        }
+        if (!("hasBisectInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasBisectInProgress"] = false;
+        }
+        if (!("hasAMInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasAMInProgress"] = false;
+        }
         if (!("isDetachedHead" in $$source)) {
             /**
              * @member
@@ -2351,18 +2461,18 @@ export class RecoveryDiagnostics {
      * @returns {RecoveryDiagnostics}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType6;
-        const $$createField11_0 = $$createType6;
-        const $$createField12_0 = $$createType6;
+        const $$createField10_0 = $$createType6;
+        const $$createField14_0 = $$createType6;
+        const $$createField15_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("staleLockFiles" in $$parsedSource) {
-            $$parsedSource["staleLockFiles"] = $$createField7_0($$parsedSource["staleLockFiles"]);
+            $$parsedSource["staleLockFiles"] = $$createField10_0($$parsedSource["staleLockFiles"]);
         }
         if ("issues" in $$parsedSource) {
-            $$parsedSource["issues"] = $$createField11_0($$parsedSource["issues"]);
+            $$parsedSource["issues"] = $$createField14_0($$parsedSource["issues"]);
         }
         if ("suggestions" in $$parsedSource) {
-            $$parsedSource["suggestions"] = $$createField12_0($$parsedSource["suggestions"]);
+            $$parsedSource["suggestions"] = $$createField15_0($$parsedSource["suggestions"]);
         }
         return new RecoveryDiagnostics(/** @type {Partial<RecoveryDiagnostics>} */($$parsedSource));
     }
