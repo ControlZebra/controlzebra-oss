@@ -46,6 +46,8 @@ const CheckPanel = memo(function CheckPanel({
   onCheck,
   isChecking,
   error,
+  isSquashMerge,
+  onSquashChange,
 }) {
   const [showSelector, setShowSelector] = useState(false);
 
@@ -103,6 +105,26 @@ const CheckPanel = memo(function CheckPanel({
             )}
           </div>
 
+          {/* Squash merge toggle */}
+          <div className="flex items-center justify-between py-2 px-3 bg-theme-base rounded-lg">
+            <div className="text-left">
+              <p className="text-theme-primary text-sm font-medium">Squash commits</p>
+              <p className="text-theme-muted text-xs">Combine all commits into one</p>
+            </div>
+            <button
+              onClick={() => onSquashChange(!isSquashMerge)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                isSquashMerge ? 'bg-blue-500' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  isSquashMerge ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Check button */}
           <Button onClick={onCheck} disabled={isChecking} className="w-full">
             {isChecking ? (
@@ -132,8 +154,12 @@ const CleanMergePanel = memo(function CleanMergePanel({
   onComplete,
   onAbort,
   isProcessing,
+  isSquashMerge,
 }) {
-  const [message, setMessage] = useState(`Merge ${sourceBranch} into ${targetBranch}`);
+  const defaultMessage = isSquashMerge 
+    ? `Squash merge ${sourceBranch} into ${targetBranch}`
+    : `Merge ${sourceBranch} into ${targetBranch}`;
+  const [message, setMessage] = useState(defaultMessage);
 
   const handleComplete = useCallback(() => {
     onComplete(message);
@@ -144,21 +170,32 @@ const CleanMergePanel = memo(function CleanMergePanel({
       <div className="text-center max-w-md w-full">
         <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          Ready to Merge
+          Ready to {isSquashMerge ? 'Squash Merge' : 'Merge'}
         </h2>
         <p className="text-theme-muted text-sm mb-6">
-          No conflicts detected. You can merge <span className="text-blue-400">{sourceBranch}</span> into <span className="text-green-400">{targetBranch}</span>.
+          No conflicts detected. You can {isSquashMerge ? 'squash merge' : 'merge'} <span className="text-blue-400">{sourceBranch}</span> into <span className="text-green-400">{targetBranch}</span>.
         </p>
+
+        {/* Squash merge info */}
+        {isSquashMerge && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4 text-left">
+            <p className="text-blue-400 text-xs">
+              <strong>Squash merge:</strong> All commits from {sourceBranch} will be combined into a single commit on {targetBranch}.
+            </p>
+          </div>
+        )}
 
         {/* Commit message */}
         <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-4 text-left">
-          <label className="text-theme-muted text-xs block mb-2">Merge Message</label>
+          <label className="text-theme-muted text-xs block mb-2">
+            {isSquashMerge ? 'Commit Message' : 'Merge Message'}
+          </label>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={3}
             className="w-full px-3 py-2 bg-theme-base border border-theme-default rounded text-sm text-theme-primary resize-none"
-            placeholder="Describe this merge..."
+            placeholder={isSquashMerge ? "Describe your changes..." : "Describe this merge..."}
           />
         </div>
 
@@ -174,7 +211,7 @@ const CleanMergePanel = memo(function CleanMergePanel({
             ) : (
               <Check style={iconSm} className="mr-2" />
             )}
-            Complete Merge
+            {isSquashMerge ? 'Complete Squash Merge' : 'Complete Merge'}
           </Button>
         </div>
       </div>
@@ -330,8 +367,12 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
   onComplete,
   onAbort,
   isProcessing,
+  isSquashMerge,
 }) {
-  const [message, setMessage] = useState(`Merge ${sourceBranch} into ${targetBranch}`);
+  const defaultMessage = isSquashMerge 
+    ? `Squash merge ${sourceBranch} into ${targetBranch}`
+    : `Merge ${sourceBranch} into ${targetBranch}`;
+  const [message, setMessage] = useState(defaultMessage);
   
   const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
   const allResolved = resolvedCount === conflictedFiles.length;
@@ -417,7 +458,14 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
             <CheckCircle2 style={iconSm} className="text-green-400" />
             <span className="text-green-400 font-medium">All conflicts resolved!</span>
           </div>
-          <label className="text-theme-muted text-xs block mb-2">Merge Message</label>
+          {isSquashMerge && (
+            <p className="text-blue-400 text-xs mb-3">
+              All commits will be combined into a single commit.
+            </p>
+          )}
+          <label className="text-theme-muted text-xs block mb-2">
+            {isSquashMerge ? 'Commit Message' : 'Merge Message'}
+          </label>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -445,7 +493,7 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
             ) : (
               <Check style={iconSm} className="mr-2" />
             )}
-            Complete Merge
+            {isSquashMerge ? 'Complete Squash Merge' : 'Complete Merge'}
           </Button>
         )}
       </div>
@@ -633,6 +681,8 @@ function MergeChangesPage() {
     conflictSidesInfo,
     refreshBranches,
     mergeState,
+    isSquashMerge,
+    setIsSquashMerge,
   } = useRepo();
 
   const [targetBranch, setTargetBranch] = useState('');
@@ -765,6 +815,7 @@ function MergeChangesPage() {
         onComplete={handleComplete}
         onAbort={handleAbort}
         isProcessing={isResolvingConflict}
+        isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
   }
@@ -796,6 +847,7 @@ function MergeChangesPage() {
         onComplete={handleComplete}
         onAbort={handleAbort}
         isProcessing={isResolvingConflict}
+        isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
   }
@@ -810,6 +862,8 @@ function MergeChangesPage() {
       onCheck={handleCheck}
       isChecking={isCheckingConflicts}
       error={error || (conflictCheckResult && !conflictCheckResult.success ? conflictCheckResult.error : null)}
+      isSquashMerge={isSquashMerge}
+      onSquashChange={setIsSquashMerge}
     />
   );
 }

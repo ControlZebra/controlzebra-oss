@@ -2550,6 +2550,204 @@ func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBran
 	return successOp("Merge started - no conflicts detected")
 }
 
+// MergeOptions contains options for StartMergeWithOptions
+type MergeOptions struct {
+	Squash bool `json:"squash"` // If true, uses --squash for a squash merge
+}
+
+// StartMergeWithOptions begins a merge with configurable options.
+// Supports squash merge mode which combines all commits into a single commit.
+//
+// Parameters:
+//   - repoPath: Path to the git repository
+//   - targetBranch: The branch to merge INTO (e.g., "main") - required
+//   - sourceBranch: The branch to merge FROM - required
+//   - options: MergeOptions with squash flag
+//
+// When squash is true:
+// - Uses `git merge --squash` instead of regular merge
+// - Does NOT create a merge commit with two parents
+// - All changes appear as a single commit authored by the user
+// - Results in cleaner, linear history
+func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string, sourceBranch string, options MergeOptions) OperationResult {
+	if targetBranch == "" {
+		return failedOp("Target branch is required")
+	}
+	if sourceBranch == "" {
+		return failedOp("Source branch is required")
+	}
+
+	// Verify repo exists
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return failedOp("Not a valid git repository")
+	}
+
+	// Don't allow merging a branch into itself
+	if sourceBranch == targetBranch {
+		return failedOp("Cannot merge a branch into itself")
+	}
+
+	// Check if already in a merge state
+	state := g.GetMergeState(repoPath)
+	if state.InMerge {
+		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if len(conflicted) > 0 {
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("Merge already in progress with %d conflict(s) to resolve", len(conflicted)),
+			}
+		}
+		return successOp("Merge already in progress - ready to commit")
+	}
+	if state.InRebase {
+		return failedOp("Cannot start merge: rebase in progress. Abort the rebase first.")
+	}
+
+	// Check for uncommitted changes
+	status := g.Status(repoPath)
+	if status.HasChanges {
+		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
+	}
+
+	// Store current branch
+	originalBranch := repoInfo.Branch
+
+	// Step 1: Checkout the target branch
+	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
+	if !checkoutResult.Success {
+		g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
+		if !checkoutResult.Success {
+			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
+		}
+	}
+
+	// Step 2: Determine the source ref
+	sourceRef := ""
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", sourceBranch)
+	if refCheckResult.Success {
+		sourceRef = sourceBranch
+	} else {
+		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+sourceBranch)
+		if refCheckResult.Success {
+			sourceRef = "origin/" + sourceBranch
+		} else {
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
+			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", sourceBranch))
+		}
+	}
+
+	// Step 3: Build merge command based on options
+	var mergeArgs []string
+	if options.Squash {
+		// Squash merge: combines all commits into staged changes
+		// No merge commit created - user commits manually
+		mergeArgs = []string{"merge", "--squash", sourceRef}
+	} else {
+		// Regular merge with --no-commit for conflict resolution
+		mergeArgs = []string{"merge", "--no-commit", "--no-ff", sourceRef}
+	}
+
+	result := g.runner.RunGit(repoPath, mergeArgs...)
+
+	// Handle merge result
+	if !result.Success {
+		// Check for conflicts (expected in some cases)
+		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if len(conflicted) > 0 {
+			mergeType := "Merge"
+			if options.Squash {
+				mergeType = "Squash merge"
+			}
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("%s started with %d conflict(s) to resolve", mergeType, len(conflicted)),
+			}
+		}
+
+		// Check merge state
+		mergeState := g.GetMergeState(repoPath)
+		if mergeState.InMerge || options.Squash {
+			// For squash, we won't be "in merge" state, but we have staged changes
+			return successOp("Merge started - no conflicts detected")
+		}
+
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "not something we can merge") {
+			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", sourceBranch))
+		}
+		if strings.Contains(errMsg, "uncommitted changes") {
+			return failedOp("Cannot merge: you have uncommitted changes. Commit or stash them first.")
+		}
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
+		return failedOp("Failed to start merge: " + errMsg)
+	}
+
+	// Success - check final state
+	outputLower := strings.ToLower(result.Stdout)
+	if strings.Contains(outputLower, "already up to date") || strings.Contains(outputLower, "already up-to-date") {
+		return OperationResult{
+			Success: true,
+			Message: "Already up to date - nothing to merge",
+			Error:   "already_up_to_date",
+		}
+	}
+
+	// For squash merge, we're not in "merge" state but have staged changes
+	if options.Squash {
+		// Verify we have staged changes
+		statusAfter := g.Status(repoPath)
+		if statusAfter.HasChanges {
+			return OperationResult{
+				Success: true,
+				Message: "Squash merge staged - ready to commit",
+			}
+		}
+		// No changes means already up to date
+		return OperationResult{
+			Success: true,
+			Message: "Already up to date - nothing to merge",
+			Error:   "already_up_to_date",
+		}
+	}
+
+	// Regular merge - check merge state
+	mergeState := g.GetMergeState(repoPath)
+	if !mergeState.InMerge {
+		return OperationResult{
+			Success: true,
+			Message: "Merge completed automatically - no commit needed",
+			Error:   "auto_completed",
+		}
+	}
+
+	return successOp("Merge started - no conflicts detected")
+}
+
+// CompleteSquashMerge commits a squash merge.
+// Unlike CompleteMerge, this doesn't require being in a merge state.
+// It simply commits the staged changes from the squash merge.
+func (g *GitService) CompleteSquashMerge(repoPath string, message string) OperationResult {
+	if message == "" {
+		return failedOp("Commit message is required for squash merge")
+	}
+
+	// Check for staged changes
+	status := g.Status(repoPath)
+	if !status.HasChanges {
+		return failedOp("No changes to commit")
+	}
+
+	// Commit the squash merge
+	result := g.runner.RunGit(repoPath, "commit", "-m", message)
+	if !result.Success {
+		return failedOp("Failed to complete squash merge: " + getErrorMessage(result))
+	}
+
+	return successOp("Squash merge completed successfully")
+}
+
 // AbortMerge aborts the current merge operation.
 // Returns the repository to the state before the merge started.
 func (g *GitService) AbortMerge(repoPath string) OperationResult {

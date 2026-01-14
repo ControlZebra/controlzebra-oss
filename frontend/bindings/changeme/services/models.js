@@ -1835,6 +1835,38 @@ export class MaintenanceSettings {
 }
 
 /**
+ * MergeOptions contains options for StartMergeWithOptions
+ */
+export class MergeOptions {
+    /**
+     * Creates a new MergeOptions instance.
+     * @param {Partial<MergeOptions>} [$$source = {}] - The source object to create the MergeOptions.
+     */
+    constructor($$source = {}) {
+        if (!("squash" in $$source)) {
+            /**
+             * If true, uses --squash for a squash merge
+             * @member
+             * @type {boolean}
+             */
+            this["squash"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MergeOptions instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MergeOptions}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MergeOptions(/** @type {Partial<MergeOptions>} */($$parsedSource));
+    }
+}
+
+/**
  * MergeState represents the current repository operation state.
  * Extended to detect all common "stuck" states that can confuse users.
  * Priority for display: Locked > Merge/Rebase > Cherry-Pick > Revert > Bisect > AM > Detached HEAD

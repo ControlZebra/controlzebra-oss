@@ -115,7 +115,7 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 	return "", -1, line
 }
 
-// SyncWithProgress performs git pull --rebase + push with progress updates
+// SyncWithProgress performs git pull + push with progress updates
 // For branches without an upstream, it skips pull and just pushes with --set-upstream
 func (p *ProgressService) SyncWithProgress(repoPath, operationID string) OperationResult {
 	p.mu.Lock()
@@ -134,8 +134,8 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string) Operati
 
 	// Only pull if we have an upstream branch
 	if hasUpstream {
-		// Run pull with progress
-		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--rebase", "--progress"})
+		// Run pull with progress (using merge, not rebase, for safer conflict resolution)
+		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
 		if !pullResult.Success {
 			errMsg := pullResult.Error
 			p.emitProgress(ProgressUpdate{
@@ -264,7 +264,8 @@ func (p *ProgressService) PullWithProgress(repoPath, operationID string) Operati
 		Message:     "Fetching from remote...",
 	})
 
-	result := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--rebase", "--progress"})
+	// Using merge strategy (not rebase) for safer conflict resolution
+	result := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
 	if !result.Success {
 		p.emitProgress(ProgressUpdate{
 			OperationID: operationID,
