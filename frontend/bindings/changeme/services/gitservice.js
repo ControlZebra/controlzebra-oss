@@ -305,6 +305,20 @@ export function CompleteMerge(repoPath, message) {
 }
 
 /**
+ * CompleteSquashMerge commits a squash merge.
+ * Unlike CompleteMerge, this doesn't require being in a merge state.
+ * It simply commits the staged changes from the squash merge.
+ * @param {string} repoPath
+ * @param {string} message
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CompleteSquashMerge(repoPath, message) {
+    return $Call.ByID(3395302753, repoPath, message).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * ContinueCherryPick continues the cherry-pick after conflicts are resolved.
  * Runs: git cherry-pick --continue
  * @param {string} repoPath
@@ -1014,6 +1028,33 @@ export function SkipRevertCommit(repoPath) {
  */
 export function StartMerge(repoPath, targetBranch, ...sourceBranch) {
     return $Call.ByID(427657069, repoPath, targetBranch, sourceBranch).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * StartMergeWithOptions begins a merge with configurable options.
+ * Supports squash merge mode which combines all commits into a single commit.
+ * 
+ * Parameters:
+ *   - repoPath: Path to the git repository
+ *   - targetBranch: The branch to merge INTO (e.g., "main") - required
+ *   - sourceBranch: The branch to merge FROM - required
+ *   - options: MergeOptions with squash flag
+ * 
+ * When squash is true:
+ * - Uses `git merge --squash` instead of regular merge
+ * - Does NOT create a merge commit with two parents
+ * - All changes appear as a single commit authored by the user
+ * - Results in cleaner, linear history
+ * @param {string} repoPath
+ * @param {string} targetBranch
+ * @param {string} sourceBranch
+ * @param {$models.MergeOptions} options
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function StartMergeWithOptions(repoPath, targetBranch, sourceBranch, options) {
+    return $Call.ByID(2124618153, repoPath, targetBranch, sourceBranch, options).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }

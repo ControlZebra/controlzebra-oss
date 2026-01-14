@@ -56,6 +56,7 @@ export {
     LFSSettings,
     LockFileInfo,
     MaintenanceSettings,
+    MergeOptions,
     MergeState,
     OpenFileResult,
     OpenFolderDialogResult,
