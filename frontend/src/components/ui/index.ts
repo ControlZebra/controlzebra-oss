@@ -10,7 +10,7 @@ export {
   AlertDialogCancel,
 } from "./alert-dialog";
 export { Badge, badgeVariants } from "./badge";
-export { Button, buttonVariants } from "./button";
+export { Button, buttonVariants, type ButtonProps } from "./button";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "./button-group";
 export {
   Card,

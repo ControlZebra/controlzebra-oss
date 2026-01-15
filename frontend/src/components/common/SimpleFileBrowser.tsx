@@ -27,6 +27,7 @@ import {
   EyeOff,
   RefreshCw,
   Home,
+  type LucideIcon,
 } from 'lucide-react';
 import { 
   ListDirectoryWithOptions, 
@@ -37,7 +38,7 @@ import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
 
 // Git status color classes
-const GIT_STATUS_COLORS = {
+const GIT_STATUS_COLORS: Record<string, string> = {
   added: 'text-green-400',
   modified: 'text-yellow-400',
   deleted: 'text-red-400',
@@ -46,7 +47,7 @@ const GIT_STATUS_COLORS = {
 };
 
 // File extension to icon mapping
-const EXTENSION_ICONS = {
+const EXTENSION_ICONS: Record<string, LucideIcon> = {
   // Code files
   js: FileCode,
   jsx: FileCode,
@@ -102,21 +103,36 @@ const EXTENSION_ICONS = {
   xlsx: FileSpreadsheet,
 };
 
+interface FileEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size?: number;
+  modTime?: string;
+}
+
+interface RepoStatus {
+  changedFiles?: Array<{
+    path: string;
+    status: string;
+  }>;
+}
+
 /**
  * Get the appropriate icon for a file based on extension
  */
-function getFileIcon(fileName, isDirectory) {
+function getFileIcon(fileName: string, isDirectory: boolean): LucideIcon {
   if (isDirectory) return Folder;
   
   const ext = fileName.split('.').pop()?.toLowerCase();
-  return EXTENSION_ICONS[ext] || File;
+  return (ext && EXTENSION_ICONS[ext]) || File;
 }
 
 /**
  * Build git status map for current directory
  */
-function buildGitStatusMap(repoStatus, currentPath, repoPath) {
-  const statusMap = {};
+function buildGitStatusMap(repoStatus: RepoStatus | null, currentPath: string | null, repoPath: string | null): Record<string, string> {
+  const statusMap: Record<string, string> = {};
   if (!repoStatus?.changedFiles || !repoPath) return statusMap;
   
   const relativeCurrentPath = currentPath?.startsWith(repoPath) 
@@ -131,7 +147,9 @@ function buildGitStatusMap(repoStatus, currentPath, repoPath) {
     
     if (fileDir === relativeCurrentPath) {
       const fileName = filePath.split('/').pop();
-      statusMap[fileName] = file.status;
+      if (fileName) {
+        statusMap[fileName] = file.status;
+      }
     } else if (filePath.startsWith(relativeCurrentPath ? relativeCurrentPath + '/' : '')) {
       const remainingPath = relativeCurrentPath 
         ? filePath.slice(relativeCurrentPath.length + 1)
@@ -149,7 +167,7 @@ function buildGitStatusMap(repoStatus, currentPath, repoPath) {
 /**
  * Format file size for display
  */
-function formatFileSize(bytes) {
+function formatFileSize(bytes?: number): string {
   if (bytes === undefined || bytes === null) return '';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -160,24 +178,31 @@ function formatFileSize(bytes) {
 /**
  * Format date for display
  */
-function formatDate(timestamp) {
+function formatDate(timestamp?: string): string {
   if (!timestamp) return '';
   const date = new Date(timestamp);
+  const currentYear = new Date().getFullYear();
   return date.toLocaleDateString(undefined, { 
     month: 'short', 
     day: 'numeric',
-    year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    year: date.getFullYear() !== currentYear ? 'numeric' : undefined
   });
+}
+
+interface BreadcrumbsProps {
+  currentPath: string | null;
+  rootPath: string | null;
+  onNavigate: (path: string) => void;
 }
 
 /**
  * Breadcrumb component for folder navigation
  */
-function Breadcrumbs({ currentPath, rootPath, onNavigate }) {
+function Breadcrumbs({ currentPath, rootPath, onNavigate }: BreadcrumbsProps) {
   const parts = useMemo(() => {
     if (!currentPath || !rootPath) return [];
     
-    const segments = [];
+    const segments: Array<{ path: string; name: string }> = [];
     let path = currentPath;
     
     while (path && path.length >= rootPath.length) {
@@ -199,7 +224,7 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }) {
   return (
     <nav className="flex items-center gap-1 px-3 py-2 bg-theme-surface border-b border-theme-default overflow-x-auto">
       <button
-        onClick={() => onNavigate(rootPath)}
+        onClick={() => rootPath && onNavigate(rootPath)}
         className="p-1 hover:bg-theme-muted rounded text-theme-muted hover:text-theme-primary transition-colors shrink-0"
         title="Go to root"
       >
@@ -226,10 +251,18 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }) {
   );
 }
 
+interface ToolbarProps {
+  viewMode: 'grid' | 'list';
+  onViewModeChange: (mode: 'grid' | 'list') => void;
+  showHidden: boolean;
+  onShowHiddenChange: () => void;
+  onRefresh: () => void;
+}
+
 /**
  * Toolbar with view toggle and actions
  */
-function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh }) {
+function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh }: ToolbarProps) {
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-theme-surface border-b border-theme-default">
       <div className="flex items-center gap-2">
@@ -279,10 +312,16 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
   );
 }
 
+interface FileItemGridProps {
+  file: FileEntry;
+  gitStatus?: string;
+  onDoubleClick: () => void;
+}
+
 /**
  * File item component for grid view
  */
-function FileItemGrid({ file, gitStatus, onDoubleClick }) {
+function FileItemGrid({ file, gitStatus, onDoubleClick }: FileItemGridProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   
@@ -310,10 +349,16 @@ function FileItemGrid({ file, gitStatus, onDoubleClick }) {
   );
 }
 
+interface FileItemListProps {
+  file: FileEntry;
+  gitStatus?: string;
+  onDoubleClick: () => void;
+}
+
 /**
  * File item component for list view
  */
-function FileItemList({ file, gitStatus, onDoubleClick }) {
+function FileItemList({ file, gitStatus, onDoubleClick }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   
@@ -367,7 +412,7 @@ function EmptyDirectory() {
 /**
  * Loading state
  */
-function LoadingState() {
+function LoadingStateInternal() {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="text-center">
@@ -378,15 +423,19 @@ function LoadingState() {
   );
 }
 
+interface SimpleFileBrowserProps {
+  repoPath: string | null;
+}
+
 /**
  * Main SimpleFileBrowser component
  */
-function SimpleFileBrowser({ repoPath }) {
-  const [currentPath, setCurrentPath] = useState(repoPath);
-  const [files, setFiles] = useState(null);
-  const [error, setError] = useState(null);
+function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
+  const [currentPath, setCurrentPath] = useState<string | null>(repoPath);
+  const [files, setFiles] = useState<FileEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
-  const [viewMode, setViewMode] = useState('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   const { repoStatus } = useRepo();
@@ -400,7 +449,7 @@ function SimpleFileBrowser({ repoPath }) {
   useEffect(() => {
     if (!currentPath) return;
     
-    const handleFileChanged = (data) => {
+    const handleFileChanged = (data: { path?: string }) => {
       if (data?.path?.startsWith(currentPath) || data?.path === currentPath) {
         setRefreshTrigger(prev => prev + 1);
       }
@@ -438,7 +487,7 @@ function SimpleFileBrowser({ repoPath }) {
           setFiles([]);
         } else {
           // Sort: directories first, then files (alphabetically)
-          const entries = (result.entries || []).sort((a, b) => {
+          const entries = (result.entries || []).sort((a: FileEntry, b: FileEntry) => {
             if (a.isDirectory && !b.isDirectory) return -1;
             if (!a.isDirectory && b.isDirectory) return 1;
             return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -456,12 +505,12 @@ function SimpleFileBrowser({ repoPath }) {
   }, [currentPath, showHidden, refreshTrigger]);
 
   // Handle navigation
-  const handleNavigate = useCallback((path) => {
+  const handleNavigate = useCallback((path: string) => {
     setCurrentPath(path);
   }, []);
 
   // Handle file/folder double-click
-  const handleItemDoubleClick = useCallback(async (file) => {
+  const handleItemDoubleClick = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) {
       setCurrentPath(file.path);
     } else {
@@ -470,7 +519,7 @@ function SimpleFileBrowser({ repoPath }) {
         if (!result.success) {
           toast.error(`Failed to open file: ${result.error}`);
         }
-      } catch (err) {
+      } catch {
         toast.error('Failed to open file');
       }
     }
@@ -510,7 +559,7 @@ function SimpleFileBrowser({ repoPath }) {
       
       <div className="flex-1 overflow-auto">
         {files === null ? (
-          <LoadingState />
+          <LoadingStateInternal />
         ) : files.length === 0 ? (
           <EmptyDirectory />
         ) : viewMode === 'grid' ? (

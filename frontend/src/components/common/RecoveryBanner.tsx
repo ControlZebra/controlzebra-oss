@@ -8,7 +8,7 @@
  * Stuck states handled: locked, merge, rebase, cherry-pick, revert, bisect, am, detached
  */
 import { memo, useCallback, useState, useMemo } from 'react';
-import { AlertTriangle, Lock, X, ArrowRight, Loader2, GitBranch } from 'lucide-react';
+import { AlertTriangle, Lock, X, ArrowRight, Loader2, GitBranch, type LucideIcon } from 'lucide-react';
 import { ICON_SIZES, VIEWS } from '../../constants';
 import { useRepo, useLayout } from '../../context';
 import { Button } from '../ui';
@@ -16,9 +16,18 @@ import BranchModal from '../layout/BranchModal';
 
 const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
+interface StuckStateConfig {
+  icon: LucideIcon;
+  title: string;
+  message: string;
+  color: 'critical' | 'warning' | 'info';
+  showResolve: boolean;
+  abortLabel: string | null;
+  showCreateBranch?: boolean;
+}
+
 // Simplified state configuration - 3 color schemes: critical, warning, info
-// Note: Rebase is detected but only abort is supported - users should use merge workflow instead
-const STUCK_STATE_CONFIG = {
+const STUCK_STATE_CONFIG: Record<string, StuckStateConfig> = {
   locked: {
     icon: Lock,
     title: 'Repository Locked',
@@ -40,7 +49,7 @@ const STUCK_STATE_CONFIG = {
     title: 'Rebase in Progress',
     message: 'Abort to return to a clean state.',
     color: 'warning',
-    showResolve: false,  // Rebase workflow is deprecated - only abort is supported
+    showResolve: false,
     abortLabel: 'Abort Rebase',
   },
   'cherry-pick': {
@@ -86,8 +95,15 @@ const STUCK_STATE_CONFIG = {
   },
 };
 
+interface ColorClasses {
+  bg: string;
+  border: string;
+  text: string;
+  textMuted: string;
+}
+
 // Simplified to 3 color schemes
-const COLOR_CLASSES = {
+const COLOR_CLASSES: Record<string, ColorClasses> = {
   critical: {
     bg: 'bg-red-500/10',
     border: 'border-red-500/30',
@@ -173,7 +189,7 @@ function RecoveryBanner() {
             {config.title}
           </p>
           <p className={`${colors.textMuted} text-xs`}>
-            {mergeState.userMessage || config.message}
+            {mergeState?.userMessage || config.message}
           </p>
         </div>
 

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cva } from "class-variance-authority"
+import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "../../lib/utils"
 
 /**
@@ -25,7 +25,11 @@ const buttonGroupVariants = cva(
   }
 )
 
-const ButtonGroup = React.forwardRef(
+export interface ButtonGroupProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof buttonGroupVariants> {}
+
+const ButtonGroup = React.forwardRef<HTMLDivElement, ButtonGroupProps>(
   ({ className, orientation = "horizontal", ...props }, ref) => {
     return (
       <div
@@ -56,7 +60,11 @@ const ButtonGroup = React.forwardRef(
 )
 ButtonGroup.displayName = "ButtonGroup"
 
-const ButtonGroupSeparator = React.forwardRef(
+export interface ButtonGroupSeparatorProps extends React.HTMLAttributes<HTMLDivElement> {
+  orientation?: "vertical" | "horizontal";
+}
+
+const ButtonGroupSeparator = React.forwardRef<HTMLDivElement, ButtonGroupSeparatorProps>(
   ({ className, orientation = "vertical", ...props }, ref) => {
     return (
       <div
@@ -73,7 +81,11 @@ const ButtonGroupSeparator = React.forwardRef(
 )
 ButtonGroupSeparator.displayName = "ButtonGroupSeparator"
 
-const ButtonGroupText = React.forwardRef(
+export interface ButtonGroupTextProps extends React.HTMLAttributes<HTMLSpanElement> {
+  asChild?: boolean;
+}
+
+const ButtonGroupText = React.forwardRef<HTMLSpanElement, ButtonGroupTextProps>(
   ({ className, asChild = false, ...props }, ref) => {
     const Comp = asChild ? React.Fragment : "span"
     return (

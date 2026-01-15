@@ -10,12 +10,19 @@ import { Button } from '../ui';
 const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const iconStyleXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
+interface MasterBranchNudgeProps {
+  branchName?: string;
+  onDismiss?: () => void;
+  compact?: boolean;
+  className?: string;
+}
+
 function MasterBranchNudge({ 
   branchName = 'master', 
   onDismiss,
   compact = false,
   className = '' 
-}) {
+}: MasterBranchNudgeProps) {
   if (compact) {
     return (
       <div 

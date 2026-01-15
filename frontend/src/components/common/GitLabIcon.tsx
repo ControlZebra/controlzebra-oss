@@ -2,7 +2,14 @@
  * GitLabIcon - Custom GitLab logo icon.
  * Used across Profile and Settings pages.
  */
-function GitLabIcon({ className, style }) {
+import { CSSProperties } from 'react';
+
+interface GitLabIconProps {
+  className?: string;
+  style?: CSSProperties;
+}
+
+function GitLabIcon({ className, style }: GitLabIconProps) {
   return (
     <svg 
       viewBox="0 0 24 24" 
