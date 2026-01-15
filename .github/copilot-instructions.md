@@ -94,7 +94,7 @@ When implementing git features, shell out to these CLIs rather than using Go lib
 
 ### Wails Bindings
 - Auto-generated in `frontend/bindings/` - **never edit manually**
-- Regenerate with: `wails3 generate bindings -clean=true`
+- Regenerate with: `wails3 generate bindings -ts -clean=true`
 - Import Go service methods: `import { Greet } from '../bindings/changeme/greetservice'`
 
 ## Development Commands
