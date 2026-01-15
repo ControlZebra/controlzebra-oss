@@ -16,8 +16,6 @@ export default defineConfig({
           'vendor-ui': ['lucide-react', 'sonner', 'class-variance-authority', 'clsx', 'tailwind-merge'],
           // Terminal
           'vendor-terminal': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-web-links'],
-          // Chonky file browser (heavy, lazy loaded)
-          'vendor-chonky': ['chonky', 'chonky-icon-fontawesome'],
         },
       },
     },
