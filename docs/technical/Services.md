@@ -81,7 +81,7 @@ app := application.New(application.Options{
 After services are registered, Wails generates TypeScript bindings in `frontend/bindings/`. To regenerate:
 
 ```bash
-wails3 generate bindings -clean=true
+wails3 generate bindings -ts -clean=true
 ```
 
 Frontend usage:
@@ -125,7 +125,7 @@ go test ./services/... -v
 1. Create `services/myservice.go` with a struct and methods
 2. Create `services/myservice_test.go` with tests
 3. Register in `main.go` under `Services: []application.Service{}`
-4. Run `wails3 generate bindings -clean=true`
+4. Run `wails3 generate bindings -ts -clean=true`
 5. Import in frontend from `frontend/bindings/changeme/myservice`
 6. Add documentation in `docs/technical/MyService.md`
 
