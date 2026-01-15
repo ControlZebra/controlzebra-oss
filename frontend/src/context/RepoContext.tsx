@@ -10,23 +10,21 @@
  * - User feedback messages
  * - File selection state
  * - Automatic status polling
- * 
- * Provides actions for:
- * - Opening repositories
- * - Committing changes
- * - Syncing with remote
- * - Viewing diffs
- * - Branch switching/creation
- * - Undo last commit (ResetSoftHead)
- * - Discard changes
  */
-import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { 
+  createContext, 
+  useContext, 
+  useState, 
+  useCallback, 
+  useMemo, 
+  useEffect, 
+  useRef 
+} from 'react';
 import { toast } from 'sonner';
 import { 
   DetectRepo, 
   Status, 
   CommitAll, 
-  Sync, 
   GetCommitGraph,
   ShowCommit,
   DiffWorkingRaw,
@@ -44,7 +42,6 @@ import {
   GetParentBranch,
   GetMergeState,
   GetConflictedFiles,
-  StartMerge,
   StartMergeWithOptions,
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
@@ -53,7 +50,6 @@ import {
   CompleteMerge,
   CompleteSquashMerge,
   GetConflictSidesInfo,
-  // Stuck state recovery methods
   AbortCurrentOperation,
   AbortCherryPick,
   ContinueCherryPick,
@@ -74,36 +70,61 @@ import { WatchDirectory, StopWatching } from '../../bindings/changeme/services/f
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
 
-const RepoContext = createContext(null);
+import type {
+  RepoContextValue,
+  RepoProviderProps,
+  RepoInfo,
+  RepoStatus,
+  GraphCommit,
+  CommitDetail,
+  BranchList,
+  FileDiff,
+  ConflictedFile,
+  BranchConflictCheckResult,
+  MergeState,
+  DetectedParentBranch,
+  ConflictSidesInfo,
+  ProgressModalState,
+  FileResolutionsMap,
+  ResolutionStrategy,
+  MessageType,
+  MergeOptions,
+  StartMergeResult,
+  ParentBranchResult,
+  BisectState,
+} from './RepoContext.types';
 
 // Polling interval for status updates (in ms)
 const STATUS_POLL_INTERVAL = 30000;
 
-export function RepoProvider({ children }) {
+// Create context with null default
+const RepoContext = createContext<RepoContextValue | null>(null);
+
+export function RepoProvider({ children }: RepoProviderProps) {
   // ===== Repository State =====
-  const [repoPath, setRepoPath] = useState(null);
-  const [repoInfo, setRepoInfo] = useState(null);
-  const [repoStatus, setRepoStatus] = useState(null);
-  const [graphCommits, setGraphCommits] = useState([]); // Commits with parent hashes and refs for git graph
-  const [branches, setBranches] = useState(null);
+  const [repoPath, setRepoPath] = useState<string | null>(null);
+  const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
+  const [repoStatus, setRepoStatus] = useState<RepoStatus | null>(null);
+  const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
+  const [branches, setBranches] = useState<BranchList | null>(null);
   
   // ===== Selection State (v2) =====
-  const [selectedFileIndex, setSelectedFileIndex] = useState(null);
-  const [selectedCommit, setSelectedCommit] = useState(null); // CommitDetail object
-  const [selectedCommitFile, setSelectedCommitFile] = useState(null); // File path in commit
-  const [currentDiff, setCurrentDiff] = useState(null); // FileDiff object
+  const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null);
+  const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
+  const [selectedCommitFile, setSelectedCommitFile] = useState<string | null>(null);
+  const [currentDiff, setCurrentDiff] = useState<FileDiff | null>(null);
   
   // ===== Conflict State (v2 Merge Changes) =====
-  const [conflictedFiles, setConflictedFiles] = useState([]);
-  const [selectedConflictFile, setSelectedConflictFile] = useState(null);
-  const [conflictCheckResult, setConflictCheckResult] = useState(null); // Full result from CheckBranchConflicts
+  const [conflictedFiles, setConflictedFiles] = useState<ConflictedFile[]>([]);
+  const [selectedConflictFile, setSelectedConflictFile] = useState<string | null>(null);
+  const [conflictCheckResult, setConflictCheckResult] = useState<BranchConflictCheckResult | null>(null);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
-  const [detectedParentBranch, setDetectedParentBranch] = useState(null); // Auto-detected parent branch info
-  const [fileResolutions, setFileResolutions] = useState({}); // { [filePath]: 'mine' | 'theirs' | 'both' }
-  const [mergeState, setMergeState] = useState(null); // Current merge state from backend
+  const [detectedParentBranch, setDetectedParentBranch] = useState<DetectedParentBranch | null>(null);
+  const [fileResolutions, setFileResolutions] = useState<FileResolutionsMap>({});
+  const [mergeState, setMergeState] = useState<MergeState | null>(null);
   const [isResolvingConflict, setIsResolvingConflict] = useState(false);
-  const [conflictSidesInfo, setConflictSidesInfo] = useState(null); // Commit info for both sides of conflict
-  const [isSquashMerge, setIsSquashMerge] = useState(true); // Default to squash merge for cleaner history
+  const [conflictSidesInfo, setConflictSidesInfo] = useState<ConflictSidesInfo | null>(null);
+  const [isSquashMerge, setIsSquashMerge] = useState(true);
   
   // ===== Loading States =====
   const [isLoading, setIsLoading] = useState(false);
@@ -112,19 +133,20 @@ export function RepoProvider({ children }) {
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   
   // ===== Progress Modal State =====
-  const [progressModal, setProgressModal] = useState({
+  const [progressModal, setProgressModal] = useState<ProgressModalState>({
     isOpen: false,
     operationId: null,
     title: '',
   });
   
   // ===== Refs =====
-  const pollIntervalRef = useRef(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const operationIdCounter = useRef(0);
 
+  // ===== Core Handlers =====
+
   // Show a toast notification using sonner
-  // Maps our type names to sonner toast methods
-  const showMessage = useCallback((type, text, duration = 5000) => {
+  const showMessage = useCallback((type: MessageType, text: string, duration = 5000) => {
     const options = { duration };
     
     switch (type) {
@@ -142,7 +164,7 @@ export function RepoProvider({ children }) {
   }, []);
 
   // Fetch repo status from Git
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (): Promise<void> => {
     if (!repoPath) return;
     
     try {
@@ -151,9 +173,9 @@ export function RepoProvider({ children }) {
         console.error('Status error:', status.error);
         return;
       }
-      setRepoStatus(status);
+      setRepoStatus(status as RepoStatus);
       
-      // Update repoInfo.branch if it changed (e.g., after branch switch)
+      // Update repoInfo.branch if it changed
       if (status.branch && status.branch !== repoInfo?.branch) {
         setRepoInfo(prev => prev ? { ...prev, branch: status.branch } : prev);
       }
@@ -162,8 +184,8 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, repoInfo?.branch]);
 
-  // Fetch commits with graph data (parent hashes and refs) for git graph visualization
-  const refreshCommits = useCallback(async () => {
+  // Fetch commits with graph data
+  const refreshCommits = useCallback(async (): Promise<void> => {
     if (!repoPath) return;
     
     try {
@@ -172,22 +194,22 @@ export function RepoProvider({ children }) {
         console.error('Failed to fetch graph commits:', result.error);
         return;
       }
-      setGraphCommits(result.commits || []);
+      setGraphCommits((result.commits || []) as GraphCommit[]);
     } catch (err) {
       console.error('Failed to fetch graph commits:', err);
     }
   }, [repoPath]);
 
   // Refresh all repository data
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (): Promise<void> => {
     await Promise.all([refreshStatus(), refreshCommits()]);
   }, [refreshStatus, refreshCommits]);
 
-  // Open a folder by path (may or may not be a git repo)
-  const openRepo = useCallback(async (path) => {
-    // Prevent duplicate calls while already loading
+  // ===== Repo Operations =====
+
+  // Open a folder by path
+  const openRepo = useCallback(async (path: string): Promise<boolean> => {
     if (isLoading) return false;
-    // Skip if already open at this path
     if (path === repoPath) return true;
     
     setIsLoading(true);
@@ -196,14 +218,10 @@ export function RepoProvider({ children }) {
     try {
       const info = await DetectRepo(path);
       
-      // Allow opening non-git folders - just track that it's not a repo
       setRepoPath(path);
-      setRepoInfo(info);
-      
-      // Add to recent folders list (localStorage)
+      setRepoInfo(info as RepoInfo);
       addRecentFolder(path);
       
-      // Persist last opened folder to settings
       try {
         await SaveAppSettings({ lastRepoPath: path, theme: 'dark' });
       } catch (err) {
@@ -214,49 +232,44 @@ export function RepoProvider({ children }) {
       if (info.isRepo) {
         showMessage('success', `Opened repository: ${folderName}`);
         
-        // Check for interrupted merge/rebase state
         try {
           const state = await GetMergeState(path);
           if (state.inMerge || state.inRebase) {
-            setMergeState(state);
+            setMergeState(state as MergeState);
             
-            // Fetch conflicted files if in conflict state
             if (state.hasConflicts) {
               const conflicts = await GetConflictedFiles(path);
-              setConflictedFiles(conflicts || []);
+              setConflictedFiles((conflicts || []) as ConflictedFile[]);
             }
             
-            // Show warning toast about interrupted operation
             const opType = state.inRebase ? 'rebase' : 'merge';
             showMessage('warning', `Repository has an interrupted ${opType}. Use "Combine Versions" to resolve or abort.`);
           }
         } catch (err) {
           console.error('Failed to check merge state:', err);
-          // Non-fatal, continue without state check
         }
       } else {
         showMessage('info', `Opened folder: ${folderName} (no version control)`);
       }
       
-      // Start file watcher for event-based UI refresh
       try {
         await WatchDirectory(path);
       } catch (err) {
         console.error('Failed to start file watcher:', err);
-        // Non-fatal, continue without file watching
       }
       
       setIsLoading(false);
       return true;
     } catch (err) {
-      showMessage('error', `Failed to open folder: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to open folder: ${error.message || err}`);
       setIsLoading(false);
       return false;
     }
   }, [isLoading, repoPath, showMessage]);
 
   // Initialize git in current folder
-  const initializeGitRepo = useCallback(async () => {
+  const initializeGitRepo = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No folder open');
       return false;
@@ -278,23 +291,22 @@ export function RepoProvider({ children }) {
         return false;
       }
       
-      // Re-detect the repo to get updated info
       const info = await DetectRepo(repoPath);
-      setRepoInfo(info);
+      setRepoInfo(info as RepoInfo);
       
       showMessage('success', 'Version control initialized successfully');
       setIsLoading(false);
       return true;
     } catch (err) {
-      showMessage('error', `Failed to initialize: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to initialize: ${error.message || err}`);
       setIsLoading(false);
       return false;
     }
   }, [repoPath, repoInfo, showMessage]);
 
   // Close the current repository
-  const closeRepo = useCallback(async () => {
-    // Clear all repo state
+  const closeRepo = useCallback(async (): Promise<void> => {
     setRepoPath(null);
     setRepoInfo(null);
     setRepoStatus(null);
@@ -305,20 +317,17 @@ export function RepoProvider({ children }) {
     setSelectedCommitFile(null);
     setCurrentDiff(null);
     
-    // Stop file watcher
     try {
       await StopWatching();
     } catch (err) {
       console.error('Failed to stop file watcher:', err);
     }
     
-    // Stop polling
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
     
-    // Clear last opened repo from settings
     try {
       await SaveAppSettings({ lastRepoPath: '', theme: 'dark' });
     } catch (err) {
@@ -326,120 +335,10 @@ export function RepoProvider({ children }) {
     }
   }, []);
 
-  // Load last opened repository on mount
-  useEffect(() => {
-    const loadLastRepo = async () => {
-      try {
-        const settings = await GetAppSettings();
-        if (settings.lastRepoPath) {
-          await openRepo(settings.lastRepoPath);
-        }
-      } catch (err) {
-        console.error('Failed to load last repo:', err);
-      }
-    };
-    loadLastRepo();
-    // NOTE: openRepo is intentionally omitted to run only on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Start polling when git repo is open
-  useEffect(() => {
-    // Only poll for git repos
-    if (repoPath && repoInfo?.isRepo) {
-      // Initial fetch
-      refreshAll();
-      
-      // Start polling for status updates (fallback, less frequent with file watcher)
-      pollIntervalRef.current = setInterval(refreshStatus, STATUS_POLL_INTERVAL);
-      
-      return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-      };
-    }
-  }, [repoPath, repoInfo?.isRepo, refreshAll, refreshStatus]);
-  
-  // Event-based refresh: listen for file changes and refresh status immediately
-  useEffect(() => {
-    if (!repoPath || !repoInfo?.isRepo) return;
-    
-    const handleFilesChanged = () => {
-      // Debounce rapid file changes by using a short delay
-      // This prevents excessive refreshes during bulk operations (like git checkout)
-      if (handleFilesChanged.timeoutId) {
-        clearTimeout(handleFilesChanged.timeoutId);
-      }
-      handleFilesChanged.timeoutId = setTimeout(() => {
-        refreshStatus();
-      }, 300);
-    };
-    
-    const unsubscribe = Events.On('files-changed', handleFilesChanged);
-    
-    return () => {
-      if (handleFilesChanged.timeoutId) {
-        clearTimeout(handleFilesChanged.timeoutId);
-      }
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, [repoPath, repoInfo?.isRepo, refreshStatus]);
-
-  // Reset conflict check state when local changes are detected AFTER a conflict check completed
-  // This ensures users re-check for conflicts after making new changes
-  // BUT: Don't reset if we're actively resolving conflicts (conflictedFiles.length > 0)
-  // or if we just completed a successful merge (success states like alreadyUpToDate or autoCompleted)
-  useEffect(() => {
-    if (repoStatus?.hasChanges && conflictCheckResult) {
-      // Don't reset if we're actively resolving conflicts
-      if (conflictedFiles.length > 0) {
-        return;
-      }
-      // Don't reset if we're in a successful clean merge state (waiting for user to complete)
-      if (conflictCheckResult.success && !conflictCheckResult.hasConflicts) {
-        return;
-      }
-      // If we have a conflict check result and new local changes are detected,
-      // clear the conflict state to force a re-check
-      setConflictCheckResult(null);
-      setConflictedFiles([]);
-      setSelectedConflictFile(null);
-      setFileResolutions({});
-      setMergeState(null);
-      setConflictSidesInfo(null);
-      // Keep detectedParentBranch so user doesn't have to re-select
-    }
-  }, [repoStatus?.hasChanges, conflictCheckResult, conflictedFiles.length]);
-
-  // Listen for folder-selected event from native menu
-  useEffect(() => {
-    const unsubscribe = Events.On('folder-selected', async (event) => {
-      if (event.data) {
-        await openRepo(event.data);
-      }
-    });
-    
-    return () => {
-      unsubscribe();
-    };
-  }, [openRepo]);
-
-  // Listen for folder-closed event from native menu
-  useEffect(() => {
-    const unsubscribe = Events.On('folder-closed', async () => {
-      await closeRepo();
-    });
-    
-    return () => {
-      unsubscribe();
-    };
-  }, [closeRepo]);
+  // ===== Commit & Sync Operations =====
 
   // Commit all changes with message
-  const commitChanges = useCallback(async (message) => {
+  const commitChanges = useCallback(async (message: string): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -466,14 +365,15 @@ export function RepoProvider({ children }) {
       setIsCommitting(false);
       return true;
     } catch (err) {
-      showMessage('error', `Failed to save: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to save: ${error.message || err}`);
       setIsCommitting(false);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
   // Generate unique operation ID
-  const generateOperationId = useCallback(() => {
+  const generateOperationId = useCallback((): string => {
     operationIdCounter.current += 1;
     return `op-${Date.now()}-${operationIdCounter.current}`;
   }, []);
@@ -484,7 +384,7 @@ export function RepoProvider({ children }) {
   }, []);
 
   // Handle progress modal completion
-  const handleProgressComplete = useCallback((success, error) => {
+  const handleProgressComplete = useCallback((success: boolean, error?: string) => {
     closeProgressModal();
     setIsSyncing(false);
     
@@ -496,8 +396,8 @@ export function RepoProvider({ children }) {
     }
   }, [closeProgressModal, showMessage, refreshAll]);
 
-  // Sync repository with progress (pull --rebase + push)
-  const syncRepo = useCallback(async () => {
+  // Sync repository with progress
+  const syncRepo = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -513,53 +413,49 @@ export function RepoProvider({ children }) {
     });
     
     try {
-      // This runs the operation; progress events come via the event system
       const result = await SyncWithProgress(repoPath, operationId);
       
-      // The modal will handle completion via the progress events
-      // But we check exit code here as a safety net
       if (!result.success) {
-        // Progress modal will show the error, but ensure we capture it
         return false;
       }
       
       return true;
     } catch (err) {
-      // In case of unexpected error, close modal and show error
+      const error = err as Error;
       closeProgressModal();
       setIsSyncing(false);
-      showMessage('error', `Sync failed: ${err.message || err}`);
+      showMessage('error', `Sync failed: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, generateOperationId, closeProgressModal]);
 
-  // ===== v2: Diff Operations =====
-  
-  // Load diff for a working tree file (changed file in ExplorerView)
-  // Uses DiffWorkingRaw to get raw unified diff text for react-diff-view
-  const loadWorkingDiff = useCallback(async (filePath) => {
+  // ===== Diff Operations =====
+
+  // Load diff for a working tree file
+  const loadWorkingDiff = useCallback(async (filePath: string): Promise<void> => {
     if (!repoPath || !filePath) {
       setCurrentDiff(null);
       return;
     }
     
     setIsDiffLoading(true);
-    setSelectedCommit(null); // Clear commit selection when viewing working changes
+    setSelectedCommit(null);
     setSelectedCommitFile(null);
     
     try {
       const diff = await DiffWorkingRaw(repoPath, filePath);
-      setCurrentDiff(diff);
+      setCurrentDiff(diff as FileDiff);
     } catch (err) {
+      const error = err as Error;
       console.error('Failed to load diff:', err);
-      setCurrentDiff({ hasError: true, error: err.message || 'Failed to load diff' });
+      setCurrentDiff({ hasError: true, error: error.message || 'Failed to load diff' } as FileDiff);
     } finally {
       setIsDiffLoading(false);
     }
   }, [repoPath]);
 
-  // Load commit details when a commit is selected in HistoryView
-  const selectCommit = useCallback(async (commitHash) => {
+  // Load commit details
+  const selectCommit = useCallback(async (commitHash: string): Promise<void> => {
     if (!repoPath || !commitHash) {
       setSelectedCommit(null);
       setCurrentDiff(null);
@@ -567,7 +463,7 @@ export function RepoProvider({ children }) {
     }
     
     setIsDiffLoading(true);
-    setSelectedFileIndex(null); // Clear working file selection
+    setSelectedFileIndex(null);
     setSelectedCommitFile(null);
     setCurrentDiff(null);
     
@@ -577,11 +473,12 @@ export function RepoProvider({ children }) {
         showMessage('error', detail.error || 'Failed to load commit');
         setSelectedCommit(null);
       } else {
-        setSelectedCommit(detail);
+        setSelectedCommit(detail as CommitDetail);
       }
     } catch (err) {
+      const error = err as Error;
       console.error('Failed to load commit:', err);
-      showMessage('error', `Failed to load commit: ${err.message || err}`);
+      showMessage('error', `Failed to load commit: ${error.message || err}`);
       setSelectedCommit(null);
     } finally {
       setIsDiffLoading(false);
@@ -589,8 +486,7 @@ export function RepoProvider({ children }) {
   }, [repoPath, showMessage]);
 
   // Load diff for a file within a selected commit
-  // Uses DiffCommitFileRaw to get raw unified diff text for react-diff-view
-  const loadCommitFileDiff = useCallback(async (filePath) => {
+  const loadCommitFileDiff = useCallback(async (filePath: string): Promise<void> => {
     if (!repoPath || !selectedCommit || !filePath) {
       return;
     }
@@ -600,10 +496,11 @@ export function RepoProvider({ children }) {
     
     try {
       const diff = await DiffCommitFileRaw(repoPath, selectedCommit.hash, filePath);
-      setCurrentDiff(diff);
+      setCurrentDiff(diff as FileDiff);
     } catch (err) {
+      const error = err as Error;
       console.error('Failed to load commit file diff:', err);
-      setCurrentDiff({ hasError: true, error: err.message || 'Failed to load diff' });
+      setCurrentDiff({ hasError: true, error: error.message || 'Failed to load diff' } as FileDiff);
     } finally {
       setIsDiffLoading(false);
     }
@@ -617,16 +514,16 @@ export function RepoProvider({ children }) {
     setCurrentDiff(null);
   }, []);
 
-  // ===== v2: Branch Operations =====
-  
+  // ===== Branch Operations =====
+
   // Fetch branches
-  const refreshBranches = useCallback(async () => {
+  const refreshBranches = useCallback(async (): Promise<void> => {
     if (!repoPath) return;
     
     try {
       const branchList = await Branches(repoPath);
       if (!branchList.hasError) {
-        setBranches(branchList);
+        setBranches(branchList as BranchList);
       }
     } catch (err) {
       console.error('Failed to fetch branches:', err);
@@ -634,7 +531,7 @@ export function RepoProvider({ children }) {
   }, [repoPath]);
 
   // Switch to existing branch
-  const switchBranch = useCallback(async (branchName) => {
+  const switchBranch = useCallback(async (branchName: string): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -654,13 +551,14 @@ export function RepoProvider({ children }) {
       await refreshBranches();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to switch branch: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to switch branch: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
 
   // Create new branch and switch to it
-  const createBranch = useCallback(async (branchName) => {
+  const createBranch = useCallback(async (branchName: string): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -680,14 +578,14 @@ export function RepoProvider({ children }) {
       await refreshBranches();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to create branch: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to create branch: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
 
   // Create new branch, switch to it, and commit changes
-  // This is a compound action that combines stash → branch → pop → commit
-  const branchAndCommit = useCallback(async (branchName, message) => {
+  const branchAndCommit = useCallback(async (branchName: string, message: string): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -704,7 +602,6 @@ export function RepoProvider({ children }) {
     }
     
     try {
-      // Step 1: Stash changes and switch to new branch
       const switchResult = await StashAndSwitchBranch(repoPath, branchName.trim(), true);
       
       if (!switchResult.success) {
@@ -712,7 +609,6 @@ export function RepoProvider({ children }) {
         return false;
       }
       
-      // Step 2: Commit the changes (they are now staged after stash pop)
       const commitResult = await CommitAll(repoPath, message.trim());
       
       if (!commitResult.success) {
@@ -726,15 +622,16 @@ export function RepoProvider({ children }) {
       await refreshBranches();
       return true;
     } catch (err) {
-      showMessage('error', `Failed: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
 
-  // ===== v2: Recovery Operations =====
-  
-  // Undo last commit (keeps changes staged)
-  const undoLastCommit = useCallback(async () => {
+  // ===== Recovery Operations =====
+
+  // Undo last commit
+  const undoLastCommit = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -753,13 +650,14 @@ export function RepoProvider({ children }) {
       await refreshAll();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to undo: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to undo: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearSelection, refreshAll]);
 
   // Discard all changes
-  const discardAllChanges = useCallback(async () => {
+  const discardAllChanges = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -778,13 +676,14 @@ export function RepoProvider({ children }) {
       await refreshAll();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to discard: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to discard: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearSelection, refreshAll]);
 
-  // Rewind to last snapshot (git reset --hard HEAD)
-  const rewindToLastSnapshot = useCallback(async () => {
+  // Rewind to last snapshot
+  const rewindToLastSnapshot = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -803,13 +702,14 @@ export function RepoProvider({ children }) {
       await refreshAll();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to rewind: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to rewind: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearSelection, refreshAll]);
 
   // Discard changes to a single file
-  const discardFileChanges = useCallback(async (filePath) => {
+  const discardFileChanges = useCallback(async (filePath: string): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -829,15 +729,20 @@ export function RepoProvider({ children }) {
       await refreshStatus();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to discard: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to discard: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, refreshStatus]);
 
-  // Check for merge conflicts (DRY-RUN ONLY - does NOT start the actual merge)
-  // This is a read-only operation that checks what conflicts would occur
-  // Call startMerge() separately to actually begin the merge process
-  const checkConflictsOnly = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
+  // ===== Conflict Checking Operations =====
+
+  // Check for merge conflicts (DRY-RUN ONLY)
+  const checkConflictsOnly = useCallback(async (
+    targetBranch = '', 
+    sourceBranch = '', 
+    options: MergeOptions = {}
+  ): Promise<BranchConflictCheckResult | null> => {
     const { squash = isSquashMerge } = options;
     
     if (!repoPath) {
@@ -852,26 +757,21 @@ export function RepoProvider({ children }) {
     setConflictSidesInfo(null);
     
     try {
-      // Pass targetBranch and optional sourceBranch to backend
-      // Backend will auto-detect if empty - this is a dry-run check only
       const result = await CheckBranchConflicts(repoPath, targetBranch, sourceBranch);
       
-      // Store squash preference in the result for later use
-      result.isSquashMerge = squash;
-      setConflictCheckResult(result);
+      const resultWithSquash = { ...result, isSquashMerge: squash } as BranchConflictCheckResult;
+      setConflictCheckResult(resultWithSquash);
       
-      // Store detected target branch info (for backward compat, also store as parent)
       if (result.targetBranch || result.parentBranch) {
         setDetectedParentBranch({
           name: result.targetBranch || result.parentBranch,
-          source: result.parentBranchSource || 'auto-detected',
+          source: 'auto-detected',
         });
         
-        // Fetch commit info for both sides of the conflict
         try {
           const sidesInfo = await GetConflictSidesInfo(repoPath, result.targetBranch || result.parentBranch);
           if (sidesInfo.success) {
-            setConflictSidesInfo(sidesInfo);
+            setConflictSidesInfo(sidesInfo as ConflictSidesInfo);
           }
         } catch (sidesErr) {
           console.error('Failed to get conflict sides info:', sidesErr);
@@ -881,33 +781,35 @@ export function RepoProvider({ children }) {
       if (!result.success) {
         showMessage('error', result.error || 'Failed to check conflicts');
         setIsCheckingConflicts(false);
-        return result;
+        return resultWithSquash;
       }
       
-      // Get branch names for messages
       const target = result.targetBranch || result.parentBranch;
       const source = result.sourceBranch || repoInfo?.branch;
       
-      // Store predicted conflicts without starting merge
       if (result.hasConflicts) {
-        setConflictedFiles(result.conflictedFiles || []);
+        setConflictedFiles((result.conflictedFiles || []) as ConflictedFile[]);
         showMessage('info', `Found ${result.conflictedFiles?.length || 0} potential conflict(s) when merging ${source} → ${target}`);
       } else {
         showMessage('success', `No conflicts detected - ready to merge ${source} into ${target}`);
       }
       
       setIsCheckingConflicts(false);
-      return result;
+      return resultWithSquash;
     } catch (err) {
-      showMessage('error', `Failed to check conflicts: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to check conflicts: ${error.message || err}`);
       setIsCheckingConflicts(false);
       return null;
     }
   }, [repoPath, showMessage, isSquashMerge, repoInfo?.branch]);
 
-  // Start the actual merge process (call after checkConflictsOnly)
-  // This will mutate the working tree and put git into merge state if conflicts exist
-  const startMerge = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
+  // Start the actual merge process
+  const startMerge = useCallback(async (
+    targetBranch = '', 
+    sourceBranch = '', 
+    options: MergeOptions = {}
+  ): Promise<StartMergeResult | null> => {
     const { squash = isSquashMerge } = options;
     
     if (!repoPath) {
@@ -915,7 +817,6 @@ export function RepoProvider({ children }) {
       return null;
     }
     
-    // Use stored values from conflict check if not provided
     const target = targetBranch || conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name;
     const source = sourceBranch || conflictCheckResult?.sourceBranch || repoInfo?.branch;
     const mergeType = squash ? 'Squash merge' : 'Merge';
@@ -928,99 +829,63 @@ export function RepoProvider({ children }) {
     setIsCheckingConflicts(true);
     
     try {
-      console.log(`[startMerge] Starting ${mergeType.toLowerCase()}:`, source, 'into', target);
-      const mergeResult = await StartMergeWithOptions(repoPath, target, source, { squash });
-      console.log('[startMerge] StartMergeWithOptions result:', mergeResult);
+      const mergeResult = await StartMergeWithOptions(repoPath, target, source || '', { squash });
       
       if (!mergeResult.success) {
         const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
         showMessage('error', errorMsg);
-        setConflictCheckResult(prev => ({
-          ...prev,
-          success: false,
-          error: errorMsg,
-          mergeStarted: false,
-        }));
+        setConflictCheckResult(prev => prev ? { ...prev, success: false, error: errorMsg, mergeStarted: false } : null);
         setIsCheckingConflicts(false);
         return null;
       }
       
-      // Check for special cases: already up to date or auto-completed
       if (mergeResult.error === 'already_up_to_date') {
-        console.log('[startMerge] Target already contains all changes from source');
         showMessage('info', `${target} already contains all changes from ${source} - nothing to merge`);
-        setConflictCheckResult(prev => ({
-          ...prev,
-          success: true,
-          alreadyUpToDate: true,
-          mergeStarted: false,
-          message: mergeResult.message,
-        }));
+        setConflictCheckResult(prev => prev ? { ...prev, success: true, alreadyUpToDate: true, mergeStarted: false } : null);
         setIsCheckingConflicts(false);
         return { success: true, alreadyUpToDate: true };
       }
       
       if (mergeResult.error === 'auto_completed') {
-        console.log('[startMerge] Merge auto-completed without needing a commit');
         showMessage('success', `Merged ${source} into ${target} successfully`);
-        setConflictCheckResult(prev => ({
-          ...prev,
-          success: true,
-          autoCompleted: true,
-          mergeStarted: true,
-          message: mergeResult.message,
-        }));
+        setConflictCheckResult(prev => prev ? { ...prev, success: true, autoCompleted: true, mergeStarted: true } : null);
         await refreshAll();
         setIsCheckingConflicts(false);
         return { success: true, autoCompleted: true };
       }
       
-      // Refresh merge state after starting
       const mergeStateAfterStart = await GetMergeState(repoPath);
-      console.log('[startMerge] Merge state after start:', mergeStateAfterStart);
       
       if (mergeStateAfterStart.hasConflicts) {
-        // Re-fetch the actual conflicted files from the merge
         const actualConflicts = await GetConflictedFiles(repoPath);
-        console.log('[startMerge] Actual conflicts:', actualConflicts);
-        setConflictedFiles(actualConflicts || conflictCheckResult?.conflictedFiles || []);
+        setConflictedFiles((actualConflicts || conflictCheckResult?.conflictedFiles || []) as ConflictedFile[]);
         showMessage('info', `${mergeType} started: ${source} → ${target} with ${actualConflicts?.length || 0} conflict(s) to resolve`);
       } else {
-        // No conflicts - ready to complete
         setConflictedFiles([]);
         showMessage('success', `${mergeType} started - ready to complete`);
       }
       
-      // Update conflict check result to indicate merge has started
-      setConflictCheckResult(prev => ({
-        ...prev,
-        mergeStarted: true,
-        hasConflicts: mergeStateAfterStart.hasConflicts,
-      }));
-      
-      // For squash merge, we won't be in merge state but will have staged changes
-      if (!mergeStateAfterStart.inMerge && !squash) {
-        console.warn('[startMerge] WARNING: Not in merge state - may affect CompleteMerge');
-      }
-      
+      setConflictCheckResult(prev => prev ? { ...prev, mergeStarted: true, hasConflicts: mergeStateAfterStart.hasConflicts } : null);
       setIsCheckingConflicts(false);
       return { success: true, hasConflicts: mergeStateAfterStart.hasConflicts };
     } catch (err) {
-      showMessage('error', `Failed to start merge: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to start merge: ${error.message || err}`);
       setIsCheckingConflicts(false);
       return null;
     }
   }, [repoPath, showMessage, isSquashMerge, conflictCheckResult, detectedParentBranch, repoInfo?.branch, refreshAll]);
 
-  // Legacy function for backward compatibility - checks AND starts merge
-  // Prefer using checkConflictsOnly() + startMerge() separately for better UX
-  const checkBranchConflicts = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
-    // First do the dry-run check
+  // Legacy function for backward compatibility
+  const checkBranchConflicts = useCallback(async (
+    targetBranch = '', 
+    sourceBranch = '', 
+    options: MergeOptions = {}
+  ): Promise<BranchConflictCheckResult | null> => {
     const checkResult = await checkConflictsOnly(targetBranch, sourceBranch, options);
     if (!checkResult || !checkResult.success) {
       return checkResult;
     }
-    // Then immediately start the merge
     const mergeResult = await startMerge(targetBranch, sourceBranch, options);
     if (!mergeResult) {
       return null;
@@ -1028,8 +893,8 @@ export function RepoProvider({ children }) {
     return { ...checkResult, ...mergeResult };
   }, [checkConflictsOnly, startMerge]);
 
-  // Get parent branch info (for display or pre-selection)
-  const fetchParentBranch = useCallback(async () => {
+  // Get parent branch info
+  const fetchParentBranch = useCallback(async (): Promise<ParentBranchResult | null> => {
     if (!repoPath) return null;
     
     try {
@@ -1039,7 +904,7 @@ export function RepoProvider({ children }) {
           name: result.parentBranch,
           source: result.source || 'auto-detected',
         });
-        return result;
+        return result as ParentBranchResult;
       }
       return null;
     } catch (err) {
@@ -1059,23 +924,18 @@ export function RepoProvider({ children }) {
     setConflictSidesInfo(null);
   }, []);
 
-  // Set resolution strategy for a file (doesn't apply it yet)
-  const setFileResolution = useCallback((filePath, strategy) => {
-    setFileResolutions(prev => ({
-      ...prev,
-      [filePath]: strategy, // 'mine' | 'theirs' | 'both'
-    }));
+  // Set resolution strategy for a file
+  const setFileResolution = useCallback((filePath: string, strategy: ResolutionStrategy) => {
+    setFileResolutions(prev => ({ ...prev, [filePath]: strategy }));
   }, []);
 
   // Apply resolution for a single file
-  const resolveConflict = useCallback(async (filePath, strategy) => {
+  const resolveConflict = useCallback(async (filePath: string, strategy: ResolutionStrategy): Promise<boolean> => {
     if (!repoPath || !filePath) {
       showMessage('error', 'Invalid file path');
       return false;
     }
 
-    console.log('[resolveConflict] Starting resolution:', { repoPath, filePath, strategy });
-    
     setIsResolvingConflict(true);
     try {
       let result;
@@ -1084,7 +944,6 @@ export function RepoProvider({ children }) {
       } else if (strategy === 'theirs') {
         result = await ResolveConflictKeepTheirs(repoPath, filePath);
       } else if (strategy === 'both') {
-        // 'both' strategy - keep both versions, rename one as _COPY
         result = await ResolveConflictKeepBoth(repoPath, filePath);
       } else {
         showMessage('error', 'Invalid resolution strategy');
@@ -1092,33 +951,26 @@ export function RepoProvider({ children }) {
         return false;
       }
 
-      console.log('[resolveConflict] Result:', result);
-
       if (!result.success) {
-        // Error message is in 'error' field, not 'message' field
         showMessage('error', result.error || result.message || 'Failed to resolve conflict');
         setIsResolvingConflict(false);
         return false;
       }
 
-      // Update local state
-      setFileResolutions(prev => ({
-        ...prev,
-        [filePath]: strategy,
-      }));
-
+      setFileResolutions(prev => ({ ...prev, [filePath]: strategy }));
       showMessage('success', result.message || `Resolved "${filePath.split('/').pop()}"`);
       setIsResolvingConflict(false);
       return true;
     } catch (err) {
-      showMessage('error', `Failed to resolve: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to resolve: ${error.message || err}`);
       setIsResolvingConflict(false);
       return false;
     }
   }, [repoPath, showMessage]);
 
   // Apply all pending resolutions
-  const applyAllResolutions = useCallback(async () => {
+  const applyAllResolutions = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
 
     const pending = conflictedFiles.filter(f => fileResolutions[f.path] && fileResolutions[f.path] !== 'both');
@@ -1149,20 +1001,16 @@ export function RepoProvider({ children }) {
   }, [repoPath, conflictedFiles, fileResolutions, resolveConflict, showMessage]);
 
   // Abort the current merge
-  const abortMerge = useCallback(async () => {
+  const abortMerge = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
     }
 
-    console.log('[abortMerge] Aborting merge...');
-
     try {
       const result = await AbortMerge(repoPath);
-      console.log('[abortMerge] Result:', result);
       
       if (!result.success) {
-        // Error is in 'error' field, not 'message'
         showMessage('error', result.error || result.message || 'Failed to abort merge');
         return false;
       }
@@ -1172,82 +1020,56 @@ export function RepoProvider({ children }) {
       await refreshStatus();
       return true;
     } catch (err) {
-      console.error('[abortMerge] Exception:', err);
-      showMessage('error', `Failed to abort merge: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to abort merge: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearConflicts, refreshStatus]);
 
   // Complete the merge with a commit message
-  // Handles both regular merges and squash merges
-  const completeMerge = useCallback(async (message) => {
+  const completeMerge = useCallback(async (message: string): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
     }
 
-    // Check if all conflicts are resolved (local state)
     const unresolvedCount = conflictedFiles.filter(f => !fileResolutions[f.path]).length;
     if (unresolvedCount > 0) {
       showMessage('error', `${unresolvedCount} file(s) still need resolution`);
       return false;
     }
 
-    // Determine if this is a squash merge from the conflict check result
     const isSquash = conflictCheckResult?.isSquashMerge ?? isSquashMerge;
-    console.log('[completeMerge] Starting merge completion with message:', message, 'isSquash:', isSquash);
-
-    // Store parent branch before clearing conflicts
     const parentBranchName = detectedParentBranch?.name;
 
     try {
       let result;
       
       if (isSquash) {
-        // Squash merge - use CompleteSquashMerge which just commits staged changes
-        console.log('[completeMerge] Completing squash merge');
         result = await CompleteSquashMerge(repoPath, message || '');
       } else {
-        // Regular merge - check merge state first
-        const mergeStateBeforeComplete = await GetMergeState(repoPath);
-        console.log('[completeMerge] Merge state before complete:', mergeStateBeforeComplete);
-        
-        if (!mergeStateBeforeComplete.inMerge) {
-          console.warn('[completeMerge] WARNING: No merge in progress according to GetMergeState');
-          console.log('[completeMerge] conflictCheckResult:', conflictCheckResult);
-          console.log('[completeMerge] conflictedFiles:', conflictedFiles);
-        }
-        
         result = await CompleteMerge(repoPath, message || '');
       }
-      
-      console.log('[completeMerge] Result:', result);
       
       if (!result.success) {
         showMessage('error', result.error || result.message || 'Failed to complete merge');
         return false;
       }
 
-      const successMsg = isSquash 
-        ? 'Squash merge completed successfully' 
-        : 'Merge completed successfully';
+      const successMsg = isSquash ? 'Squash merge completed successfully' : 'Merge completed successfully';
       showMessage('success', result.message || successMsg);
       clearConflicts();
       clearSelection();
       await refreshAll();
       await refreshBranches();
 
-      // After successful merge, checkout to the parent branch
       if (parentBranchName) {
-        console.log('[completeMerge] Switching to parent branch:', parentBranchName);
         try {
           const checkoutResult = await CheckoutBranch(repoPath, parentBranchName);
           if (checkoutResult.success) {
             showMessage('success', `Switched to ${parentBranchName}`);
             await refreshAll();
             await refreshBranches();
-          } else {
-            console.error('[completeMerge] Failed to switch to parent branch:', checkoutResult.error);
           }
         } catch (checkoutErr) {
           console.error('[completeMerge] Error switching to parent branch:', checkoutErr);
@@ -1256,20 +1078,20 @@ export function RepoProvider({ children }) {
 
       return true;
     } catch (err) {
-      console.error('[completeMerge] Exception:', err);
-      showMessage('error', `Failed to complete merge: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to complete merge: ${error.message || err}`);
       return false;
     }
   }, [repoPath, conflictedFiles, fileResolutions, conflictCheckResult, isSquashMerge, showMessage, clearConflicts, clearSelection, refreshAll, refreshBranches, detectedParentBranch]);
 
   // Refresh merge state from backend
-  const refreshMergeState = useCallback(async () => {
+  const refreshMergeState = useCallback(async (): Promise<MergeState | null> => {
     if (!repoPath) return null;
     
     try {
       const state = await GetMergeState(repoPath);
-      setMergeState(state);
-      return state;
+      setMergeState(state as MergeState);
+      return state as MergeState;
     } catch (err) {
       console.error('Failed to get merge state:', err);
       return null;
@@ -1277,33 +1099,30 @@ export function RepoProvider({ children }) {
   }, [repoPath]);
 
   // ===== Stuck State Recovery Actions =====
-  
-  // Abort any current stuck operation (unified abort)
-  const abortCurrentOperation = useCallback(async () => {
+
+  const abortCurrentOperation = useCallback(async (): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
     }
-
     try {
       const result = await AbortCurrentOperation(repoPath);
       if (!result.success) {
         showMessage('error', result.error || result.message || 'Failed to abort operation');
         return false;
       }
-
       showMessage('success', result.message || 'Operation aborted');
       clearConflicts();
       await refreshAll();
       return true;
     } catch (err) {
-      showMessage('error', `Failed to abort operation: ${err.message || err}`);
+      const error = err as Error;
+      showMessage('error', `Failed to abort operation: ${error.message || err}`);
       return false;
     }
   }, [repoPath, showMessage, clearConflicts, refreshAll]);
 
-  // Cherry-pick recovery
-  const abortCherryPick = useCallback(async () => {
+  const abortCherryPick = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await AbortCherryPick(repoPath);
@@ -1315,12 +1134,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to abort cherry-pick: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to abort cherry-pick: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  const continueCherryPick = useCallback(async () => {
+  const continueCherryPick = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await ContinueCherryPick(repoPath);
@@ -1332,12 +1152,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to continue cherry-pick: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to continue cherry-pick: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  const skipCherryPickCommit = useCallback(async () => {
+  const skipCherryPickCommit = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await SkipCherryPickCommit(repoPath);
@@ -1349,13 +1170,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to skip commit: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to skip commit: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Revert recovery
-  const abortRevert = useCallback(async () => {
+  const abortRevert = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await AbortRevert(repoPath);
@@ -1367,12 +1188,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to abort revert: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to abort revert: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  const continueRevert = useCallback(async () => {
+  const continueRevert = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await ContinueRevert(repoPath);
@@ -1384,12 +1206,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to continue revert: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to continue revert: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  const skipRevertCommit = useCallback(async () => {
+  const skipRevertCommit = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await SkipRevertCommit(repoPath);
@@ -1401,13 +1224,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to skip commit: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to skip commit: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Bisect recovery
-  const abortBisect = useCallback(async () => {
+  const abortBisect = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await AbortBisect(repoPath);
@@ -1419,23 +1242,23 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to abort bisect: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to abort bisect: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  const getBisectState = useCallback(async () => {
+  const getBisectState = useCallback(async (): Promise<BisectState | null> => {
     if (!repoPath) return null;
     try {
-      return await GetBisectState(repoPath);
+      return await GetBisectState(repoPath) as BisectState;
     } catch (err) {
       console.error('Failed to get bisect state:', err);
       return null;
     }
   }, [repoPath]);
 
-  // AM (patch) recovery
-  const abortAM = useCallback(async () => {
+  const abortAM = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await AbortAM(repoPath);
@@ -1447,12 +1270,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to abort patch application: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to abort patch application: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  const skipAMPatch = useCallback(async () => {
+  const skipAMPatch = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await SkipAMPatch(repoPath);
@@ -1464,13 +1288,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to skip patch: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to skip patch: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Detached HEAD recovery
-  const createBranchFromDetached = useCallback(async (branchName) => {
+  const createBranchFromDetached = useCallback(async (branchName: string): Promise<boolean> => {
     if (!repoPath) return false;
     if (!branchName) {
       showMessage('error', 'Branch name is required');
@@ -1487,13 +1311,13 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to create branch: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to create branch: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll, refreshBranches]);
 
-  // Lock file recovery
-  const removeAllStaleLocks = useCallback(async () => {
+  const removeAllStaleLocks = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
       const result = await RemoveAllStaleLocks(repoPath, true);
@@ -1505,25 +1329,127 @@ export function RepoProvider({ children }) {
       showMessage('error', result.error || result.message);
       return false;
     } catch (err) {
-      showMessage('error', `Failed to remove lock files: ${err.message}`);
+      const error = err as Error;
+      showMessage('error', `Failed to remove lock files: ${error.message}`);
       return false;
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Also refresh branches when repo changes
+  // ===== Effects =====
+
+  // Load last opened repository on mount
+  useEffect(() => {
+    const loadLastRepo = async () => {
+      try {
+        const settings = await GetAppSettings();
+        if (settings.lastRepoPath) {
+          await openRepo(settings.lastRepoPath);
+        }
+      } catch (err) {
+        console.error('Failed to load last repo:', err);
+      }
+    };
+    loadLastRepo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Start polling when git repo is open
+  useEffect(() => {
+    if (repoPath && repoInfo?.isRepo) {
+      refreshAll();
+      pollIntervalRef.current = setInterval(refreshStatus, STATUS_POLL_INTERVAL);
+      
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+      };
+    }
+  }, [repoPath, repoInfo?.isRepo, refreshAll, refreshStatus]);
+
+  // Event-based refresh for file changes
+  useEffect(() => {
+    if (!repoPath || !repoInfo?.isRepo) return;
+    
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    const handleFilesChanged = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        refreshStatus();
+      }, 300);
+    };
+    
+    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [repoPath, repoInfo?.isRepo, refreshStatus]);
+
+  // Reset conflict check state when local changes are detected
+  useEffect(() => {
+    if (repoStatus?.hasChanges && conflictCheckResult) {
+      if (conflictedFiles.length > 0) {
+        return;
+      }
+      if (conflictCheckResult.success && !conflictCheckResult.hasConflicts) {
+        return;
+      }
+      setConflictCheckResult(null);
+      setConflictedFiles([]);
+      setSelectedConflictFile(null);
+      setFileResolutions({});
+      setMergeState(null);
+      setConflictSidesInfo(null);
+    }
+  }, [repoStatus?.hasChanges, conflictCheckResult, conflictedFiles.length]);
+
+  // Listen for folder-selected event from native menu
+  useEffect(() => {
+    const unsubscribe = Events.On('folder-selected', async (event: { data?: string }) => {
+      if (event.data) {
+        await openRepo(event.data);
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [openRepo]);
+
+  // Listen for folder-closed event from native menu
+  useEffect(() => {
+    const unsubscribe = Events.On('folder-closed', async () => {
+      await closeRepo();
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [closeRepo]);
+
+  // Refresh branches when repo changes
   useEffect(() => {
     if (repoPath) {
       refreshBranches();
     }
   }, [repoPath, refreshBranches]);
 
-  // Memoized context value
-  const value = useMemo(() => ({
+  // ===== Memoized Context Value =====
+  const value = useMemo<RepoContextValue>(() => ({
     // State
     repoPath,
     repoInfo,
     repoStatus,
-    commits: graphCommits, // Alias for backward compatibility
+    commits: graphCommits,
     graphCommits,
     branches,
     selectedFileIndex,
@@ -1583,7 +1509,7 @@ export function RepoProvider({ children }) {
     isCheckingConflicts,
     checkConflictsOnly,
     startMerge,
-    checkBranchConflicts, // Legacy - prefer checkConflictsOnly + startMerge
+    checkBranchConflicts,
     clearConflicts,
     detectedParentBranch,
     fetchParentBranch,
@@ -1606,23 +1532,17 @@ export function RepoProvider({ children }) {
 
     // v2: Stuck state recovery actions
     abortCurrentOperation,
-    // Cherry-pick
     abortCherryPick,
     continueCherryPick,
     skipCherryPickCommit,
-    // Revert
     abortRevert,
     continueRevert,
     skipRevertCommit,
-    // Bisect
     abortBisect,
     getBisectState,
-    // AM (patch)
     abortAM,
     skipAMPatch,
-    // Detached HEAD
     createBranchFromDetached,
-    // Lock files
     removeAllStaleLocks,
   }), [
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
@@ -1637,10 +1557,9 @@ export function RepoProvider({ children }) {
     conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, 
     checkConflictsOnly, startMerge, checkBranchConflicts, clearConflicts,
     detectedParentBranch, fetchParentBranch, conflictSidesInfo,
-    isSquashMerge, setIsSquashMerge,
+    isSquashMerge,
     fileResolutions, setFileResolution, mergeState, isResolvingConflict,
     resolveConflict, applyAllResolutions, abortMerge, completeMerge, refreshMergeState,
-    // Stuck state recovery
     abortCurrentOperation,
     abortCherryPick, continueCherryPick, skipCherryPickCommit,
     abortRevert, continueRevert, skipRevertCommit,
@@ -1661,7 +1580,7 @@ export function RepoProvider({ children }) {
  * useRepo - Hook to access repository context.
  * Must be used within a RepoProvider.
  */
-export function useRepo() {
+export function useRepo(): RepoContextValue {
   const context = useContext(RepoContext);
   if (!context) {
     throw new Error('useRepo must be used within a RepoProvider');

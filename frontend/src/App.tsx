@@ -1,7 +1,7 @@
 import { RepoProvider } from './context';
 import { AppLayout } from './components/layout';
 
-function App() {
+function App(): JSX.Element {
   return (
     <RepoProvider>
       <AppLayout />
@@ -9,4 +9,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

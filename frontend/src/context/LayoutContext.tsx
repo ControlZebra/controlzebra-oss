@@ -22,7 +22,7 @@ import { VIEWS, BOTTOM_PANELS, type ViewType, type BottomPanelType } from '../co
 // Types
 // ============================================================================
 
-type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system';
 
 interface LayoutContextValue {
   // Sidebar
