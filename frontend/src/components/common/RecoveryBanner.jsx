@@ -17,6 +17,7 @@ import BranchModal from '../layout/BranchModal';
 const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
 // Simplified state configuration - 3 color schemes: critical, warning, info
+// Note: Rebase is detected but only abort is supported - users should use merge workflow instead
 const STUCK_STATE_CONFIG = {
   locked: {
     icon: Lock,
@@ -37,10 +38,10 @@ const STUCK_STATE_CONFIG = {
   rebase: {
     icon: AlertTriangle,
     title: 'Rebase in Progress',
-    message: 'Resolve conflicts or abort to continue.',
+    message: 'Abort to return to a clean state.',
     color: 'warning',
-    showResolve: true,
-    abortLabel: 'Abort',
+    showResolve: false,  // Rebase workflow is deprecated - only abort is supported
+    abortLabel: 'Abort Rebase',
   },
   'cherry-pick': {
     icon: AlertTriangle,

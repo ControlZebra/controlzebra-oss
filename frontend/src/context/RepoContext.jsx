@@ -67,8 +67,6 @@ import {
   SkipAMPatch,
   CreateBranchFromDetached,
   RemoveAllStaleLocks,
-  ContinueRebase,
-  SkipRebaseCommit,
 } from '../../bindings/changeme/services/gitservice';
 import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
@@ -836,11 +834,10 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshStatus]);
 
-  // Check for merge conflicts when merging source branch INTO target branch
-  // By default: merges current branch INTO detected parent branch
-  // Pass { targetBranch, sourceBranch, squash } for custom merge options
-  // squash defaults to true (uses isSquashMerge state if not provided)
-  const checkBranchConflicts = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
+  // Check for merge conflicts (DRY-RUN ONLY - does NOT start the actual merge)
+  // This is a read-only operation that checks what conflicts would occur
+  // Call startMerge() separately to actually begin the merge process
+  const checkConflictsOnly = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
     const { squash = isSquashMerge } = options;
     
     if (!repoPath) {
@@ -856,7 +853,7 @@ export function RepoProvider({ children }) {
     
     try {
       // Pass targetBranch and optional sourceBranch to backend
-      // Backend will auto-detect if empty
+      // Backend will auto-detect if empty - this is a dry-run check only
       const result = await CheckBranchConflicts(repoPath, targetBranch, sourceBranch);
       
       // Store squash preference in the result for later use
@@ -890,99 +887,13 @@ export function RepoProvider({ children }) {
       // Get branch names for messages
       const target = result.targetBranch || result.parentBranch;
       const source = result.sourceBranch || repoInfo?.branch;
-      const mergeType = squash ? 'Squash merge' : 'Merge';
       
+      // Store predicted conflicts without starting merge
       if (result.hasConflicts) {
-        // Actually start the merge so we're in a real merge state
-        // This allows resolution commands (checkout --ours/--theirs) to work
-        console.log(`[checkBranchConflicts] Starting ${mergeType.toLowerCase()}:`, source, 'into', target);
-        const mergeResult = await StartMergeWithOptions(repoPath, target, source, { squash });
-        console.log('[checkBranchConflicts] StartMergeWithOptions result:', mergeResult);
-        
-        if (!mergeResult.success) {
-          // Error is in 'error' field, not 'message' field
-          const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
-          showMessage('error', errorMsg);
-          // Clear conflict state since we couldn't start the merge
-          // This prevents the UI from showing resolvable conflicts when there's no merge
-          setConflictCheckResult({
-            ...result,
-            success: false,
-            error: errorMsg,
-          });
-          setIsCheckingConflicts(false);
-          return null;
-        }
-        
-        // Refresh conflicted files from actual merge state
-        const mergeState = await GetMergeState(repoPath);
-        console.log('[checkBranchConflicts] Merge state after start:', mergeState);
-        
-        if (mergeState.hasConflicts) {
-          // Re-fetch the actual conflicted files from the merge
-          const actualConflicts = await GetConflictedFiles(repoPath);
-          console.log('[checkBranchConflicts] Actual conflicts:', actualConflicts);
-          setConflictedFiles(actualConflicts || result.conflictedFiles || []);
-        } else {
-          setConflictedFiles(result.conflictedFiles || []);
-        }
-        
-        showMessage('info', `${mergeType} started: ${source} → ${target} with ${result.conflictedFiles?.length || 0} conflict(s)`);
+        setConflictedFiles(result.conflictedFiles || []);
+        showMessage('info', `Found ${result.conflictedFiles?.length || 0} potential conflict(s) when merging ${source} → ${target}`);
       } else {
-        // No conflicts detected - still need to start the merge
-        console.log(`[checkBranchConflicts] No conflicts - starting clean ${mergeType.toLowerCase()}:`, source, 'into', target);
-        const mergeResult = await StartMergeWithOptions(repoPath, target, source, { squash });
-        console.log('[checkBranchConflicts] Clean merge result:', mergeResult);
-        
-        if (!mergeResult.success) {
-          const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
-          showMessage('error', errorMsg);
-          setConflictCheckResult({
-            ...result,
-            success: false,
-            error: errorMsg,
-          });
-          setIsCheckingConflicts(false);
-          return null;
-        }
-        
-        // Check for special cases: already up to date or auto-completed
-        if (mergeResult.error === 'already_up_to_date') {
-          console.log('[checkBranchConflicts] Target already contains all changes from source');
-          showMessage('info', `${target} already contains all changes from ${source} - nothing to merge`);
-          setConflictCheckResult({
-            ...result,
-            success: true,
-            alreadyUpToDate: true,
-            message: mergeResult.message,
-          });
-          setIsCheckingConflicts(false);
-          return { ...result, alreadyUpToDate: true };
-        }
-        
-        if (mergeResult.error === 'auto_completed') {
-          console.log('[checkBranchConflicts] Merge auto-completed without needing a commit');
-          showMessage('success', `Merged ${source} into ${target} successfully`);
-          setConflictCheckResult({
-            ...result,
-            success: true,
-            autoCompleted: true,
-            message: mergeResult.message,
-          });
-          await refreshAll();
-          setIsCheckingConflicts(false);
-          return { ...result, autoCompleted: true };
-        }
-        
-        // For squash merge, we won't be in merge state but will have staged changes
-        const mergeStateAfterStart = await GetMergeState(repoPath);
-        console.log('[checkBranchConflicts] Merge state after clean merge:', mergeStateAfterStart);
-        if (!mergeStateAfterStart.inMerge && !squash) {
-          console.warn('[checkBranchConflicts] WARNING: Not in merge state - may affect CompleteMerge');
-        }
-        
-        // conflictedFiles already cleared at start of function
-        showMessage('success', result.message || `No conflicts - ready to ${squash ? 'squash merge' : 'merge'} ${source} into ${target}`);
+        showMessage('success', `No conflicts detected - ready to merge ${source} into ${target}`);
       }
       
       setIsCheckingConflicts(false);
@@ -992,7 +903,130 @@ export function RepoProvider({ children }) {
       setIsCheckingConflicts(false);
       return null;
     }
-  }, [repoPath, showMessage, isSquashMerge]);
+  }, [repoPath, showMessage, isSquashMerge, repoInfo?.branch]);
+
+  // Start the actual merge process (call after checkConflictsOnly)
+  // This will mutate the working tree and put git into merge state if conflicts exist
+  const startMerge = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
+    const { squash = isSquashMerge } = options;
+    
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return null;
+    }
+    
+    // Use stored values from conflict check if not provided
+    const target = targetBranch || conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name;
+    const source = sourceBranch || conflictCheckResult?.sourceBranch || repoInfo?.branch;
+    const mergeType = squash ? 'Squash merge' : 'Merge';
+    
+    if (!target) {
+      showMessage('error', 'No target branch specified. Please check for conflicts first.');
+      return null;
+    }
+    
+    setIsCheckingConflicts(true);
+    
+    try {
+      console.log(`[startMerge] Starting ${mergeType.toLowerCase()}:`, source, 'into', target);
+      const mergeResult = await StartMergeWithOptions(repoPath, target, source, { squash });
+      console.log('[startMerge] StartMergeWithOptions result:', mergeResult);
+      
+      if (!mergeResult.success) {
+        const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
+        showMessage('error', errorMsg);
+        setConflictCheckResult(prev => ({
+          ...prev,
+          success: false,
+          error: errorMsg,
+          mergeStarted: false,
+        }));
+        setIsCheckingConflicts(false);
+        return null;
+      }
+      
+      // Check for special cases: already up to date or auto-completed
+      if (mergeResult.error === 'already_up_to_date') {
+        console.log('[startMerge] Target already contains all changes from source');
+        showMessage('info', `${target} already contains all changes from ${source} - nothing to merge`);
+        setConflictCheckResult(prev => ({
+          ...prev,
+          success: true,
+          alreadyUpToDate: true,
+          mergeStarted: false,
+          message: mergeResult.message,
+        }));
+        setIsCheckingConflicts(false);
+        return { success: true, alreadyUpToDate: true };
+      }
+      
+      if (mergeResult.error === 'auto_completed') {
+        console.log('[startMerge] Merge auto-completed without needing a commit');
+        showMessage('success', `Merged ${source} into ${target} successfully`);
+        setConflictCheckResult(prev => ({
+          ...prev,
+          success: true,
+          autoCompleted: true,
+          mergeStarted: true,
+          message: mergeResult.message,
+        }));
+        await refreshAll();
+        setIsCheckingConflicts(false);
+        return { success: true, autoCompleted: true };
+      }
+      
+      // Refresh merge state after starting
+      const mergeStateAfterStart = await GetMergeState(repoPath);
+      console.log('[startMerge] Merge state after start:', mergeStateAfterStart);
+      
+      if (mergeStateAfterStart.hasConflicts) {
+        // Re-fetch the actual conflicted files from the merge
+        const actualConflicts = await GetConflictedFiles(repoPath);
+        console.log('[startMerge] Actual conflicts:', actualConflicts);
+        setConflictedFiles(actualConflicts || conflictCheckResult?.conflictedFiles || []);
+        showMessage('info', `${mergeType} started: ${source} → ${target} with ${actualConflicts?.length || 0} conflict(s) to resolve`);
+      } else {
+        // No conflicts - ready to complete
+        setConflictedFiles([]);
+        showMessage('success', `${mergeType} started - ready to complete`);
+      }
+      
+      // Update conflict check result to indicate merge has started
+      setConflictCheckResult(prev => ({
+        ...prev,
+        mergeStarted: true,
+        hasConflicts: mergeStateAfterStart.hasConflicts,
+      }));
+      
+      // For squash merge, we won't be in merge state but will have staged changes
+      if (!mergeStateAfterStart.inMerge && !squash) {
+        console.warn('[startMerge] WARNING: Not in merge state - may affect CompleteMerge');
+      }
+      
+      setIsCheckingConflicts(false);
+      return { success: true, hasConflicts: mergeStateAfterStart.hasConflicts };
+    } catch (err) {
+      showMessage('error', `Failed to start merge: ${err.message || err}`);
+      setIsCheckingConflicts(false);
+      return null;
+    }
+  }, [repoPath, showMessage, isSquashMerge, conflictCheckResult, detectedParentBranch, repoInfo?.branch, refreshAll]);
+
+  // Legacy function for backward compatibility - checks AND starts merge
+  // Prefer using checkConflictsOnly() + startMerge() separately for better UX
+  const checkBranchConflicts = useCallback(async (targetBranch = '', sourceBranch = '', options = {}) => {
+    // First do the dry-run check
+    const checkResult = await checkConflictsOnly(targetBranch, sourceBranch, options);
+    if (!checkResult || !checkResult.success) {
+      return checkResult;
+    }
+    // Then immediately start the merge
+    const mergeResult = await startMerge(targetBranch, sourceBranch, options);
+    if (!mergeResult) {
+      return null;
+    }
+    return { ...checkResult, ...mergeResult };
+  }, [checkConflictsOnly, startMerge]);
 
   // Get parent branch info (for display or pre-selection)
   const fetchParentBranch = useCallback(async () => {
@@ -1372,41 +1406,6 @@ export function RepoProvider({ children }) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
-  // Rebase recovery (continue and skip)
-  const continueRebase = useCallback(async () => {
-    if (!repoPath) return false;
-    try {
-      const result = await ContinueRebase(repoPath);
-      if (result.success) {
-        showMessage('success', result.message);
-        await refreshAll();
-        return true;
-      }
-      showMessage('error', result.error || result.message);
-      return false;
-    } catch (err) {
-      showMessage('error', `Failed to continue rebase: ${err.message}`);
-      return false;
-    }
-  }, [repoPath, showMessage, refreshAll]);
-
-  const skipRebaseCommit = useCallback(async () => {
-    if (!repoPath) return false;
-    try {
-      const result = await SkipRebaseCommit(repoPath);
-      if (result.success) {
-        showMessage('success', result.message);
-        await refreshAll();
-        return true;
-      }
-      showMessage('error', result.error || result.message);
-      return false;
-    } catch (err) {
-      showMessage('error', `Failed to skip commit: ${err.message}`);
-      return false;
-    }
-  }, [repoPath, showMessage, refreshAll]);
-
   // Bisect recovery
   const abortBisect = useCallback(async () => {
     if (!repoPath) return false;
@@ -1582,7 +1581,9 @@ export function RepoProvider({ children }) {
     setSelectedConflictFile,
     conflictCheckResult,
     isCheckingConflicts,
-    checkBranchConflicts,
+    checkConflictsOnly,
+    startMerge,
+    checkBranchConflicts, // Legacy - prefer checkConflictsOnly + startMerge
     clearConflicts,
     detectedParentBranch,
     fetchParentBranch,
@@ -1613,9 +1614,6 @@ export function RepoProvider({ children }) {
     abortRevert,
     continueRevert,
     skipRevertCommit,
-    // Rebase
-    continueRebase,
-    skipRebaseCommit,
     // Bisect
     abortBisect,
     getBisectState,
@@ -1636,7 +1634,8 @@ export function RepoProvider({ children }) {
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
-    conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, checkBranchConflicts, clearConflicts,
+    conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, 
+    checkConflictsOnly, startMerge, checkBranchConflicts, clearConflicts,
     detectedParentBranch, fetchParentBranch, conflictSidesInfo,
     isSquashMerge, setIsSquashMerge,
     fileResolutions, setFileResolution, mergeState, isResolvingConflict,
@@ -1645,7 +1644,6 @@ export function RepoProvider({ children }) {
     abortCurrentOperation,
     abortCherryPick, continueCherryPick, skipCherryPickCommit,
     abortRevert, continueRevert, skipRevertCommit,
-    continueRebase, skipRebaseCommit,
     abortBisect, getBisectState,
     abortAM, skipAMPatch,
     createBranchFromDetached,

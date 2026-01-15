@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Pre-compiled regular expressions for performance
@@ -2078,11 +2079,12 @@ func (g *GitService) SetProtectedBranches(repoPath string, branches []string) Op
 
 // MergeState represents the current repository operation state.
 // Extended to detect all common "stuck" states that can confuse users.
-// Priority for display: Locked > Merge/Rebase > Cherry-Pick > Revert > Bisect > AM > Detached HEAD
+// Priority for display: Locked > Merge > Cherry-Pick > Revert > Bisect > AM > Rebase (abort-only) > Detached HEAD
+// Note: Rebase is detected for abort purposes only - users should abort and use merge workflow instead.
 type MergeState struct {
-	// Original merge/rebase states
+	// Core merge state
 	InMerge      bool   `json:"inMerge"`
-	InRebase     bool   `json:"inRebase"`
+	InRebase     bool   `json:"inRebase"` // Detected for abort only - rebase workflow is deprecated
 	HasConflicts bool   `json:"hasConflicts"`
 	Message      string `json:"message,omitempty"` // Merge commit message if available
 
@@ -2127,13 +2129,14 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 	}
 
 	// Check for rebase in progress (.git/rebase-merge or .git/rebase-apply)
+	// Note: Rebase workflow is deprecated - we only detect it to help users abort
 	rebasePath := filepath.Join(gitDir, "rebase-merge")
 	rebaseApplyPath := filepath.Join(gitDir, "rebase-apply")
 	if _, err := os.Stat(rebasePath); err == nil {
 		state.InRebase = true
 		if state.StuckType == "" {
 			state.StuckType = "rebase"
-			state.UserMessage = "A rebase operation was interrupted. Resolve conflicts, continue, or abort."
+			state.UserMessage = "A rebase operation was interrupted. Abort it to return to a clean state."
 		}
 	} else if _, err := os.Stat(rebaseApplyPath); err == nil {
 		// Check if it's actually an AM operation (patch application)
@@ -2148,7 +2151,7 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 			state.InRebase = true
 			if state.StuckType == "" {
 				state.StuckType = "rebase"
-				state.UserMessage = "A rebase operation was interrupted. Resolve conflicts, continue, or abort."
+				state.UserMessage = "A rebase operation was interrupted. Abort it to return to a clean state."
 			}
 		}
 	}
@@ -2338,46 +2341,49 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 }
 
 // ResolveConflictKeepBoth resolves a conflict by keeping both versions.
-// The local version stays as-is, and the incoming version is saved with a _COPY suffix.
-// For example: file.txt keeps local, creates file_COPY.txt with their version.
+// The incoming (theirs) version keeps the original filename.
+// The local (mine) version is saved with a timestamp suffix to avoid collisions.
+// For example: file.txt becomes incoming version, file_COPY_20260115_143052.txt is local version.
 func (g *GitService) ResolveConflictKeepBoth(repoPath string, filePath string) OperationResult {
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
 
-	// Use git show to get the incoming version (stage 3 is "theirs")
-	theirsResult := g.runner.RunGit(repoPath, "show", ":3:"+filePath)
-	if !theirsResult.Success {
-		return failedOp("Failed to get incoming version: " + getErrorMessage(theirsResult))
+	// Use git show to get the local version (stage 2 is "ours")
+	oursResult := g.runner.RunGit(repoPath, "show", ":2:"+filePath)
+	if !oursResult.Success {
+		return failedOp("Failed to get local version: " + getErrorMessage(oursResult))
 	}
-	theirsContent := theirsResult.Stdout
+	oursContent := oursResult.Stdout
 
-	// Generate the copy filename
+	// Generate the copy filename with timestamp to avoid collisions
+	// Format: basename_COPY_YYYYMMDD_HHMMSS.ext
 	ext := filepath.Ext(filePath)
 	baseName := strings.TrimSuffix(filePath, ext)
-	copyPath := baseName + "_COPY" + ext
-	fullCopyPath := filepath.Join(repoPath, copyPath)
+	timestamp := time.Now().Format("20060102_150405") // Go reference time format
+	localCopyPath := baseName + "_COPY_" + timestamp + ext
+	fullLocalCopyPath := filepath.Join(repoPath, localCopyPath)
 
-	// Write the incoming version to the copy file
-	if err := os.WriteFile(fullCopyPath, []byte(theirsContent), 0644); err != nil {
-		return failedOp("Failed to write copy file: " + err.Error())
+	// Write the local (mine) version to the timestamped copy file
+	if err := os.WriteFile(fullLocalCopyPath, []byte(oursContent), 0644); err != nil {
+		return failedOp("Failed to write local copy file: " + err.Error())
 	}
 
-	// Now resolve the original file by keeping ours
-	result := g.runner.RunGit(repoPath, "checkout", "--ours", "--", filePath)
+	// Resolve the original file by keeping theirs (incoming version)
+	result := g.runner.RunGit(repoPath, "checkout", "--theirs", "--", filePath)
 	if !result.Success {
 		// Clean up the copy file we created
-		os.Remove(fullCopyPath)
+		os.Remove(fullLocalCopyPath)
 		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
 	}
 
 	// Stage both files
-	addResult := g.runner.RunGit(repoPath, "add", "--", filePath, copyPath)
+	addResult := g.runner.RunGit(repoPath, "add", "--", filePath, localCopyPath)
 	if !addResult.Success {
 		return failedOp("Failed to stage resolved files: " + getErrorMessage(addResult))
 	}
 
-	return successOp(fmt.Sprintf("Kept both versions: '%s' (local) and '%s' (incoming)", filepath.Base(filePath), filepath.Base(copyPath)))
+	return successOp(fmt.Sprintf("Kept both versions: '%s' (incoming) and '%s' (your local copy)", filepath.Base(filePath), filepath.Base(localCopyPath)))
 }
 
 // MarkResolved marks a file as resolved after manual editing.
@@ -2752,152 +2758,16 @@ func (g *GitService) CompleteSquashMerge(repoPath string, message string) Operat
 // Returns the repository to the state before the merge started.
 func (g *GitService) AbortMerge(repoPath string) OperationResult {
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InRebase {
-		return failedOp("No merge or rebase in progress")
+	if !state.InMerge {
+		return failedOp("No merge in progress")
 	}
 
-	var result CommandResult
-	if state.InRebase {
-		result = g.runner.RunGit(repoPath, "rebase", "--abort")
-	} else {
-		result = g.runner.RunGit(repoPath, "merge", "--abort")
-	}
-
+	result := g.runner.RunGit(repoPath, "merge", "--abort")
 	if !result.Success {
 		return failedOp("Failed to abort: " + getErrorMessage(result))
 	}
 
-	if state.InRebase {
-		return successOp("Rebase aborted")
-	}
 	return successOp("Merge aborted")
-}
-
-// ContinueRebase continues an in-progress rebase after conflicts are resolved.
-// This should be called after the user resolves conflicts and stages the changes.
-func (g *GitService) ContinueRebase(repoPath string) OperationResult {
-	state := g.GetMergeState(repoPath)
-	if !state.InRebase {
-		return failedOp("No rebase in progress")
-	}
-
-	// Check if there are still conflicts
-	conflicted, err := g.GetConflictedFiles(repoPath)
-	if err != nil {
-		return failedOp("Failed to check conflicts: " + err.Error())
-	}
-	if len(conflicted) > 0 {
-		return failedOp(fmt.Sprintf("Cannot continue rebase: %d file(s) still have conflicts", len(conflicted)))
-	}
-
-	result := g.runner.RunGit(repoPath, "rebase", "--continue")
-	if !result.Success {
-		errMsg := getErrorMessage(result)
-		// Check if there are still more commits to apply
-		if strings.Contains(errMsg, "No changes") {
-			// Skip this commit and continue
-			skipResult := g.runner.RunGit(repoPath, "rebase", "--skip")
-			if skipResult.Success {
-				return successOp("Commit skipped, continuing rebase")
-			}
-			return failedOp("Failed to skip commit: " + getErrorMessage(skipResult))
-		}
-		return failedOp("Failed to continue rebase: " + errMsg)
-	}
-
-	// Check if rebase completed
-	newState := g.GetMergeState(repoPath)
-	if !newState.InRebase {
-		return successOp("Rebase completed successfully")
-	}
-	return successOp("Rebase continuing")
-}
-
-// SkipRebaseCommit skips the current commit in an in-progress rebase.
-// Use this when the current commit's changes are no longer needed.
-func (g *GitService) SkipRebaseCommit(repoPath string) OperationResult {
-	state := g.GetMergeState(repoPath)
-	if !state.InRebase {
-		return failedOp("No rebase in progress")
-	}
-
-	result := g.runner.RunGit(repoPath, "rebase", "--skip")
-	if !result.Success {
-		return failedOp("Failed to skip commit: " + getErrorMessage(result))
-	}
-
-	// Check if rebase completed
-	newState := g.GetMergeState(repoPath)
-	if !newState.InRebase {
-		return successOp("Rebase completed successfully")
-	}
-	return successOp("Commit skipped, rebase continuing")
-}
-
-// GetRebaseProgress returns information about the current rebase progress.
-// This helps users understand where they are in a multi-commit rebase.
-func (g *GitService) GetRebaseProgress(repoPath string) map[string]interface{} {
-	progress := map[string]interface{}{
-		"inRebase":    false,
-		"current":     0,
-		"total":       0,
-		"currentHash": "",
-		"message":     "",
-	}
-
-	// Check rebase-merge directory (interactive rebase)
-	rebaseMergePath := filepath.Join(repoPath, ".git", "rebase-merge")
-	if _, err := os.Stat(rebaseMergePath); err == nil {
-		progress["inRebase"] = true
-
-		// Read current step
-		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "msgnum")); err == nil {
-			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				progress["current"] = num
-			}
-		}
-
-		// Read total steps
-		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "end")); err == nil {
-			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				progress["total"] = num
-			}
-		}
-
-		// Read current commit being applied
-		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "stopped-sha")); err == nil {
-			progress["currentHash"] = strings.TrimSpace(string(data))
-		}
-
-		// Read commit message
-		if data, err := os.ReadFile(filepath.Join(rebaseMergePath, "message")); err == nil {
-			progress["message"] = strings.TrimSpace(string(data))
-		}
-
-		return progress
-	}
-
-	// Check rebase-apply directory (am-style rebase)
-	rebaseApplyPath := filepath.Join(repoPath, ".git", "rebase-apply")
-	if _, err := os.Stat(rebaseApplyPath); err == nil {
-		progress["inRebase"] = true
-
-		// Read current step
-		if data, err := os.ReadFile(filepath.Join(rebaseApplyPath, "next")); err == nil {
-			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				progress["current"] = num
-			}
-		}
-
-		// Read total steps
-		if data, err := os.ReadFile(filepath.Join(rebaseApplyPath, "last")); err == nil {
-			if num, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				progress["total"] = num
-			}
-		}
-	}
-
-	return progress
 }
 
 // ============================================================================

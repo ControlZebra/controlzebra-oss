@@ -130,23 +130,86 @@ function MergeChangesView() {
     );
   }
 
-  // Clean merge - no conflicts
-  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && totalCount === 0) {
+  // Clean merge - check complete, no conflicts, but merge not started yet
+  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && !conflictCheckResult?.mergeStarted && totalCount === 0) {
     return (
       <div className="px-3 py-4 text-center">
         <CheckCircle2
           style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
           className="text-green-400 mx-auto mb-2"
         />
-        <p className="text-green-400 text-sm font-medium">Ready to Merge</p>
+        <p className="text-green-400 text-sm font-medium">No Conflicts</p>
         <p className="text-theme-muted text-xs mt-1">
-          No conflicts detected
+          Ready to start merge
         </p>
       </div>
     );
   }
 
-  // Has conflicts
+  // Check complete, has predicted conflicts, but merge NOT started yet
+  // These are predicted conflicts from dry-run - show preview
+  if (conflictCheckResult?.success && conflictCheckResult?.hasConflicts && !conflictCheckResult?.mergeStarted) {
+    const predictedConflicts = conflictCheckResult?.conflictedFiles || [];
+    const targetBranch = conflictCheckResult?.targetBranch || 
+                        conflictCheckResult?.parentBranch || 
+                        detectedParentBranch?.name;
+    
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="px-3 py-2 border-b border-theme-default">
+          <p className="text-orange-400 text-xs font-medium uppercase tracking-wide">
+            {predictedConflicts.length} Predicted Conflict{predictedConflicts.length !== 1 ? 's' : ''}
+          </p>
+          {targetBranch && (
+            <p className="text-theme-muted text-xs mt-0.5">
+              when merging into {targetBranch}
+            </p>
+          )}
+          <p className="text-theme-muted text-[10px] mt-1 italic">
+            (preview only - start merge to resolve)
+          </p>
+        </div>
+
+        {/* Predicted conflict file list */}
+        <div className="flex-1 overflow-y-auto">
+          {predictedConflicts.map(file => (
+            <div
+              key={file.path}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left border-l-2 border-transparent"
+            >
+              <FileWarning
+                style={iconSm}
+                className="text-orange-400 shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-theme-primary text-sm truncate">{file.path.split('/').pop()}</p>
+              </div>
+              <AlertTriangle style={iconXs} className="text-orange-400 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Clean merge - merge started, no conflicts
+  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && conflictCheckResult?.mergeStarted && totalCount === 0) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <CheckCircle2
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-green-400 mx-auto mb-2"
+        />
+        <p className="text-green-400 text-sm font-medium">Ready to Complete</p>
+        <p className="text-theme-muted text-xs mt-1">
+          No conflicts - complete the merge
+        </p>
+      </div>
+    );
+  }
+
+  // Has actual conflicts (merge started)
   if (totalCount > 0) {
     const targetBranch = conflictCheckResult?.targetBranch || 
                         conflictCheckResult?.parentBranch || 

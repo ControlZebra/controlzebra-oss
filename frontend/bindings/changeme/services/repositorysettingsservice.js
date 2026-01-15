@@ -42,17 +42,6 @@ export function AbortMerge(repoPath) {
 }
 
 /**
- * AbortRebase aborts an in-progress rebase
- * @param {string} repoPath
- * @returns {$CancellablePromise<$models.OperationResult>}
- */
-export function AbortRebase(repoPath) {
-    return $Call.ByID(2933512718, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
-    }));
-}
-
-/**
  * ClearCredentialCache clears cached credentials
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.OperationResult>}

@@ -50,7 +50,6 @@ import {
   DiagnoseRepository,
   RemoveStaleLocks,
   AbortMerge,
-  AbortRebase,
   AbortCherryPick,
   RepairRepository,
   ResetToDefaults,
@@ -60,6 +59,7 @@ import {
   AbortRevert,
   AbortBisect,
   AbortAM,
+  AbortCurrentOperation,
 } from '../../../../../bindings/changeme/services/gitservice';
 import { BackgroundTaskType } from '../../../../../bindings/changeme/services/models';
 
@@ -981,7 +981,7 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }) {
             <Button
               variant="outline"
               className="w-full justify-start"
-              onClick={() => handleFix(AbortRebase, 'Abort rebase')}
+              onClick={() => handleFix(AbortCurrentOperation, 'Abort rebase')}
               disabled={isFixing}
             >
               <AlertTriangle style={iconStyleSm} className="mr-2" />

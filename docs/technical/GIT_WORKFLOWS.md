@@ -475,15 +475,18 @@ git add -- <filePath>
 
 **Strategy: Keep Both**
 ```bash
-# Extract incoming version (stage 3 is "theirs")
-git show :3:<filePath> > <baseName>_COPY<ext>
+# Extract local version (stage 2 is "ours") with timestamp suffix
+git show :2:<filePath> > <baseName>_COPY_<YYYYMMDD_HHMMSS><ext>
 
-# Keep local version (stage 2 is "ours")
-git checkout --ours -- <filePath>
+# Keep incoming version (stage 3 is "theirs") as the original filename
+git checkout --theirs -- <filePath>
 
 # Stage both files
-git add -- <filePath> <baseName>_COPY<ext>
+git add -- <filePath> <baseName>_COPY_<timestamp><ext>
 ```
+
+> **Note:** The timestamp suffix (e.g., `_COPY_20260115_143052`) ensures unique filenames
+> even when resolving the same file multiple times.
 
 #### State Transitions (Per File)
 1. **Frontend:** User clicks file in conflict list, opens resolution UI
@@ -758,29 +761,23 @@ git revert --skip
 
 ---
 
-### Rebase Operations (DEPRECATED)
+### Rebase Operations (REMOVED)
 
-**⚠️ Note:** Rebase support will be removed in a future version. The application is moving to a merge-only workflow to simplify the user experience for non-technical users.
+**⚠️ Note:** Rebase support has been removed. The application uses a merge-only workflow to simplify the user experience for non-technical users.
+
+If a rebase is detected (from an external tool), users can only abort it:
 
 #### Abort Rebase
-**Backend Function:** `GitService.AbortRebase(repoPath)` (via AbortCurrentOperation)
-can use "Abort Current Operation" to abort the rebase  
-**Note:** Rebase operations are deprecated and will be removed in a future version
+**Backend Function:** `GitService.AbortCurrentOperation(repoPath)` - handles rebase abort automatically
 ```bash
 git rebase --abort
 ```
 
-#### Continue Rebase
-**Backend Function:** `GitService.ContinueRebase(repoPath)`
+After aborting, users should use the Merge Changes workflow instead.
 
-```bash
-git rebase --continue
-```
+---
 
-#### Skip Rebase Commit
-**Backend Function:** `GitService.SkipRebaseCommit(repoPath)`
-
-```Recommendations
+## Recommendations
 
 ### Detached HEAD State Handling
 
@@ -1006,13 +1003,10 @@ Before finalizing this documentation, please clarify:
 ### 1. **Interrupted Operations Recovery**
 I see there are several recovery methods in RepoContext (AbortCurrentOperation, AbortCherryPick, AbortRevert, etc.), but they're not fully connected to the UI yet. Should I document these as "Future Features" or are they actively used?
 
-### 2. **Rebase Handling**
-The code detects rebase state (`mergeState.inRebase`) but I don't see a complete rebase workflow. Is rebase intentionally deferred to a later version? Should I document it as "Not Yet Implemented"?
-
-### 3. **LFS (Large File Storage) Integration**
+### 2. **LFS (Large File Storage) Integration**
 I noticed LFS service and settings exist, but they're not integrated into the merge workflow. Should LFS-specific merge scenarios be documented separately?
 
-### 4. **File Watcher Behavior**
+### 3. **File Watcher Behavior**
 The file watcher is mentioned to start on repo open, but I don't see explicit documentation on:
 - What file changes trigger refresh (only git files? all files?)
 - Does it watch subdirectories?
@@ -1029,6 +1023,14 @@ How should the UI handle detached HEAD scenarios? I see checks for it, but no us
 ---
 
 ## Changelog
+
+**January 15, 2026 - Rebase Workflow Removed**
+- Removed `ContinueRebase`, `SkipRebaseCommit`, `GetRebaseProgress` from GitService
+- Removed `AbortRebase` from RepositorySettingsService
+- Removed `continueRebase`, `skipRebaseCommit` from RepoContext
+- Removed RebaseRecoveryPanel from MergeChangesPage
+- Updated RecoveryBanner to show abort-only option for detected rebase
+- Rebase detection remains for abort purposes - users should use merge workflow instead
 
 **January 14, 2026 - Initial Documentation**
 - Documented Explorer workflows: Commit, Branch & Save, Sync, Rewind, Discard
