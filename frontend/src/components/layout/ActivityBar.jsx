@@ -7,9 +7,9 @@
 import { memo, useMemo, useCallback } from 'react';
 import {
   Folder,
-  GitBranch,
   Clock,
-  Flag,
+  Combine,
+  Sliders,
   Settings,
   UserCircle,
 } from 'lucide-react';
@@ -20,9 +20,9 @@ import { useLayout, useRepo } from '../../context';
 // requiresGit: true means the view requires an active git repository
 const TOP_NAV_ITEMS = [
   { id: VIEWS.EXPLORER, Icon: Folder, label: 'Explorer', requiresGit: false },
-  { id: VIEWS.CHANGES, Icon: GitBranch, label: 'Changes', requiresGit: true },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History', requiresGit: true },
-  { id: VIEWS.MERGE_CHANGES, Icon: Flag, label: 'Merge Changes', requiresGit: true },
+  { id: VIEWS.MERGE_CHANGES, Icon: Combine, label: 'Combine Versions', requiresGit: true },
+  { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];
 
 // Bottom navigation items (user-specific)

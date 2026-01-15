@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Pre-compiled regular expressions for performance
@@ -182,13 +183,15 @@ type FileStatus struct {
 
 // RepoStatus contains the current state of a repository
 type RepoStatus struct {
-	Branch       string       `json:"branch"`
-	Ahead        int          `json:"ahead"`
-	Behind       int          `json:"behind"`
-	ChangedFiles []FileStatus `json:"changedFiles"`
-	HasChanges   bool         `json:"hasChanges"`
-	HasError     bool         `json:"hasError"`
-	Error        string       `json:"error,omitempty"`
+	Branch            string       `json:"branch"`
+	Ahead             int          `json:"ahead"`
+	Behind            int          `json:"behind"`
+	ChangedFiles      []FileStatus `json:"changedFiles"`
+	HasChanges        bool         `json:"hasChanges"`
+	HasUpstream       bool         `json:"hasUpstream"`       // true if branch has upstream tracking
+	TotalLocalCommits int          `json:"totalLocalCommits"` // total commits on current branch (useful when no upstream)
+	HasError          bool         `json:"hasError"`
+	Error             string       `json:"error,omitempty"`
 }
 
 // Status returns the current status of the repository
@@ -201,10 +204,10 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	var branchResult, aheadBehindResult, statusResult CommandResult
+	var branchResult, aheadBehindResult, statusResult, commitCountResult CommandResult
 
-	// Run all three git commands concurrently
-	wg.Add(3)
+	// Run all commands concurrently
+	wg.Add(4)
 
 	// Get current branch
 	go func() {
@@ -212,7 +215,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		branchResult = g.runner.RunGit(repoPath, "branch", "--show-current")
 	}()
 
-	// Get ahead/behind counts
+	// Get ahead/behind counts (will fail if no upstream)
 	go func() {
 		defer wg.Done()
 		aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
@@ -222,6 +225,12 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	go func() {
 		defer wg.Done()
 		statusResult = g.runner.RunGit(repoPath, "status", "--porcelain")
+	}()
+
+	// Get total local commit count (useful when no upstream to detect if there are commits to push)
+	go func() {
+		defer wg.Done()
+		commitCountResult = g.runner.RunGit(repoPath, "rev-list", "--count", "HEAD")
 	}()
 
 	wg.Wait()
@@ -236,7 +245,9 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	}
 
 	// Process ahead/behind result
+	// If this succeeds, we have an upstream
 	if aheadBehindResult.Success {
+		result.HasUpstream = true
 		parts := strings.Fields(trimOutput(aheadBehindResult.Stdout))
 		if len(parts) == 2 {
 			// First is behind (upstream ahead), second is ahead (local ahead)
@@ -246,6 +257,16 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 			if n, err := strconv.Atoi(parts[1]); err == nil {
 				result.Ahead = n
 			}
+		}
+	} else {
+		// No upstream tracking branch
+		result.HasUpstream = false
+	}
+
+	// Process total commit count
+	if commitCountResult.Success {
+		if n, err := strconv.Atoi(trimOutput(commitCountResult.Stdout)); err == nil {
+			result.TotalLocalCommits = n
 		}
 	}
 
@@ -326,46 +347,36 @@ type OperationResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// CommitAll stages all changes and commits with the given message
+// CommitAll stages all changes and commits with the given message.
+// This is a composite operation that combines AddAll + Commit.
+// For finer control, use AddAll() and Commit() separately.
 func (g *GitService) CommitAll(repoPath string, message string) OperationResult {
 	if message == "" {
-		return OperationResult{
-			Success: false,
-			Error:   "Commit message is required",
-		}
+		return failedOp("Commit message is required")
 	}
 
-	// First, check if there are any changes
-	status := g.Status(repoPath)
-	if !status.HasChanges {
-		return OperationResult{
-			Success: false,
-			Error:   "No changes to commit",
-		}
+	// Check if there are any changes to commit
+	hasChanges, err := g.HasChanges(repoPath)
+	if err != nil {
+		return failedOp("Failed to check status: " + err.Error())
+	}
+	if !hasChanges {
+		return failedOp("No changes to commit")
 	}
 
-	// Stage all changes
-	addResult := g.runner.RunGit(repoPath, "add", ".")
+	// Stage all changes using primitive
+	addResult := g.AddAll(repoPath)
 	if !addResult.Success {
-		return OperationResult{
-			Success: false,
-			Error:   "Failed to stage changes: " + addResult.Stderr,
-		}
+		return addResult
 	}
 
-	// Commit
-	commitResult := g.runner.RunGit(repoPath, "commit", "-m", message)
+	// Commit using primitive
+	commitResult := g.Commit(repoPath, message)
 	if !commitResult.Success {
-		return OperationResult{
-			Success: false,
-			Error:   "Failed to commit: " + commitResult.Stderr,
-		}
+		return commitResult
 	}
 
-	return OperationResult{
-		Success: true,
-		Message: "Changes saved successfully",
-	}
+	return successOp("Changes saved successfully")
 }
 
 // getErrorMessage extracts the most informative error message from a command result.
@@ -439,6 +450,332 @@ func pluralize(singular string, n int) string {
 	return singular + "s"
 }
 
+// ============================================================================
+// Primitive Git Operations - Individual Commands
+// These methods wrap single git commands for maximum reusability.
+// Composite operations (like CommitAll) should use these primitives.
+// ============================================================================
+
+// Add stages a specific file or directory for commit.
+// Equivalent to: git add <path>
+func (g *GitService) Add(repoPath string, path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	result := g.runner.RunGit(repoPath, "add", "--", path)
+	if !result.Success {
+		return failedOp("Failed to stage file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Staged '%s'", path))
+}
+
+// AddAll stages all changes in the repository.
+// Equivalent to: git add .
+func (g *GitService) AddAll(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "add", ".")
+	if !result.Success {
+		return failedOp("Failed to stage changes: " + getErrorMessage(result))
+	}
+	return successOp("All changes staged")
+}
+
+// AddFiles stages multiple files for commit.
+// Equivalent to: git add -- <paths...>
+func (g *GitService) AddFiles(repoPath string, paths []string) OperationResult {
+	if len(paths) == 0 {
+		return failedOp("At least one path is required")
+	}
+	args := append([]string{"add", "--"}, paths...)
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to stage files: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Staged %d file(s)", len(paths)))
+}
+
+// Unstage removes a file from the staging area without discarding changes.
+// Equivalent to: git restore --staged <path> (Git 2.23+) or git reset HEAD <path>
+func (g *GitService) Unstage(repoPath string, path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", "--staged", "--", path)
+	} else {
+		result = g.runner.RunGit(repoPath, "reset", "HEAD", "--", path)
+	}
+	if !result.Success {
+		return failedOp("Failed to unstage file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Unstaged '%s'", path))
+}
+
+// UnstageAll removes all files from the staging area.
+// Equivalent to: git restore --staged . (Git 2.23+) or git reset HEAD
+func (g *GitService) UnstageAll(repoPath string) OperationResult {
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", "--staged", ".")
+	} else {
+		result = g.runner.RunGit(repoPath, "reset", "HEAD")
+	}
+	if !result.Success {
+		return failedOp("Failed to unstage: " + getErrorMessage(result))
+	}
+	return successOp("All files unstaged")
+}
+
+// Restore reverts a file to its HEAD state, discarding working tree changes.
+// Does NOT affect staged changes - use Unstage first if needed.
+// Equivalent to: git restore <path> (Git 2.23+) or git checkout -- <path>
+func (g *GitService) Restore(repoPath string, path string) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", "--", path)
+	} else {
+		result = g.runner.RunGit(repoPath, "checkout", "--", path)
+	}
+	if !result.Success {
+		return failedOp("Failed to restore file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Restored '%s'", path))
+}
+
+// RestoreAll reverts all tracked files to HEAD state.
+// Does NOT remove untracked files - use Clean for that.
+// Equivalent to: git restore . (Git 2.23+) or git checkout -- .
+func (g *GitService) RestoreAll(repoPath string) OperationResult {
+	var result CommandResult
+	if g.SupportsRestore() {
+		result = g.runner.RunGit(repoPath, "restore", ".")
+	} else {
+		result = g.runner.RunGit(repoPath, "checkout", "--", ".")
+	}
+	if !result.Success {
+		return failedOp("Failed to restore files: " + getErrorMessage(result))
+	}
+	return successOp("All tracked files restored")
+}
+
+// Clean removes untracked files from the working directory.
+// Does NOT remove ignored files by default.
+// Equivalent to: git clean -fd
+func (g *GitService) Clean(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "clean", "-fd")
+	if !result.Success {
+		return failedOp("Failed to clean untracked files: " + getErrorMessage(result))
+	}
+	return successOp("Untracked files removed")
+}
+
+// CleanDryRun shows what files would be removed by Clean without actually removing them.
+// Equivalent to: git clean -fdn
+func (g *GitService) CleanDryRun(repoPath string) ([]string, error) {
+	result := g.runner.RunGit(repoPath, "clean", "-fdn")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to list untracked files: %s", getErrorMessage(result))
+	}
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	files := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// git clean -n output: "Would remove <file>"
+		if strings.HasPrefix(line, "Would remove ") {
+			files = append(files, strings.TrimPrefix(line, "Would remove "))
+		} else {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}
+
+// Commit creates a commit with staged changes.
+// Does NOT auto-stage anything - use Add/AddAll first.
+// Equivalent to: git commit -m <message>
+func (g *GitService) Commit(repoPath string, message string) OperationResult {
+	if message == "" {
+		return failedOp("Commit message is required")
+	}
+	result := g.runner.RunGit(repoPath, "commit", "-m", message)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "nothing to commit") {
+			return failedOp("Nothing staged to commit")
+		}
+		return failedOp("Failed to commit: " + errMsg)
+	}
+	return successOp("Changes committed")
+}
+
+// Fetch downloads objects and refs from the remote without merging.
+// Equivalent to: git fetch [remote] [branch]
+func (g *GitService) Fetch(repoPath string, remote string, branch string) OperationResult {
+	args := []string{"fetch"}
+	if remote != "" {
+		args = append(args, remote)
+		if branch != "" {
+			args = append(args, branch)
+		}
+	}
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to fetch: " + getErrorMessage(result))
+	}
+	return successOp("Fetched successfully")
+}
+
+// FetchAll fetches from all remotes.
+// Equivalent to: git fetch --all
+func (g *GitService) FetchAll(repoPath string) OperationResult {
+	result := g.runner.RunGit(repoPath, "fetch", "--all")
+	if !result.Success {
+		return failedOp("Failed to fetch: " + getErrorMessage(result))
+	}
+	return successOp("Fetched from all remotes")
+}
+
+// Checkout switches to a branch or commit without safety checks.
+// For safer operations with checks, use CheckoutBranch.
+// Equivalent to: git checkout <ref>
+func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		return failedOp("Reference is required")
+	}
+	result := g.runner.RunGit(repoPath, "checkout", ref)
+	if !result.Success {
+		return failedOp("Failed to checkout: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Switched to '%s'", ref))
+}
+
+// CheckoutNewBranch creates a new branch and switches to it without safety checks.
+// For safer operations with checks, use CreateBranchAndCheckout.
+// Equivalent to: git checkout -b <branch>
+func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) OperationResult {
+	if branchName == "" {
+		return failedOp("Branch name is required")
+	}
+	result := g.runner.RunGit(repoPath, "checkout", "-b", branchName)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "already exists") {
+			return failedOp(fmt.Sprintf("Branch '%s' already exists", branchName))
+		}
+		return failedOp("Failed to create branch: " + errMsg)
+	}
+	return successOp(fmt.Sprintf("Created and switched to '%s'", branchName))
+}
+
+// ResetHard resets HEAD, index, and working tree to a specific commit.
+// WARNING: This is destructive - all uncommitted changes are lost.
+// Equivalent to: git reset --hard <ref>
+func (g *GitService) ResetHard(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		ref = "HEAD"
+	}
+	result := g.runner.RunGit(repoPath, "reset", "--hard", ref)
+	if !result.Success {
+		return failedOp("Failed to reset: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Reset to %s", ref))
+}
+
+// ResetSoft resets HEAD to a specific commit but keeps all changes staged.
+// Equivalent to: git reset --soft <ref>
+func (g *GitService) ResetSoft(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		return failedOp("Reference is required")
+	}
+	result := g.runner.RunGit(repoPath, "reset", "--soft", ref)
+	if !result.Success {
+		return failedOp("Failed to reset: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Soft reset to %s", ref))
+}
+
+// ResetMixed resets HEAD and index to a specific commit, keeping working tree changes.
+// This is the default git reset behavior.
+// Equivalent to: git reset <ref>
+func (g *GitService) ResetMixed(repoPath string, ref string) OperationResult {
+	if ref == "" {
+		ref = "HEAD"
+	}
+	result := g.runner.RunGit(repoPath, "reset", ref)
+	if !result.Success {
+		return failedOp("Failed to reset: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Reset to %s", ref))
+}
+
+// GetCurrentBranch returns the name of the current branch.
+// Returns empty string if in detached HEAD state.
+func (g *GitService) GetCurrentBranch(repoPath string) (string, error) {
+	result := g.runner.RunGit(repoPath, "branch", "--show-current")
+	if !result.Success {
+		return "", fmt.Errorf("failed to get current branch: %s", getErrorMessage(result))
+	}
+	return trimOutput(result.Stdout), nil
+}
+
+// HasChanges returns true if the repository has uncommitted changes.
+func (g *GitService) HasChanges(repoPath string) (bool, error) {
+	result := g.runner.RunGit(repoPath, "status", "--porcelain")
+	if !result.Success {
+		return false, fmt.Errorf("failed to check status: %s", getErrorMessage(result))
+	}
+	return strings.TrimSpace(result.Stdout) != "", nil
+}
+
+// HasStagedChanges returns true if there are staged (but uncommitted) changes.
+func (g *GitService) HasStagedChanges(repoPath string) (bool, error) {
+	result := g.runner.RunGit(repoPath, "diff", "--cached", "--quiet")
+	// Exit code 0 = no staged changes, 1 = has staged changes
+	return result.ExitCode == 1, nil
+}
+
+// RemoveFile removes a file from the working tree and stages the removal.
+// Equivalent to: git rm <path>
+func (g *GitService) RemoveFile(repoPath string, path string, cached bool) OperationResult {
+	if path == "" {
+		return failedOp("Path is required")
+	}
+	args := []string{"rm"}
+	if cached {
+		args = append(args, "--cached") // Remove from index only, keep working tree copy
+	}
+	args = append(args, "--", path)
+	result := g.runner.RunGit(repoPath, args...)
+	if !result.Success {
+		return failedOp("Failed to remove file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Removed '%s'", path))
+}
+
+// MoveFile renames/moves a file and stages the change.
+// Equivalent to: git mv <source> <destination>
+func (g *GitService) MoveFile(repoPath string, source string, destination string) OperationResult {
+	if source == "" || destination == "" {
+		return failedOp("Source and destination paths are required")
+	}
+	result := g.runner.RunGit(repoPath, "mv", source, destination)
+	if !result.Success {
+		return failedOp("Failed to move file: " + getErrorMessage(result))
+	}
+	return successOp(fmt.Sprintf("Moved '%s' to '%s'", source, destination))
+}
+
+// ============================================================================
+// Composite Operations - Built from primitives
+// These methods combine multiple primitives for common workflows.
+// ============================================================================
+
 // Pull fetches and merges changes from the remote
 func (g *GitService) Pull(repoPath string) OperationResult {
 	result := g.runner.RunGit(repoPath, "pull")
@@ -462,14 +799,52 @@ func (g *GitService) Pull(repoPath string) OperationResult {
 
 // Push pushes local commits to the remote
 func (g *GitService) Push(repoPath string) OperationResult {
+	// First, try a regular push
 	result := g.runner.RunGit(repoPath, "push")
 	if !result.Success {
 		errMsg := getErrorMessage(result)
-		// Check for common push errors
-		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
+		// Check if this is a new branch without upstream tracking
+		if strings.Contains(errMsg, "no upstream") ||
+			strings.Contains(errMsg, "has no upstream") ||
+			strings.Contains(errMsg, "no tracking information") ||
+			strings.Contains(errMsg, "set-upstream") {
+			// Get the current branch name
+			branchResult := g.runner.RunGit(repoPath, "branch", "--show-current")
+			if !branchResult.Success {
+				return OperationResult{
+					Success: false,
+					Error:   "Failed to determine current branch",
+				}
+			}
+			branchName := trimOutput(branchResult.Stdout)
+			if branchName == "" {
+				return OperationResult{
+					Success: false,
+					Error:   "Cannot push: detached HEAD state",
+				}
+			}
+
+			// Try pushing with --set-upstream to automatically configure tracking
+			pushResult := g.runner.RunGit(repoPath, "push", "--set-upstream", "origin", branchName)
+			if !pushResult.Success {
+				pushErr := getErrorMessage(pushResult)
+				// Check if there's no remote configured at all
+				if strings.Contains(pushErr, "does not appear to be a git repository") ||
+					strings.Contains(pushErr, "No configured push destination") ||
+					strings.Contains(pushErr, "fatal: 'origin' does not appear") {
+					return OperationResult{
+						Success: false,
+						Error:   "No remote repository configured. Add a remote first.",
+					}
+				}
+				return OperationResult{
+					Success: false,
+					Error:   "Failed to share: " + pushErr,
+				}
+			}
 			return OperationResult{
-				Success: false,
-				Error:   "No remote branch configured. Please set up a remote first.",
+				Success: true,
+				Message: "Branch published and changes shared successfully",
 			}
 		}
 		return OperationResult{
@@ -484,10 +859,10 @@ func (g *GitService) Push(repoPath string) OperationResult {
 	}
 }
 
-// Sync performs a git pull --rebase followed by git push
+// Sync performs a git pull (merge) followed by git push
 func (g *GitService) Sync(repoPath string) OperationResult {
-	// First, pull with rebase
-	pullResult := g.runner.RunGit(repoPath, "pull", "--rebase")
+	// First, pull with merge (not rebase)
+	pullResult := g.runner.RunGit(repoPath, "pull", "--no-rebase")
 	if !pullResult.Success {
 		errMsg := getErrorMessage(pullResult)
 		// Check for common errors
@@ -1291,23 +1666,29 @@ func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string)
 // ResetHardHead resets the working directory to HEAD, discarding all uncommitted changes.
 // This is the "Rewind" feature - returns to the last committed state.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a composite operation that combines ResetHard("HEAD") + Clean().
+// For finer control, use ResetHard() and Clean() separately.
 func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
 
-	status := g.Status(repoPath)
-	if !status.HasChanges {
+	hasChanges, err := g.HasChanges(repoPath)
+	if err != nil {
+		return failedOp("Failed to check status: " + err.Error())
+	}
+	if !hasChanges {
 		return failedOp("No changes to rewind")
 	}
 
-	result := g.runner.RunGit(repoPath, "reset", "--hard", "HEAD")
-	if !result.Success {
-		return failedOp("Failed to rewind: " + getErrorMessage(result))
+	// Reset tracked files using primitive
+	resetResult := g.ResetHard(repoPath, "HEAD")
+	if !resetResult.Success {
+		return failedOp("Failed to rewind: " + resetResult.Error)
 	}
 
-	// Clean untracked files (but not ignored files)
-	g.runner.RunGit(repoPath, "clean", "-fd")
+	// Clean untracked files using primitive (ignore failure - may have nothing to clean)
+	g.Clean(repoPath)
 
 	return successOp("Rewound to last snapshot. All uncommitted changes have been discarded.")
 }
@@ -1315,6 +1696,7 @@ func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResul
 // ResetSoftHead undoes the last n commits, keeping changes staged.
 // This is the "Undo Last Save" feature - changes remain in the working directory.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a wrapper around ResetSoft() with validation.
 func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
@@ -1330,9 +1712,10 @@ func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) Operati
 		return failedOp(fmt.Sprintf("Cannot undo %d commit(s). Not enough commits in history.", n))
 	}
 
-	result := g.runner.RunGit(repoPath, "reset", "--soft", fmt.Sprintf("HEAD~%d", n))
-	if !result.Success {
-		return failedOp("Failed to undo commits: " + getErrorMessage(result))
+	// Use primitive
+	resetResult := g.ResetSoft(repoPath, fmt.Sprintf("HEAD~%d", n))
+	if !resetResult.Success {
+		return failedOp("Failed to undo commits: " + resetResult.Error)
 	}
 
 	plural := pluralize("commit", n)
@@ -1342,23 +1725,32 @@ func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) Operati
 // DiscardAll discards all uncommitted changes in the working directory.
 // This includes modified files, staged changes, and untracked files.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a composite operation that combines UnstageAll() + RestoreAll() + Clean().
+// For finer control, use those methods separately.
 func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
 
-	status := g.Status(repoPath)
-	if !status.HasChanges {
+	hasChanges, err := g.HasChanges(repoPath)
+	if err != nil {
+		return failedOp("Failed to check status: " + err.Error())
+	}
+	if !hasChanges {
 		return failedOp("No changes to discard")
 	}
 
-	// Restore tracked files to HEAD state
-	if err := g.restoreFiles(repoPath, "."); err != nil {
-		return failedOp("Failed to discard changes: " + err.Error())
+	// First unstage any staged changes
+	g.UnstageAll(repoPath) // Ignore error - may have nothing staged
+
+	// Restore tracked files to HEAD state using primitive
+	restoreResult := g.RestoreAll(repoPath)
+	if !restoreResult.Success {
+		return failedOp("Failed to discard changes: " + restoreResult.Error)
 	}
 
-	// Clean untracked files (but not ignored files)
-	g.runner.RunGit(repoPath, "clean", "-fd")
+	// Clean untracked files using primitive (ignore failure - may have nothing to clean)
+	g.Clean(repoPath)
 
 	return successOp("All changes have been discarded")
 }
@@ -1366,6 +1758,8 @@ func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
 // DiscardFile discards changes to a specific file.
 // For untracked files, the file is deleted. For tracked files, changes are reverted to HEAD.
 // Requires confirm=true as a safety measure for destructive operations.
+// This is a composite operation that combines Unstage() + Restore() or file deletion.
+// For finer control, use those methods separately.
 func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool) OperationResult {
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
@@ -1390,9 +1784,12 @@ func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool)
 		return successOp(fmt.Sprintf("Removed untracked file '%s'", filePath))
 	}
 
-	// Restore tracked file to HEAD state
-	if err := g.restoreFiles(repoPath, filePath); err != nil {
-		return failedOp("Failed to discard changes: " + err.Error())
+	// For tracked files: first unstage if staged, then restore
+	g.Unstage(repoPath, filePath) // Ignore error - may not be staged
+
+	restoreResult := g.Restore(repoPath, filePath)
+	if !restoreResult.Success {
+		return failedOp("Failed to discard changes: " + restoreResult.Error)
 	}
 
 	return successOp(fmt.Sprintf("Discarded changes to '%s'", filePath))
@@ -1677,15 +2074,33 @@ func (g *GitService) SetProtectedBranches(repoPath string, branches []string) Op
 }
 
 // ============================================================================
-// v2 Additions - Conflict Resolution
+// v2 Additions - Conflict Resolution & Stuck State Detection
 // ============================================================================
 
-// MergeState represents the current merge/rebase state of a repository
+// MergeState represents the current repository operation state.
+// Extended to detect all common "stuck" states that can confuse users.
+// Priority for display: Locked > Merge > Cherry-Pick > Revert > Bisect > AM > Rebase (abort-only) > Detached HEAD
+// Note: Rebase is detected for abort purposes only - users should abort and use merge workflow instead.
 type MergeState struct {
+	// Core merge state
 	InMerge      bool   `json:"inMerge"`
-	InRebase     bool   `json:"inRebase"`
+	InRebase     bool   `json:"inRebase"` // Detected for abort only - rebase workflow is deprecated
 	HasConflicts bool   `json:"hasConflicts"`
 	Message      string `json:"message,omitempty"` // Merge commit message if available
+
+	// Additional stuck states
+	InCherryPick bool `json:"inCherryPick"` // .git/CHERRY_PICK_HEAD exists
+	InRevert     bool `json:"inRevert"`     // .git/REVERT_HEAD exists
+	InBisect     bool `json:"inBisect"`     // .git/BISECT_LOG exists
+	InAM         bool `json:"inAM"`         // .git/rebase-apply/applying exists
+	IsDetached   bool `json:"isDetached"`   // HEAD points to commit hash, not branch
+	HasLockFile  bool `json:"hasLockFile"`  // .git/index.lock exists (stale lock)
+
+	// Additional context
+	DetachedAt  string   `json:"detachedAt,omitempty"`  // Commit hash when detached
+	LockFiles   []string `json:"lockFiles,omitempty"`   // List of lock files found
+	StuckType   string   `json:"stuckType,omitempty"`   // Primary stuck state type for UI
+	UserMessage string   `json:"userMessage,omitempty"` // User-friendly explanation
 }
 
 // ConflictedFile represents a file with merge conflicts
@@ -1694,28 +2109,120 @@ type ConflictedFile struct {
 	Status string `json:"status"` // "both-modified", "deleted-by-us", "deleted-by-them", "both-added"
 }
 
-// GetMergeState detects if the repository is in a merge or rebase state.
+// GetMergeState detects if the repository is in any stuck/interrupted state.
+// Checks for: merge, rebase, cherry-pick, revert, bisect, AM, detached HEAD, and stale locks.
 func (g *GitService) GetMergeState(repoPath string) MergeState {
 	state := MergeState{}
+	gitDir := filepath.Join(repoPath, ".git")
 
-	// Check for merge in progress
-	mergePath := filepath.Join(repoPath, ".git", "MERGE_HEAD")
+	// Check for merge in progress (.git/MERGE_HEAD)
+	mergePath := filepath.Join(gitDir, "MERGE_HEAD")
 	if _, err := os.Stat(mergePath); err == nil {
 		state.InMerge = true
+		state.StuckType = "merge"
+		state.UserMessage = "A merge operation was interrupted. Resolve conflicts or abort to continue."
 		// Try to read the merge message
-		msgPath := filepath.Join(repoPath, ".git", "MERGE_MSG")
+		msgPath := filepath.Join(gitDir, "MERGE_MSG")
 		if msgData, err := os.ReadFile(msgPath); err == nil {
 			state.Message = strings.TrimSpace(string(msgData))
 		}
 	}
 
-	// Check for rebase in progress
-	rebasePath := filepath.Join(repoPath, ".git", "rebase-merge")
-	rebaseApplyPath := filepath.Join(repoPath, ".git", "rebase-apply")
+	// Check for rebase in progress (.git/rebase-merge or .git/rebase-apply)
+	// Note: Rebase workflow is deprecated - we only detect it to help users abort
+	rebasePath := filepath.Join(gitDir, "rebase-merge")
+	rebaseApplyPath := filepath.Join(gitDir, "rebase-apply")
 	if _, err := os.Stat(rebasePath); err == nil {
 		state.InRebase = true
+		if state.StuckType == "" {
+			state.StuckType = "rebase"
+			state.UserMessage = "A rebase operation was interrupted. Abort it to return to a clean state."
+		}
 	} else if _, err := os.Stat(rebaseApplyPath); err == nil {
-		state.InRebase = true
+		// Check if it's actually an AM operation (patch application)
+		applyingPath := filepath.Join(rebaseApplyPath, "applying")
+		if _, err := os.Stat(applyingPath); err == nil {
+			state.InAM = true
+			if state.StuckType == "" {
+				state.StuckType = "am"
+				state.UserMessage = "A patch application was interrupted. Skip the patch or abort."
+			}
+		} else {
+			state.InRebase = true
+			if state.StuckType == "" {
+				state.StuckType = "rebase"
+				state.UserMessage = "A rebase operation was interrupted. Abort it to return to a clean state."
+			}
+		}
+	}
+
+	// Check for cherry-pick in progress (.git/CHERRY_PICK_HEAD)
+	cherryPickPath := filepath.Join(gitDir, "CHERRY_PICK_HEAD")
+	if _, err := os.Stat(cherryPickPath); err == nil {
+		state.InCherryPick = true
+		if state.StuckType == "" {
+			state.StuckType = "cherry-pick"
+			state.UserMessage = "A cherry-pick operation was interrupted. Resolve conflicts or abort."
+		}
+	}
+
+	// Check for revert in progress (.git/REVERT_HEAD)
+	revertPath := filepath.Join(gitDir, "REVERT_HEAD")
+	if _, err := os.Stat(revertPath); err == nil {
+		state.InRevert = true
+		if state.StuckType == "" {
+			state.StuckType = "revert"
+			state.UserMessage = "Undoing a previous save caused conflicts. Resolve or abort."
+		}
+	}
+
+	// Check for bisect in progress (.git/BISECT_LOG or .git/BISECT_START)
+	bisectLogPath := filepath.Join(gitDir, "BISECT_LOG")
+	bisectStartPath := filepath.Join(gitDir, "BISECT_START")
+	if _, err := os.Stat(bisectLogPath); err == nil {
+		state.InBisect = true
+		if state.StuckType == "" {
+			state.StuckType = "bisect"
+			state.UserMessage = "Bug search in progress. Complete the search or abort to resume normal work."
+		}
+	} else if _, err := os.Stat(bisectStartPath); err == nil {
+		state.InBisect = true
+		if state.StuckType == "" {
+			state.StuckType = "bisect"
+			state.UserMessage = "Bug search in progress. Complete the search or abort to resume normal work."
+		}
+	}
+
+	// Check for detached HEAD state
+	headPath := filepath.Join(gitDir, "HEAD")
+	if headData, err := os.ReadFile(headPath); err == nil {
+		headContent := strings.TrimSpace(string(headData))
+		// If HEAD contains a commit hash instead of "ref: refs/heads/..."
+		if !strings.HasPrefix(headContent, "ref:") {
+			state.IsDetached = true
+			state.DetachedAt = headContent
+			if state.StuckType == "" {
+				state.StuckType = "detached"
+				state.UserMessage = "You're not on any branch. Create a branch to save your work."
+			}
+		}
+	}
+
+	// Check for stale lock files (.git/index.lock and others)
+	lockFiles := []string{}
+	potentialLocks := []string{"index.lock", "HEAD.lock", "config.lock"}
+	for _, lockFile := range potentialLocks {
+		lockPath := filepath.Join(gitDir, lockFile)
+		if _, err := os.Stat(lockPath); err == nil {
+			lockFiles = append(lockFiles, lockFile)
+		}
+	}
+	if len(lockFiles) > 0 {
+		state.HasLockFile = true
+		state.LockFiles = lockFiles
+		// Lock files are highest priority
+		state.StuckType = "locked"
+		state.UserMessage = "A previous operation didn't complete cleanly. Remove the lock to continue."
 	}
 
 	// Check for conflicts
@@ -1834,46 +2341,49 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 }
 
 // ResolveConflictKeepBoth resolves a conflict by keeping both versions.
-// The local version stays as-is, and the incoming version is saved with a _COPY suffix.
-// For example: file.txt keeps local, creates file_COPY.txt with their version.
+// The incoming (theirs) version keeps the original filename.
+// The local (mine) version is saved with a timestamp suffix to avoid collisions.
+// For example: file.txt becomes incoming version, file_COPY_20260115_143052.txt is local version.
 func (g *GitService) ResolveConflictKeepBoth(repoPath string, filePath string) OperationResult {
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
 
-	// Use git show to get the incoming version (stage 3 is "theirs")
-	theirsResult := g.runner.RunGit(repoPath, "show", ":3:"+filePath)
-	if !theirsResult.Success {
-		return failedOp("Failed to get incoming version: " + getErrorMessage(theirsResult))
+	// Use git show to get the local version (stage 2 is "ours")
+	oursResult := g.runner.RunGit(repoPath, "show", ":2:"+filePath)
+	if !oursResult.Success {
+		return failedOp("Failed to get local version: " + getErrorMessage(oursResult))
 	}
-	theirsContent := theirsResult.Stdout
+	oursContent := oursResult.Stdout
 
-	// Generate the copy filename
+	// Generate the copy filename with timestamp to avoid collisions
+	// Format: basename_COPY_YYYYMMDD_HHMMSS.ext
 	ext := filepath.Ext(filePath)
 	baseName := strings.TrimSuffix(filePath, ext)
-	copyPath := baseName + "_COPY" + ext
-	fullCopyPath := filepath.Join(repoPath, copyPath)
+	timestamp := time.Now().Format("20060102_150405") // Go reference time format
+	localCopyPath := baseName + "_COPY_" + timestamp + ext
+	fullLocalCopyPath := filepath.Join(repoPath, localCopyPath)
 
-	// Write the incoming version to the copy file
-	if err := os.WriteFile(fullCopyPath, []byte(theirsContent), 0644); err != nil {
-		return failedOp("Failed to write copy file: " + err.Error())
+	// Write the local (mine) version to the timestamped copy file
+	if err := os.WriteFile(fullLocalCopyPath, []byte(oursContent), 0644); err != nil {
+		return failedOp("Failed to write local copy file: " + err.Error())
 	}
 
-	// Now resolve the original file by keeping ours
-	result := g.runner.RunGit(repoPath, "checkout", "--ours", "--", filePath)
+	// Resolve the original file by keeping theirs (incoming version)
+	result := g.runner.RunGit(repoPath, "checkout", "--theirs", "--", filePath)
 	if !result.Success {
 		// Clean up the copy file we created
-		os.Remove(fullCopyPath)
+		os.Remove(fullLocalCopyPath)
 		return failedOp("Failed to resolve conflict: " + getErrorMessage(result))
 	}
 
 	// Stage both files
-	addResult := g.runner.RunGit(repoPath, "add", "--", filePath, copyPath)
+	addResult := g.runner.RunGit(repoPath, "add", "--", filePath, localCopyPath)
 	if !addResult.Success {
 		return failedOp("Failed to stage resolved files: " + getErrorMessage(addResult))
 	}
 
-	return successOp(fmt.Sprintf("Kept both versions: '%s' (local) and '%s' (incoming)", filepath.Base(filePath), filepath.Base(copyPath)))
+	return successOp(fmt.Sprintf("Kept both versions: '%s' (incoming) and '%s' (your local copy)", filepath.Base(filePath), filepath.Base(localCopyPath)))
 }
 
 // MarkResolved marks a file as resolved after manual editing.
@@ -1891,12 +2401,46 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 	return successOp(fmt.Sprintf("Marked '%s' as resolved", filePath))
 }
 
-// StartMerge begins an actual merge with the specified branch.
+// StartMerge begins an actual merge.
 // Uses --no-commit to allow the user to resolve conflicts before committing.
 // This is called after CheckBranchConflicts confirms there will be conflicts.
-func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationResult {
-	if parentBranch == "" {
-		return failedOp("Parent branch is required")
+//
+// Default behavior (when sourceBranch is empty):
+// - Merges the current branch INTO the targetBranch
+// - First checks out targetBranch, then merges the original current branch
+//
+// Parameterized behavior (when both are provided):
+// - Checks out targetBranch
+// - Merges sourceBranch into it
+//
+// Parameters:
+//   - repoPath: Path to the git repository
+//   - targetBranch: The branch to merge INTO (e.g., "main") - required
+//   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
+func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBranch ...string) OperationResult {
+	if targetBranch == "" {
+		return failedOp("Target branch is required")
+	}
+
+	// Determine source branch (default to current branch if not provided)
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return failedOp("Not a valid git repository")
+	}
+
+	source := ""
+	if len(sourceBranch) > 0 && sourceBranch[0] != "" {
+		source = sourceBranch[0]
+	} else {
+		source = repoInfo.Branch
+		if source == "" {
+			return failedOp("Could not determine current branch (detached HEAD?)")
+		}
+	}
+
+	// Don't allow merging a branch into itself
+	if source == targetBranch {
+		return failedOp("Cannot merge a branch into itself")
 	}
 
 	// Check if already in a merge state - if so, we can continue with existing merge
@@ -1917,28 +2461,45 @@ func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationR
 	}
 
 	// Check for uncommitted changes - merge requires a clean working tree
-	// (unless they are changes that won't conflict with the merge)
 	status := g.Status(repoPath)
 	if status.HasChanges {
 		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
 	}
 
-	// Determine the ref to merge (prefer origin/<branch> if it exists)
-	parentRef := ""
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
-	if refCheckResult.Success {
-		parentRef = "origin/" + parentBranch
-	} else {
-		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", parentBranch)
-		if localRefCheck.Success {
-			parentRef = parentBranch
-		} else {
-			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", parentBranch))
+	// Store current branch so we know what we're merging from
+	originalBranch := repoInfo.Branch
+
+	// Step 1: Checkout the target branch
+	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
+	if !checkoutResult.Success {
+		// Try fetching and checking out if it's a remote branch
+		g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
+		if !checkoutResult.Success {
+			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
 		}
 	}
 
-	// Start the merge with --no-commit so user can resolve conflicts
-	result := g.runner.RunGit(repoPath, "merge", "--no-commit", "--no-ff", parentRef)
+	// Step 2: Determine the source ref to merge
+	sourceRef := ""
+	// For local branches, use the branch name directly
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", source)
+	if refCheckResult.Success {
+		sourceRef = source
+	} else {
+		// Try origin/<branch>
+		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+source)
+		if refCheckResult.Success {
+			sourceRef = "origin/" + source
+		} else {
+			// Checkout back to original branch on failure
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
+			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", source))
+		}
+	}
+
+	// Step 3: Start the merge with --no-commit so user can resolve conflicts
+	result := g.runner.RunGit(repoPath, "merge", "--no-commit", "--no-ff", sourceRef)
 
 	// Exit code 1 with conflicts is expected - that's what we want
 	if !result.Success {
@@ -1960,41 +2521,674 @@ func (g *GitService) StartMerge(repoPath string, parentBranch string) OperationR
 		// Actual error - provide detailed message
 		errMsg := getErrorMessage(result)
 		if strings.Contains(errMsg, "not something we can merge") {
-			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", parentBranch))
+			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", source))
 		}
 		if strings.Contains(errMsg, "uncommitted changes") {
 			return failedOp("Cannot merge: you have uncommitted changes. Commit or stash them first.")
 		}
+		// Checkout back to original branch on failure
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
 		return failedOp("Failed to start merge: " + errMsg)
 	}
 
-	// Clean merge (no conflicts) - still in merge state waiting for commit
+	// Merge command succeeded (exit code 0)
+	// Check if we're actually in merge state - if not, it means "Already up to date"
+	mergeState := g.GetMergeState(repoPath)
+	if !mergeState.InMerge {
+		// Check if the output indicates "already up to date"
+		outputLower := strings.ToLower(result.Stdout)
+		if strings.Contains(outputLower, "already up to date") || strings.Contains(outputLower, "already up-to-date") {
+			return OperationResult{
+				Success: true,
+				Message: "Already up to date - nothing to merge",
+				Error:   "already_up_to_date", // Use error field as a status indicator
+			}
+		}
+		// No merge state and not "already up to date" - something unexpected
+		return OperationResult{
+			Success: true,
+			Message: "Merge completed automatically - no commit needed",
+			Error:   "auto_completed",
+		}
+	}
+
+	// Clean merge with changes staged, waiting for commit
 	return successOp("Merge started - no conflicts detected")
+}
+
+// MergeOptions contains options for StartMergeWithOptions
+type MergeOptions struct {
+	Squash bool `json:"squash"` // If true, uses --squash for a squash merge
+}
+
+// StartMergeWithOptions begins a merge with configurable options.
+// Supports squash merge mode which combines all commits into a single commit.
+//
+// Parameters:
+//   - repoPath: Path to the git repository
+//   - targetBranch: The branch to merge INTO (e.g., "main") - required
+//   - sourceBranch: The branch to merge FROM - required
+//   - options: MergeOptions with squash flag
+//
+// When squash is true:
+// - Uses `git merge --squash` instead of regular merge
+// - Does NOT create a merge commit with two parents
+// - All changes appear as a single commit authored by the user
+// - Results in cleaner, linear history
+func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string, sourceBranch string, options MergeOptions) OperationResult {
+	if targetBranch == "" {
+		return failedOp("Target branch is required")
+	}
+	if sourceBranch == "" {
+		return failedOp("Source branch is required")
+	}
+
+	// Verify repo exists
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return failedOp("Not a valid git repository")
+	}
+
+	// Don't allow merging a branch into itself
+	if sourceBranch == targetBranch {
+		return failedOp("Cannot merge a branch into itself")
+	}
+
+	// Check if already in a merge state
+	state := g.GetMergeState(repoPath)
+	if state.InMerge {
+		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if len(conflicted) > 0 {
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("Merge already in progress with %d conflict(s) to resolve", len(conflicted)),
+			}
+		}
+		return successOp("Merge already in progress - ready to commit")
+	}
+	if state.InRebase {
+		return failedOp("Cannot start merge: rebase in progress. Abort the rebase first.")
+	}
+
+	// Check for uncommitted changes
+	status := g.Status(repoPath)
+	if status.HasChanges {
+		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
+	}
+
+	// Store current branch
+	originalBranch := repoInfo.Branch
+
+	// Step 1: Checkout the target branch
+	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
+	if !checkoutResult.Success {
+		g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
+		if !checkoutResult.Success {
+			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
+		}
+	}
+
+	// Step 2: Determine the source ref
+	sourceRef := ""
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", sourceBranch)
+	if refCheckResult.Success {
+		sourceRef = sourceBranch
+	} else {
+		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+sourceBranch)
+		if refCheckResult.Success {
+			sourceRef = "origin/" + sourceBranch
+		} else {
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
+			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", sourceBranch))
+		}
+	}
+
+	// Step 3: Build merge command based on options
+	var mergeArgs []string
+	if options.Squash {
+		// Squash merge: combines all commits into staged changes
+		// No merge commit created - user commits manually
+		mergeArgs = []string{"merge", "--squash", sourceRef}
+	} else {
+		// Regular merge with --no-commit for conflict resolution
+		mergeArgs = []string{"merge", "--no-commit", "--no-ff", sourceRef}
+	}
+
+	result := g.runner.RunGit(repoPath, mergeArgs...)
+
+	// Handle merge result
+	if !result.Success {
+		// Check for conflicts (expected in some cases)
+		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if len(conflicted) > 0 {
+			mergeType := "Merge"
+			if options.Squash {
+				mergeType = "Squash merge"
+			}
+			return OperationResult{
+				Success: true,
+				Message: fmt.Sprintf("%s started with %d conflict(s) to resolve", mergeType, len(conflicted)),
+			}
+		}
+
+		// Check merge state
+		mergeState := g.GetMergeState(repoPath)
+		if mergeState.InMerge || options.Squash {
+			// For squash, we won't be "in merge" state, but we have staged changes
+			return successOp("Merge started - no conflicts detected")
+		}
+
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "not something we can merge") {
+			return failedOp(fmt.Sprintf("Cannot merge '%s': branch not found or invalid", sourceBranch))
+		}
+		if strings.Contains(errMsg, "uncommitted changes") {
+			return failedOp("Cannot merge: you have uncommitted changes. Commit or stash them first.")
+		}
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
+		return failedOp("Failed to start merge: " + errMsg)
+	}
+
+	// Success - check final state
+	outputLower := strings.ToLower(result.Stdout)
+	if strings.Contains(outputLower, "already up to date") || strings.Contains(outputLower, "already up-to-date") {
+		return OperationResult{
+			Success: true,
+			Message: "Already up to date - nothing to merge",
+			Error:   "already_up_to_date",
+		}
+	}
+
+	// For squash merge, we're not in "merge" state but have staged changes
+	if options.Squash {
+		// Verify we have staged changes
+		statusAfter := g.Status(repoPath)
+		if statusAfter.HasChanges {
+			return OperationResult{
+				Success: true,
+				Message: "Squash merge staged - ready to commit",
+			}
+		}
+		// No changes means already up to date
+		return OperationResult{
+			Success: true,
+			Message: "Already up to date - nothing to merge",
+			Error:   "already_up_to_date",
+		}
+	}
+
+	// Regular merge - check merge state
+	mergeState := g.GetMergeState(repoPath)
+	if !mergeState.InMerge {
+		return OperationResult{
+			Success: true,
+			Message: "Merge completed automatically - no commit needed",
+			Error:   "auto_completed",
+		}
+	}
+
+	return successOp("Merge started - no conflicts detected")
+}
+
+// CompleteSquashMerge commits a squash merge.
+// Unlike CompleteMerge, this doesn't require being in a merge state.
+// It simply commits the staged changes from the squash merge.
+func (g *GitService) CompleteSquashMerge(repoPath string, message string) OperationResult {
+	if message == "" {
+		return failedOp("Commit message is required for squash merge")
+	}
+
+	// Check for staged changes
+	status := g.Status(repoPath)
+	if !status.HasChanges {
+		return failedOp("No changes to commit")
+	}
+
+	// Commit the squash merge
+	result := g.runner.RunGit(repoPath, "commit", "-m", message)
+	if !result.Success {
+		return failedOp("Failed to complete squash merge: " + getErrorMessage(result))
+	}
+
+	return successOp("Squash merge completed successfully")
 }
 
 // AbortMerge aborts the current merge operation.
 // Returns the repository to the state before the merge started.
 func (g *GitService) AbortMerge(repoPath string) OperationResult {
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InRebase {
-		return failedOp("No merge or rebase in progress")
+	if !state.InMerge {
+		return failedOp("No merge in progress")
 	}
 
-	var result CommandResult
-	if state.InRebase {
-		result = g.runner.RunGit(repoPath, "rebase", "--abort")
-	} else {
-		result = g.runner.RunGit(repoPath, "merge", "--abort")
-	}
-
+	result := g.runner.RunGit(repoPath, "merge", "--abort")
 	if !result.Success {
 		return failedOp("Failed to abort: " + getErrorMessage(result))
 	}
 
-	if state.InRebase {
-		return successOp("Rebase aborted")
-	}
 	return successOp("Merge aborted")
+}
+
+// ============================================================================
+// Cherry-Pick Operations
+// ============================================================================
+
+// AbortCherryPick aborts the current cherry-pick operation.
+// Runs: git cherry-pick --abort
+func (g *GitService) AbortCherryPick(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InCherryPick {
+		return failedOp("No cherry-pick in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "cherry-pick", "--abort")
+	if !result.Success {
+		return failedOp("Failed to abort cherry-pick: " + getErrorMessage(result))
+	}
+
+	return successOp("Cherry-pick aborted")
+}
+
+// ContinueCherryPick continues the cherry-pick after conflicts are resolved.
+// Runs: git cherry-pick --continue
+func (g *GitService) ContinueCherryPick(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InCherryPick {
+		return failedOp("No cherry-pick in progress")
+	}
+
+	// Check if there are still conflicts
+	conflicted, err := g.GetConflictedFiles(repoPath)
+	if err != nil {
+		return failedOp("Failed to check conflicts: " + err.Error())
+	}
+	if len(conflicted) > 0 {
+		return failedOp(fmt.Sprintf("Cannot continue cherry-pick: %d file(s) still have conflicts", len(conflicted)))
+	}
+
+	result := g.runner.RunGit(repoPath, "cherry-pick", "--continue")
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "No changes") {
+			// Skip this commit
+			skipResult := g.runner.RunGit(repoPath, "cherry-pick", "--skip")
+			if skipResult.Success {
+				return successOp("Commit skipped (no changes)")
+			}
+			return failedOp("Failed to skip commit: " + getErrorMessage(skipResult))
+		}
+		return failedOp("Failed to continue cherry-pick: " + errMsg)
+	}
+
+	// Check if cherry-pick completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InCherryPick {
+		return successOp("Cherry-pick completed successfully")
+	}
+	return successOp("Cherry-pick continuing")
+}
+
+// SkipCherryPickCommit skips the current commit in a cherry-pick sequence.
+// Runs: git cherry-pick --skip
+func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InCherryPick {
+		return failedOp("No cherry-pick in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "cherry-pick", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip commit: " + getErrorMessage(result))
+	}
+
+	// Check if cherry-pick completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InCherryPick {
+		return successOp("Cherry-pick completed successfully")
+	}
+	return successOp("Commit skipped, cherry-pick continuing")
+}
+
+// ============================================================================
+// Revert Operations
+// ============================================================================
+
+// AbortRevert aborts the current revert operation.
+// Runs: git revert --abort
+func (g *GitService) AbortRevert(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRevert {
+		return failedOp("No revert in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "revert", "--abort")
+	if !result.Success {
+		return failedOp("Failed to abort revert: " + getErrorMessage(result))
+	}
+
+	return successOp("Revert aborted")
+}
+
+// ContinueRevert continues the revert after conflicts are resolved.
+// Runs: git revert --continue
+func (g *GitService) ContinueRevert(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRevert {
+		return failedOp("No revert in progress")
+	}
+
+	// Check if there are still conflicts
+	conflicted, err := g.GetConflictedFiles(repoPath)
+	if err != nil {
+		return failedOp("Failed to check conflicts: " + err.Error())
+	}
+	if len(conflicted) > 0 {
+		return failedOp(fmt.Sprintf("Cannot continue revert: %d file(s) still have conflicts", len(conflicted)))
+	}
+
+	result := g.runner.RunGit(repoPath, "revert", "--continue")
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "No changes") {
+			// Skip this commit
+			skipResult := g.runner.RunGit(repoPath, "revert", "--skip")
+			if skipResult.Success {
+				return successOp("Commit skipped (no changes)")
+			}
+			return failedOp("Failed to skip commit: " + getErrorMessage(skipResult))
+		}
+		return failedOp("Failed to continue revert: " + errMsg)
+	}
+
+	// Check if revert completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InRevert {
+		return successOp("Revert completed successfully")
+	}
+	return successOp("Revert continuing")
+}
+
+// SkipRevertCommit skips the current commit in a revert sequence.
+// Runs: git revert --skip
+func (g *GitService) SkipRevertCommit(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InRevert {
+		return failedOp("No revert in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "revert", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip commit: " + getErrorMessage(result))
+	}
+
+	// Check if revert completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InRevert {
+		return successOp("Revert completed successfully")
+	}
+	return successOp("Commit skipped, revert continuing")
+}
+
+// ============================================================================
+// Bisect Operations
+// ============================================================================
+
+// AbortBisect aborts the current bisect session.
+// Runs: git bisect reset
+func (g *GitService) AbortBisect(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InBisect {
+		return failedOp("No bisect in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "bisect", "reset")
+	if !result.Success {
+		return failedOp("Failed to abort bisect: " + getErrorMessage(result))
+	}
+
+	return successOp("Bug search aborted, returned to normal state")
+}
+
+// GetBisectState returns information about the current bisect session.
+func (g *GitService) GetBisectState(repoPath string) map[string]interface{} {
+	info := map[string]interface{}{
+		"inBisect":    false,
+		"stepsLeft":   0,
+		"good":        "",
+		"bad":         "",
+		"currentHash": "",
+	}
+
+	state := g.GetMergeState(repoPath)
+	if !state.InBisect {
+		return info
+	}
+
+	info["inBisect"] = true
+
+	// Read bisect log
+	bisectLogPath := filepath.Join(repoPath, ".git", "BISECT_LOG")
+	if data, err := os.ReadFile(bisectLogPath); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "# good:") {
+				parts := strings.Fields(line)
+				if len(parts) >= 3 {
+					info["good"] = parts[2]
+				}
+			} else if strings.HasPrefix(line, "# bad:") {
+				parts := strings.Fields(line)
+				if len(parts) >= 3 {
+					info["bad"] = parts[2]
+				}
+			}
+		}
+	}
+
+	// Get current HEAD
+	headResult := g.runner.RunGit(repoPath, "rev-parse", "--short", "HEAD")
+	if headResult.Success {
+		info["currentHash"] = strings.TrimSpace(headResult.Stdout)
+	}
+
+	return info
+}
+
+// ============================================================================
+// AM (Apply Mailbox) Operations
+// ============================================================================
+
+// AbortAM aborts the current AM (patch application) operation.
+// Runs: git am --abort
+func (g *GitService) AbortAM(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InAM {
+		return failedOp("No patch application in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "am", "--abort")
+	if !result.Success {
+		return failedOp("Failed to abort patch application: " + getErrorMessage(result))
+	}
+
+	return successOp("Patch application aborted")
+}
+
+// SkipAMPatch skips the current patch in an AM sequence.
+// Runs: git am --skip
+func (g *GitService) SkipAMPatch(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+	if !state.InAM {
+		return failedOp("No patch application in progress")
+	}
+
+	result := g.runner.RunGit(repoPath, "am", "--skip")
+	if !result.Success {
+		return failedOp("Failed to skip patch: " + getErrorMessage(result))
+	}
+
+	// Check if AM completed
+	newState := g.GetMergeState(repoPath)
+	if !newState.InAM {
+		return successOp("Patch application completed")
+	}
+	return successOp("Patch skipped, continuing")
+}
+
+// ============================================================================
+// Detached HEAD Operations
+// ============================================================================
+
+// IsDetachedHead checks if the repository is in a detached HEAD state.
+func (g *GitService) IsDetachedHead(repoPath string) bool {
+	state := g.GetMergeState(repoPath)
+	return state.IsDetached
+}
+
+// CreateBranchFromDetached creates a new branch from the current detached HEAD position.
+// This saves the user's work by attaching it to a named branch.
+func (g *GitService) CreateBranchFromDetached(repoPath string, branchName string) OperationResult {
+	if branchName == "" {
+		return failedOp("Branch name is required")
+	}
+
+	state := g.GetMergeState(repoPath)
+	if !state.IsDetached {
+		return failedOp("Not in detached HEAD state")
+	}
+
+	// Create and checkout the new branch
+	result := g.runner.RunGit(repoPath, "checkout", "-b", branchName)
+	if !result.Success {
+		errMsg := getErrorMessage(result)
+		if strings.Contains(errMsg, "already exists") {
+			return failedOp(fmt.Sprintf("Branch '%s' already exists. Choose a different name.", branchName))
+		}
+		return failedOp("Failed to create branch: " + errMsg)
+	}
+
+	return successOp(fmt.Sprintf("Created branch '%s' and switched to it. Your work is now saved.", branchName))
+}
+
+// ============================================================================
+// Lock File Operations
+// ============================================================================
+
+// CheckForStaleLocks returns a list of any lock files found in .git directory.
+func (g *GitService) CheckForStaleLocks(repoPath string) []string {
+	state := g.GetMergeState(repoPath)
+	return state.LockFiles
+}
+
+// RemoveStaleLock removes a specific lock file from the .git directory.
+// This is a potentially dangerous operation - requires confirmation.
+func (g *GitService) RemoveStaleLock(repoPath string, lockFile string, confirm bool) OperationResult {
+	if !confirm {
+		return failedOp("Confirmation required to remove lock file")
+	}
+
+	// Only allow removing known lock files (security)
+	allowedLocks := map[string]bool{
+		"index.lock":  true,
+		"HEAD.lock":   true,
+		"config.lock": true,
+	}
+
+	if !allowedLocks[lockFile] {
+		return failedOp(fmt.Sprintf("Unknown lock file: %s", lockFile))
+	}
+
+	lockPath := filepath.Join(repoPath, ".git", lockFile)
+
+	// Check if lock file exists
+	if _, err := os.Stat(lockPath); os.IsNotExist(err) {
+		return failedOp("Lock file not found")
+	}
+
+	// Remove the lock file
+	if err := os.Remove(lockPath); err != nil {
+		return failedOp("Failed to remove lock file: " + err.Error())
+	}
+
+	return successOp(fmt.Sprintf("Removed %s - you can now continue working", lockFile))
+}
+
+// RemoveAllStaleLocks removes all stale lock files from the .git directory.
+// This is a convenience method that removes all known lock files at once.
+func (g *GitService) RemoveAllStaleLocks(repoPath string, confirm bool) OperationResult {
+	if !confirm {
+		return failedOp("Confirmation required to remove lock files")
+	}
+
+	state := g.GetMergeState(repoPath)
+	if !state.HasLockFile || len(state.LockFiles) == 0 {
+		return failedOp("No lock files found")
+	}
+
+	removed := []string{}
+	failed := []string{}
+
+	for _, lockFile := range state.LockFiles {
+		lockPath := filepath.Join(repoPath, ".git", lockFile)
+		if err := os.Remove(lockPath); err != nil {
+			failed = append(failed, lockFile)
+		} else {
+			removed = append(removed, lockFile)
+		}
+	}
+
+	if len(failed) > 0 {
+		return failedOp(fmt.Sprintf("Removed %d lock(s), failed to remove: %s", len(removed), strings.Join(failed, ", ")))
+	}
+
+	return successOp(fmt.Sprintf("Removed %d lock file(s) - you can now continue working", len(removed)))
+}
+
+// ============================================================================
+// Unified Abort Operation
+// ============================================================================
+
+// AbortCurrentOperation aborts whatever stuck operation is currently in progress.
+// This is a convenience method that detects the state and calls the appropriate abort.
+func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
+	state := g.GetMergeState(repoPath)
+
+	// Priority order for abort (most critical first)
+	if state.HasLockFile {
+		return g.RemoveAllStaleLocks(repoPath, true)
+	}
+	if state.InMerge {
+		result := g.runner.RunGit(repoPath, "merge", "--abort")
+		if result.Success {
+			return successOp("Merge aborted")
+		}
+		return failedOp("Failed to abort merge: " + getErrorMessage(result))
+	}
+	if state.InRebase {
+		result := g.runner.RunGit(repoPath, "rebase", "--abort")
+		if result.Success {
+			return successOp("Rebase aborted")
+		}
+		return failedOp("Failed to abort rebase: " + getErrorMessage(result))
+	}
+	if state.InCherryPick {
+		return g.AbortCherryPick(repoPath)
+	}
+	if state.InRevert {
+		return g.AbortRevert(repoPath)
+	}
+	if state.InBisect {
+		return g.AbortBisect(repoPath)
+	}
+	if state.InAM {
+		return g.AbortAM(repoPath)
+	}
+	if state.IsDetached {
+		return failedOp("Cannot abort detached HEAD - create a branch to save your work instead")
+	}
+
+	return failedOp("No operation in progress to abort")
 }
 
 // CompleteMerge completes the merge by committing after all conflicts are resolved.
@@ -2148,30 +3342,40 @@ func (g *GitService) GetParentBranch(repoPath string) ParentBranchResult {
 type BranchConflictCheckResult struct {
 	HasConflicts    bool             `json:"hasConflicts"`
 	ConflictedFiles []ConflictedFile `json:"conflictedFiles"`
-	ParentBranch    string           `json:"parentBranch"` // The parent branch used for checking
+	ParentBranch    string           `json:"parentBranch"` // The target branch to merge INTO (kept for backward compat)
+	TargetBranch    string           `json:"targetBranch"` // The target branch to merge INTO
+	SourceBranch    string           `json:"sourceBranch"` // The source branch being merged
 	Success         bool             `json:"success"`
 	Error           string           `json:"error,omitempty"`
 	Message         string           `json:"message,omitempty"`
 }
 
-// CheckBranchConflicts checks for potential merge conflicts between the current branch (child)
-// and a parent branch without actually performing the merge.
+// CheckBranchConflicts checks for potential merge conflicts when merging the source branch
+// INTO the target branch without actually performing the merge.
 // This uses `git merge-tree --write-tree` which performs a merge simulation.
 //
+// Default behavior (when sourceBranch is empty):
+// - Checks conflicts for merging current branch INTO targetBranch
+//
+// Parameterized behavior (when both are provided):
+// - Checks conflicts for merging sourceBranch INTO targetBranch
+//
 // The method:
-// 1. Auto-detects parent branch if not provided
-// 2. Fetches the parent branch from origin to ensure we have the latest
-// 3. Runs git merge-tree to detect conflicts
+// 1. Auto-detects target branch (parent) if not provided
+// 2. Fetches the target branch from origin to ensure we have the latest
+// 3. Runs git merge-tree to detect conflicts (simulating merge into target)
 // 4. Returns the list of conflicted files if any
 //
 // Parameters:
 //   - repoPath: Path to the git repository
-//   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+//   - targetBranch: Name of the target branch to merge INTO (e.g., "main", "master").
 //     If empty, the parent branch will be auto-detected.
+//   - sourceBranch: Optional. Name of the source branch to merge FROM.
+//     If empty, defaults to the current branch.
 //
 // Returns:
 //   - BranchConflictCheckResult with conflict information
-func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) BranchConflictCheckResult {
+func (g *GitService) CheckBranchConflicts(repoPath string, targetBranch string, sourceBranch ...string) BranchConflictCheckResult {
 	// Verify repo exists
 	repoInfo := g.DetectRepo(repoPath)
 	if !repoInfo.IsRepo {
@@ -2181,20 +3385,42 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 		}
 	}
 
-	// Auto-detect parent branch if not provided
-	if parentBranch == "" {
+	// Determine source branch (default to current branch if not provided)
+	source := ""
+	if len(sourceBranch) > 0 && sourceBranch[0] != "" {
+		source = sourceBranch[0]
+	} else {
+		source = repoInfo.Branch
+		if source == "" {
+			return BranchConflictCheckResult{
+				Success: false,
+				Error:   "Could not determine current branch (detached HEAD?)",
+			}
+		}
+	}
+
+	// Auto-detect target branch if not provided
+	if targetBranch == "" {
 		parentResult := g.GetParentBranch(repoPath)
 		if !parentResult.Success {
 			return BranchConflictCheckResult{
 				Success: false,
-				Error:   "Could not detect parent branch: " + parentResult.Error,
+				Error:   "Could not detect target branch: " + parentResult.Error,
 			}
 		}
-		parentBranch = parentResult.ParentBranch
+		targetBranch = parentResult.ParentBranch
 	}
 
-	// Step 1: Fetch the parent branch from origin to ensure we have latest
-	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", parentBranch)
+	// Don't allow checking merge of a branch into itself
+	if source == targetBranch {
+		return BranchConflictCheckResult{
+			Success: false,
+			Error:   "Cannot merge a branch into itself",
+		}
+	}
+
+	// Step 1: Fetch the target branch from origin to ensure we have latest
+	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
 	if !fetchResult.Success {
 		// Fetch might fail if no remote or branch doesn't exist on remote
 		// We can still try merge-tree with local branches
@@ -2210,29 +3436,48 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 		// For other fetch errors, we'll still try the merge-tree with local refs
 	}
 
-	// Step 2: Determine the parent ref to use
-	// Try origin/<parentBranch> first, then fall back to local branch
-	parentRef := ""
+	// Step 2: Determine the target ref to use
+	// Try origin/<targetBranch> first, then fall back to local branch
+	targetRef := ""
 
-	// Check if origin/<parentBranch> exists
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+parentBranch)
+	// Check if origin/<targetBranch> exists
+	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+targetBranch)
 	if refCheckResult.Success {
-		parentRef = "origin/" + parentBranch
+		targetRef = "origin/" + targetBranch
 	} else {
 		// Try local branch
-		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", parentBranch)
+		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", targetBranch)
 		if localRefCheck.Success {
-			parentRef = parentBranch
+			targetRef = targetBranch
 		} else {
 			return BranchConflictCheckResult{
 				Success: false,
-				Error:   fmt.Sprintf("Branch '%s' not found locally or on remote", parentBranch),
+				Error:   fmt.Sprintf("Branch '%s' not found locally or on remote", targetBranch),
 			}
 		}
 	}
 
-	// Step 3: Run merge-tree with --name-only for cleaner output
-	mergeTreeResult := g.runner.RunGit(repoPath, "merge-tree", "--write-tree", "--name-only", "HEAD", parentRef)
+	// Step 3: Determine the source ref
+	sourceRef := ""
+	refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", source)
+	if refCheckResult.Success {
+		sourceRef = source
+	} else {
+		// Try origin/<source>
+		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+source)
+		if refCheckResult.Success {
+			sourceRef = "origin/" + source
+		} else {
+			return BranchConflictCheckResult{
+				Success: false,
+				Error:   fmt.Sprintf("Source branch '%s' not found locally or on remote", source),
+			}
+		}
+	}
+
+	// Step 4: Run merge-tree with --name-only for cleaner output
+	// Order is: git merge-tree <target> <source> to simulate merging source INTO target
+	mergeTreeResult := g.runner.RunGit(repoPath, "merge-tree", "--write-tree", "--name-only", targetRef, sourceRef)
 
 	// Parse the output
 	// Output format:
@@ -2277,8 +3522,10 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 			Success:         true,
 			HasConflicts:    true,
 			ConflictedFiles: conflictedFiles,
-			ParentBranch:    parentBranch,
-			Message:         fmt.Sprintf("Found %d potential conflict(s) with '%s'", len(conflictedFiles), parentBranch),
+			ParentBranch:    targetBranch, // Keep for backward compat
+			TargetBranch:    targetBranch,
+			SourceBranch:    source,
+			Message:         fmt.Sprintf("Found %d potential conflict(s) when merging '%s' into '%s'", len(conflictedFiles), source, targetBranch),
 		}
 	}
 
@@ -2288,8 +3535,10 @@ func (g *GitService) CheckBranchConflicts(repoPath string, parentBranch string) 
 			Success:         true,
 			HasConflicts:    false,
 			ConflictedFiles: []ConflictedFile{},
-			ParentBranch:    parentBranch,
-			Message:         fmt.Sprintf("No conflicts with '%s' - merge will be clean", parentBranch),
+			ParentBranch:    targetBranch, // Keep for backward compat
+			TargetBranch:    targetBranch,
+			SourceBranch:    source,
+			Message:         fmt.Sprintf("No conflicts - '%s' can be merged cleanly into '%s'", source, targetBranch),
 		}
 	}
 

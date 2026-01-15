@@ -1,569 +1,674 @@
 /**
- * MergeChangesPage - Main area content for Merge Changes/Conflict Resolution view.
+ * MergeChangesPage - Clean MVP implementation
  * 
- * Implements a 3-step conflict resolution process:
- * 1. Check for conflicts with auto-detected or user-selected branch
- * 2. Resolve each conflict by choosing Keep Mine / Keep Theirs
- * 3. Complete merge with commit message when all conflicts are resolved
+ * A simplified 3-step merge workflow:
+ * 1. CHECK: Select target branch and check for conflicts
+ * 2. RESOLVE: For each conflict, choose Keep Mine / Keep Theirs
+ * 3. COMPLETE: Review and complete the merge with a commit message
+ * 
+ * Design principles:
+ * - All logic in one file for clarity
+ * - Minimal state - derive what we can
+ * - Clear visual feedback at each step
  */
 import { memo, useCallback, useState, useEffect, useMemo } from 'react';
-import { 
-  Flag, AlertTriangle, CheckCircle2, Loader2, Wand2, Search, 
-  ChevronDown, ChevronUp, XCircle, User, Clock, GitCommit,
-  Check, X, GitMerge
+import {
+  GitMerge,
+  Search,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  X,
+  ChevronDown,
+  FolderOpen,
+  RotateCcw,
+  SkipForward,
+  Play,
+  FileWarning,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
+import { Button } from '../../ui';
 import { useRepo } from '../../../context';
-import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../ui';
 
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const largeIconStyle = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 };
+// Icon sizes
+const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const iconLg = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 };
 
-/**
- * ConflictResolutionCard - Card showing one side of the conflict (mine or theirs)
- */
-const ConflictResolutionCard = memo(function ConflictResolutionCard({ 
+// ============================================================================
+// STEP 1: Initial Check Panel
+// ============================================================================
+const CheckPanel = memo(function CheckPanel({
+  currentBranch,
+  targetBranch,
+  onTargetChange,
+  availableBranches,
+  onCheck,
+  isChecking,
+  error,
+  isSquashMerge,
+  onSquashChange,
+}) {
+  const [showSelector, setShowSelector] = useState(false);
+
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md w-full">
+        <GitMerge style={iconLg} className="text-blue-400 mx-auto mb-4" />
+        <h2 className="text-theme-primary text-xl font-semibold mb-2">
+          Combine Versions
+        </h2>
+        <p className="text-theme-muted text-sm mb-6">
+          Merge your changes from <span className="text-blue-400 font-medium">{currentBranch}</span> into another branch.
+        </p>
+
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-left">
+            <div className="flex items-start gap-2">
+              <XCircle style={iconSm} className="text-red-400 mt-0.5 shrink-0" />
+              <p className="text-red-400 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Control panel */}
+        <div className="bg-theme-surface border border-theme-default rounded-lg p-4 space-y-4">
+          {/* Merge direction */}
+          <div className="flex items-center justify-center gap-3 py-2 px-3 bg-theme-base rounded-lg">
+            <span className="text-blue-400 font-medium">{currentBranch}</span>
+            <ArrowRight style={iconSm} className="text-theme-muted" />
+            <span className="text-green-400 font-medium">{targetBranch || 'main'}</span>
+          </div>
+
+          {/* Target branch selector */}
+          <div className="text-left">
+            <button
+              onClick={() => setShowSelector(!showSelector)}
+              className="flex items-center gap-2 text-theme-muted text-xs hover:text-theme-secondary"
+            >
+              <span>Target: <span className="text-theme-primary">{targetBranch || 'main'}</span></span>
+              <ChevronDown style={{ width: 12, height: 12 }} className={showSelector ? 'rotate-180' : ''} />
+            </button>
+            
+            {showSelector && (
+              <select
+                value={targetBranch || ''}
+                onChange={(e) => onTargetChange(e.target.value)}
+                className="mt-2 w-full px-2 py-1.5 bg-theme-base border border-theme-default rounded text-sm text-theme-primary"
+              >
+                <option value="">Auto-detect (main/master)</option>
+                {availableBranches.map(b => (
+                  <option key={b.name} value={b.name}>{b.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Squash merge toggle */}
+          <div className="flex items-center justify-between py-2 px-3 bg-theme-base rounded-lg">
+            <div className="text-left">
+              <p className="text-theme-primary text-sm font-medium">Squash commits</p>
+              <p className="text-theme-muted text-xs">Combine all commits into one</p>
+            </div>
+            <button
+              onClick={() => onSquashChange(!isSquashMerge)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                isSquashMerge ? 'bg-blue-500' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  isSquashMerge ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Check button */}
+          <Button onClick={onCheck} disabled={isChecking} className="w-full">
+            {isChecking ? (
+              <>
+                <Loader2 style={iconSm} className="animate-spin mr-2" />
+                Checking...
+              </>
+            ) : (
+              <>
+                <Search style={iconSm} className="mr-2" />
+                Check for Conflicts
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// STEP 1b: Conflict Check Results (shown after dry-run, before starting merge)
+// ============================================================================
+const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
+  sourceBranch,
+  targetBranch,
+  hasConflicts,
+  conflictCount,
+  conflictedFiles = [],
+  onStartMerge,
+  onCancel,
+  isProcessing,
+  isSquashMerge,
+}) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md w-full">
+        {hasConflicts ? (
+          <>
+            <AlertTriangle style={iconLg} className="text-orange-400 mx-auto mb-4" />
+            <h2 className="text-theme-primary text-xl font-semibold mb-2">
+              {conflictCount} Conflict{conflictCount !== 1 ? 's' : ''} Detected
+            </h2>
+            <p className="text-theme-muted text-sm mb-6">
+              Merging <span className="text-blue-400 font-medium">{sourceBranch}</span> into{' '}
+              <span className="text-green-400 font-medium">{targetBranch}</span> will require
+              resolving {conflictCount} file conflict{conflictCount !== 1 ? 's' : ''}.
+            </p>
+            
+            {/* Preview of conflicted files */}
+            <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-6 text-left">
+              <p className="text-theme-muted text-xs uppercase tracking-wide mb-2">Files with conflicts:</p>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {conflictedFiles.map((file) => (
+                  <div key={file.path} className="flex items-center gap-2 py-1">
+                    <FileWarning style={iconSm} className="text-orange-400 shrink-0" />
+                    <span className="text-theme-primary text-sm truncate">{file.path}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4 text-left">
+              <p className="text-orange-400 text-xs">
+                <strong>Note:</strong> Starting the merge will modify your working directory.
+                You'll need to resolve each conflict before completing the merge.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
+            <h2 className="text-theme-primary text-xl font-semibold mb-2">
+              No Conflicts Detected
+            </h2>
+            <p className="text-theme-muted text-sm mb-6">
+              You can safely merge <span className="text-blue-400 font-medium">{sourceBranch}</span> into{' '}
+              <span className="text-green-400 font-medium">{targetBranch}</span>.
+            </p>
+            
+            {isSquashMerge && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4 text-left">
+                <p className="text-blue-400 text-xs">
+                  <strong>Squash merge:</strong> All commits from {sourceBranch} will be combined into a single commit.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-center">
+          <Button onClick={onCancel} variant="outline" disabled={isProcessing}>
+            <X style={iconSm} className="mr-2" />
+            Cancel
+          </Button>
+          <Button onClick={onStartMerge} disabled={isProcessing}>
+            {isProcessing ? (
+              <Loader2 style={iconSm} className="animate-spin mr-2" />
+            ) : (
+              <Play style={iconSm} className="mr-2" />
+            )}
+            Start {isSquashMerge ? 'Squash Merge' : 'Merge'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// STEP 2a: Clean Merge (No Conflicts) - shown after merge is started
+// ============================================================================
+const CleanMergePanel = memo(function CleanMergePanel({
+  sourceBranch,
+  targetBranch,
+  onComplete,
+  onAbort,
+  isProcessing,
+  isSquashMerge,
+}) {
+  const defaultMessage = isSquashMerge 
+    ? `Squash merge ${sourceBranch} into ${targetBranch}`
+    : `Merge ${sourceBranch} into ${targetBranch}`;
+  const [message, setMessage] = useState(defaultMessage);
+
+  const handleComplete = useCallback(() => {
+    onComplete(message);
+  }, [message, onComplete]);
+
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md w-full">
+        <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
+        <h2 className="text-theme-primary text-xl font-semibold mb-2">
+          Ready to {isSquashMerge ? 'Squash Merge' : 'Merge'}
+        </h2>
+        <p className="text-theme-muted text-sm mb-6">
+          No conflicts detected. You can {isSquashMerge ? 'squash merge' : 'merge'} <span className="text-blue-400">{sourceBranch}</span> into <span className="text-green-400">{targetBranch}</span>.
+        </p>
+
+        {/* Squash merge info */}
+        {isSquashMerge && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4 text-left">
+            <p className="text-blue-400 text-xs">
+              <strong>Squash merge:</strong> All commits from {sourceBranch} will be combined into a single commit on {targetBranch}.
+            </p>
+          </div>
+        )}
+
+        {/* Commit message */}
+        <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-4 text-left">
+          <label className="text-theme-muted text-xs block mb-2">
+            {isSquashMerge ? 'Commit Message' : 'Merge Message'}
+          </label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 bg-theme-base border border-theme-default rounded text-sm text-theme-primary resize-none"
+            placeholder={isSquashMerge ? "Describe your changes..." : "Describe this merge..."}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-center">
+          <Button onClick={onAbort} variant="outline" disabled={isProcessing}>
+            <X style={iconSm} className="mr-2" />
+            Cancel
+          </Button>
+          <Button onClick={handleComplete} disabled={isProcessing || !message.trim()}>
+            {isProcessing ? (
+              <Loader2 style={iconSm} className="animate-spin mr-2" />
+            ) : (
+              <Check style={iconSm} className="mr-2" />
+            )}
+            {isSquashMerge ? 'Complete Squash Merge' : 'Complete Merge'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// STEP 2b: Conflict Resolution
+// ============================================================================
+
+// Card for selecting mine/theirs
+const ResolutionCard = memo(function ResolutionCard({
   type, // 'mine' | 'theirs'
   isSelected,
   onSelect,
-  commitInfo,
   disabled,
+  commitInfo,
 }) {
   const isMine = type === 'mine';
   
   return (
-    <Card 
-      className={`flex-1 cursor-pointer transition-all ${
-        isSelected 
-          ? isMine 
-            ? 'ring-2 ring-blue-500 bg-blue-500/10' 
-            : 'ring-2 ring-orange-500 bg-orange-500/10'
-          : 'hover:border-gray-500'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-      onClick={(e) => !disabled && onSelect(type, e)}
+    <button
+      onClick={(e) => onSelect(type, e)}
+      disabled={disabled}
+      className={`flex-1 p-4 rounded-lg border-2 text-left transition-all ${
+        isSelected
+          ? isMine
+            ? 'border-blue-500 bg-blue-500/10'
+            : 'border-orange-500 bg-orange-500/10'
+          : 'border-theme-default hover:border-theme-muted bg-theme-surface'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className={`text-base ${isMine ? 'text-blue-400' : 'text-orange-400'}`}>
-            {isMine ? 'Keep Mine' : 'Keep Theirs'}
-          </CardTitle>
-          {isSelected && (
-            <Check style={iconStyle} className={isMine ? 'text-blue-400' : 'text-orange-400'} />
-          )}
-        </div>
-        <CardDescription className="text-xs">
-          {isMine 
-            ? 'Keep your local changes and discard incoming changes' 
-            : 'Accept incoming changes and discard your local changes'
-          }
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {commitInfo ? (
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center gap-1.5 text-theme-secondary">
-              <User style={{ width: 12, height: 12 }} />
-              <span className="truncate">{commitInfo.author || 'Unknown'}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-theme-muted">
-              <Clock style={{ width: 12, height: 12 }} />
-              <span>{commitInfo.date || 'Unknown date'}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-theme-muted">
-              <GitCommit style={{ width: 12, height: 12 }} />
-              <span className="font-mono">{commitInfo.hash?.slice(0, 7) || '...'}</span>
-            </div>
-          </div>
-        ) : (
-          <p className="text-theme-muted text-xs italic">
-            {isMine ? 'Your current branch' : 'Incoming branch'}
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-3 h-3 rounded-full ${isMine ? 'bg-blue-500' : 'bg-orange-500'}`} />
+        <h3 className="text-theme-primary font-medium">
+          {isMine ? 'Keep Mine' : 'Keep Theirs'}
+        </h3>
+      </div>
+      <p className="text-theme-muted text-xs">
+        {isMine
+          ? 'Keep your local version of this file'
+          : 'Use the incoming version from the target branch'
+        }
+      </p>
+      {commitInfo && (
+        <div className="mt-2 pt-2 border-t border-theme-default">
+          <p className="text-theme-muted text-[10px] truncate">
+            {commitInfo.author} • {commitInfo.message?.slice(0, 30)}...
           </p>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </button>
   );
 });
 
-/**
- * FileResolutionUI - UI for resolving a single file conflict
- */
-const FileResolutionUI = memo(function FileResolutionUI({
+// File resolution UI (shown when a file is selected)
+const FileResolutionPanel = memo(function FileResolutionPanel({
   filePath,
-  fileStatus,
   currentResolution,
   onConfirm,
-  isResolving,
-  parentBranch,
+  onBack,
+  isProcessing,
   conflictSidesInfo,
 }) {
-  const [selectedStrategy, setSelectedStrategy] = useState(currentResolution || null);
-  const [selectedCards, setSelectedCards] = useState(new Set()); // For shift+click multi-select
-  
-  // Reset selection when file changes
+  const [selected, setSelected] = useState(currentResolution || null);
+  const fileName = filePath.split('/').pop();
+
   useEffect(() => {
-    setSelectedStrategy(currentResolution || null);
-    setSelectedCards(new Set());
+    setSelected(currentResolution || null);
   }, [filePath, currentResolution]);
 
-  const handleSelect = useCallback((strategy, event) => {
-    // Shift+click enables "Keep Both" by selecting both cards
-    if (event?.shiftKey) {
-      setSelectedCards(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(strategy)) {
-          newSet.delete(strategy);
-        } else {
-          newSet.add(strategy);
-        }
-        // If both are selected, set strategy to 'both'
-        if (newSet.has('mine') && newSet.has('theirs')) {
-          setSelectedStrategy('both');
-        } else if (newSet.size === 1) {
-          setSelectedStrategy(Array.from(newSet)[0]);
-        } else {
-          setSelectedStrategy(null);
-        }
-        return newSet;
-      });
-    } else {
-      // Regular click - single selection
-      setSelectedCards(new Set([strategy]));
-      setSelectedStrategy(prev => prev === strategy ? null : strategy);
-    }
-  }, []);
-
   const handleConfirm = useCallback(() => {
-    if (selectedStrategy) {
-      onConfirm(filePath, selectedStrategy);
+    if (selected) {
+      onConfirm(filePath, selected);
     }
-  }, [filePath, selectedStrategy, onConfirm]);
-
-  const fileName = filePath.split('/').pop();
-  const isAlreadyResolved = !!currentResolution;
-  const isBothSelected = selectedStrategy === 'both';
+  }, [filePath, selected, onConfirm]);
 
   return (
-    <div className="flex-1 flex flex-col p-6 max-w-3xl mx-auto">
-      {/* File header */}
+    <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto">
+      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          Resolve Conflict: {fileName}
+        <button
+          onClick={onBack}
+          className="text-blue-400 text-sm hover:text-blue-300 mb-2 flex items-center gap-1"
+        >
+          ← Back to overview
+        </button>
+        <h2 className="text-theme-primary text-xl font-semibold">
+          {fileName}
         </h2>
-        <p className="text-theme-muted text-sm">
-          Choose how to resolve the conflict in this file.
-        </p>
-        <div className="mt-2 flex items-center gap-4 text-xs text-theme-muted">
-          <span className="font-mono bg-theme-base px-2 py-0.5 rounded">{filePath}</span>
-          {fileStatus && (
-            <span className="text-orange-400">{fileStatus}</span>
-          )}
-        </div>
-        {parentBranch && (
-          <p className="text-theme-muted text-xs mt-1">
-            Comparing against: <span className="text-theme-secondary">{parentBranch}</span>
-          </p>
-        )}
-      </div>
-
-      {/* Shift+click hint */}
-      <div className="text-center mb-2">
-        <p className="text-theme-muted text-xs">
-          <kbd className="px-1.5 py-0.5 bg-theme-base rounded text-[10px] border border-theme-default">Shift</kbd>
-          <span className="mx-1">+</span>
-          <span>click both cards to keep both versions</span>
-        </p>
+        <p className="text-theme-muted text-xs font-mono mt-1">{filePath}</p>
       </div>
 
       {/* Resolution cards */}
       <div className="flex gap-4 mb-6">
-        <ConflictResolutionCard
+        <ResolutionCard
           type="mine"
-          isSelected={selectedStrategy === 'mine' || isBothSelected}
-          onSelect={handleSelect}
-          disabled={isResolving}
+          isSelected={selected === 'mine'}
+          onSelect={() => setSelected('mine')}
+          disabled={isProcessing}
           commitInfo={conflictSidesInfo?.ours}
         />
-        <ConflictResolutionCard
+        <ResolutionCard
           type="theirs"
-          isSelected={selectedStrategy === 'theirs' || isBothSelected}
-          onSelect={handleSelect}
-          disabled={isResolving}
+          isSelected={selected === 'theirs'}
+          onSelect={() => setSelected('theirs')}
+          disabled={isProcessing}
           commitInfo={conflictSidesInfo?.theirs}
         />
       </div>
 
-      {/* Explanation based on selection */}
-      {selectedStrategy && (
+      {/* Explanation */}
+      {selected && (
         <div className={`p-4 rounded-lg border mb-6 ${
-          isBothSelected
-            ? 'bg-purple-500/10 border-purple-500/30'
-            : selectedStrategy === 'mine' 
-              ? 'bg-blue-500/10 border-blue-500/30' 
-              : 'bg-orange-500/10 border-orange-500/30'
+          selected === 'mine'
+            ? 'bg-blue-500/10 border-blue-500/30'
+            : 'bg-orange-500/10 border-orange-500/30'
         }`}>
           <p className="text-sm text-theme-secondary">
-            {isBothSelected 
-              ? `✓ Keep both versions: Your file will be kept as "${fileName}", and the incoming version will be saved as "${fileName.replace(/(\.[^.]+)$/, '_COPY$1')}".`
-              : selectedStrategy === 'mine' 
-                ? '✓ Your local changes will be preserved. The incoming changes from the other branch will be discarded for this file.'
-                : '✓ The incoming changes will be applied. Your local changes to this file will be discarded.'
+            {selected === 'mine'
+              ? '✓ Your local changes will be kept. Incoming changes will be discarded for this file.'
+              : '✓ Incoming changes will be applied. Your local changes will be discarded for this file.'
             }
           </p>
         </div>
       )}
 
       {/* Confirm button */}
-      <div className="flex justify-center gap-3">
-        <Button
-          onClick={handleConfirm}
-          disabled={!selectedStrategy || isResolving}
-          variant="default"
-          className="min-w-[160px]"
-        >
-          {isResolving ? (
-            <>
-              <Loader2 style={iconStyle} className="mr-2 animate-spin" />
-              Resolving...
-            </>
-          ) : isAlreadyResolved ? (
-            <>
-              <Check style={iconStyle} className="mr-2" />
-              Update Resolution
-            </>
+      <div className="flex justify-center">
+        <Button onClick={handleConfirm} disabled={!selected || isProcessing}>
+          {isProcessing ? (
+            <Loader2 style={iconSm} className="animate-spin mr-2" />
+          ) : currentResolution ? (
+            <Check style={iconSm} className="mr-2" />
           ) : (
-            <>
-              <Check style={iconStyle} className="mr-2" />
-              Confirm Resolution
-            </>
+            <Check style={iconSm} className="mr-2" />
           )}
+          {currentResolution ? 'Update Resolution' : 'Confirm Resolution'}
         </Button>
       </div>
     </div>
   );
 });
 
-/**
- * ConflictsOverview - Default view when conflicts exist but no file is selected
- */
-const ConflictsOverview = memo(function ConflictsOverview({
+// Conflicts overview (default when conflicts exist but no file selected)
+const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
   conflictedFiles,
   fileResolutions,
-  parentBranch,
-  onCompleteMerge,
-  onAbortMerge,
-  isResolving,
+  sourceBranch,
+  targetBranch,
+  onSelectFile,
+  onComplete,
+  onAbort,
+  isProcessing,
+  isSquashMerge,
 }) {
-  const [mergeMessage, setMergeMessage] = useState('');
+  const defaultMessage = isSquashMerge 
+    ? `Squash merge ${sourceBranch} into ${targetBranch}`
+    : `Merge ${sourceBranch} into ${targetBranch}`;
+  const [message, setMessage] = useState(defaultMessage);
   
   const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
-  const allResolved = resolvedCount === conflictedFiles.length && conflictedFiles.length > 0;
+  const allResolved = resolvedCount === conflictedFiles.length;
+  const progressPercent = conflictedFiles.length > 0 
+    ? (resolvedCount / conflictedFiles.length) * 100 
+    : 0;
 
-  const handleCompleteMerge = useCallback(() => {
-    onCompleteMerge(mergeMessage);
-  }, [mergeMessage, onCompleteMerge]);
+  const handleComplete = useCallback(() => {
+    onComplete(message);
+  }, [message, onComplete]);
 
   return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-lg w-full">
-        <AlertTriangle 
-          style={largeIconStyle} 
-          className="text-orange-400 mx-auto mb-4" 
-        />
+    <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="text-center mb-6">
+        <AlertTriangle style={iconLg} className="text-orange-400 mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          {conflictedFiles.length} Conflict{conflictedFiles.length !== 1 ? 's' : ''} Detected
+          {conflictedFiles.length} Conflict{conflictedFiles.length !== 1 ? 's' : ''} Found
         </h2>
-        {parentBranch && (
-          <p className="text-theme-muted text-sm mb-4">
-            When merging with <span className="text-orange-400 font-medium">{parentBranch}</span>
+        <div className="flex items-center justify-center gap-2 text-sm">
+          <span className="text-blue-400">{sourceBranch}</span>
+          <ArrowRight style={iconSm} className="text-theme-muted" />
+          <span className="text-orange-400">{targetBranch}</span>
+        </div>
+      </div>
+
+      {/* Progress */}
+      <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-4">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-theme-muted">Resolution Progress</span>
+          <span className={allResolved ? 'text-green-400' : 'text-orange-400'}>
+            {resolvedCount} / {conflictedFiles.length}
+          </span>
+        </div>
+        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all ${allResolved ? 'bg-green-500' : 'bg-orange-500'}`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        {!allResolved && (
+          <p className="text-theme-muted text-xs mt-2">
+            Click each file in the sidebar to resolve conflicts.
           </p>
         )}
-
-        {/* Progress indicator */}
-        <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-theme-secondary text-sm">Resolution Progress</span>
-            <span className={`text-sm font-medium ${allResolved ? 'text-green-400' : 'text-orange-400'}`}>
-              {resolvedCount} / {conflictedFiles.length}
-            </span>
-          </div>
-          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-300 ${allResolved ? 'bg-green-500' : 'bg-orange-500'}`}
-              style={{ width: `${(resolvedCount / conflictedFiles.length) * 100}%` }}
-            />
-          </div>
-          {!allResolved && (
-            <p className="text-theme-muted text-xs mt-2">
-              Click on each file in the sidebar to resolve conflicts.
-            </p>
-          )}
-        </div>
-
-        {/* Merge completion section - shown when all resolved */}
-        {allResolved ? (
-          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 style={iconStyle} className="text-green-400" />
-              <span className="text-green-400 font-medium">All conflicts resolved!</span>
-            </div>
-            <p className="text-theme-muted text-sm mb-4">
-              You can now complete the merge. Add an optional commit message below.
-            </p>
-            <textarea
-              value={mergeMessage}
-              onChange={(e) => setMergeMessage(e.target.value)}
-              placeholder="Merge commit message (optional)"
-              className="w-full px-3 py-2 bg-theme-base border border-theme-default rounded-lg text-sm text-theme-primary placeholder:text-theme-muted resize-none focus:outline-none focus:ring-1 focus:ring-green-500"
-              rows={3}
-            />
-          </div>
-        ) : (
-          <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-6 text-left">
-            <h3 className="text-theme-secondary text-sm font-medium mb-2">How to resolve:</h3>
-            <ol className="text-theme-muted text-xs space-y-1.5 list-decimal list-inside">
-              <li>Click a conflicted file in the sidebar</li>
-              <li>Choose "Keep Mine" or "Keep Theirs"</li>
-              <li>Confirm your resolution</li>
-              <li>Repeat for all files, then merge</li>
-            </ol>
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="flex gap-3 justify-center">
-          <Button
-            onClick={handleCompleteMerge}
-            disabled={!allResolved || isResolving}
-            variant="default"
-            className="min-w-[140px]"
-          >
-            {isResolving ? (
-              <>
-                <Loader2 style={iconStyle} className="mr-2 animate-spin" />
-                Merging...
-              </>
-            ) : (
-              <>
-                <GitMerge style={iconStyle} className="mr-2" />
-                Complete Merge
-              </>
-            )}
-          </Button>
-          <Button
-            onClick={onAbortMerge}
-            disabled={isResolving}
-            variant="outline"
-            className="text-red-400 border-red-400/50 hover:bg-red-500/10"
-          >
-            <X style={iconStyle} className="mr-2" />
-            Abort Merge
-          </Button>
-        </div>
       </div>
-    </div>
-  );
-});
 
-/**
- * InitialCheckPanel - Shown when no conflicts have been checked yet
- */
-const InitialCheckPanel = memo(function InitialCheckPanel({
-  detectedParentBranch,
-  branches,
-  isCheckingConflicts,
-  onCheckConflicts,
-  showError,
-  errorMessage,
-}) {
-  const [manualBranchOverride, setManualBranchOverride] = useState('');
-  const [showBranchSelector, setShowBranchSelector] = useState(false);
+      {/* File list (quick access) */}
+      <div className="bg-theme-surface border border-theme-default rounded-lg mb-4 max-h-48 overflow-y-auto">
+        {conflictedFiles.map(file => {
+          const isResolved = !!fileResolutions[file.path];
+          const resolution = fileResolutions[file.path];
+          return (
+            <button
+              key={file.path}
+              onClick={() => onSelectFile(file.path)}
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-theme-muted/10 border-b border-theme-default last:border-b-0 text-left"
+            >
+              {isResolved ? (
+                <Check style={iconSm} className="text-green-400 shrink-0" />
+              ) : (
+                <AlertTriangle style={iconSm} className="text-orange-400 shrink-0" />
+              )}
+              <span className="text-theme-primary text-sm truncate flex-1">
+                {file.path.split('/').pop()}
+              </span>
+              {resolution && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  resolution === 'mine' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'
+                }`}>
+                  {resolution === 'mine' ? 'Mine' : 'Theirs'}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-  const availableBranches = useMemo(() => 
-    branches?.local?.filter(b => !b.isCurrent) || [], 
-    [branches?.local]
-  );
-  
-  const availableRemoteBranches = useMemo(() => 
-    branches?.remote?.slice(0, 5) || [], 
-    [branches?.remote]
-  );
-
-  const handleCheck = useCallback(() => {
-    onCheckConflicts(manualBranchOverride || '');
-  }, [manualBranchOverride, onCheckConflicts]);
-
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-md w-full">
-        {showError ? (
-          <>
-            <XCircle style={largeIconStyle} className="text-red-400 mx-auto mb-4" />
-            <h2 className="text-theme-primary text-xl font-semibold mb-2">
-              Check Failed
-            </h2>
-            <p className="text-red-400 text-sm mb-4">
-              {errorMessage || 'An error occurred while checking for conflicts.'}
-            </p>
-          </>
-        ) : (
-          <>
-            <Wand2 style={largeIconStyle} className="text-blue-400 mx-auto mb-4" />
-            <h2 className="text-theme-primary text-xl font-semibold mb-2">
-              Merge Changes
-            </h2>
-            <p className="text-theme-muted text-sm mb-4">
-              Check for potential merge conflicts before integrating changes.
-            </p>
-          </>
-        )}
-        
-        {/* Control Panel */}
-        <div className="bg-theme-surface border border-theme-default rounded-lg p-4 text-left space-y-4">
-          {/* Parent branch info */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Wand2 style={iconStyle} className="text-blue-400" />
-                <span className="text-theme-secondary text-sm font-medium">Parent Branch</span>
-              </div>
-              <button
-                onClick={() => setShowBranchSelector(!showBranchSelector)}
-                className="text-blue-400 text-xs hover:text-blue-300 flex items-center gap-1"
-              >
-                {showBranchSelector ? 'Hide' : 'Change'}
-                {showBranchSelector ? (
-                  <ChevronUp style={{ width: 12, height: 12 }} />
-                ) : (
-                  <ChevronDown style={{ width: 12, height: 12 }} />
-                )}
-              </button>
-            </div>
-            <p className="text-theme-primary text-sm font-medium">
-              {manualBranchOverride || detectedParentBranch?.name || 'Will auto-detect'}
-            </p>
-            {detectedParentBranch?.source && !manualBranchOverride && (
-              <p className="text-theme-muted text-xs mt-0.5">
-                via {detectedParentBranch.source}
-              </p>
-            )}
+      {/* Completion section (only when all resolved) */}
+      {allResolved && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle2 style={iconSm} className="text-green-400" />
+            <span className="text-green-400 font-medium">All conflicts resolved!</span>
           </div>
-
-          {/* Manual branch override (collapsible) */}
-          {showBranchSelector && (
-            <div>
-              <label className="text-theme-muted text-xs block mb-1">Override Parent Branch</label>
-              <select
-                value={manualBranchOverride}
-                onChange={(e) => setManualBranchOverride(e.target.value)}
-                disabled={isCheckingConflicts}
-                className="w-full px-2 py-1.5 bg-theme-base border border-theme-default rounded text-sm text-theme-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Use auto-detect</option>
-                {availableBranches.map(branch => (
-                  <option key={`local-${branch.name}`} value={branch.name}>
-                    {branch.name}
-                  </option>
-                ))}
-                {availableRemoteBranches.map(branch => (
-                  <option key={`remote-${branch.name}`} value={branch.name.replace('origin/', '')}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {isSquashMerge && (
+            <p className="text-blue-400 text-xs mb-3">
+              All commits will be combined into a single commit.
+            </p>
           )}
-          
-          {/* Action button */}
-          <Button
-            onClick={handleCheck}
-            disabled={isCheckingConflicts}
-            className="w-full"
-            variant="default"
-          >
-            {isCheckingConflicts ? (
-              <>
-                <Loader2 style={iconStyle} className="animate-spin mr-2" />
-                Checking...
-              </>
-            ) : (
-              <>
-                <Search style={iconStyle} className="mr-2" />
-                Check for Conflicts
-              </>
-            )}
-          </Button>
+          <label className="text-theme-muted text-xs block mb-2">
+            {isSquashMerge ? 'Commit Message' : 'Merge Message'}
+          </label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 bg-theme-base border border-theme-default rounded text-sm text-theme-primary resize-none"
+          />
         </div>
-        
-        {/* How it works */}
-        {!showError && (
-          <div className="bg-theme-surface border border-theme-default rounded-lg p-4 text-left mt-4">
-            <h3 className="text-theme-secondary text-sm font-medium mb-2">How it works:</h3>
-            <ol className="text-theme-muted text-xs space-y-2 list-decimal list-inside">
-              <li>Parent branch is automatically detected</li>
-              <li>Click "Check for Conflicts" to analyze</li>
-              <li>Review any conflicted files in the sidebar</li>
-              <li>Resolve conflicts before merging</li>
-            </ol>
-          </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-3 justify-center">
+        <Button
+          onClick={onAbort}
+          variant="outline"
+          disabled={isProcessing}
+          className="text-red-400 border-red-400/50 hover:bg-red-500/10"
+        >
+          <X style={iconSm} className="mr-2" />
+          Abort Merge
+        </Button>
+        {allResolved && (
+          <Button onClick={handleComplete} disabled={isProcessing || !message.trim()}>
+            {isProcessing ? (
+              <Loader2 style={iconSm} className="animate-spin mr-2" />
+            ) : (
+              <Check style={iconSm} className="mr-2" />
+            )}
+            {isSquashMerge ? 'Complete Squash Merge' : 'Complete Merge'}
+          </Button>
         )}
       </div>
     </div>
   );
 });
 
-/**
- * NoConflictsResult - Shown when check completes with no conflicts
- */
-const NoConflictsResult = memo(function NoConflictsResult({
-  parentBranch,
-  message,
-  onCheckAgain,
-  onClear,
-  isCheckingConflicts,
-}) {
+// ============================================================================
+// SUCCESS / SPECIAL STATES
+// ============================================================================
+
+const SuccessPanel = memo(function SuccessPanel({ message, onDismiss }) {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-md w-full">
-        <CheckCircle2 style={largeIconStyle} className="text-green-400 mx-auto mb-4" />
+      <div className="text-center">
+        <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          No Conflicts Detected
+          Merge Complete!
         </h2>
-        <p className="text-theme-muted text-sm mb-4">
-          A clean merge is possible with <span className="text-green-400 font-medium">{parentBranch || 'the parent branch'}</span>.
+        <p className="text-theme-muted text-sm mb-6">
+          {message || 'Your changes have been successfully merged.'}
         </p>
-        <p className="text-theme-muted text-xs mb-6">
-          {message || 'You can safely merge this branch.'}
-        </p>
-        
-        <div className="flex gap-2 justify-center">
-          <Button onClick={onCheckAgain} disabled={isCheckingConflicts} variant="outline">
-            <Search style={iconStyle} className="mr-2" />
-            Check Again
-          </Button>
-          <Button onClick={onClear} variant="outline">
-            Clear Results
-          </Button>
-        </div>
+        <Button onClick={onDismiss}>
+          Done
+        </Button>
       </div>
     </div>
   );
 });
 
-/**
- * MergeChangesPage - Main component
- */
+const AlreadyUpToDatePanel = memo(function AlreadyUpToDatePanel({ targetBranch, onDismiss }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center">
+        <CheckCircle2 style={iconLg} className="text-blue-400 mx-auto mb-4" />
+        <h2 className="text-theme-primary text-xl font-semibold mb-2">
+          Already Up to Date
+        </h2>
+        <p className="text-theme-muted text-sm mb-6">
+          {targetBranch} already contains all your changes. Nothing to merge.
+        </p>
+        <Button onClick={onDismiss}>
+          Got it
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+const NoRepoPanel = memo(function NoRepoPanel() {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center">
+        <FolderOpen style={iconLg} className="text-theme-muted mx-auto mb-4" />
+        <h2 className="text-theme-primary text-xl font-semibold mb-2">
+          No Repository Open
+        </h2>
+        <p className="text-theme-muted text-sm">
+          Open a folder with version control to merge changes.
+        </p>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 function MergeChangesPage() {
-  const { 
-    repoPath, 
+  const {
+    repoPath,
+    repoInfo,
     branches,
-    conflictedFiles = [], 
-    isCheckingConflicts, 
-    conflictCheckResult, 
+    conflictedFiles = [],
+    isCheckingConflicts,
+    conflictCheckResult,
     selectedConflictFile,
     setSelectedConflictFile,
     detectedParentBranch,
     fetchParentBranch,
-    checkBranchConflicts,
+    checkConflictsOnly,
+    startMerge,
     clearConflicts,
     fileResolutions = {},
     resolveConflict,
@@ -571,128 +676,204 @@ function MergeChangesPage() {
     completeMerge,
     isResolvingConflict,
     conflictSidesInfo,
+    refreshBranches,
+    mergeState,
+    isSquashMerge,
+    setIsSquashMerge,
   } = useRepo();
 
-  // Auto-detect parent branch when view loads
+  const [targetBranch, setTargetBranch] = useState('');
+  const [error, setError] = useState(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Current branch from repo info
+  const currentBranch = repoInfo?.branch || 'current';
+
+  // Available branches for selection (excluding current)
+  const availableBranches = useMemo(() =>
+    branches?.local?.filter(b => !b.isCurrent) || [],
+    [branches?.local]
+  );
+
+  // Auto-detect parent branch on mount
   useEffect(() => {
     if (repoPath && !detectedParentBranch) {
       fetchParentBranch();
     }
-  }, [repoPath, detectedParentBranch, fetchParentBranch]);
+    if (repoPath && !branches) {
+      refreshBranches();
+    }
+  }, [repoPath, detectedParentBranch, fetchParentBranch, branches, refreshBranches]);
 
-  // Handlers
-  const handleCheckConflicts = useCallback(async (parentBranch) => {
-    await checkBranchConflicts(parentBranch);
-  }, [checkBranchConflicts]);
+  // Effective target branch
+  const effectiveTarget = targetBranch || detectedParentBranch?.name || 'main';
 
-  const handleClearResults = useCallback(() => {
-    clearConflicts();
-  }, [clearConflicts]);
+  // Effective source branch - use conflictCheckResult.sourceBranch after merge starts
+  // because currentBranch changes to target after StartMerge
+  const effectiveSource = conflictCheckResult?.sourceBranch || currentBranch;
 
-  const handleConfirmResolution = useCallback(async (filePath, strategy) => {
+  // Handle check for conflicts (dry-run only - does NOT start merge)
+  const handleCheck = useCallback(async () => {
+    setError(null);
+    const result = await checkConflictsOnly(targetBranch);
+    if (result && !result.success) {
+      setError(result.error || 'Failed to check for conflicts');
+    }
+  }, [targetBranch, checkConflictsOnly]);
+
+  // Handle start merge (actually begins the merge process)
+  const handleStartMerge = useCallback(async () => {
+    setError(null);
+    const result = await startMerge(targetBranch);
+    if (!result) {
+      setError('Failed to start merge');
+    }
+  }, [targetBranch, startMerge]);
+
+  // Handle file resolution
+  const handleResolve = useCallback(async (filePath, strategy) => {
     const success = await resolveConflict(filePath, strategy);
     if (success) {
-      // Clear selection to go back to overview
-      setSelectedConflictFile(null);
+      setSelectedConflictFile(null); // Go back to overview
     }
   }, [resolveConflict, setSelectedConflictFile]);
 
-  const handleAbortMerge = useCallback(async () => {
+  // Handle abort
+  const handleAbort = useCallback(async () => {
     await abortMerge();
+    setError(null);
+    setShowSuccess(false);
   }, [abortMerge]);
 
-  const handleCompleteMerge = useCallback(async (message) => {
-    await completeMerge(message);
+  // Handle complete
+  const handleComplete = useCallback(async (message) => {
+    const success = await completeMerge(message);
+    if (success) {
+      setShowSuccess(true);
+    }
   }, [completeMerge]);
 
-  // No repository open
+  // Handle dismiss (reset everything)
+  const handleDismiss = useCallback(() => {
+    clearConflicts();
+    setError(null);
+    setShowSuccess(false);
+    setTargetBranch('');
+  }, [clearConflicts]);
+
+  // No repo open
   if (!repoPath) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center max-w-md">
-          <Flag style={largeIconStyle} className="text-theme-muted mx-auto mb-4" />
-          <h2 className="text-theme-primary text-xl font-semibold mb-2">
-            Merge Changes
-          </h2>
-          <p className="text-theme-muted text-sm">
-            Open a repository to check for merge conflicts and resolve them.
-          </p>
-        </div>
-      </div>
-    );
+    return <NoRepoPanel />;
   }
 
   // Loading state
   if (isCheckingConflicts) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center max-w-md">
-          <Loader2 style={largeIconStyle} className="text-blue-400 mx-auto mb-4 animate-spin" />
-          <h2 className="text-theme-primary text-xl font-semibold mb-2">
-            Checking for Conflicts...
-          </h2>
-          <p className="text-theme-muted text-sm">
-            Analyzing branch differences to detect potential merge conflicts.
-          </p>
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 style={iconLg} className="text-blue-400 mx-auto mb-4 animate-spin" />
+          <p className="text-theme-muted">Analyzing branches...</p>
         </div>
       </div>
     );
   }
 
-  // No conflicts found
-  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts) {
+  // Success state
+  if (showSuccess) {
+    return <SuccessPanel onDismiss={handleDismiss} />;
+  }
+
+  // Already up to date
+  if (conflictCheckResult?.success && conflictCheckResult?.alreadyUpToDate) {
     return (
-      <NoConflictsResult
-        parentBranch={conflictCheckResult.parentBranch}
-        message={conflictCheckResult.message}
-        onCheckAgain={() => handleCheckConflicts('')}
-        onClear={handleClearResults}
-        isCheckingConflicts={isCheckingConflicts}
+      <AlreadyUpToDatePanel
+        targetBranch={effectiveTarget}
+        onDismiss={handleDismiss}
       />
     );
   }
 
-  // Has conflicts
+  // Auto-completed merge
+  if (conflictCheckResult?.success && conflictCheckResult?.autoCompleted) {
+    return <SuccessPanel message="Merge completed automatically." onDismiss={handleDismiss} />;
+  }
+
+  // Check complete but merge NOT started yet - show results with "Start Merge" button
+  // This is the key decoupling: user can see conflicts without mutating working tree
+  if (conflictCheckResult?.success && !conflictCheckResult?.mergeStarted) {
+    return (
+      <ConflictCheckResultPanel
+        sourceBranch={effectiveSource}
+        targetBranch={effectiveTarget}
+        hasConflicts={conflictCheckResult?.hasConflicts}
+        conflictCount={conflictCheckResult?.conflictedFiles?.length || conflictedFiles.length}
+        conflictedFiles={conflictCheckResult?.conflictedFiles || conflictedFiles}
+        onStartMerge={handleStartMerge}
+        onCancel={handleDismiss}
+        isProcessing={isCheckingConflicts}
+        isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
+      />
+    );
+  }
+
+  // Clean merge - merge started, no conflicts (show complete panel)
+  if (conflictCheckResult?.success && conflictCheckResult?.mergeStarted && !conflictCheckResult?.hasConflicts && conflictedFiles.length === 0) {
+    return (
+      <CleanMergePanel
+        sourceBranch={effectiveSource}
+        targetBranch={effectiveTarget}
+        onComplete={handleComplete}
+        onAbort={handleAbort}
+        isProcessing={isResolvingConflict}
+        isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
+      />
+    );
+  }
+
+  // Conflicts exist
   if (conflictedFiles.length > 0) {
     // File selected - show resolution UI
     if (selectedConflictFile) {
-      const selectedFile = conflictedFiles.find(f => f.path === selectedConflictFile);
       return (
-        <FileResolutionUI
+        <FileResolutionPanel
           filePath={selectedConflictFile}
-          fileStatus={selectedFile?.status}
           currentResolution={fileResolutions[selectedConflictFile]}
-          onConfirm={handleConfirmResolution}
-          isResolving={isResolvingConflict}
-          parentBranch={conflictCheckResult?.parentBranch}
+          onConfirm={handleResolve}
+          onBack={() => setSelectedConflictFile(null)}
+          isProcessing={isResolvingConflict}
           conflictSidesInfo={conflictSidesInfo}
         />
       );
     }
 
-    // No file selected - show overview
+    // Show overview
     return (
-      <ConflictsOverview
+      <ConflictsOverviewPanel
         conflictedFiles={conflictedFiles}
         fileResolutions={fileResolutions}
-        parentBranch={conflictCheckResult?.parentBranch}
-        onCompleteMerge={handleCompleteMerge}
-        onAbortMerge={handleAbortMerge}
-        isResolving={isResolvingConflict}
+        sourceBranch={effectiveSource}
+        targetBranch={effectiveTarget}
+        onSelectFile={setSelectedConflictFile}
+        onComplete={handleComplete}
+        onAbort={handleAbort}
+        isProcessing={isResolvingConflict}
+        isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
   }
 
-  // Initial state or error
-  const showError = conflictCheckResult && !conflictCheckResult.success;
+  // Initial state - show check panel
   return (
-    <InitialCheckPanel
-      detectedParentBranch={detectedParentBranch}
-      branches={branches}
-      isCheckingConflicts={isCheckingConflicts}
-      onCheckConflicts={handleCheckConflicts}
-      showError={showError}
-      errorMessage={conflictCheckResult?.error}
+    <CheckPanel
+      currentBranch={currentBranch}
+      targetBranch={effectiveTarget}
+      onTargetChange={setTargetBranch}
+      availableBranches={availableBranches}
+      onCheck={handleCheck}
+      isChecking={isCheckingConflicts}
+      error={error || (conflictCheckResult && !conflictCheckResult.success ? conflictCheckResult.error : null)}
+      isSquashMerge={isSquashMerge}
+      onSquashChange={setIsSquashMerge}
     />
   );
 }

@@ -5,13 +5,9 @@
  */
 import { memo, useState, useEffect, useCallback } from 'react';
 import { Folder, FolderOpen, Clock, X } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { Button } from '../../../ui';
 import { getRecentFolders, removeRecentFolder, getFolderName, MAX_RECENT_DISPLAY } from '../../../../lib/recentFolders';
-
-// Memoized icon styles to avoid recreating objects on each render
-const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const iconStyleXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
   const [recentFolders, setRecentFolders] = useState([]);
@@ -35,7 +31,7 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
         <p className="text-theme-secondary mb-8">Start version control for your project folder</p>
 
         <Button size="lg" variant="secondary" onClick={onOpenFolder} loading={isLoading}>
-          <FolderOpen style={iconStyleSm} />
+          <FolderOpen style={ICON_STYLES.sm} />
           Open Folder
         </Button>
         
@@ -43,7 +39,7 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
         {recentFolders.length > 0 && (
           <div className="mt-8 text-left">
             <div className="flex items-center gap-2 text-theme-muted text-xs uppercase tracking-wide mb-3">
-              <Clock style={iconStyleXs} />
+              <Clock style={ICON_STYLES.xs} />
               <span>Recent</span>
             </div>
             <ul className="space-y-1">
@@ -53,7 +49,7 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
                     onClick={() => onOpenPath(path)}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover-bg-theme-interactive transition-colors group text-left"
                   >
-                    <Folder style={iconStyleSm} className="text-yellow-500 shrink-0" />
+                    <Folder style={ICON_STYLES.sm} className="text-yellow-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-theme-primary text-sm truncate">
                         {getFolderName(path)}
@@ -70,7 +66,7 @@ function NoDirectoryScreen({ onOpenFolder, onOpenPath, isLoading }) {
                       className="opacity-0 group-hover:opacity-100 p-1 hover:bg-theme-subtle rounded transition-opacity"
                       title="Remove from recent"
                     >
-                      <X style={iconStyleXs} className="text-theme-muted" />
+                      <X style={ICON_STYLES.xs} className="text-theme-muted" />
                     </span>
                   </button>
                 </li>

@@ -16,6 +16,17 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * CopyToClipboard copies the given text to the system clipboard
+ * @param {string} text
+ * @returns {$CancellablePromise<$models.OpenFileResult>}
+ */
+export function CopyToClipboard(text) {
+    return $Call.ByID(2069356840, text).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * GetParentDirectory returns the parent directory of the given path
  * @param {string} path
  * @returns {$CancellablePromise<string>}
@@ -25,13 +36,26 @@ export function GetParentDirectory(path) {
 }
 
 /**
- * ListDirectory lists the contents of a directory
+ * ListDirectory lists the contents of a directory (excludes hidden files by default)
  * @param {string} path
  * @returns {$CancellablePromise<$models.DirectoryContents>}
  */
 export function ListDirectory(path) {
     return $Call.ByID(1835098089, path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * ListDirectoryWithOptions lists the contents of a directory with options
+ * includeHidden: if true, includes hidden files (starting with .)
+ * @param {string} path
+ * @param {boolean} includeHidden
+ * @returns {$CancellablePromise<$models.DirectoryContents>}
+ */
+export function ListDirectoryWithOptions(path, includeHidden) {
+    return $Call.ByID(1279090861, path, includeHidden).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
     }));
 }
 
@@ -42,10 +66,32 @@ export function ListDirectory(path) {
  */
 export function OpenFile(path) {
     return $Call.ByID(2404162648, path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * OpenInTerminal opens a terminal at the specified path
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.OpenFileResult>}
+ */
+export function OpenInTerminal(path) {
+    return $Call.ByID(301110197, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * RevealInFinder opens the containing folder in the system file manager and selects the file
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.OpenFileResult>}
+ */
+export function RevealInFinder(path) {
+    return $Call.ByID(1552683400, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
     }));
 }
 
 // Private type creation functions
-const $$createType0 = $models.DirectoryContents.createFrom;
-const $$createType1 = $models.OpenFileResult.createFrom;
+const $$createType0 = $models.OpenFileResult.createFrom;
+const $$createType1 = $models.DirectoryContents.createFrom;

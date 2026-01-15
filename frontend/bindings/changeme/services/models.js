@@ -6,6 +6,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as time$0 from "../../time/models.js";
+
 /**
  * AppSettings contains application preferences
  */
@@ -47,6 +51,137 @@ export class AppSettings {
 }
 
 /**
+ * BackgroundTaskConfig represents configuration for a background task
+ */
+export class BackgroundTaskConfig {
+    /**
+     * Creates a new BackgroundTaskConfig instance.
+     * @param {Partial<BackgroundTaskConfig>} [$$source = {}] - The source object to create the BackgroundTaskConfig.
+     */
+    constructor($$source = {}) {
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("intervalMinutes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["intervalMinutes"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BackgroundTaskConfig instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {BackgroundTaskConfig}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BackgroundTaskConfig(/** @type {Partial<BackgroundTaskConfig>} */($$parsedSource));
+    }
+}
+
+/**
+ * BackgroundTaskStatus represents the current status of a background task
+ */
+export class BackgroundTaskStatus {
+    /**
+     * Creates a new BackgroundTaskStatus instance.
+     * @param {Partial<BackgroundTaskStatus>} [$$source = {}] - The source object to create the BackgroundTaskStatus.
+     */
+    constructor($$source = {}) {
+        if (!("taskType" in $$source)) {
+            /**
+             * @member
+             * @type {BackgroundTaskType}
+             */
+            this["taskType"] = BackgroundTaskType.$zero;
+        }
+        if (!("isRunning" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isRunning"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {time$0.Time | null | undefined}
+             */
+            this["lastRun"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {OperationResult | null | undefined}
+             */
+            this["lastResult"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {time$0.Time | null | undefined}
+             */
+            this["nextRun"] = undefined;
+        }
+        if (!("runCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["runCount"] = 0;
+        }
+        if (!("errorCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["errorCount"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BackgroundTaskStatus instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {BackgroundTaskStatus}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lastResult" in $$parsedSource) {
+            $$parsedSource["lastResult"] = $$createField3_0($$parsedSource["lastResult"]);
+        }
+        return new BackgroundTaskStatus(/** @type {Partial<BackgroundTaskStatus>} */($$parsedSource));
+    }
+}
+
+/**
+ * BackgroundTaskType represents a type of background task
+ * @readonly
+ * @enum {string}
+ */
+export const BackgroundTaskType = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    TaskFetchAll: "fetch_all",
+    TaskLFSFetch: "lfs_fetch",
+    TaskMaintenance: "maintenance",
+};
+
+/**
  * BranchConflictCheckResult contains the result of checking for conflicts between branches
  */
 export class BranchConflictCheckResult {
@@ -71,11 +206,27 @@ export class BranchConflictCheckResult {
         }
         if (!("parentBranch" in $$source)) {
             /**
-             * The parent branch used for checking
+             * The target branch to merge INTO (kept for backward compat)
              * @member
              * @type {string}
              */
             this["parentBranch"] = "";
+        }
+        if (!("targetBranch" in $$source)) {
+            /**
+             * The target branch to merge INTO
+             * @member
+             * @type {string}
+             */
+            this["targetBranch"] = "";
+        }
+        if (!("sourceBranch" in $$source)) {
+            /**
+             * The source branch being merged
+             * @member
+             * @type {string}
+             */
+            this["sourceBranch"] = "";
         }
         if (!("success" in $$source)) {
             /**
@@ -108,7 +259,7 @@ export class BranchConflictCheckResult {
      * @returns {BranchConflictCheckResult}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType1;
+        const $$createField1_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("conflictedFiles" in $$parsedSource) {
             $$parsedSource["conflictedFiles"] = $$createField1_0($$parsedSource["conflictedFiles"]);
@@ -224,8 +375,8 @@ export class BranchList {
      * @returns {BranchList}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType3;
-        const $$createField2_0 = $$createType3;
+        const $$createField1_0 = $$createType5;
+        const $$createField2_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("local" in $$parsedSource) {
             $$parsedSource["local"] = $$createField1_0($$parsedSource["local"]);
@@ -350,9 +501,9 @@ export class CommitDetail {
      * @returns {CommitDetail}
      */
     static createFrom($$source = {}) {
-        const $$createField8_0 = $$createType4;
-        const $$createField9_0 = $$createType6;
-        const $$createField10_0 = $$createType7;
+        const $$createField8_0 = $$createType6;
+        const $$createField9_0 = $$createType8;
+        const $$createField10_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parentHashes" in $$parsedSource) {
             $$parsedSource["parentHashes"] = $$createField8_0($$parsedSource["parentHashes"]);
@@ -484,9 +635,9 @@ export class CommitGraphResult {
      * @returns {CommitGraphResult}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType9;
-        const $$createField1_0 = $$createType10;
-        const $$createField2_0 = $$createType10;
+        const $$createField0_0 = $$createType11;
+        const $$createField1_0 = $$createType12;
+        const $$createField2_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("commits" in $$parsedSource) {
             $$parsedSource["commits"] = $$createField0_0($$parsedSource["commits"]);
@@ -720,8 +871,8 @@ export class ConflictSidesInfo {
      * @returns {ConflictSidesInfo}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType11;
-        const $$createField1_0 = $$createType11;
+        const $$createField0_0 = $$createType13;
+        const $$createField1_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ours" in $$parsedSource) {
             $$parsedSource["ours"] = $$createField0_0($$parsedSource["ours"]);
@@ -829,7 +980,7 @@ export class CustomLFSGroup {
      * @returns {CustomLFSGroup}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType4;
+        const $$createField3_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("extensions" in $$parsedSource) {
             $$parsedSource["extensions"] = $$createField3_0($$parsedSource["extensions"]);
@@ -864,7 +1015,7 @@ export class CustomLFSGroupsData {
      * @returns {CustomLFSGroupsData}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType13;
+        const $$createField0_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("groups" in $$parsedSource) {
             $$parsedSource["groups"] = $$createField0_0($$parsedSource["groups"]);
@@ -903,6 +1054,13 @@ export class DirectoryContents {
              */
             this["error"] = undefined;
         }
+        if (!("includeHidden" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["includeHidden"] = false;
+        }
 
         Object.assign(this, $$source);
     }
@@ -913,7 +1071,7 @@ export class DirectoryContents {
      * @returns {DirectoryContents}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType15;
+        const $$createField1_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
@@ -968,6 +1126,54 @@ export class ExportLFSGroupsResult {
 }
 
 /**
+ * FetchSettings contains settings for git fetch operations
+ */
+export class FetchSettings {
+    /**
+     * Creates a new FetchSettings instance.
+     * @param {Partial<FetchSettings>} [$$source = {}] - The source object to create the FetchSettings.
+     */
+    constructor($$source = {}) {
+        if (!("fetchAllRemotes" in $$source)) {
+            /**
+             * FetchAllRemotes fetches from all remotes (--all flag)
+             * @member
+             * @type {boolean}
+             */
+            this["fetchAllRemotes"] = false;
+        }
+        if (!("pruneStaleBranches" in $$source)) {
+            /**
+             * PruneStaleBranches removes stale remote-tracking branches (--prune flag)
+             * @member
+             * @type {boolean}
+             */
+            this["pruneStaleBranches"] = false;
+        }
+        if (!("fetchTags" in $$source)) {
+            /**
+             * FetchTags fetches tags (--tags flag)
+             * @member
+             * @type {boolean}
+             */
+            this["fetchTags"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FetchSettings instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {FetchSettings}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FetchSettings(/** @type {Partial<FetchSettings>} */($$parsedSource));
+    }
+}
+
+/**
  * FileEntry represents a file or directory in the file system
  */
 export class FileEntry {
@@ -1010,6 +1216,21 @@ export class FileEntry {
              * @type {string}
              */
             this["extension"] = "";
+        }
+        if (!("modTime" in $$source)) {
+            /**
+             * Unix timestamp in milliseconds
+             * @member
+             * @type {number}
+             */
+            this["modTime"] = 0;
+        }
+        if (!("isHidden" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isHidden"] = false;
         }
 
         Object.assign(this, $$source);
@@ -1069,6 +1290,51 @@ export class FileStatus {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new FileStatus(/** @type {Partial<FileStatus>} */($$parsedSource));
+    }
+}
+
+/**
+ * GitRemoteInfo contains information about a git remote
+ */
+export class GitRemoteInfo {
+    /**
+     * Creates a new GitRemoteInfo instance.
+     * @param {Partial<GitRemoteInfo>} [$$source = {}] - The source object to create the GitRemoteInfo.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("fetchUrl" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["fetchUrl"] = "";
+        }
+        if (!("pushUrl" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["pushUrl"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitRemoteInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {GitRemoteInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitRemoteInfo(/** @type {Partial<GitRemoteInfo>} */($$parsedSource));
     }
 }
 
@@ -1201,8 +1467,8 @@ export class GraphCommit {
      * @returns {GraphCommit}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType4;
-        const $$createField8_0 = $$createType4;
+        const $$createField7_0 = $$createType6;
+        const $$createField8_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parents" in $$parsedSource) {
             $$parsedSource["parents"] = $$createField7_0($$parsedSource["parents"]);
@@ -1420,6 +1686,62 @@ export class LFSLock {
 }
 
 /**
+ * LFSSettings contains LFS-specific repository settings
+ */
+export class LFSSettings {
+    /**
+     * Creates a new LFSSettings instance.
+     * @param {Partial<LFSSettings>} [$$source = {}] - The source object to create the LFSSettings.
+     */
+    constructor($$source = {}) {
+        if (!("autoFetch" in $$source)) {
+            /**
+             * AutoFetch enables automatic LFS fetch for recent work
+             * @member
+             * @type {boolean}
+             */
+            this["autoFetch"] = false;
+        }
+        if (!("fetchRecentDays" in $$source)) {
+            /**
+             * FetchRecentDays is the number of days to consider for "recent" work (git lfs fetch --recent)
+             * @member
+             * @type {number}
+             */
+            this["fetchRecentDays"] = 0;
+        }
+        if (!("autoPrune" in $$source)) {
+            /**
+             * AutoPrune enables automatic pruning of old LFS objects
+             * @member
+             * @type {boolean}
+             */
+            this["autoPrune"] = false;
+        }
+        if (!("pruneKeepDays" in $$source)) {
+            /**
+             * PruneKeepDays is the number of days to keep LFS objects before pruning
+             * @member
+             * @type {number}
+             */
+            this["pruneKeepDays"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LFSSettings instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LFSSettings}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LFSSettings(/** @type {Partial<LFSSettings>} */($$parsedSource));
+    }
+}
+
+/**
  * LockFileInfo contains information about Git lock files in the repository
  */
 export class LockFileInfo {
@@ -1465,7 +1787,90 @@ export class LockFileInfo {
 }
 
 /**
- * MergeState represents the current merge/rebase state of a repository
+ * MaintenanceSettings contains settings for git maintenance operations
+ */
+export class MaintenanceSettings {
+    /**
+     * Creates a new MaintenanceSettings instance.
+     * @param {Partial<MaintenanceSettings>} [$$source = {}] - The source object to create the MaintenanceSettings.
+     */
+    constructor($$source = {}) {
+        if (!("commitGraph" in $$source)) {
+            /**
+             * CommitGraph enables commit-graph maintenance task
+             * @member
+             * @type {boolean}
+             */
+            this["commitGraph"] = false;
+        }
+        if (!("packRefs" in $$source)) {
+            /**
+             * PackRefs enables pack-refs maintenance task
+             * @member
+             * @type {boolean}
+             */
+            this["packRefs"] = false;
+        }
+        if (!("looseObjects" in $$source)) {
+            /**
+             * LooseObjects enables loose-objects maintenance task
+             * @member
+             * @type {boolean}
+             */
+            this["looseObjects"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MaintenanceSettings instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MaintenanceSettings}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MaintenanceSettings(/** @type {Partial<MaintenanceSettings>} */($$parsedSource));
+    }
+}
+
+/**
+ * MergeOptions contains options for StartMergeWithOptions
+ */
+export class MergeOptions {
+    /**
+     * Creates a new MergeOptions instance.
+     * @param {Partial<MergeOptions>} [$$source = {}] - The source object to create the MergeOptions.
+     */
+    constructor($$source = {}) {
+        if (!("squash" in $$source)) {
+            /**
+             * If true, uses --squash for a squash merge
+             * @member
+             * @type {boolean}
+             */
+            this["squash"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MergeOptions instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MergeOptions}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MergeOptions(/** @type {Partial<MergeOptions>} */($$parsedSource));
+    }
+}
+
+/**
+ * MergeState represents the current repository operation state.
+ * Extended to detect all common "stuck" states that can confuse users.
+ * Priority for display: Locked > Merge > Cherry-Pick > Revert > Bisect > AM > Rebase (abort-only) > Detached HEAD
+ * Note: Rebase is detected for abort purposes only - users should abort and use merge workflow instead.
  */
 export class MergeState {
     /**
@@ -1475,6 +1880,7 @@ export class MergeState {
     constructor($$source = {}) {
         if (!("inMerge" in $$source)) {
             /**
+             * Core merge state
              * @member
              * @type {boolean}
              */
@@ -1482,6 +1888,7 @@ export class MergeState {
         }
         if (!("inRebase" in $$source)) {
             /**
+             * Detected for abort only - rebase workflow is deprecated
              * @member
              * @type {boolean}
              */
@@ -1502,6 +1909,88 @@ export class MergeState {
              */
             this["message"] = undefined;
         }
+        if (!("inCherryPick" in $$source)) {
+            /**
+             * Additional stuck states
+             * .git/CHERRY_PICK_HEAD exists
+             * @member
+             * @type {boolean}
+             */
+            this["inCherryPick"] = false;
+        }
+        if (!("inRevert" in $$source)) {
+            /**
+             * .git/REVERT_HEAD exists
+             * @member
+             * @type {boolean}
+             */
+            this["inRevert"] = false;
+        }
+        if (!("inBisect" in $$source)) {
+            /**
+             * .git/BISECT_LOG exists
+             * @member
+             * @type {boolean}
+             */
+            this["inBisect"] = false;
+        }
+        if (!("inAM" in $$source)) {
+            /**
+             * .git/rebase-apply/applying exists
+             * @member
+             * @type {boolean}
+             */
+            this["inAM"] = false;
+        }
+        if (!("isDetached" in $$source)) {
+            /**
+             * HEAD points to commit hash, not branch
+             * @member
+             * @type {boolean}
+             */
+            this["isDetached"] = false;
+        }
+        if (!("hasLockFile" in $$source)) {
+            /**
+             * .git/index.lock exists (stale lock)
+             * @member
+             * @type {boolean}
+             */
+            this["hasLockFile"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Additional context
+             * Commit hash when detached
+             * @member
+             * @type {string | undefined}
+             */
+            this["detachedAt"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * List of lock files found
+             * @member
+             * @type {string[] | undefined}
+             */
+            this["lockFiles"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * Primary stuck state type for UI
+             * @member
+             * @type {string | undefined}
+             */
+            this["stuckType"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * User-friendly explanation
+             * @member
+             * @type {string | undefined}
+             */
+            this["userMessage"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -1512,7 +2001,11 @@ export class MergeState {
      * @returns {MergeState}
      */
     static createFrom($$source = {}) {
+        const $$createField11_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("lockFiles" in $$parsedSource) {
+            $$parsedSource["lockFiles"] = $$createField11_0($$parsedSource["lockFiles"]);
+        }
         return new MergeState(/** @type {Partial<MergeState>} */($$parsedSource));
     }
 }
@@ -1745,6 +2238,58 @@ export class PresetPattern {
 }
 
 /**
+ * ProtectedBranchSettings contains settings for protected branches
+ */
+export class ProtectedBranchSettings {
+    /**
+     * Creates a new ProtectedBranchSettings instance.
+     * @param {Partial<ProtectedBranchSettings>} [$$source = {}] - The source object to create the ProtectedBranchSettings.
+     */
+    constructor($$source = {}) {
+        if (!("protectedBranches" in $$source)) {
+            /**
+             * ProtectedBranches is a list of branch names that should be protected
+             * @member
+             * @type {string[]}
+             */
+            this["protectedBranches"] = [];
+        }
+        if (!("warnOnDirectCommit" in $$source)) {
+            /**
+             * WarnOnDirectCommit warns when committing directly to protected branches
+             * @member
+             * @type {boolean}
+             */
+            this["warnOnDirectCommit"] = false;
+        }
+        if (!("requireConfirmation" in $$source)) {
+            /**
+             * RequireConfirmation requires confirmation for operations on protected branches
+             * @member
+             * @type {boolean}
+             */
+            this["requireConfirmation"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProtectedBranchSettings instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ProtectedBranchSettings}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("protectedBranches" in $$parsedSource) {
+            $$parsedSource["protectedBranches"] = $$createField0_0($$parsedSource["protectedBranches"]);
+        }
+        return new ProtectedBranchSettings(/** @type {Partial<ProtectedBranchSettings>} */($$parsedSource));
+    }
+}
+
+/**
  * RawDiffResult contains raw unified diff text for react-diff-view parsing
  */
 export class RawDiffResult {
@@ -1816,6 +2361,213 @@ export class RawDiffResult {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new RawDiffResult(/** @type {Partial<RawDiffResult>} */($$parsedSource));
+    }
+}
+
+/**
+ * RecoveryDiagnostics contains information about the repository state
+ */
+export class RecoveryDiagnostics {
+    /**
+     * Creates a new RecoveryDiagnostics instance.
+     * @param {Partial<RecoveryDiagnostics>} [$$source = {}] - The source object to create the RecoveryDiagnostics.
+     */
+    constructor($$source = {}) {
+        if (!("isValidRepo" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isValidRepo"] = false;
+        }
+        if (!("hasMergeConflict" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasMergeConflict"] = false;
+        }
+        if (!("hasRebaseInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasRebaseInProgress"] = false;
+        }
+        if (!("hasCherryPickInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasCherryPickInProgress"] = false;
+        }
+        if (!("hasRevertInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasRevertInProgress"] = false;
+        }
+        if (!("hasBisectInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasBisectInProgress"] = false;
+        }
+        if (!("hasAMInProgress" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasAMInProgress"] = false;
+        }
+        if (!("isDetachedHead" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["isDetachedHead"] = false;
+        }
+        if (!("currentBranch" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["currentBranch"] = "";
+        }
+        if (!("hasStaleLocks" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasStaleLocks"] = false;
+        }
+        if (!("staleLockFiles" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["staleLockFiles"] = [];
+        }
+        if (!("hasUncommittedChanges" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasUncommittedChanges"] = false;
+        }
+        if (!("unpushedCommits" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["unpushedCommits"] = 0;
+        }
+        if (!("hasCorruptedObjects" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasCorruptedObjects"] = false;
+        }
+        if (!("issues" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["issues"] = [];
+        }
+        if (!("suggestions" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["suggestions"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RecoveryDiagnostics instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RecoveryDiagnostics}
+     */
+    static createFrom($$source = {}) {
+        const $$createField10_0 = $$createType6;
+        const $$createField14_0 = $$createType6;
+        const $$createField15_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("staleLockFiles" in $$parsedSource) {
+            $$parsedSource["staleLockFiles"] = $$createField10_0($$parsedSource["staleLockFiles"]);
+        }
+        if ("issues" in $$parsedSource) {
+            $$parsedSource["issues"] = $$createField14_0($$parsedSource["issues"]);
+        }
+        if ("suggestions" in $$parsedSource) {
+            $$parsedSource["suggestions"] = $$createField15_0($$parsedSource["suggestions"]);
+        }
+        return new RecoveryDiagnostics(/** @type {Partial<RecoveryDiagnostics>} */($$parsedSource));
+    }
+}
+
+/**
+ * ReflogEntry represents an entry from git reflog
+ */
+export class ReflogEntry {
+    /**
+     * Creates a new ReflogEntry instance.
+     * @param {Partial<ReflogEntry>} [$$source = {}] - The source object to create the ReflogEntry.
+     */
+    constructor($$source = {}) {
+        if (!("hash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["hash"] = "";
+        }
+        if (!("shortHash" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["shortHash"] = "";
+        }
+        if (!("action" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["action"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+        if (!("timestamp" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["timestamp"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ReflogEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ReflogEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ReflogEntry(/** @type {Partial<ReflogEntry>} */($$parsedSource));
     }
 }
 
@@ -1922,6 +2674,22 @@ export class RepoStatus {
              */
             this["hasChanges"] = false;
         }
+        if (!("hasUpstream" in $$source)) {
+            /**
+             * true if branch has upstream tracking
+             * @member
+             * @type {boolean}
+             */
+            this["hasUpstream"] = false;
+        }
+        if (!("totalLocalCommits" in $$source)) {
+            /**
+             * total commits on current branch (useful when no upstream)
+             * @member
+             * @type {number}
+             */
+            this["totalLocalCommits"] = 0;
+        }
         if (!("hasError" in $$source)) {
             /**
              * @member
@@ -1946,12 +2714,146 @@ export class RepoStatus {
      * @returns {RepoStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType17;
+        const $$createField3_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
         }
         return new RepoStatus(/** @type {Partial<RepoStatus>} */($$parsedSource));
+    }
+}
+
+/**
+ * RepositorySettings contains all repository-level settings
+ */
+export class RepositorySettings {
+    /**
+     * Creates a new RepositorySettings instance.
+     * @param {Partial<RepositorySettings>} [$$source = {}] - The source object to create the RepositorySettings.
+     */
+    constructor($$source = {}) {
+        if (!("repoPath" in $$source)) {
+            /**
+             * RepoPath is the absolute path to the repository
+             * @member
+             * @type {string}
+             */
+            this["repoPath"] = "";
+        }
+        if (!("repoId" in $$source)) {
+            /**
+             * RepoID is a unique identifier derived from the repo path
+             * @member
+             * @type {string}
+             */
+            this["repoId"] = "";
+        }
+        if (!("fetchTask" in $$source)) {
+            /**
+             * Background task configurations
+             * @member
+             * @type {BackgroundTaskConfig}
+             */
+            this["fetchTask"] = (new BackgroundTaskConfig());
+        }
+        if (!("lfsFetchTask" in $$source)) {
+            /**
+             * @member
+             * @type {BackgroundTaskConfig}
+             */
+            this["lfsFetchTask"] = (new BackgroundTaskConfig());
+        }
+        if (!("maintenanceTask" in $$source)) {
+            /**
+             * @member
+             * @type {BackgroundTaskConfig}
+             */
+            this["maintenanceTask"] = (new BackgroundTaskConfig());
+        }
+        if (!("fetchSettings" in $$source)) {
+            /**
+             * Detailed settings
+             * @member
+             * @type {FetchSettings}
+             */
+            this["fetchSettings"] = (new FetchSettings());
+        }
+        if (!("lfsSettings" in $$source)) {
+            /**
+             * @member
+             * @type {LFSSettings}
+             */
+            this["lfsSettings"] = (new LFSSettings());
+        }
+        if (!("maintenanceSettings" in $$source)) {
+            /**
+             * @member
+             * @type {MaintenanceSettings}
+             */
+            this["maintenanceSettings"] = (new MaintenanceSettings());
+        }
+        if (!("protectedBranches" in $$source)) {
+            /**
+             * @member
+             * @type {ProtectedBranchSettings}
+             */
+            this["protectedBranches"] = (new ProtectedBranchSettings());
+        }
+        if (!("createdAt" in $$source)) {
+            /**
+             * Metadata
+             * @member
+             * @type {time$0.Time}
+             */
+            this["createdAt"] = null;
+        }
+        if (!("updatedAt" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["updatedAt"] = null;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RepositorySettings instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RepositorySettings}
+     */
+    static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType20;
+        const $$createField3_0 = $$createType20;
+        const $$createField4_0 = $$createType20;
+        const $$createField5_0 = $$createType21;
+        const $$createField6_0 = $$createType22;
+        const $$createField7_0 = $$createType23;
+        const $$createField8_0 = $$createType24;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("fetchTask" in $$parsedSource) {
+            $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
+        }
+        if ("lfsFetchTask" in $$parsedSource) {
+            $$parsedSource["lfsFetchTask"] = $$createField3_0($$parsedSource["lfsFetchTask"]);
+        }
+        if ("maintenanceTask" in $$parsedSource) {
+            $$parsedSource["maintenanceTask"] = $$createField4_0($$parsedSource["maintenanceTask"]);
+        }
+        if ("fetchSettings" in $$parsedSource) {
+            $$parsedSource["fetchSettings"] = $$createField5_0($$parsedSource["fetchSettings"]);
+        }
+        if ("lfsSettings" in $$parsedSource) {
+            $$parsedSource["lfsSettings"] = $$createField6_0($$parsedSource["lfsSettings"]);
+        }
+        if ("maintenanceSettings" in $$parsedSource) {
+            $$parsedSource["maintenanceSettings"] = $$createField7_0($$parsedSource["maintenanceSettings"]);
+        }
+        if ("protectedBranches" in $$parsedSource) {
+            $$parsedSource["protectedBranches"] = $$createField8_0($$parsedSource["protectedBranches"]);
+        }
+        return new RepositorySettings(/** @type {Partial<RepositorySettings>} */($$parsedSource));
     }
 }
 
@@ -2133,21 +3035,28 @@ export class UserProfile {
 }
 
 // Private type creation functions
-const $$createType0 = ConflictedFile.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = BranchInfo.createFrom;
+const $$createType0 = OperationResult.createFrom;
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = ConflictedFile.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $Create.Array($Create.Any);
-const $$createType5 = CommitFileInfo.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = CommitStats.createFrom;
-const $$createType8 = GraphCommit.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $Create.Map($Create.Any, $Create.Any);
-const $$createType11 = ConflictCommitInfo.createFrom;
-const $$createType12 = CustomLFSGroup.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = FileEntry.createFrom;
+const $$createType4 = BranchInfo.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $Create.Array($Create.Any);
+const $$createType7 = CommitFileInfo.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = CommitStats.createFrom;
+const $$createType10 = GraphCommit.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $Create.Map($Create.Any, $Create.Any);
+const $$createType13 = ConflictCommitInfo.createFrom;
+const $$createType14 = CustomLFSGroup.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = FileStatus.createFrom;
+const $$createType16 = FileEntry.createFrom;
 const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = FileStatus.createFrom;
+const $$createType19 = $Create.Array($$createType18);
+const $$createType20 = BackgroundTaskConfig.createFrom;
+const $$createType21 = FetchSettings.createFrom;
+const $$createType22 = LFSSettings.createFrom;
+const $$createType23 = MaintenanceSettings.createFrom;
+const $$createType24 = ProtectedBranchSettings.createFrom;

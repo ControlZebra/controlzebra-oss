@@ -1,200 +1,292 @@
 /**
- * MergeChangesView - Sidebar view for conflict checking and resolution.
- * Shows list of conflicted files when checking merge conflicts.
- * Displays resolution status (Mine/Theirs) with icons and badges.
- * Control elements (branch selector, check button) are in MergeChangesPage.
+ * MergeChangesView - Sidebar view for the merge workflow.
+ * 
+ * Shows:
+ * - Empty state when no merge is in progress
+ * - Conflict file list when checking/resolving conflicts
+ * - Resolution status for each file
  */
 import { memo, useCallback } from 'react';
-import { FileWarning, AlertTriangle, Loader2, CheckCircle2, XCircle, Check } from 'lucide-react';
+import {
+  FileWarning,
+  AlertTriangle,
+  Loader2,
+  CheckCircle2,
+  Check,
+  GitMerge,
+} from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
-import { Badge } from '../../ui';
 
-// Shared icon styles
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const statusIconStyle = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
-
-// Get badge variant based on resolution strategy
-const getResolutionBadge = (strategy) => {
-  switch (strategy) {
-    case 'mine':
-      return { label: 'Mine', variant: 'info' };
-    case 'theirs':
-      return { label: 'Theirs', variant: 'warning' };
-    case 'both':
-      return { label: 'Both', variant: 'default' };
-    default:
-      return null;
-  }
-};
+const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const iconXs = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 /**
- * ConflictFileItem - Single file in the conflicts list.
- * Shows file name, conflict status, and resolution indicator.
+ * ConflictFileItem - Single file in the conflicts list
  */
-const ConflictFileItem = memo(function ConflictFileItem({ file, isSelected, onSelect, resolution }) {
+const ConflictFileItem = memo(function ConflictFileItem({
+  file,
+  isSelected,
+  onSelect,
+  resolution,
+}) {
   const isResolved = !!resolution;
-  const badgeInfo = getResolutionBadge(resolution);
+  const fileName = file.path.split('/').pop();
   
   return (
-    <div 
+    <button
       onClick={() => onSelect(file.path)}
-      className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-        isSelected 
-          ? 'bg-blue-600/30 border-l-2 border-blue-500' 
-          : 'hover-bg-theme-interactive border-l-2 border-transparent'
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+        isSelected
+          ? 'bg-blue-600/30 border-l-2 border-blue-500'
+          : 'hover:bg-theme-muted/10 border-l-2 border-transparent'
       }`}
     >
-      <FileWarning 
-        style={iconStyle} 
-        className={isResolved ? 'text-green-400 shrink-0' : 'text-orange-400 shrink-0'} 
+      <FileWarning
+        style={iconSm}
+        className={isResolved ? 'text-green-400 shrink-0' : 'text-orange-400 shrink-0'}
       />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-theme-primary text-sm truncate">{file.path.split('/').pop()}</p>
-          {badgeInfo && (
-            <Badge variant={badgeInfo.variant} className="text-[10px] px-1.5 py-0">
-              {badgeInfo.label}
-            </Badge>
-          )}
-        </div>
-        <p className="text-theme-muted text-xs truncate">{file.status}</p>
+        <p className="text-theme-primary text-sm truncate">{fileName}</p>
+        {resolution && (
+          <p className={`text-[10px] ${
+            resolution === 'mine' ? 'text-blue-400' : 'text-orange-400'
+          }`}>
+            {resolution === 'mine' ? 'Keep Mine' : 'Keep Theirs'}
+          </p>
+        )}
       </div>
       {isResolved ? (
-        <Check style={statusIconStyle} className="text-green-400 shrink-0" />
+        <Check style={iconXs} className="text-green-400 shrink-0" />
       ) : (
-        <AlertTriangle style={statusIconStyle} className="text-orange-400 shrink-0" />
+        <AlertTriangle style={iconXs} className="text-orange-400 shrink-0" />
       )}
-    </div>
+    </button>
   );
 });
 
 function MergeChangesView() {
-  const { 
-    repoPath, 
-    conflictedFiles = [], 
-    selectedConflictFile, 
+  const {
+    repoPath,
+    conflictedFiles = [],
+    selectedConflictFile,
     setSelectedConflictFile,
     isCheckingConflicts,
     conflictCheckResult,
     fileResolutions = {},
+    detectedParentBranch,
+    repoInfo,
+    mergeState,
   } = useRepo();
 
   const handleSelect = useCallback((path) => {
-    // Toggle selection if clicking the same file
-    if (selectedConflictFile === path) {
-      setSelectedConflictFile(null);
-    } else {
-      setSelectedConflictFile(path);
-    }
-  }, [selectedConflictFile, setSelectedConflictFile]);
+    setSelectedConflictFile(prev => prev === path ? null : path);
+  }, [setSelectedConflictFile]);
 
-  // Count resolved vs unresolved files
+  // Count resolved files
   const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
-  const unresolvedCount = conflictedFiles.length - resolvedCount;
+  const totalCount = conflictedFiles.length;
 
-  // No repository open state
+  // No repository state
   if (!repoPath) {
     return (
       <div className="px-3 py-4 text-center">
         <p className="text-theme-muted text-sm">No repository open</p>
-        <p className="text-theme-muted text-xs mt-1">Use File → Open Folder to select a repo</p>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Results section */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Show checking state */}
-        {isCheckingConflicts && (
-          <div className="px-3 py-4 text-center">
-            <Loader2 
-              style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }} 
-              className="text-blue-400 mx-auto mb-2 animate-spin" 
-            />
-            <p className="text-theme-muted text-sm">Analyzing branches...</p>
-          </div>
-        )}
-
-        {/* Show success state - no conflicts */}
-        {!isCheckingConflicts && conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && (
-          <div className="px-3 py-4 text-center">
-            <CheckCircle2 
-              style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }} 
-              className="text-green-400 mx-auto mb-2" 
-            />
-            <p className="text-green-400 text-sm font-medium">No Conflicts!</p>
-            <p className="text-theme-muted text-xs mt-1">
-              No conflicts to display
-            </p>
-          </div>
-        )}
-
-        {/* Show error state */}
-        {!isCheckingConflicts && conflictCheckResult && !conflictCheckResult.success && (
-          <div className="px-3 py-4 text-center">
-            <XCircle 
-              style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }} 
-              className="text-red-400 mx-auto mb-2" 
-            />
-            <p className="text-red-400 text-sm font-medium">Check Failed</p>
-            <p className="text-theme-muted text-xs mt-1">
-              {conflictCheckResult.error || 'Unknown error'}
-            </p>
-          </div>
-        )}
-
-        {/* Show conflicts list */}
-        {!isCheckingConflicts && conflictedFiles.length > 0 && (
-          <>
-            <div className="px-3 py-2 border-b border-theme-default">
-              <p className="text-orange-400 text-xs font-medium uppercase tracking-wide">
-                {conflictedFiles.length} Conflicted {conflictedFiles.length === 1 ? 'File' : 'Files'}
-              </p>
-              {conflictCheckResult?.parentBranch && (
-                <p className="text-theme-muted text-xs mt-0.5">
-                  vs {conflictCheckResult.parentBranch}
-                </p>
-              )}
-              {/* Resolution progress */}
-              {conflictedFiles.length > 0 && (
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 transition-all duration-300"
-                      style={{ width: `${(resolvedCount / conflictedFiles.length) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-theme-muted text-[10px]">
-                    {resolvedCount}/{conflictedFiles.length}
-                  </span>
-                </div>
-              )}
-            </div>
-            {conflictedFiles.map(file => (
-              <ConflictFileItem 
-                key={file.path} 
-                file={file} 
-                isSelected={selectedConflictFile === file.path}
-                onSelect={handleSelect}
-                resolution={fileResolutions[file.path]}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Initial state - no check performed */}
-        {!isCheckingConflicts && !conflictCheckResult && conflictedFiles.length === 0 && (
-          <div className="px-3 py-4 text-center">
-            <p className="text-theme-muted text-sm">No conflicts to display</p>
-            <p className="text-theme-muted text-xs mt-1">
-              Use the main panel to check for conflicts
-            </p>
-          </div>
+  // Interrupted rebase state - show warning
+  if (mergeState?.inRebase && !conflictCheckResult) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <AlertTriangle
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-orange-400 mx-auto mb-2"
+        />
+        <p className="text-orange-400 text-sm font-medium">Interrupted Rebase</p>
+        <p className="text-theme-muted text-xs mt-1">
+          Use the main panel to recover
+        </p>
+        {mergeState.hasConflicts && (
+          <p className="text-orange-400/80 text-xs mt-2">
+            {conflictedFiles.length} file{conflictedFiles.length !== 1 ? 's' : ''} need attention
+          </p>
         )}
       </div>
+    );
+  }
+
+  // Loading state
+  if (isCheckingConflicts) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <Loader2
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-blue-400 mx-auto mb-2 animate-spin"
+        />
+        <p className="text-theme-muted text-sm">Analyzing branches...</p>
+      </div>
+    );
+  }
+
+  // Clean merge - check complete, no conflicts, but merge not started yet
+  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && !conflictCheckResult?.mergeStarted && totalCount === 0) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <CheckCircle2
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-green-400 mx-auto mb-2"
+        />
+        <p className="text-green-400 text-sm font-medium">No Conflicts</p>
+        <p className="text-theme-muted text-xs mt-1">
+          Ready to start merge
+        </p>
+      </div>
+    );
+  }
+
+  // Check complete, has predicted conflicts, but merge NOT started yet
+  // These are predicted conflicts from dry-run - show preview
+  if (conflictCheckResult?.success && conflictCheckResult?.hasConflicts && !conflictCheckResult?.mergeStarted) {
+    const predictedConflicts = conflictCheckResult?.conflictedFiles || [];
+    const targetBranch = conflictCheckResult?.targetBranch || 
+                        conflictCheckResult?.parentBranch || 
+                        detectedParentBranch?.name;
+    
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="px-3 py-2 border-b border-theme-default">
+          <p className="text-orange-400 text-xs font-medium uppercase tracking-wide">
+            {predictedConflicts.length} Predicted Conflict{predictedConflicts.length !== 1 ? 's' : ''}
+          </p>
+          {targetBranch && (
+            <p className="text-theme-muted text-xs mt-0.5">
+              when merging into {targetBranch}
+            </p>
+          )}
+          <p className="text-theme-muted text-[10px] mt-1 italic">
+            (preview only - start merge to resolve)
+          </p>
+        </div>
+
+        {/* Predicted conflict file list */}
+        <div className="flex-1 overflow-y-auto">
+          {predictedConflicts.map(file => (
+            <div
+              key={file.path}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left border-l-2 border-transparent"
+            >
+              <FileWarning
+                style={iconSm}
+                className="text-orange-400 shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-theme-primary text-sm truncate">{file.path.split('/').pop()}</p>
+              </div>
+              <AlertTriangle style={iconXs} className="text-orange-400 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Clean merge - merge started, no conflicts
+  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && conflictCheckResult?.mergeStarted && totalCount === 0) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <CheckCircle2
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-green-400 mx-auto mb-2"
+        />
+        <p className="text-green-400 text-sm font-medium">Ready to Complete</p>
+        <p className="text-theme-muted text-xs mt-1">
+          No conflicts - complete the merge
+        </p>
+      </div>
+    );
+  }
+
+  // Has actual conflicts (merge started)
+  if (totalCount > 0) {
+    const targetBranch = conflictCheckResult?.targetBranch || 
+                        conflictCheckResult?.parentBranch || 
+                        detectedParentBranch?.name;
+    
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="px-3 py-2 border-b border-theme-default">
+          <p className="text-orange-400 text-xs font-medium uppercase tracking-wide">
+            {totalCount} Conflict{totalCount !== 1 ? 's' : ''}
+          </p>
+          {targetBranch && (
+            <p className="text-theme-muted text-xs mt-0.5">
+              merging into {targetBranch}
+            </p>
+          )}
+          
+          {/* Progress bar */}
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  resolvedCount === totalCount ? 'bg-green-500' : 'bg-orange-500'
+                }`}
+                style={{ width: `${(resolvedCount / totalCount) * 100}%` }}
+              />
+            </div>
+            <span className="text-theme-muted text-[10px]">
+              {resolvedCount}/{totalCount}
+            </span>
+          </div>
+        </div>
+
+        {/* File list */}
+        <div className="flex-1 overflow-y-auto">
+          {conflictedFiles.map(file => (
+            <ConflictFileItem
+              key={file.path}
+              file={file}
+              isSelected={selectedConflictFile === file.path}
+              onSelect={handleSelect}
+              resolution={fileResolutions[file.path]}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (conflictCheckResult && !conflictCheckResult.success) {
+    return (
+      <div className="px-3 py-4 text-center">
+        <AlertTriangle
+          style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+          className="text-red-400 mx-auto mb-2"
+        />
+        <p className="text-red-400 text-sm font-medium">Check Failed</p>
+        <p className="text-theme-muted text-xs mt-1">
+          {conflictCheckResult.error || 'Unknown error'}
+        </p>
+      </div>
+    );
+  }
+
+  // Initial state - no check performed
+  return (
+    <div className="px-3 py-4 text-center">
+      <GitMerge
+        style={{ width: ICON_SIZES.lg, height: ICON_SIZES.lg }}
+        className="text-theme-muted mx-auto mb-2"
+      />
+      <p className="text-theme-muted text-sm">Combine Versions</p>
+      <p className="text-theme-muted text-xs mt-1">
+        Use the main panel to check for conflicts
+      </p>
     </div>
   );
 }

@@ -1,220 +1,155 @@
 /**
- * ExplorerView - File tree explorer for the repository.
- * Displays hierarchical directory structure with lazy-loading of subdirectories.
+ * ExplorerView - Sidebar view showing action panels based on repo state.
+ * 
+ * Displays contextual panels:
+ * - No folder: Prompt to open folder
+ * - Folder without git: Initialize option
+ * - Has changes: Commit form with changed files list
+ * - No changes but ahead: Push prompt
+ * - On feature branch, synced: Merge request option
+ * - On main, synced: All caught up
  */
-import { memo, useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  Folder,
-  FolderOpen,
-  FileText,
-  ChevronRight,
-  ChevronDown,
-} from 'lucide-react';
-import { ICON_SIZES, EXTENSION_COLORS } from '../../../constants';
+import { memo, useState, useCallback } from 'react';
+import { FolderOpen } from 'lucide-react';
+import { MAIN_BRANCHES } from '../../../constants';
+import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { useRepo } from '../../../context';
-import { ListDirectory, OpenFile } from '../../../../bindings/changeme/services/filesystemservice';
-
-// Shared icon styles
-const iconStyle = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const arrowStyle = { width: ICON_SIZES.md, height: ICON_SIZES.md };
-
-/**
- * FileTreeItem - Recursive tree node for files and directories.
- * Handles lazy-loading of directory contents on expand.
- */
-const FileTreeItem = memo(function FileTreeItem({ entry, level = 0, onOpenFile }) {
-  const [expanded, setExpanded] = useState(false);
-  const [children, setChildren] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Toggle directory expansion and lazy-load children
-  const handleToggle = useCallback(async () => {
-    if (!entry.isDirectory) return;
-    
-    // Load children on first expand
-    if (!expanded && children.length === 0) {
-      setIsLoading(true);
-      try {
-        const result = await ListDirectory(entry.path);
-        if (!result.error) {
-          setChildren(result.entries || []);
-        }
-      } catch (err) {
-        console.error('Failed to load directory:', err);
-      }
-      setIsLoading(false);
-    }
-    setExpanded(!expanded);
-  }, [entry.path, entry.isDirectory, expanded, children.length]);
-
-  // Open file on double-click
-  const handleDoubleClick = useCallback(async (e) => {
-    e.stopPropagation();
-    if (!entry.isDirectory) {
-      onOpenFile(entry.path);
-    }
-  }, [entry.isDirectory, entry.path, onOpenFile]);
-
-  // Get color class based on file extension
-  const fileColorClass = useMemo(() => {
-    if (entry.isDirectory) return 'text-theme-secondary';
-    return EXTENSION_COLORS[entry.extension] || 'text-theme-secondary';
-  }, [entry.isDirectory, entry.extension]);
-
-  const paddingLeft = 8 + level * 12;
-
-  return (
-    <div>
-      <div
-        onClick={handleToggle}
-        onDoubleClick={handleDoubleClick}
-        style={{ paddingLeft }}
-        className="flex items-center gap-1 py-0.5 pr-2 cursor-pointer hover-bg-theme-interactive transition-colors select-none"
-      >
-        {/* Arrow indicator for directories */}
-        <span className="w-4 h-4 flex items-center justify-center">
-          {entry.isDirectory && (
-            expanded ? (
-              <ChevronDown style={arrowStyle} className="text-theme-secondary" />
-            ) : (
-              <ChevronRight style={arrowStyle} className="text-theme-secondary" />
-            )
-          )}
-        </span>
-        
-        {/* File/Folder icon */}
-        {entry.isDirectory ? (
-          expanded ? (
-            <FolderOpen style={iconStyle} className="text-yellow-500 shrink-0" />
-          ) : (
-            <Folder style={iconStyle} className="text-yellow-500 shrink-0" />
-          )
-        ) : (
-          <FileText style={iconStyle} className={`${fileColorClass} shrink-0`} />
-        )}
-        
-        {/* Entry name */}
-        <span className="text-theme-primary text-sm truncate flex-1">{entry.name}</span>
-        
-        {/* Loading indicator */}
-        {isLoading && (
-          <span className="text-theme-muted text-xs">...</span>
-        )}
-      </div>
-      
-      {/* Children (recursive) */}
-      {expanded && children.length > 0 && (
-        <div>
-          {children.map((child) => (
-            <FileTreeItem
-              key={child.path}
-              entry={child}
-              level={level + 1}
-              onOpenFile={onOpenFile}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
+import { OpenFolderDialog } from '../../../../bindings/changeme/services/filedialogservice';
+import { Button } from '../../ui';
+import {
+  SidebarCommitPanel,
+  SidebarSyncedPanel,
+  SidebarPushPanel,
+  SidebarNoRepoPanel,
+  SidebarMergePanel,
+} from '../sidebar-panels';
 
 function ExplorerView() {
-  const { repoPath } = useRepo();
-  const [entries, setEntries] = useState([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState(null);
+  const { 
+    repoPath, 
+    repoInfo,
+    repoStatus, 
+    openRepo, 
+    initializeGitRepo,
+    commitChanges,
+    branchAndCommit,
+    syncRepo,
+    rewindToLastSnapshot,
+    isLoading,
+    isCommitting,
+    isSyncing,
+  } = useRepo();
+  
+  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+  const [isRewinding, setIsRewinding] = useState(false);
 
-  // Load root directory when repoPath changes
-  // NOTE: Using useEffect (not useMemo) because this triggers side effects
-  useEffect(() => {
-    const loadDirectory = async () => {
-      if (!repoPath) {
-        setEntries([]);
-        setIsLoaded(false);
-        return;
-      }
-      
-      try {
-        const result = await ListDirectory(repoPath);
-        if (result.error) {
-          setError(result.error);
-          setEntries([]);
-        } else {
-          setEntries(result.entries || []);
-          setError(null);
-        }
-        setIsLoaded(true);
-      } catch (err) {
-        setError('Failed to load directory');
-        setEntries([]);
-        setIsLoaded(true);
-      }
-    };
-
-    loadDirectory();
-  }, [repoPath]);
-
-  // Handle file open via system default application
-  const handleOpenFile = useCallback(async (path) => {
+  const handleOpenFolder = useCallback(async () => {
+    setIsOpeningFolder(true);
     try {
-      const result = await OpenFile(path);
-      if (!result.success) {
-        console.error('Failed to open file:', result.error);
+      const result = await OpenFolderDialog();
+      if (result.selected && result.path) {
+        await openRepo(result.path);
       }
     } catch (err) {
-      console.error('Failed to open file:', err);
+      console.error('Failed to open folder:', err);
     }
-  }, []);
+    setIsOpeningFolder(false);
+  }, [openRepo]);
 
-  // Empty state: no repository open
+  const handleInitializeGit = useCallback(async () => {
+    await initializeGitRepo();
+  }, [initializeGitRepo]);
+
+  const handleRewind = useCallback(async () => {
+    setIsRewinding(true);
+    try {
+      const success = await rewindToLastSnapshot();
+      return success;
+    } finally {
+      setIsRewinding(false);
+    }
+  }, [rewindToLastSnapshot]);
+
+  // No folder open - show open folder prompt
   if (!repoPath) {
     return (
-      <div className="px-3 py-4 text-center">
-        <p className="text-theme-muted text-sm">No folder open</p>
-        <p className="text-theme-muted text-xs mt-1">Use File → Open Folder to select a folder</p>
+      <div className="p-4 text-center">
+        <p className="text-theme-muted text-xs mb-3">No folder open</p>
+        <Button 
+          size="sm" 
+          variant="secondary" 
+          onClick={handleOpenFolder} 
+          loading={isOpeningFolder}
+          className="w-full"
+        >
+          <FolderOpen style={ICON_STYLES.sm} />
+          Open Folder
+        </Button>
+        <p className="text-theme-muted text-xs mt-3">
+          <kbd className="px-1 py-0.5 rounded bg-theme-muted text-theme-secondary text-xs">⌘O</kbd>
+        </p>
       </div>
     );
   }
 
-  // Error state
-  if (error) {
+  // Folder open but not a git repository
+  const isGitRepo = repoInfo?.isRepo;
+  if (!isGitRepo) {
+    const folderName = repoPath.split('/').pop();
     return (
-      <div className="px-3 py-4 text-center">
-        <p className="text-red-400 text-sm">{error}</p>
-      </div>
+      <SidebarNoRepoPanel 
+        folderName={folderName}
+        onInitialize={handleInitializeGit}
+        isLoading={isLoading}
+      />
     );
   }
 
-  // Loading state
-  if (!isLoaded) {
+  const changedFiles = repoStatus?.changedFiles || [];
+  const hasChanges = changedFiles.length > 0;
+  const ahead = repoStatus?.ahead || 0;
+  const hasUpstream = repoStatus?.hasUpstream ?? true;
+  const totalLocalCommits = repoStatus?.totalLocalCommits || 0;
+  const branchName = repoStatus?.branch || 'main';
+  const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
+
+  // Has uncommitted changes
+  if (hasChanges) {
     return (
-      <div className="px-3 py-4 text-center">
-        <p className="text-theme-muted text-sm">Loading...</p>
-      </div>
+      <SidebarCommitPanel
+        changedFiles={changedFiles}
+        onCommit={commitChanges}
+        onBranchAndCommit={branchAndCommit}
+        onRewind={handleRewind}
+        currentBranch={branchName}
+        repoPath={repoPath}
+        isCommitting={isCommitting}
+        isRewinding={isRewinding}
+      />
     );
   }
 
-  // Empty directory state
-  if (entries.length === 0) {
+  // No changes, but commits ahead of remote (ready to push)
+  const needsPush = ahead > 0 || (!hasUpstream && totalLocalCommits > 0);
+  if (needsPush) {
     return (
-      <div className="px-3 py-4 text-center">
-        <p className="text-theme-muted text-sm">Empty folder</p>
-      </div>
+      <SidebarPushPanel
+        ahead={ahead}
+        hasUpstream={hasUpstream}
+        totalLocalCommits={totalLocalCommits}
+        onSync={syncRepo}
+        isSyncing={isSyncing}
+      />
     );
   }
 
-  return (
-    <div className="py-1">
-      {entries.map((entry) => (
-        <FileTreeItem 
-          key={entry.path} 
-          entry={entry} 
-          onOpenFile={handleOpenFile}
-        />
-      ))}
-    </div>
-  );
+  // On feature branch, synced → suggest merge request
+  if (!isMainBranch) {
+    return <SidebarMergePanel branchName={branchName} />;
+  }
+
+  // All synced on main branch
+  return <SidebarSyncedPanel repoPath={repoPath} />;
 }
 
 export default memo(ExplorerView);
