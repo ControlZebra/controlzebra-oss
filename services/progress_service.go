@@ -115,10 +115,14 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 	return "", -1, line
 }
 
-// SyncWithProgress performs git pull --rebase + push with progress updates
+// SyncWithProgress performs git pull + push with progress updates
+// For branches without an upstream, it skips pull and just pushes with --set-upstream
 func (p *ProgressService) SyncWithProgress(repoPath, operationID string) OperationResult {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// First, check if the current branch has an upstream configured
+	hasUpstream := p.checkHasUpstream(repoPath)
 
 	// Emit starting state
 	p.emitProgress(ProgressUpdate{
@@ -128,40 +132,69 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string) Operati
 		Message:     "Starting sync...",
 	})
 
-	// Run pull with progress
-	pullResult := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--rebase", "--progress"})
-	if !pullResult.Success {
-		errMsg := pullResult.Error
-		p.emitProgress(ProgressUpdate{
-			OperationID: operationID,
-			Phase:       "error",
-			Percent:     0,
-			Message:     errMsg,
-			IsComplete:  true,
-			Success:     false,
-			Error:       errMsg,
-		})
+	// Only pull if we have an upstream branch
+	if hasUpstream {
+		// Run pull with progress (using merge, not rebase, for safer conflict resolution)
+		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
+		if !pullResult.Success {
+			errMsg := pullResult.Error
+			p.emitProgress(ProgressUpdate{
+				OperationID: operationID,
+				Phase:       "error",
+				Percent:     0,
+				Message:     errMsg,
+				IsComplete:  true,
+				Success:     false,
+				Error:       errMsg,
+			})
 
-		// Check for common errors
-		if strings.Contains(errMsg, "no tracking information") || strings.Contains(errMsg, "no upstream") {
-			return failedOp("No remote branch configured. Please set up a remote first.")
+			// Check for common errors
+			if strings.Contains(errMsg, "no tracking information") || strings.Contains(errMsg, "no upstream") {
+				return failedOp("No remote branch configured. Please set up a remote first.")
+			}
+			if strings.Contains(errMsg, "CONFLICT") || strings.Contains(errMsg, "conflict") {
+				return failedOp("Merge conflict detected. Please resolve conflicts manually.")
+			}
+			return failedOp("Failed to sync (pull): " + errMsg)
 		}
-		if strings.Contains(errMsg, "CONFLICT") || strings.Contains(errMsg, "conflict") {
-			return failedOp("Merge conflict detected. Please resolve conflicts manually.")
-		}
-		return failedOp("Failed to sync (pull): " + errMsg)
 	}
 
 	// Emit push starting
+	pushMessage := "Pushing changes to remote..."
+	if !hasUpstream {
+		pushMessage = "Publishing branch to remote..."
+	}
 	p.emitProgress(ProgressUpdate{
 		OperationID: operationID,
 		Phase:       "pushing",
 		Percent:     -1,
-		Message:     "Pushing changes to remote...",
+		Message:     pushMessage,
 	})
 
+	// Determine push arguments based on whether we have an upstream
+	var pushArgs []string
+	if hasUpstream {
+		pushArgs = []string{"push", "--progress"}
+	} else {
+		// Get current branch name for --set-upstream
+		branchName := p.getCurrentBranch(repoPath)
+		if branchName == "" {
+			p.emitProgress(ProgressUpdate{
+				OperationID: operationID,
+				Phase:       "error",
+				Percent:     0,
+				Message:     "Cannot determine current branch",
+				IsComplete:  true,
+				Success:     false,
+				Error:       "Cannot determine current branch",
+			})
+			return failedOp("Cannot determine current branch")
+		}
+		pushArgs = []string{"push", "--set-upstream", "origin", branchName, "--progress"}
+	}
+
 	// Run push with progress
-	pushResult := p.runGitWithProgress(repoPath, operationID, "push", []string{"push", "--progress"})
+	pushResult := p.runGitWithProgress(repoPath, operationID, "push", pushArgs)
 	if !pushResult.Success {
 		errMsg := pushResult.Error
 		p.emitProgress(ProgressUpdate{
@@ -174,6 +207,10 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string) Operati
 			Error:       errMsg,
 		})
 
+		if strings.Contains(errMsg, "does not appear to be a git repository") ||
+			strings.Contains(errMsg, "No configured push destination") {
+			return failedOp("No remote repository configured. Add a remote first.")
+		}
 		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
 			return failedOp("No remote branch configured. Please set up a remote first.")
 		}
@@ -184,16 +221,35 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string) Operati
 	}
 
 	// Emit completion
+	successMessage := "Synced successfully"
+	if !hasUpstream {
+		successMessage = "Branch published successfully"
+	}
 	p.emitProgress(ProgressUpdate{
 		OperationID: operationID,
 		Phase:       "done",
 		Percent:     100,
-		Message:     "Synced successfully",
+		Message:     successMessage,
 		IsComplete:  true,
 		Success:     true,
 	})
 
-	return successOp("Synced successfully")
+	return successOp(successMessage)
+}
+
+// checkHasUpstream checks if the current branch has an upstream configured
+func (p *ProgressService) checkHasUpstream(repoPath string) bool {
+	result := p.runner.RunGit(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+	return result.Success
+}
+
+// getCurrentBranch returns the current branch name
+func (p *ProgressService) getCurrentBranch(repoPath string) string {
+	result := p.runner.RunGit(repoPath, "branch", "--show-current")
+	if result.Success {
+		return strings.TrimSpace(result.Stdout)
+	}
+	return ""
 }
 
 // PullWithProgress performs git pull with progress updates
@@ -208,7 +264,8 @@ func (p *ProgressService) PullWithProgress(repoPath, operationID string) Operati
 		Message:     "Fetching from remote...",
 	})
 
-	result := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--rebase", "--progress"})
+	// Using merge strategy (not rebase) for safer conflict resolution
+	result := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
 	if !result.Success {
 		p.emitProgress(ProgressUpdate{
 			OperationID: operationID,

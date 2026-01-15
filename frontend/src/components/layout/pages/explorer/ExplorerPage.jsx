@@ -1,45 +1,18 @@
 /**
- * ExplorerPage - Main area showing recommended actions based on repo state.
+ * ExplorerPage - Main area showing file browser or welcome screen.
  * 
- * Displays contextual guidance:
- * - No folder: Welcome screen with open folder prompt
- * - Folder without git: Warning screen with initialize option
- * - Has changes: Quick save form with changed files table
- * - No changes but ahead of remote: Encourage sync to cloud
- * - No changes, synced, on feature branch: Suggest merge request
- * - No changes, synced, on main/master: All caught up state
+ * When no folder is open: Shows welcome screen with open folder option
+ * When folder is open: Shows SimpleFileBrowser (lightweight, no external dependencies)
  */
 import { memo, useState, useCallback } from 'react';
 import { useRepo } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/changeme/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
-import NoGitRepoScreen from './NoGitRepoScreen';
-import CommitScreen from './CommitScreen';
-import ReadyToPushScreen from './ReadyToPushScreen';
-import MergeRequestScreen from './MergeRequestScreen';
-import AllSyncedScreen from './AllSyncedScreen';
-
-// Main branches where we don't suggest merge requests
-const MAIN_BRANCHES = ['main', 'master'];
+import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 
 function ExplorerPage() {
-  const { 
-    repoPath, 
-    repoInfo,
-    repoStatus, 
-    openRepo, 
-    initializeGitRepo,
-    commitChanges,
-    branchAndCommit,
-    syncRepo,
-    rewindToLastSnapshot,
-    isLoading,
-    isCommitting,
-    isSyncing,
-  } = useRepo();
-  
+  const { repoPath, openRepo } = useRepo();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
-  const [isRewinding, setIsRewinding] = useState(false);
 
   const handleOpenFolder = useCallback(async () => {
     setIsOpeningFolder(true);
@@ -54,21 +27,7 @@ function ExplorerPage() {
     setIsOpeningFolder(false);
   }, [openRepo]);
 
-  const handleInitializeGit = useCallback(async () => {
-    await initializeGitRepo();
-  }, [initializeGitRepo]);
-
-  const handleRewind = useCallback(async () => {
-    setIsRewinding(true);
-    try {
-      const success = await rewindToLastSnapshot();
-      return success;
-    } finally {
-      setIsRewinding(false);
-    }
-  }, [rewindToLastSnapshot]);
-
-  // No folder open
+  // No folder open - show welcome screen
   if (!repoPath) {
     return (
       <NoDirectoryScreen 
@@ -79,61 +38,8 @@ function ExplorerPage() {
     );
   }
 
-  // Folder open but not a git repository
-  const isGitRepo = repoInfo?.isRepo;
-  if (!isGitRepo) {
-    const folderName = repoPath.split('/').pop();
-    return (
-      <NoGitRepoScreen 
-        folderName={folderName}
-        onInitialize={handleInitializeGit}
-        isLoading={isLoading}
-      />
-    );
-  }
-
-  const changedFiles = repoStatus?.changedFiles || [];
-  const hasChanges = changedFiles.length > 0;
-  const ahead = repoStatus?.ahead || 0;
-  const branchName = repoStatus?.branch || 'main';
-  const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
-
-  // Repository open with uncommitted changes
-  if (hasChanges) {
-    return (
-      <CommitScreen
-        changedFiles={changedFiles}
-        onCommit={commitChanges}
-        onBranchAndCommit={branchAndCommit}
-        onSync={syncRepo}
-        onRewind={handleRewind}
-        currentBranch={branchName}
-        repoPath={repoPath}
-        isCommitting={isCommitting}
-        isSyncing={isSyncing}
-        isRewinding={isRewinding}
-      />
-    );
-  }
-
-  // Repository open, no changes, but commits ahead of remote (ready to push)
-  if (ahead > 0) {
-    return (
-      <ReadyToPushScreen
-        ahead={ahead}
-        onSync={syncRepo}
-        isSyncing={isSyncing}
-      />
-    );
-  }
-
-  // Repository open, no changes, synced, on feature branch → suggest merge request
-  if (!isMainBranch) {
-    return <MergeRequestScreen branchName={branchName} />;
-  }
-
-  // Repository open, no changes, synced, on main/master → all caught up
-  return <AllSyncedScreen repoPath={repoPath} />;
+  // Folder open - show SimpleFileBrowser
+  return <SimpleFileBrowser repoPath={repoPath} />;
 }
 
 export default memo(ExplorerPage);

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { LayoutProvider, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../ui';
+import { RecoveryBanner } from '../common';
 import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
@@ -16,6 +17,7 @@ function AppLayoutInner() {
     <LayoutProvider>
       <div className="h-screen w-screen flex flex-col bg-theme-base text-theme-primary overflow-hidden">
         <TopBar />
+        <RecoveryBanner />
         <Toaster />
         
         {/* Progress Modal for git operations */}

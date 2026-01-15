@@ -5,14 +5,10 @@
  */
 import { memo, useState, useCallback, useEffect } from 'react';
 import { AlertTriangle, GitBranch } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { Button } from '../../../ui';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../../ui/card';
 import GitInitForm from './GitInitForm';
-
-// Memoized icon styles
-const iconStyleLg = { width: 48, height: 48 };
-const iconStyleSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
 /**
  * WarningCard - The initial warning state showing no version control message.
@@ -27,7 +23,7 @@ const WarningCard = memo(function WarningCard({ folderName, onStartTracking, isF
       <Card className="max-w-md w-full">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center">
-            <AlertTriangle style={iconStyleLg} className="text-yellow-500" />
+            <AlertTriangle style={ICON_STYLES.xxl} className="text-yellow-500" />
           </div>
           <CardTitle className="text-xl">No Version Control</CardTitle>
           <CardDescription className="text-base mt-2">
@@ -47,7 +43,7 @@ const WarningCard = memo(function WarningCard({ folderName, onStartTracking, isF
             onClick={onStartTracking} 
             className="gap-2"
           >
-            <GitBranch style={iconStyleSm} />
+            <GitBranch style={ICON_STYLES.sm} />
             Start Tracking Changes
           </Button>
         </CardFooter>

@@ -4,7 +4,7 @@
  */
 import { memo } from 'react';
 import { CheckCircle2, GitPullRequest } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { Button } from '../../../ui';
 import { toast } from 'sonner';
 
@@ -23,7 +23,7 @@ function MergeRequestScreen({ branchName }) {
 
         {/* Success icon */}
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-6">
-          <CheckCircle2 style={{ width: 32, height: 32 }} className="text-green-400" />
+          <CheckCircle2 style={ICON_STYLES.xl} className="text-green-400" />
         </div>
 
         {/* Explanation */}
@@ -41,7 +41,7 @@ function MergeRequestScreen({ branchName }) {
           variant="outline"
           className="w-full max-w-md h-14 text-lg border-2 border-theme-default hover:border-theme-muted"
         >
-          <GitPullRequest style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} />
+          <GitPullRequest style={ICON_STYLES.md} />
           Create a merge request
         </Button>
 

@@ -16,6 +16,54 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * AbortAM aborts the current AM (patch application) operation.
+ * Runs: git am --abort
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortAM(repoPath) {
+    return $Call.ByID(4060428791, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortBisect aborts the current bisect session.
+ * Runs: git bisect reset
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortBisect(repoPath) {
+    return $Call.ByID(674756595, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortCherryPick aborts the current cherry-pick operation.
+ * Runs: git cherry-pick --abort
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortCherryPick(repoPath) {
+    return $Call.ByID(741767237, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortCurrentOperation aborts whatever stuck operation is currently in progress.
+ * This is a convenience method that detects the state and calls the appropriate abort.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortCurrentOperation(repoPath) {
+    return $Call.ByID(557036051, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * AbortMerge aborts the current merge operation.
  * Returns the repository to the state before the merge started.
  * @param {string} repoPath
@@ -23,6 +71,56 @@ import * as $models from "./models.js";
  */
 export function AbortMerge(repoPath) {
     return $Call.ByID(195671387, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AbortRevert aborts the current revert operation.
+ * Runs: git revert --abort
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AbortRevert(repoPath) {
+    return $Call.ByID(1535209807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * Add stages a specific file or directory for commit.
+ * Equivalent to: git add <path>
+ * @param {string} repoPath
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Add(repoPath, path) {
+    return $Call.ByID(1549392524, repoPath, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AddAll stages all changes in the repository.
+ * Equivalent to: git add .
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AddAll(repoPath) {
+    return $Call.ByID(1624737879, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * AddFiles stages multiple files for commit.
+ * Equivalent to: git add -- <paths...>
+ * @param {string} repoPath
+ * @param {string[]} paths
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function AddFiles(repoPath, paths) {
+    return $Call.ByID(1384025611, repoPath, paths).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -40,30 +138,50 @@ export function Branches(repoPath) {
 }
 
 /**
- * CheckBranchConflicts checks for potential merge conflicts between the current branch (child)
- * and a parent branch without actually performing the merge.
+ * CheckBranchConflicts checks for potential merge conflicts when merging the source branch
+ * INTO the target branch without actually performing the merge.
  * This uses `git merge-tree --write-tree` which performs a merge simulation.
  * 
+ * Default behavior (when sourceBranch is empty):
+ * - Checks conflicts for merging current branch INTO targetBranch
+ * 
+ * Parameterized behavior (when both are provided):
+ * - Checks conflicts for merging sourceBranch INTO targetBranch
+ * 
  * The method:
- * 1. Auto-detects parent branch if not provided
- * 2. Fetches the parent branch from origin to ensure we have the latest
- * 3. Runs git merge-tree to detect conflicts
+ * 1. Auto-detects target branch (parent) if not provided
+ * 2. Fetches the target branch from origin to ensure we have the latest
+ * 3. Runs git merge-tree to detect conflicts (simulating merge into target)
  * 4. Returns the list of conflicted files if any
  * 
  * Parameters:
  *   - repoPath: Path to the git repository
- *   - parentBranch: Name of the parent branch to check against (e.g., "main", "master").
+ *   - targetBranch: Name of the target branch to merge INTO (e.g., "main", "master").
  *     If empty, the parent branch will be auto-detected.
+ *   - sourceBranch: Optional. Name of the source branch to merge FROM.
+ *     If empty, defaults to the current branch.
  * 
  * Returns:
  *   - BranchConflictCheckResult with conflict information
  * @param {string} repoPath
- * @param {string} parentBranch
+ * @param {string} targetBranch
+ * @param {string[]} sourceBranch
  * @returns {$CancellablePromise<$models.BranchConflictCheckResult>}
  */
-export function CheckBranchConflicts(repoPath, parentBranch) {
-    return $Call.ByID(3130135130, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+export function CheckBranchConflicts(repoPath, targetBranch, ...sourceBranch) {
+    return $Call.ByID(3130135130, repoPath, targetBranch, sourceBranch).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType2($result);
+    }));
+}
+
+/**
+ * CheckForStaleLocks returns a list of any lock files found in .git directory.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string[]>}
+ */
+export function CheckForStaleLocks(repoPath) {
+    return $Call.ByID(1379031881, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
     }));
 }
 
@@ -76,7 +194,21 @@ export function CheckBranchConflicts(repoPath, parentBranch) {
  */
 export function CheckLockFile(repoPath) {
     return $Call.ByID(3861435054, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
+    }));
+}
+
+/**
+ * Checkout switches to a branch or commit without safety checks.
+ * For safer operations with checks, use CheckoutBranch.
+ * Equivalent to: git checkout <ref>
+ * @param {string} repoPath
+ * @param {string} ref
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Checkout(repoPath, ref) {
+    return $Call.ByID(3225468049, repoPath, ref).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
     }));
 }
 
@@ -94,7 +226,62 @@ export function CheckoutBranch(repoPath, branchName) {
 }
 
 /**
- * CommitAll stages all changes and commits with the given message
+ * CheckoutNewBranch creates a new branch and switches to it without safety checks.
+ * For safer operations with checks, use CreateBranchAndCheckout.
+ * Equivalent to: git checkout -b <branch>
+ * @param {string} repoPath
+ * @param {string} branchName
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CheckoutNewBranch(repoPath, branchName) {
+    return $Call.ByID(2697778525, repoPath, branchName).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * Clean removes untracked files from the working directory.
+ * Does NOT remove ignored files by default.
+ * Equivalent to: git clean -fd
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Clean(repoPath) {
+    return $Call.ByID(541970774, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * CleanDryRun shows what files would be removed by Clean without actually removing them.
+ * Equivalent to: git clean -fdn
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string[]>}
+ */
+export function CleanDryRun(repoPath) {
+    return $Call.ByID(690549608, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * Commit creates a commit with staged changes.
+ * Does NOT auto-stage anything - use Add/AddAll first.
+ * Equivalent to: git commit -m <message>
+ * @param {string} repoPath
+ * @param {string} message
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Commit(repoPath, message) {
+    return $Call.ByID(3879393956, repoPath, message).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * CommitAll stages all changes and commits with the given message.
+ * This is a composite operation that combines AddAll + Commit.
+ * For finer control, use AddAll() and Commit() separately.
  * @param {string} repoPath
  * @param {string} message
  * @returns {$CancellablePromise<$models.OperationResult>}
@@ -118,6 +305,44 @@ export function CompleteMerge(repoPath, message) {
 }
 
 /**
+ * CompleteSquashMerge commits a squash merge.
+ * Unlike CompleteMerge, this doesn't require being in a merge state.
+ * It simply commits the staged changes from the squash merge.
+ * @param {string} repoPath
+ * @param {string} message
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CompleteSquashMerge(repoPath, message) {
+    return $Call.ByID(3395302753, repoPath, message).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ContinueCherryPick continues the cherry-pick after conflicts are resolved.
+ * Runs: git cherry-pick --continue
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ContinueCherryPick(repoPath) {
+    return $Call.ByID(709235012, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ContinueRevert continues the revert after conflicts are resolved.
+ * Runs: git revert --continue
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ContinueRevert(repoPath) {
+    return $Call.ByID(1624394218, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * CreateBranchAndCheckout creates a new branch and switches to it.
  * Fails if there are uncommitted changes or if the branch name is invalid.
  * @param {string} repoPath
@@ -131,13 +356,26 @@ export function CreateBranchAndCheckout(repoPath, branchName) {
 }
 
 /**
+ * CreateBranchFromDetached creates a new branch from the current detached HEAD position.
+ * This saves the user's work by attaching it to a named branch.
+ * @param {string} repoPath
+ * @param {string} branchName
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function CreateBranchFromDetached(repoPath, branchName) {
+    return $Call.ByID(3193978003, repoPath, branchName).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * DetectRepo checks if the given path is a git repository
  * @param {string} path
  * @returns {$CancellablePromise<$models.RepoInfo>}
  */
 export function DetectRepo(path) {
     return $Call.ByID(2042099950, path).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -150,7 +388,7 @@ export function DetectRepo(path) {
  */
 export function DiffCommitFileRaw(repoPath, hash, filePath) {
     return $Call.ByID(2647393501, repoPath, hash, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -163,7 +401,7 @@ export function DiffCommitFileRaw(repoPath, hash, filePath) {
  */
 export function DiffWorkingRaw(repoPath, filePath) {
     return $Call.ByID(1687348157, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -171,6 +409,8 @@ export function DiffWorkingRaw(repoPath, filePath) {
  * DiscardAll discards all uncommitted changes in the working directory.
  * This includes modified files, staged changes, and untracked files.
  * Requires confirm=true as a safety measure for destructive operations.
+ * This is a composite operation that combines UnstageAll() + RestoreAll() + Clean().
+ * For finer control, use those methods separately.
  * @param {string} repoPath
  * @param {boolean} confirm
  * @returns {$CancellablePromise<$models.OperationResult>}
@@ -185,6 +425,8 @@ export function DiscardAll(repoPath, confirm) {
  * DiscardFile discards changes to a specific file.
  * For untracked files, the file is deleted. For tracked files, changes are reverted to HEAD.
  * Requires confirm=true as a safety measure for destructive operations.
+ * This is a composite operation that combines Unstage() + Restore() or file deletion.
+ * For finer control, use those methods separately.
  * @param {string} repoPath
  * @param {string} filePath
  * @param {boolean} confirm
@@ -197,6 +439,43 @@ export function DiscardFile(repoPath, filePath, confirm) {
 }
 
 /**
+ * Fetch downloads objects and refs from the remote without merging.
+ * Equivalent to: git fetch [remote] [branch]
+ * @param {string} repoPath
+ * @param {string} remote
+ * @param {string} branch
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Fetch(repoPath, remote, branch) {
+    return $Call.ByID(2071175531, repoPath, remote, branch).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * FetchAll fetches from all remotes.
+ * Equivalent to: git fetch --all
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function FetchAll(repoPath) {
+    return $Call.ByID(421277422, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * GetBisectState returns information about the current bisect session.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<{ [_: string]: any }>}
+ */
+export function GetBisectState(repoPath) {
+    return $Call.ByID(1232794478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
  * GetCommitGraph returns commits with parent references and branch/tag info for graph visualization
  * @param {string} repoPath
  * @param {number} limit
@@ -204,7 +483,7 @@ export function DiscardFile(repoPath, filePath, confirm) {
  */
 export function GetCommitGraph(repoPath, limit) {
     return $Call.ByID(607520174, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType8($result);
     }));
 }
 
@@ -220,7 +499,7 @@ export function GetCommitGraph(repoPath, limit) {
  */
 export function GetConflictSidesInfo(repoPath, parentBranch) {
     return $Call.ByID(2430449675, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType9($result);
     }));
 }
 
@@ -231,8 +510,18 @@ export function GetConflictSidesInfo(repoPath, parentBranch) {
  */
 export function GetConflictedFiles(repoPath) {
     return $Call.ByID(3264929955, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType11($result);
     }));
+}
+
+/**
+ * GetCurrentBranch returns the name of the current branch.
+ * Returns empty string if in detached HEAD state.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetCurrentBranch(repoPath) {
+    return $Call.ByID(2362531664, repoPath);
 }
 
 /**
@@ -242,18 +531,19 @@ export function GetConflictedFiles(repoPath) {
  */
 export function GetGitVersion() {
     return $Call.ByID(487908903).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType13($result);
     }));
 }
 
 /**
- * GetMergeState detects if the repository is in a merge or rebase state.
+ * GetMergeState detects if the repository is in any stuck/interrupted state.
+ * Checks for: merge, rebase, cherry-pick, revert, bisect, AM, detached HEAD, and stale locks.
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.MergeState>}
  */
 export function GetMergeState(repoPath) {
     return $Call.ByID(477378934, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType14($result);
     }));
 }
 
@@ -270,7 +560,7 @@ export function GetMergeState(repoPath) {
  */
 export function GetParentBranch(repoPath) {
     return $Call.ByID(4140919983, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType15($result);
     }));
 }
 
@@ -282,7 +572,7 @@ export function GetParentBranch(repoPath) {
  */
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType3($result);
     }));
 }
 
@@ -294,7 +584,7 @@ export function GetProtectedBranches(repoPath) {
  */
 export function GetRecentCommits(repoPath, limit) {
     return $Call.ByID(3891673582, repoPath, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType17($result);
     }));
 }
 
@@ -305,6 +595,24 @@ export function GetRecentCommits(repoPath, limit) {
  */
 export function GetRemoteURL(repoPath) {
     return $Call.ByID(2508520694, repoPath);
+}
+
+/**
+ * HasChanges returns true if the repository has uncommitted changes.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function HasChanges(repoPath) {
+    return $Call.ByID(3510981652, repoPath);
+}
+
+/**
+ * HasStagedChanges returns true if there are staged (but uncommitted) changes.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function HasStagedChanges(repoPath) {
+    return $Call.ByID(713182622, repoPath);
 }
 
 /**
@@ -333,6 +641,15 @@ export function InitRepoWithLFS(path) {
 }
 
 /**
+ * IsDetachedHead checks if the repository is in a detached HEAD state.
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<boolean>}
+ */
+export function IsDetachedHead(repoPath) {
+    return $Call.ByID(4162478497, repoPath);
+}
+
+/**
  * IsProtectedBranch checks if the given branch name is in the protected list.
  * Uses the configured list from settings, falling back to defaults.
  * @param {string} repoPath
@@ -352,6 +669,20 @@ export function IsProtectedBranch(repoPath, branchName) {
  */
 export function MarkResolved(repoPath, filePath) {
     return $Call.ByID(1142993024, repoPath, filePath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * MoveFile renames/moves a file and stages the change.
+ * Equivalent to: git mv <source> <destination>
+ * @param {string} repoPath
+ * @param {string} source
+ * @param {string} destination
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function MoveFile(repoPath, source, destination) {
+    return $Call.ByID(2987540618, repoPath, source, destination).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -379,6 +710,33 @@ export function Push(repoPath) {
 }
 
 /**
+ * RemoveAllStaleLocks removes all stale lock files from the .git directory.
+ * This is a convenience method that removes all known lock files at once.
+ * @param {string} repoPath
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RemoveAllStaleLocks(repoPath, confirm) {
+    return $Call.ByID(2698533175, repoPath, confirm).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * RemoveFile removes a file from the working tree and stages the removal.
+ * Equivalent to: git rm <path>
+ * @param {string} repoPath
+ * @param {string} path
+ * @param {boolean} cached
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RemoveFile(repoPath, path, cached) {
+    return $Call.ByID(405184643, repoPath, path, cached).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * RemoveLockFile removes the .git/index.lock file from the repository.
  * This is useful for recovering from a stale lock file left behind by a crashed
  * Git process. Returns an OperationResult indicating success or failure.
@@ -395,9 +753,39 @@ export function RemoveLockFile(repoPath) {
 }
 
 /**
+ * RemoveStaleLock removes a specific lock file from the .git directory.
+ * This is a potentially dangerous operation - requires confirmation.
+ * @param {string} repoPath
+ * @param {string} lockFile
+ * @param {boolean} confirm
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RemoveStaleLock(repoPath, lockFile, confirm) {
+    return $Call.ByID(3593242617, repoPath, lockFile, confirm).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ResetHard resets HEAD, index, and working tree to a specific commit.
+ * WARNING: This is destructive - all uncommitted changes are lost.
+ * Equivalent to: git reset --hard <ref>
+ * @param {string} repoPath
+ * @param {string} ref
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ResetHard(repoPath, ref) {
+    return $Call.ByID(2386925765, repoPath, ref).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * ResetHardHead resets the working directory to HEAD, discarding all uncommitted changes.
  * This is the "Rewind" feature - returns to the last committed state.
  * Requires confirm=true as a safety measure for destructive operations.
+ * This is a composite operation that combines ResetHard("HEAD") + Clean().
+ * For finer control, use ResetHard() and Clean() separately.
  * @param {string} repoPath
  * @param {boolean} confirm
  * @returns {$CancellablePromise<$models.OperationResult>}
@@ -409,9 +797,37 @@ export function ResetHardHead(repoPath, confirm) {
 }
 
 /**
+ * ResetMixed resets HEAD and index to a specific commit, keeping working tree changes.
+ * This is the default git reset behavior.
+ * Equivalent to: git reset <ref>
+ * @param {string} repoPath
+ * @param {string} ref
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ResetMixed(repoPath, ref) {
+    return $Call.ByID(971195423, repoPath, ref).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * ResetSoft resets HEAD to a specific commit but keeps all changes staged.
+ * Equivalent to: git reset --soft <ref>
+ * @param {string} repoPath
+ * @param {string} ref
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function ResetSoft(repoPath, ref) {
+    return $Call.ByID(3173028096, repoPath, ref).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * ResetSoftHead undoes the last n commits, keeping changes staged.
  * This is the "Undo Last Save" feature - changes remain in the working directory.
  * Requires confirm=true as a safety measure for destructive operations.
+ * This is a wrapper around ResetSoft() with validation.
  * @param {string} repoPath
  * @param {number} n
  * @param {boolean} confirm
@@ -425,8 +841,9 @@ export function ResetSoftHead(repoPath, n, confirm) {
 
 /**
  * ResolveConflictKeepBoth resolves a conflict by keeping both versions.
- * The local version stays as-is, and the incoming version is saved with a _COPY suffix.
- * For example: file.txt keeps local, creates file_COPY.txt with their version.
+ * The incoming (theirs) version keeps the original filename.
+ * The local (mine) version is saved with a timestamp suffix to avoid collisions.
+ * For example: file.txt becomes incoming version, file_COPY_20260115_143052.txt is local version.
  * @param {string} repoPath
  * @param {string} filePath
  * @returns {$CancellablePromise<$models.OperationResult>}
@@ -464,6 +881,33 @@ export function ResolveConflictKeepTheirs(repoPath, filePath) {
 }
 
 /**
+ * Restore reverts a file to its HEAD state, discarding working tree changes.
+ * Does NOT affect staged changes - use Unstage first if needed.
+ * Equivalent to: git restore <path> (Git 2.23+) or git checkout -- <path>
+ * @param {string} repoPath
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Restore(repoPath, path) {
+    return $Call.ByID(3620835481, repoPath, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * RestoreAll reverts all tracked files to HEAD state.
+ * Does NOT remove untracked files - use Clean for that.
+ * Equivalent to: git restore . (Git 2.23+) or git checkout -- .
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function RestoreAll(repoPath) {
+    return $Call.ByID(1906297600, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * SetProtectedBranches updates the list of protected branches for the repo.
  * Stores in .rewind-logic/config.json in the repository.
  * @param {string} repoPath
@@ -485,20 +929,97 @@ export function SetProtectedBranches(repoPath, branches) {
  */
 export function ShowCommit(repoPath, hash) {
     return $Call.ByID(727120561, repoPath, hash).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
 /**
- * StartMerge begins an actual merge with the specified branch.
- * Uses --no-commit to allow the user to resolve conflicts before committing.
- * This is called after CheckBranchConflicts confirms there will be conflicts.
+ * SkipAMPatch skips the current patch in an AM sequence.
+ * Runs: git am --skip
  * @param {string} repoPath
- * @param {string} parentBranch
  * @returns {$CancellablePromise<$models.OperationResult>}
  */
-export function StartMerge(repoPath, parentBranch) {
-    return $Call.ByID(427657069, repoPath, parentBranch).then(/** @type {($result: any) => any} */(($result) => {
+export function SkipAMPatch(repoPath) {
+    return $Call.ByID(322271250, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * SkipCherryPickCommit skips the current commit in a cherry-pick sequence.
+ * Runs: git cherry-pick --skip
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function SkipCherryPickCommit(repoPath) {
+    return $Call.ByID(1767693211, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * SkipRevertCommit skips the current commit in a revert sequence.
+ * Runs: git revert --skip
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function SkipRevertCommit(repoPath) {
+    return $Call.ByID(1196204825, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * StartMerge begins an actual merge.
+ * Uses --no-commit to allow the user to resolve conflicts before committing.
+ * This is called after CheckBranchConflicts confirms there will be conflicts.
+ * 
+ * Default behavior (when sourceBranch is empty):
+ * - Merges the current branch INTO the targetBranch
+ * - First checks out targetBranch, then merges the original current branch
+ * 
+ * Parameterized behavior (when both are provided):
+ * - Checks out targetBranch
+ * - Merges sourceBranch into it
+ * 
+ * Parameters:
+ *   - repoPath: Path to the git repository
+ *   - targetBranch: The branch to merge INTO (e.g., "main") - required
+ *   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
+ * @param {string} repoPath
+ * @param {string} targetBranch
+ * @param {string[]} sourceBranch
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function StartMerge(repoPath, targetBranch, ...sourceBranch) {
+    return $Call.ByID(427657069, repoPath, targetBranch, sourceBranch).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * StartMergeWithOptions begins a merge with configurable options.
+ * Supports squash merge mode which combines all commits into a single commit.
+ * 
+ * Parameters:
+ *   - repoPath: Path to the git repository
+ *   - targetBranch: The branch to merge INTO (e.g., "main") - required
+ *   - sourceBranch: The branch to merge FROM - required
+ *   - options: MergeOptions with squash flag
+ * 
+ * When squash is true:
+ * - Uses `git merge --squash` instead of regular merge
+ * - Does NOT create a merge commit with two parents
+ * - All changes appear as a single commit authored by the user
+ * - Results in cleaner, linear history
+ * @param {string} repoPath
+ * @param {string} targetBranch
+ * @param {string} sourceBranch
+ * @param {$models.MergeOptions} options
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function StartMergeWithOptions(repoPath, targetBranch, sourceBranch, options) {
+    return $Call.ByID(2124618153, repoPath, targetBranch, sourceBranch, options).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }
@@ -539,7 +1060,7 @@ export function StashDrop(repoPath, index, confirm) {
  */
 export function StashList(repoPath) {
     return $Call.ByID(1662513478, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType19($result);
+        return $$createType20($result);
     }));
 }
 
@@ -575,7 +1096,7 @@ export function StashPush(repoPath, message) {
  */
 export function Status(repoPath) {
     return $Call.ByID(3018306807, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType20($result);
+        return $$createType21($result);
     }));
 }
 
@@ -588,7 +1109,7 @@ export function SupportsRestore() {
 }
 
 /**
- * Sync performs a git pull --rebase followed by git push
+ * Sync performs a git pull (merge) followed by git push
  * @param {string} repoPath
  * @returns {$CancellablePromise<$models.OperationResult>}
  */
@@ -598,25 +1119,51 @@ export function Sync(repoPath) {
     }));
 }
 
+/**
+ * Unstage removes a file from the staging area without discarding changes.
+ * Equivalent to: git restore --staged <path> (Git 2.23+) or git reset HEAD <path>
+ * @param {string} repoPath
+ * @param {string} path
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function Unstage(repoPath, path) {
+    return $Call.ByID(1174717948, repoPath, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * UnstageAll removes all files from the staging area.
+ * Equivalent to: git restore --staged . (Git 2.23+) or git reset HEAD
+ * @param {string} repoPath
+ * @returns {$CancellablePromise<$models.OperationResult>}
+ */
+export function UnstageAll(repoPath) {
+    return $Call.ByID(3429786151, repoPath).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.BranchList.createFrom;
 const $$createType2 = $models.BranchConflictCheckResult.createFrom;
-const $$createType3 = $models.LockFileInfo.createFrom;
-const $$createType4 = $models.RepoInfo.createFrom;
-const $$createType5 = $models.RawDiffResult.createFrom;
-const $$createType6 = $models.CommitGraphResult.createFrom;
-const $$createType7 = $models.ConflictSidesInfo.createFrom;
-const $$createType8 = $models.ConflictedFile.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = $models.GitVersion.createFrom;
-const $$createType11 = $Create.Nullable($$createType10);
-const $$createType12 = $models.MergeState.createFrom;
-const $$createType13 = $models.ParentBranchResult.createFrom;
-const $$createType14 = $Create.Array($Create.Any);
-const $$createType15 = $models.CommitInfo.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = $models.CommitDetail.createFrom;
-const $$createType18 = $models.StashEntry.createFrom;
-const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = $models.RepoStatus.createFrom;
+const $$createType3 = $Create.Array($Create.Any);
+const $$createType4 = $models.LockFileInfo.createFrom;
+const $$createType5 = $models.RepoInfo.createFrom;
+const $$createType6 = $models.RawDiffResult.createFrom;
+const $$createType7 = $Create.Map($Create.Any, $Create.Any);
+const $$createType8 = $models.CommitGraphResult.createFrom;
+const $$createType9 = $models.ConflictSidesInfo.createFrom;
+const $$createType10 = $models.ConflictedFile.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.GitVersion.createFrom;
+const $$createType13 = $Create.Nullable($$createType12);
+const $$createType14 = $models.MergeState.createFrom;
+const $$createType15 = $models.ParentBranchResult.createFrom;
+const $$createType16 = $models.CommitInfo.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = $models.CommitDetail.createFrom;
+const $$createType19 = $models.StashEntry.createFrom;
+const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = $models.RepoStatus.createFrom;

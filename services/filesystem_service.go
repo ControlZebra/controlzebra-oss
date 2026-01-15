@@ -24,20 +24,30 @@ type FileEntry struct {
 	IsDirectory bool   `json:"isDirectory"`
 	Size        int64  `json:"size"`
 	Extension   string `json:"extension"`
+	ModTime     int64  `json:"modTime"` // Unix timestamp in milliseconds
+	IsHidden    bool   `json:"isHidden"`
 }
 
 // DirectoryContents contains the contents of a directory
 type DirectoryContents struct {
-	Path    string      `json:"path"`
-	Entries []FileEntry `json:"entries"`
-	Error   string      `json:"error,omitempty"`
+	Path          string      `json:"path"`
+	Entries       []FileEntry `json:"entries"`
+	Error         string      `json:"error,omitempty"`
+	IncludeHidden bool        `json:"includeHidden"`
 }
 
-// ListDirectory lists the contents of a directory
+// ListDirectory lists the contents of a directory (excludes hidden files by default)
 func (f *FileSystemService) ListDirectory(path string) DirectoryContents {
+	return f.ListDirectoryWithOptions(path, false)
+}
+
+// ListDirectoryWithOptions lists the contents of a directory with options
+// includeHidden: if true, includes hidden files (starting with .)
+func (f *FileSystemService) ListDirectoryWithOptions(path string, includeHidden bool) DirectoryContents {
 	result := DirectoryContents{
-		Path:    path,
-		Entries: []FileEntry{},
+		Path:          path,
+		Entries:       []FileEntry{},
+		IncludeHidden: includeHidden,
 	}
 
 	// Handle empty path
@@ -69,8 +79,10 @@ func (f *FileSystemService) ListDirectory(path string) DirectoryContents {
 	var files []FileEntry
 
 	for _, entry := range entries {
-		// Skip hidden files (starting with .)
-		if strings.HasPrefix(entry.Name(), ".") {
+		isHidden := strings.HasPrefix(entry.Name(), ".")
+
+		// Skip hidden files unless includeHidden is true
+		if isHidden && !includeHidden {
 			continue
 		}
 
@@ -79,13 +91,18 @@ func (f *FileSystemService) ListDirectory(path string) DirectoryContents {
 			Name:        entry.Name(),
 			Path:        fullPath,
 			IsDirectory: entry.IsDir(),
+			IsHidden:    isHidden,
+		}
+
+		// Get file info for size and mod time
+		if fileInfo, err := entry.Info(); err == nil {
+			fe.ModTime = fileInfo.ModTime().UnixMilli()
+			if !entry.IsDir() {
+				fe.Size = fileInfo.Size()
+			}
 		}
 
 		if !entry.IsDir() {
-			// Get file info for size
-			if fileInfo, err := entry.Info(); err == nil {
-				fe.Size = fileInfo.Size()
-			}
 			// Get extension
 			fe.Extension = strings.TrimPrefix(filepath.Ext(entry.Name()), ".")
 		}
@@ -172,4 +189,214 @@ func (f *FileSystemService) GetParentDirectory(path string) string {
 		return ""
 	}
 	return filepath.Dir(path)
+}
+
+// OpenInTerminal opens a terminal at the specified path
+func (f *FileSystemService) OpenInTerminal(path string) OpenFileResult {
+	if path == "" {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Path is required",
+		}
+	}
+
+	// Check if path exists and get the directory to open
+	info, err := os.Stat(path)
+	if err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Path does not exist",
+		}
+	}
+
+	// If it's a file, use its parent directory
+	targetDir := path
+	if !info.IsDir() {
+		targetDir = filepath.Dir(path)
+	}
+
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: open Terminal.app at the directory
+		cmd = exec.Command("open", "-a", "Terminal", targetDir)
+	case "linux":
+		// Linux: try common terminal emulators
+		// Try gnome-terminal, xterm, konsole in order
+		terminals := []string{"gnome-terminal", "xterm", "konsole", "xfce4-terminal"}
+		for _, term := range terminals {
+			if _, err := exec.LookPath(term); err == nil {
+				if term == "gnome-terminal" {
+					cmd = exec.Command(term, "--working-directory="+targetDir)
+				} else if term == "xterm" {
+					cmd = exec.Command(term, "-e", "cd "+targetDir+" && $SHELL")
+				} else {
+					cmd = exec.Command(term, "--workdir", targetDir)
+				}
+				break
+			}
+		}
+		if cmd == nil {
+			return OpenFileResult{
+				Success: false,
+				Error:   "No supported terminal emulator found",
+			}
+		}
+	case "windows":
+		// Windows: open cmd at the directory
+		cmd = exec.Command("cmd", "/c", "start", "cmd", "/k", "cd /d "+targetDir)
+	default:
+		return OpenFileResult{
+			Success: false,
+			Error:   "Unsupported operating system",
+		}
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to open terminal: " + err.Error(),
+		}
+	}
+
+	return OpenFileResult{
+		Success: true,
+	}
+}
+
+// RevealInFinder opens the containing folder in the system file manager and selects the file
+func (f *FileSystemService) RevealInFinder(path string) OpenFileResult {
+	if path == "" {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Path is required",
+		}
+	}
+
+	// Check if path exists
+	if _, err := os.Stat(path); err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Path does not exist",
+		}
+	}
+
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: use 'open -R' to reveal in Finder
+		cmd = exec.Command("open", "-R", path)
+	case "linux":
+		// Linux: open the parent folder with xdg-open (can't select file)
+		parentDir := filepath.Dir(path)
+		cmd = exec.Command("xdg-open", parentDir)
+	case "windows":
+		// Windows: use 'explorer /select' to select the file
+		cmd = exec.Command("explorer", "/select,"+path)
+	default:
+		return OpenFileResult{
+			Success: false,
+			Error:   "Unsupported operating system",
+		}
+	}
+
+	err := cmd.Start()
+	if err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to reveal in file manager: " + err.Error(),
+		}
+	}
+
+	return OpenFileResult{
+		Success: true,
+	}
+}
+
+// CopyToClipboard copies the given text to the system clipboard
+func (f *FileSystemService) CopyToClipboard(text string) OpenFileResult {
+	if text == "" {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Text is required",
+		}
+	}
+
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: use pbcopy
+		cmd = exec.Command("pbcopy")
+	case "linux":
+		// Linux: try xclip or xsel
+		if _, err := exec.LookPath("xclip"); err == nil {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		} else if _, err := exec.LookPath("xsel"); err == nil {
+			cmd = exec.Command("xsel", "--clipboard", "--input")
+		} else {
+			return OpenFileResult{
+				Success: false,
+				Error:   "No clipboard tool found (install xclip or xsel)",
+			}
+		}
+	case "windows":
+		// Windows: use clip command
+		cmd = exec.Command("cmd", "/c", "echo|set /p="+text+"|clip")
+		// For Windows, we can just run directly without stdin
+		err := cmd.Run()
+		if err != nil {
+			return OpenFileResult{
+				Success: false,
+				Error:   "Failed to copy to clipboard: " + err.Error(),
+			}
+		}
+		return OpenFileResult{
+			Success: true,
+		}
+	default:
+		return OpenFileResult{
+			Success: false,
+			Error:   "Unsupported operating system",
+		}
+	}
+
+	// Set up stdin pipe for the command
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to create pipe: " + err.Error(),
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to start clipboard command: " + err.Error(),
+		}
+	}
+
+	// Write the text to stdin
+	if _, err := stdin.Write([]byte(text)); err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to write to clipboard: " + err.Error(),
+		}
+	}
+	stdin.Close()
+
+	if err := cmd.Wait(); err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Clipboard command failed: " + err.Error(),
+		}
+	}
+
+	return OpenFileResult{
+		Success: true,
+	}
 }
