@@ -4,15 +4,29 @@
  * Parses raw unified diff text from git.
  */
 import { memo, useMemo } from 'react';
-import { parseDiff, Diff, Hunk } from 'react-diff-view';
+import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../lib/utils';
+
+interface FileDiff {
+  path: string;
+  oldPath?: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed';
+  binary?: boolean;
+  rawDiff?: string;
+  hasError?: boolean;
+  error?: string;
+}
+
+interface DiffHeaderProps {
+  fileDiff: FileDiff;
+}
 
 /**
  * DiffHeader - File path and status header.
  */
-function DiffHeader({ fileDiff }) {
-  const statusColors = {
+function DiffHeader({ fileDiff }: DiffHeaderProps) {
+  const statusColors: Record<string, string> = {
     added: 'text-green-600 dark:text-green-400',
     modified: 'text-yellow-600 dark:text-yellow-400',
     deleted: 'text-red-600 dark:text-red-400',
@@ -35,20 +49,15 @@ function DiffHeader({ fileDiff }) {
   );
 }
 
+interface DiffViewerProps {
+  fileDiff?: FileDiff | null;
+  showHeader?: boolean;
+}
+
 /**
  * DiffViewer - Main component for viewing file diffs.
- * 
- * @param {Object} fileDiff - Raw diff result from backend containing:
- *   - path: string
- *   - oldPath: string (optional)
- *   - status: string ("added", "modified", "deleted", "renamed")
- *   - binary: boolean
- *   - rawDiff: string (unified diff text)
- *   - hasError: boolean
- *   - error: string (optional)
- * @param {boolean} showHeader - Whether to show the file header
  */
-function DiffViewer({ fileDiff, showHeader = true }) {
+function DiffViewer({ fileDiff, showHeader = true }: DiffViewerProps) {
   // Parse the raw diff text using react-diff-view
   const files = useMemo(() => {
     if (!fileDiff?.rawDiff) return [];
@@ -115,7 +124,7 @@ function DiffViewer({ fileDiff, showHeader = true }) {
           hunks={file.hunks}
           className="diff-table"
         >
-          {(hunks) =>
+          {(hunks: HunkData[]) =>
             hunks.map((hunk) => (
               <Hunk key={hunk.content} hunk={hunk} />
             ))
@@ -127,4 +136,3 @@ function DiffViewer({ fileDiff, showHeader = true }) {
 }
 
 export default memo(DiffViewer);
-

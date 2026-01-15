@@ -32,24 +32,62 @@ const BRANCH_COLORS = [
   '#14b8a6', // teal
 ];
 
+interface Commit {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  relativeDate: string;
+  refs?: string[];
+  parents?: string[];
+}
+
+interface GraphNode {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  relativeDate: string;
+  refs: string[];
+  row: number;
+  column: number;
+  color: string;
+}
+
+interface Connection {
+  fromRow: number;
+  fromColumn: number;
+  toParentHash: string;
+  toColumn: number;
+  toRow?: number;
+  color: string;
+  isMerge: boolean;
+}
+
+interface GraphLayout {
+  nodes: GraphNode[];
+  connections: Connection[];
+  maxColumn: number;
+}
+
 /**
  * Compute the visual layout for the git graph.
  * Assigns each commit to a column (lane) based on branch topology.
  */
-function computeGraphLayout(commits) {
-  if (!commits || commits.length === 0) return { nodes: [], connections: [] };
+function computeGraphLayout(commits: Commit[]): GraphLayout {
+  if (!commits || commits.length === 0) return { nodes: [], connections: [], maxColumn: 0 };
 
-  const nodes = [];
-  const connections = [];
+  const nodes: GraphNode[] = [];
+  const connections: Connection[] = [];
   
   // Track active lanes (columns) - each lane holds the hash of the commit that "owns" it
-  const lanes = [];
+  const lanes: (string | null)[] = [];
   // Map commit hash to its assigned column
-  const commitToColumn = new Map();
+  const commitToColumn = new Map<string, number>();
   // Map commit hash to its row index
-  const commitToRow = new Map();
+  const commitToRow = new Map<string, number>();
   // Track which branch color to use for each lane
-  const laneColors = new Map();
+  const laneColors = new Map<number, string>();
   let nextColorIndex = 0;
 
   commits.forEach((commit, rowIndex) => {
@@ -77,7 +115,7 @@ function computeGraphLayout(commits) {
     lanes[column] = null;
     commitToColumn.set(commit.hash, column);
     
-    const color = laneColors.get(column);
+    const color = laneColors.get(column)!;
     
     // Create node for this commit
     nodes.push({
@@ -95,7 +133,7 @@ function computeGraphLayout(commits) {
     // Reserve lanes for parents
     if (commit.parents && commit.parents.length > 0) {
       commit.parents.forEach((parentHash, parentIndex) => {
-        let parentColumn;
+        let parentColumn: number;
         
         if (parentIndex === 0) {
           // First parent continues in the same lane
@@ -136,7 +174,7 @@ function computeGraphLayout(commits) {
           fromColumn: column,
           toParentHash: parentHash,
           toColumn: parentColumn,
-          color: parentIndex === 0 ? color : laneColors.get(parentColumn),
+          color: parentIndex === 0 ? color : laneColors.get(parentColumn)!,
           isMerge: parentIndex > 0,
         });
       });
@@ -144,9 +182,6 @@ function computeGraphLayout(commits) {
   });
   
   // Resolve connections to parent rows and columns
-  // We need to update toColumn because in branch-out scenarios,
-  // multiple children may reserve different lanes for the same parent,
-  // but the parent will only occupy one actual column.
   connections.forEach(conn => {
     const parentRow = commitToRow.get(conn.toParentHash);
     if (parentRow !== undefined) {
@@ -165,14 +200,15 @@ function computeGraphLayout(commits) {
   return { nodes, connections, maxColumn };
 }
 
+interface ConnectionPathProps {
+  connection: Connection;
+  config: typeof CONFIG;
+}
+
 /**
  * Renders the SVG path for a connection line between commits.
- * Handles straight lines, branch-outs, and merges.
- * 
- * Connection goes from child (fromRow, fromColumn) DOWN to parent (toRow, toColumn).
- * Since we display newest commits at top, child is above parent (fromRow < toRow).
  */
-function ConnectionPath({ connection, config }) {
+function ConnectionPath({ connection, config }: ConnectionPathProps) {
   const { fromRow, fromColumn, toRow, toColumn, color } = connection;
   
   if (toRow === undefined) {
@@ -222,7 +258,6 @@ function ConnectionPath({ connection, config }) {
     );
   } else {
     // Multiple rows apart - use an S-curve with vertical segments
-    // Go down from child, curve to parent's column, then continue to parent
     const curveStartY = startY + config.rowHeight * 0.3;
     const curveEndY = endY - config.rowHeight * 0.3;
     
@@ -242,10 +277,17 @@ function ConnectionPath({ connection, config }) {
   }
 }
 
+interface CommitNodeProps {
+  node: GraphNode;
+  config: typeof CONFIG;
+  isSelected: boolean;
+  onSelect: (hash: string) => void;
+}
+
 /**
  * Renders a single commit node (circle) in the graph.
  */
-function CommitNode({ node, config, isSelected, onSelect }) {
+function CommitNode({ node, config, isSelected, onSelect }: CommitNodeProps) {
   const x = config.leftPadding + node.column * config.columnWidth;
   const y = node.row * config.rowHeight + config.rowHeight / 2;
   
@@ -263,10 +305,18 @@ function CommitNode({ node, config, isSelected, onSelect }) {
   );
 }
 
+interface CommitInfoProps {
+  node: GraphNode;
+  x: number;
+  config: typeof CONFIG;
+  isSelected: boolean;
+  onSelect: (hash: string) => void;
+}
+
 /**
  * Renders commit info (message, author, date) next to the graph.
  */
-const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSelect }) {
+const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSelect }: CommitInfoProps) {
   const y = node.row * config.rowHeight + config.rowHeight / 2;
   
   // Calculate refs display
@@ -318,16 +368,23 @@ const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSel
   );
 });
 
+interface GitGraphProps {
+  commits: Commit[];
+  selectedHash?: string | null;
+  onSelectCommit?: (hash: string | null) => void;
+  className?: string;
+}
+
 /**
  * Main GitGraph component.
  */
-function GitGraph({ commits, selectedHash, onSelectCommit, className }) {
+function GitGraph({ commits, selectedHash, onSelectCommit, className }: GitGraphProps) {
   const { nodes, connections, maxColumn } = useMemo(
     () => computeGraphLayout(commits),
     [commits]
   );
   
-  const handleSelect = useCallback((hash) => {
+  const handleSelect = useCallback((hash: string) => {
     if (onSelectCommit) {
       onSelectCommit(hash === selectedHash ? null : hash);
     }

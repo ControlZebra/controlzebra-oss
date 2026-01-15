@@ -2,7 +2,7 @@
  * Sonner Toaster - Toast notification component with countdown progress.
  * Wraps sonner library with custom styling that respects theme.
  */
-import { Toaster as Sonner } from "sonner";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
 import {
   CircleCheck,
   Info,
@@ -14,7 +14,7 @@ import { useLayout } from "../../context";
 
 const TOAST_DURATION = 5000;
 
-function Toaster(props) {
+function Toaster(props: ToasterProps) {
   const { theme } = useLayout();
   
   // Determine effective theme (resolve 'system' to actual preference)
@@ -24,7 +24,7 @@ function Toaster(props) {
     
   return (
     <Sonner
-      theme={effectiveTheme}
+      theme={effectiveTheme as "light" | "dark"}
       className="toaster group"
       duration={TOAST_DURATION}
       position="top-center"

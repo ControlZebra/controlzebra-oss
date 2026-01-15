@@ -1,5 +1,5 @@
 /**
- * recentFolders.js - Manage recently opened folders in localStorage.
+ * recentFolders.ts - Manage recently opened folders in localStorage.
  * 
  * Keeps track of the last N folders opened by the user.
  * Stored as a simple array of path strings, most recent first.
@@ -13,13 +13,13 @@ export const MAX_RECENT_DISPLAY = MAX_RECENT;
 
 /**
  * Get the list of recent folders.
- * @returns {string[]} Array of folder paths, most recent first.
+ * @returns Array of folder paths, most recent first.
  */
-export function getRecentFolders() {
+export function getRecentFolders(): string[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
-    const parsed = JSON.parse(stored);
+    const parsed: unknown = JSON.parse(stored);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -29,9 +29,9 @@ export function getRecentFolders() {
 /**
  * Add a folder to the recent list.
  * Moves to top if already present, removes oldest if at max.
- * @param {string} path - The folder path to add.
+ * @param path - The folder path to add.
  */
-export function addRecentFolder(path) {
+export function addRecentFolder(path: string): void {
   if (!path) return;
   
   try {
@@ -56,9 +56,9 @@ export function addRecentFolder(path) {
 
 /**
  * Remove a folder from the recent list.
- * @param {string} path - The folder path to remove.
+ * @param path - The folder path to remove.
  */
-export function removeRecentFolder(path) {
+export function removeRecentFolder(path: string): void {
   if (!path) return;
   
   try {
@@ -73,7 +73,7 @@ export function removeRecentFolder(path) {
 /**
  * Clear all recent folders.
  */
-export function clearRecentFolders() {
+export function clearRecentFolders(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch (err) {
@@ -84,10 +84,10 @@ export function clearRecentFolders() {
 /**
  * Get a display name for a folder path.
  * Returns the last segment of the path.
- * @param {string} path - The full folder path.
- * @returns {string} The folder name.
+ * @param path - The full folder path.
+ * @returns The folder name.
  */
-export function getFolderName(path) {
+export function getFolderName(path: string): string {
   if (!path) return '';
   const parts = path.split(/[/\\]/);
   return parts[parts.length - 1] || path;

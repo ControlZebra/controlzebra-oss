@@ -4,7 +4,7 @@
  * Shows indeterminate spinner initially, then progress bar when percentage is available.
  */
 import * as React from "react";
-import { memo, useEffect, useState, useCallback, useRef } from "react";
+import { memo, useEffect, useState, useRef } from "react";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Events } from "@wailsio/runtime";
 import { cn } from "../../lib/utils";
@@ -13,16 +13,27 @@ import { Progress } from "./progress";
 // Debounce interval for progress updates (ms)
 const DEBOUNCE_MS = 50;
 
+interface ProgressEventData {
+  operationId: string;
+  phase?: string;
+  percent?: number;
+  message?: string;
+  isComplete?: boolean;
+  success?: boolean;
+  error?: string;
+}
+
+interface ProgressModalProps {
+  isOpen: boolean;
+  operationId: string;
+  title?: string;
+  onComplete?: (success: boolean, error?: string) => void;
+}
+
 /**
  * ProgressModal - Displays a blocking modal during git operations.
- *
- * Props:
- * - isOpen: boolean - Whether the modal is visible
- * - operationId: string - Unique ID to filter progress events
- * - title: string - Operation title (e.g., "Syncing with remote")
- * - onComplete: (success: boolean, error?: string) => void - Called when operation completes
  */
-function ProgressModal({ isOpen, operationId, title = "Processing...", onComplete }) {
+function ProgressModal({ isOpen, operationId, title = "Processing...", onComplete }: ProgressModalProps) {
   const [phase, setPhase] = useState("starting");
   const [percent, setPercent] = useState(-1); // -1 = indeterminate
   const [message, setMessage] = useState("Initializing...");
@@ -32,7 +43,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
 
   // Debounce ref
   const lastUpdateRef = useRef(0);
-  const pendingUpdateRef = useRef(null);
+  const pendingUpdateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset state when modal opens with new operation
   useEffect(() => {
@@ -50,7 +61,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
   useEffect(() => {
     if (!isOpen || !operationId) return;
 
-    const handleProgress = (event) => {
+    const handleProgress = (event: { data: ProgressEventData }) => {
       const data = event.data;
 
       // Only handle events for our operation
@@ -83,7 +94,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
       // Handle completion
       if (data.isComplete) {
         setIsComplete(true);
-        setSuccess(data.success);
+        setSuccess(data.success ?? false);
         if (data.error) setError(data.error);
 
         // Clear any pending debounced update

@@ -7,14 +7,31 @@ import {
   Pencil,
   Trash2,
   HelpCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import { FILE_STATUS, FILE_STATUS_COLORS, ICON_SIZES } from '../constants';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface IconStyle {
+  width: number;
+  height: number;
+}
+
+export interface StatusConfigItem {
+  Icon: LucideIcon;
+  className: string;
+  label: string;
+  shortLabel: string;
+}
 
 // ============================================================================
 // Icon Style Objects
 // Centralized icon styles to avoid recreating objects on each render.
 // ============================================================================
-export const ICON_STYLES = {
+export const ICON_STYLES: Record<string, IconStyle> = {
   xs: { width: ICON_SIZES.xs, height: ICON_SIZES.xs },
   sm: { width: ICON_SIZES.sm, height: ICON_SIZES.sm },
   md: { width: ICON_SIZES.md, height: ICON_SIZES.md },
@@ -27,7 +44,7 @@ export const ICON_STYLES = {
 // File Status Configuration
 // Maps file status types to their visual representation.
 // ============================================================================
-export const STATUS_CONFIG = {
+export const STATUS_CONFIG: Record<string, StatusConfigItem> = {
   [FILE_STATUS.ADDED]: { 
     Icon: Plus, 
     className: FILE_STATUS_COLORS[FILE_STATUS.ADDED], 
@@ -68,10 +85,10 @@ export const STATUS_CONFIG = {
  * Generate default branch name from user info.
  * Format: [username]/[YYYY-MMM-DD]/changes
  * 
- * @param {string} userName - User's name or email
- * @returns {string} Generated branch name
+ * @param userName - User's name or email
+ * @returns Generated branch name
  */
-export function generateDefaultBranchName(userName) {
+export function generateDefaultBranchName(userName: string): string {
   // Extract username from email (remove domain) or use name
   let user = 'user';
   if (userName) {
@@ -99,11 +116,11 @@ export function generateDefaultBranchName(userName) {
 /**
  * Shorten a file path macOS-style: .../parent/file.ext
  * 
- * @param {string} fullPath - The full file path
- * @param {number} maxLength - Maximum length of the result
- * @returns {string} Shortened path
+ * @param fullPath - The full file path
+ * @param maxLength - Maximum length of the result
+ * @returns Shortened path
  */
-export function shortenPath(fullPath, maxLength = 30) {
+export function shortenPath(fullPath: string, maxLength: number = 30): string {
   if (!fullPath || fullPath.length <= maxLength) return fullPath;
   
   const parts = fullPath.split('/').filter(Boolean);
@@ -129,10 +146,10 @@ export function shortenPath(fullPath, maxLength = 30) {
 /**
  * Extract folder name from a path.
  * 
- * @param {string} path - Full path
- * @returns {string} Just the folder/file name
+ * @param path - Full path
+ * @returns Just the folder/file name
  */
-export function getFolderNameFromPath(path) {
+export function getFolderNameFromPath(path: string): string {
   if (!path) return '';
   return path.split('/').pop() || path;
 }
