@@ -331,18 +331,6 @@ export function ContinueCherryPick(repoPath) {
 }
 
 /**
- * ContinueRebase continues an in-progress rebase after conflicts are resolved.
- * This should be called after the user resolves conflicts and stages the changes.
- * @param {string} repoPath
- * @returns {$CancellablePromise<$models.OperationResult>}
- */
-export function ContinueRebase(repoPath) {
-    return $Call.ByID(3466209024, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
-    }));
-}
-
-/**
  * ContinueRevert continues the revert after conflicts are resolved.
  * Runs: git revert --continue
  * @param {string} repoPath
@@ -585,18 +573,6 @@ export function GetParentBranch(repoPath) {
 export function GetProtectedBranches(repoPath) {
     return $Call.ByID(648498583, repoPath).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType3($result);
-    }));
-}
-
-/**
- * GetRebaseProgress returns information about the current rebase progress.
- * This helps users understand where they are in a multi-commit rebase.
- * @param {string} repoPath
- * @returns {$CancellablePromise<{ [_: string]: any }>}
- */
-export function GetRebaseProgress(repoPath) {
-    return $Call.ByID(3394304404, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
     }));
 }
 
@@ -865,8 +841,9 @@ export function ResetSoftHead(repoPath, n, confirm) {
 
 /**
  * ResolveConflictKeepBoth resolves a conflict by keeping both versions.
- * The local version stays as-is, and the incoming version is saved with a _COPY suffix.
- * For example: file.txt keeps local, creates file_COPY.txt with their version.
+ * The incoming (theirs) version keeps the original filename.
+ * The local (mine) version is saved with a timestamp suffix to avoid collisions.
+ * For example: file.txt becomes incoming version, file_COPY_20260115_143052.txt is local version.
  * @param {string} repoPath
  * @param {string} filePath
  * @returns {$CancellablePromise<$models.OperationResult>}
@@ -976,18 +953,6 @@ export function SkipAMPatch(repoPath) {
  */
 export function SkipCherryPickCommit(repoPath) {
     return $Call.ByID(1767693211, repoPath).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
-    }));
-}
-
-/**
- * SkipRebaseCommit skips the current commit in an in-progress rebase.
- * Use this when the current commit's changes are no longer needed.
- * @param {string} repoPath
- * @returns {$CancellablePromise<$models.OperationResult>}
- */
-export function SkipRebaseCommit(repoPath) {
-    return $Call.ByID(1957011319, repoPath).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
     }));
 }

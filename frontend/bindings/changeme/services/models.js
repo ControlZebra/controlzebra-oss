@@ -1869,7 +1869,8 @@ export class MergeOptions {
 /**
  * MergeState represents the current repository operation state.
  * Extended to detect all common "stuck" states that can confuse users.
- * Priority for display: Locked > Merge/Rebase > Cherry-Pick > Revert > Bisect > AM > Detached HEAD
+ * Priority for display: Locked > Merge > Cherry-Pick > Revert > Bisect > AM > Rebase (abort-only) > Detached HEAD
+ * Note: Rebase is detected for abort purposes only - users should abort and use merge workflow instead.
  */
 export class MergeState {
     /**
@@ -1879,7 +1880,7 @@ export class MergeState {
     constructor($$source = {}) {
         if (!("inMerge" in $$source)) {
             /**
-             * Original merge/rebase states
+             * Core merge state
              * @member
              * @type {boolean}
              */
@@ -1887,6 +1888,7 @@ export class MergeState {
         }
         if (!("inRebase" in $$source)) {
             /**
+             * Detected for abort only - rebase workflow is deprecated
              * @member
              * @type {boolean}
              */

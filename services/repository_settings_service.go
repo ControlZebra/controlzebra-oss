@@ -909,15 +909,6 @@ func (r *RepositorySettingsService) AbortMerge(repoPath string) OperationResult 
 	return successOp("Merge aborted successfully")
 }
 
-// AbortRebase aborts an in-progress rebase
-func (r *RepositorySettingsService) AbortRebase(repoPath string) OperationResult {
-	result := r.runner.RunGit(repoPath, "rebase", "--abort")
-	if !result.Success {
-		return failedOp("Failed to abort rebase: " + result.Stderr)
-	}
-	return successOp("Rebase aborted successfully")
-}
-
 // AbortCherryPick aborts an in-progress cherry-pick
 func (r *RepositorySettingsService) AbortCherryPick(repoPath string) OperationResult {
 	result := r.runner.RunGit(repoPath, "cherry-pick", "--abort")

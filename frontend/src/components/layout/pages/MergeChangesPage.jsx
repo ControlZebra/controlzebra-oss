@@ -26,6 +26,8 @@ import {
   FolderOpen,
   RotateCcw,
   SkipForward,
+  Play,
+  FileWarning,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { Button } from '../../ui';
@@ -146,7 +148,97 @@ const CheckPanel = memo(function CheckPanel({
 });
 
 // ============================================================================
-// STEP 2a: Clean Merge (No Conflicts)
+// STEP 1b: Conflict Check Results (shown after dry-run, before starting merge)
+// ============================================================================
+const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
+  sourceBranch,
+  targetBranch,
+  hasConflicts,
+  conflictCount,
+  conflictedFiles = [],
+  onStartMerge,
+  onCancel,
+  isProcessing,
+  isSquashMerge,
+}) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md w-full">
+        {hasConflicts ? (
+          <>
+            <AlertTriangle style={iconLg} className="text-orange-400 mx-auto mb-4" />
+            <h2 className="text-theme-primary text-xl font-semibold mb-2">
+              {conflictCount} Conflict{conflictCount !== 1 ? 's' : ''} Detected
+            </h2>
+            <p className="text-theme-muted text-sm mb-6">
+              Merging <span className="text-blue-400 font-medium">{sourceBranch}</span> into{' '}
+              <span className="text-green-400 font-medium">{targetBranch}</span> will require
+              resolving {conflictCount} file conflict{conflictCount !== 1 ? 's' : ''}.
+            </p>
+            
+            {/* Preview of conflicted files */}
+            <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-6 text-left">
+              <p className="text-theme-muted text-xs uppercase tracking-wide mb-2">Files with conflicts:</p>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {conflictedFiles.map((file) => (
+                  <div key={file.path} className="flex items-center gap-2 py-1">
+                    <FileWarning style={iconSm} className="text-orange-400 shrink-0" />
+                    <span className="text-theme-primary text-sm truncate">{file.path}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4 text-left">
+              <p className="text-orange-400 text-xs">
+                <strong>Note:</strong> Starting the merge will modify your working directory.
+                You'll need to resolve each conflict before completing the merge.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
+            <h2 className="text-theme-primary text-xl font-semibold mb-2">
+              No Conflicts Detected
+            </h2>
+            <p className="text-theme-muted text-sm mb-6">
+              You can safely merge <span className="text-blue-400 font-medium">{sourceBranch}</span> into{' '}
+              <span className="text-green-400 font-medium">{targetBranch}</span>.
+            </p>
+            
+            {isSquashMerge && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4 text-left">
+                <p className="text-blue-400 text-xs">
+                  <strong>Squash merge:</strong> All commits from {sourceBranch} will be combined into a single commit.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-center">
+          <Button onClick={onCancel} variant="outline" disabled={isProcessing}>
+            <X style={iconSm} className="mr-2" />
+            Cancel
+          </Button>
+          <Button onClick={onStartMerge} disabled={isProcessing}>
+            {isProcessing ? (
+              <Loader2 style={iconSm} className="animate-spin mr-2" />
+            ) : (
+              <Play style={iconSm} className="mr-2" />
+            )}
+            Start {isSquashMerge ? 'Squash Merge' : 'Merge'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// STEP 2a: Clean Merge (No Conflicts) - shown after merge is started
 // ============================================================================
 const CleanMergePanel = memo(function CleanMergePanel({
   sourceBranch,
@@ -560,102 +652,6 @@ const NoRepoPanel = memo(function NoRepoPanel() {
 });
 
 // ============================================================================
-// REBASE RECOVERY PANEL
-// Shown when the repository has an interrupted rebase operation
-// ============================================================================
-const RebaseRecoveryPanel = memo(function RebaseRecoveryPanel({
-  onAbort,
-  isProcessing,
-  hasConflicts,
-  conflictedFiles = [],
-  onSelectFile,
-}) {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-lg w-full">
-        <div className="relative mx-auto mb-4 w-16 h-16">
-          <AlertTriangle style={iconLg} className="text-orange-400" />
-        </div>
-        
-        <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          Interrupted Rebase
-        </h2>
-        
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 mb-6 text-left">
-          <p className="text-orange-400 text-sm mb-3">
-            A rebase operation was interrupted, possibly from an external tool or a previous session.
-            This can happen when conflicts occur during a rebase and aren't fully resolved.
-          </p>
-          
-          {hasConflicts && conflictedFiles.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-orange-500/20">
-              <p className="text-orange-400 text-xs font-medium mb-2">
-                {conflictedFiles.length} file{conflictedFiles.length !== 1 ? 's' : ''} need attention:
-              </p>
-              <ul className="space-y-1">
-                {conflictedFiles.slice(0, 5).map(file => (
-                  <li key={file.path}>
-                    <button
-                      onClick={() => onSelectFile(file.path)}
-                      className="text-orange-300 text-xs hover:text-orange-200 hover:underline text-left truncate max-w-full"
-                    >
-                      {file.path}
-                    </button>
-                  </li>
-                ))}
-                {conflictedFiles.length > 5 && (
-                  <li className="text-orange-400/60 text-xs">
-                    ...and {conflictedFiles.length - 5} more
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-6">
-          <h3 className="text-theme-primary text-sm font-medium mb-3">What would you like to do?</h3>
-          
-          <div className="space-y-3">
-            <div className="p-3 bg-theme-base rounded-lg">
-              <div className="flex items-start gap-3">
-                <RotateCcw style={iconSm} className="text-red-400 mt-0.5 shrink-0" />
-                <div className="flex-1 text-left">
-                  <p className="text-theme-primary text-sm font-medium">Abort Rebase</p>
-                  <p className="text-theme-muted text-xs">
-                    Cancel the rebase and return to your previous branch state.
-                    This is the safest option if you're unsure what happened.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-3 justify-center">
-          <Button
-            onClick={onAbort}
-            variant="destructive"
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <Loader2 style={iconSm} className="animate-spin mr-2" />
-            ) : (
-              <X style={iconSm} className="mr-2" />
-            )}
-            Abort Rebase
-          </Button>
-        </div>
-
-        <p className="text-theme-muted text-xs mt-4">
-          Tip: After aborting, your working directory will return to the state before the rebase started.
-        </p>
-      </div>
-    </div>
-  );
-});
-
-// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -671,7 +667,8 @@ function MergeChangesPage() {
     setSelectedConflictFile,
     detectedParentBranch,
     fetchParentBranch,
-    checkBranchConflicts,
+    checkConflictsOnly,
+    startMerge,
     clearConflicts,
     fileResolutions = {},
     resolveConflict,
@@ -715,14 +712,23 @@ function MergeChangesPage() {
   // because currentBranch changes to target after StartMerge
   const effectiveSource = conflictCheckResult?.sourceBranch || currentBranch;
 
-  // Handle check for conflicts
+  // Handle check for conflicts (dry-run only - does NOT start merge)
   const handleCheck = useCallback(async () => {
     setError(null);
-    const result = await checkBranchConflicts(targetBranch);
+    const result = await checkConflictsOnly(targetBranch);
     if (result && !result.success) {
       setError(result.error || 'Failed to check for conflicts');
     }
-  }, [targetBranch, checkBranchConflicts]);
+  }, [targetBranch, checkConflictsOnly]);
+
+  // Handle start merge (actually begins the merge process)
+  const handleStartMerge = useCallback(async () => {
+    setError(null);
+    const result = await startMerge(targetBranch);
+    if (!result) {
+      setError('Failed to start merge');
+    }
+  }, [targetBranch, startMerge]);
 
   // Handle file resolution
   const handleResolve = useCallback(async (filePath, strategy) => {
@@ -760,20 +766,6 @@ function MergeChangesPage() {
     return <NoRepoPanel />;
   }
 
-  // Interrupted rebase detected - show recovery UI
-  // This takes priority over normal merge workflow
-  if (mergeState?.inRebase && !conflictCheckResult) {
-    return (
-      <RebaseRecoveryPanel
-        onAbort={handleAbort}
-        isProcessing={isResolvingConflict}
-        hasConflicts={mergeState.hasConflicts}
-        conflictedFiles={conflictedFiles}
-        onSelectFile={setSelectedConflictFile}
-      />
-    );
-  }
-
   // Loading state
   if (isCheckingConflicts) {
     return (
@@ -806,8 +798,26 @@ function MergeChangesPage() {
     return <SuccessPanel message="Merge completed automatically." onDismiss={handleDismiss} />;
   }
 
-  // Clean merge (no conflicts)
-  if (conflictCheckResult?.success && !conflictCheckResult?.hasConflicts && conflictedFiles.length === 0) {
+  // Check complete but merge NOT started yet - show results with "Start Merge" button
+  // This is the key decoupling: user can see conflicts without mutating working tree
+  if (conflictCheckResult?.success && !conflictCheckResult?.mergeStarted) {
+    return (
+      <ConflictCheckResultPanel
+        sourceBranch={effectiveSource}
+        targetBranch={effectiveTarget}
+        hasConflicts={conflictCheckResult?.hasConflicts}
+        conflictCount={conflictCheckResult?.conflictedFiles?.length || conflictedFiles.length}
+        conflictedFiles={conflictCheckResult?.conflictedFiles || conflictedFiles}
+        onStartMerge={handleStartMerge}
+        onCancel={handleDismiss}
+        isProcessing={isCheckingConflicts}
+        isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
+      />
+    );
+  }
+
+  // Clean merge - merge started, no conflicts (show complete panel)
+  if (conflictCheckResult?.success && conflictCheckResult?.mergeStarted && !conflictCheckResult?.hasConflicts && conflictedFiles.length === 0) {
     return (
       <CleanMergePanel
         sourceBranch={effectiveSource}
