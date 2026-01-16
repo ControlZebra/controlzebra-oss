@@ -176,7 +176,7 @@ const CheckPanel = memo(function CheckPanel({
               onClick={() => setShowSelector(!showSelector)}
               className="flex items-center gap-2 text-theme-muted text-xs hover:text-theme-secondary"
             >
-              <span>Target: <span className="text-theme-primary">{targetBranch || 'main'}</span></span>
+              <span>Destination Branch: <span className="text-theme-primary">{targetBranch || 'main'}</span></span>
               <ChevronDown style={{ width: 12, height: 12 }} className={showSelector ? 'rotate-180' : ''} />
             </button>
             
@@ -197,8 +197,8 @@ const CheckPanel = memo(function CheckPanel({
           {/* Squash merge toggle */}
           <div className="flex items-center justify-between py-2 px-3 bg-theme-base rounded-lg">
             <div className="text-left">
-              <p className="text-theme-primary text-sm font-medium">Squash commits</p>
-              <p className="text-theme-muted text-xs">Combine all commits into one</p>
+              <p className="text-theme-primary text-sm font-medium">Squash commits (Recommended)</p>
+              <p className="text-theme-muted text-xs">Better for larger files and cleaner history</p>
             </div>
             <button
               onClick={() => onSquashChange(!isSquashMerge)}
