@@ -5,6 +5,7 @@ export type {
   RepoContextValue,
   RepoInfo,
   RepoStatus,
+  FileStatus,
   GraphCommit,
   CommitDetail,
   BranchList,
