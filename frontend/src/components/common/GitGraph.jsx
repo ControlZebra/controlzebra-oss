@@ -7,17 +7,19 @@
  * - Branch and tag labels (refs)
  * - Commit nodes with connection lines
  * - Click to select commit for details
+ * - Light/dark theme support via CSS variables
+ * - Proper text overflow handling
  */
 import { memo, useMemo, useCallback } from 'react';
 
 // Graph configuration
 const CONFIG = {
-  nodeRadius: 6,
+  nodeRadius: 5,
   lineWidth: 2,
-  columnWidth: 16,
-  rowHeight: 32,
-  leftPadding: 12,
-  labelPadding: 8,
+  columnWidth: 14,
+  rowHeight: 56, // Increased for two-line layout
+  leftPadding: 8,
+  graphWidth: 80, // Fixed width for the graph area
 };
 
 // Color palette for branches (cycling)
@@ -166,6 +168,88 @@ function computeGraphLayout(commits) {
 }
 
 /**
+ * Renders commit info (message, author, date) next to the graph.
+ * Uses HTML elements for proper text handling and theme support.
+ */
+const CommitRow = memo(function CommitRow({ node, isSelected, onSelect }) {
+  // Format refs for display - separate branch names and tags
+  const branchRefs = node.refs.filter(ref => !ref.startsWith('tag:'));
+  const tagRefs = node.refs.filter(ref => ref.startsWith('tag:')).map(ref => ref.replace('tag: ', ''));
+  
+  return (
+    <div
+      className={`
+        group flex items-start gap-2 px-2 py-1.5 cursor-pointer rounded-md mx-1 w-full
+        transition-colors duration-150
+        ${isSelected 
+          ? 'bg-blue-500/15 ring-1 ring-blue-500/30 dark:bg-blue-500/20 dark:ring-blue-500/30' 
+          : 'hover:bg-theme-subtle'
+        }
+      `}
+      onClick={() => onSelect(node.hash)}
+      title={`${node.hash}\n${node.message}`}
+    >
+      <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+        {/* First line: refs + message */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* Branch refs */}
+          {branchRefs.length > 0 && (
+            <div className="flex items-center gap-1 shrink-0">
+              {branchRefs.slice(0, 2).map((ref, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded
+                    bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400
+                    max-w-[80px] truncate"
+                  title={ref}
+                >
+                  {ref}
+                </span>
+              ))}
+              {branchRefs.length > 2 && (
+                <span className="text-[10px] text-theme-muted">+{branchRefs.length - 2}</span>
+              )}
+            </div>
+          )}
+          {/* Tag refs */}
+          {tagRefs.length > 0 && (
+            <div className="flex items-center gap-1 shrink-0">
+              {tagRefs.slice(0, 1).map((ref, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded
+                    bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400
+                    max-w-[60px] truncate"
+                  title={ref}
+                >
+                  {ref}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Commit message */}
+          <span className={`
+            text-sm truncate min-w-0 flex-1
+            ${isSelected ? 'text-theme-primary font-medium' : 'text-theme-primary'}
+          `}>
+            {node.message}
+          </span>
+        </div>
+        
+        {/* Second line: hash + author + date */}
+        <div className="flex items-center gap-1.5 text-xs text-theme-muted truncate">
+          <span className="font-mono text-theme-secondary shrink-0">{node.shortHash}</span>
+          <span className="shrink-0">•</span>
+          <span className="truncate min-w-0">{node.author}</span>
+          <span className="shrink-0">•</span>
+          <span className="shrink-0 text-theme-muted whitespace-nowrap">{node.relativeDate}</span>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+/**
  * Renders the SVG path for a connection line between commits.
  * Handles straight lines, branch-outs, and merges.
  * 
@@ -245,7 +329,7 @@ function ConnectionPath({ connection, config }) {
 /**
  * Renders a single commit node (circle) in the graph.
  */
-function CommitNode({ node, config, isSelected, onSelect }) {
+function CommitNode({ node, config, isSelected }) {
   const x = config.leftPadding + node.column * config.columnWidth;
   const y = node.row * config.rowHeight + config.rowHeight / 2;
   
@@ -256,70 +340,15 @@ function CommitNode({ node, config, isSelected, onSelect }) {
       r={config.nodeRadius}
       fill={isSelected ? '#fff' : node.color}
       stroke={node.color}
-      strokeWidth={isSelected ? 3 : 2}
-      className="cursor-pointer transition-all"
-      onClick={() => onSelect(node.hash)}
+      strokeWidth={isSelected ? 2.5 : 2}
+      className="transition-all"
     />
   );
 }
 
 /**
- * Renders commit info (message, author, date) next to the graph.
- */
-const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSelect }) {
-  const y = node.row * config.rowHeight + config.rowHeight / 2;
-  
-  // Calculate refs display
-  const refsDisplay = node.refs.length > 0 
-    ? `[${node.refs.join(', ')}] ` 
-    : '';
-  
-  return (
-    <g 
-      className={`cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
-      onClick={() => onSelect(node.hash)}
-    >
-      {/* Refs labels inline */}
-      {node.refs.length > 0 && (
-        <text
-          x={x}
-          y={y + 4}
-          fill="#60a5fa"
-          fontSize={12}
-          fontFamily="monospace"
-          fontWeight="500"
-        >
-          [{node.refs.join(', ')}]
-        </text>
-      )}
-      
-      {/* Commit message */}
-      <text
-        x={x + (node.refs.length > 0 ? (refsDisplay.length * 7) : 0)}
-        y={y + 4}
-        fill={isSelected ? '#fff' : '#d1d5db'}
-        fontSize={13}
-        fontFamily="system-ui, -apple-system, sans-serif"
-      >
-        {node.shortHash} {node.message.substring(0, 50)}{node.message.length > 50 ? '...' : ''}
-      </text>
-      
-      {/* Author and date on second line */}
-      <text
-        x={x}
-        y={y + 18}
-        fill="#6b7280"
-        fontSize={11}
-        fontFamily="system-ui, -apple-system, sans-serif"
-      >
-        {node.author} • {node.relativeDate}
-      </text>
-    </g>
-  );
-});
-
-/**
  * Main GitGraph component.
+ * Uses hybrid layout: single SVG for graph lines/nodes, HTML rows for commit text.
  */
 function GitGraph({ commits, selectedHash, onSelectCommit, className }) {
   const { nodes, connections, maxColumn } = useMemo(
@@ -341,50 +370,60 @@ function GitGraph({ commits, selectedHash, onSelectCommit, className }) {
     );
   }
   
-  const graphWidth = CONFIG.leftPadding + (maxColumn + 1) * CONFIG.columnWidth + CONFIG.labelPadding;
+  const graphSvgWidth = CONFIG.leftPadding + (maxColumn + 1) * CONFIG.columnWidth + 8;
   const totalHeight = commits.length * CONFIG.rowHeight;
   
   return (
-    <div className={`overflow-auto ${className || ''}`}>
-      <svg
-        width="100%"
-        height={totalHeight}
-        style={{ minWidth: '400px' }}
-      >
-        {/* Connection lines (render first, behind nodes) */}
-        <g className="connections">
-          {connections.map((conn, idx) => (
-            <ConnectionPath key={idx} connection={conn} config={CONFIG} />
-          ))}
-        </g>
+    <div className={`overflow-y-auto overflow-x-hidden ${className || ''}`}>
+      <div className="flex">
+        {/* Graph column - fixed width with single SVG for all connections */}
+        <div 
+          className="shrink-0 relative"
+          style={{ width: `${graphSvgWidth}px`, height: `${totalHeight}px` }}
+        >
+          <svg
+            width={graphSvgWidth}
+            height={totalHeight}
+            className="absolute inset-0"
+          >
+            {/* Connection lines (render first, behind nodes) */}
+            <g className="connections">
+              {connections.map((conn, idx) => (
+                <ConnectionPath key={idx} connection={conn} config={CONFIG} />
+              ))}
+            </g>
+            
+            {/* Commit nodes */}
+            <g className="nodes">
+              {nodes.map(node => (
+                <CommitNode
+                  key={node.hash}
+                  node={node}
+                  config={CONFIG}
+                  isSelected={node.hash === selectedHash}
+                />
+              ))}
+            </g>
+          </svg>
+        </div>
         
-        {/* Commit nodes */}
-        <g className="nodes">
-          {nodes.map(node => (
-            <CommitNode
+        {/* Commit info column - flexible width with overflow handling */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {nodes.map((node) => (
+            <div 
               key={node.hash}
-              node={node}
-              config={CONFIG}
-              isSelected={node.hash === selectedHash}
-              onSelect={handleSelect}
-            />
+              style={{ height: `${CONFIG.rowHeight}px` }}
+              className="flex items-center"
+            >
+              <CommitRow
+                node={node}
+                isSelected={node.hash === selectedHash}
+                onSelect={handleSelect}
+              />
+            </div>
           ))}
-        </g>
-        
-        {/* Commit info (message, author, etc.) */}
-        <g className="commit-info">
-          {nodes.map(node => (
-            <CommitInfo
-              key={node.hash}
-              node={node}
-              x={graphWidth}
-              config={CONFIG}
-              isSelected={node.hash === selectedHash}
-              onSelect={handleSelect}
-            />
-          ))}
-        </g>
-      </svg>
+        </div>
+      </div>
     </div>
   );
 }

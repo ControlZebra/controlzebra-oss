@@ -19,6 +19,9 @@ import {
   RotateCcw,
   Search,
   FileText,
+  CheckCircle2,
+  Plus,
+  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../../constants';
@@ -58,7 +61,16 @@ import {
   AbortAM,
   AbortCurrentOperation,
 } from '../../../../../bindings/changeme/services/gitservice';
-import { BackgroundTaskType } from '../../../../../bindings/changeme/services/models';
+import {
+  IsLFSInstalled,
+  IsLFSEnabled,
+  InitializeLFS,
+  GetPresetPatterns,
+  GetTrackedPatterns,
+  TrackPattern,
+  UntrackPattern,
+} from '../../../../../bindings/changeme/services/lfsservice';
+import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../../bindings/changeme/services/models';
 
 // ============================================================================
 // Types
@@ -460,11 +472,48 @@ const RemoteSyncPanel = memo(function RemoteSyncPanel({ settings, onUpdate, repo
 
 // ============================================================================
 // Large Files (LFS) Panel
-// Combines: LFS settings + LFS background fetch task
+// Combines: LFS initialization + settings + tracked patterns + background fetch
 // ============================================================================
+
+interface LFSStatusState {
+  isInstalled: boolean;
+  isEnabled: boolean;
+  version?: string;
+  hasError: boolean;
+  error?: string;
+  loading: boolean;
+}
+
+interface LFSPanelState {
+  presetPatterns: PresetPattern[];
+  trackedPatterns: TrackedPattern[];
+  selectedPresets: Set<string>;
+  customPattern: string;
+  isInitializing: boolean;
+  isAddingPattern: boolean;
+}
+
 const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repoPath }: PanelProps): JSX.Element {
   const [taskStatuses, setTaskStatuses] = useState<TaskStatuses>({});
   const [runningTask, setRunningTask] = useState<BackgroundTaskType | null>(null);
+  
+  // LFS status state
+  const [lfsStatus, setLfsStatus] = useState<LFSStatusState>({
+    isInstalled: false,
+    isEnabled: false,
+    loading: true,
+    hasError: false,
+  });
+  
+  // LFS panel state for patterns
+  const [panelState, setPanelState] = useState<LFSPanelState>({
+    presetPatterns: [],
+    trackedPatterns: [],
+    selectedPresets: new Set<string>(),
+    customPattern: '',
+    isInitializing: false,
+    isAddingPattern: false,
+  });
 
   const lfsSettings: LFSSettings = settings.lfsSettings || { 
     autoFetch: true, 
@@ -472,6 +521,48 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
     autoPrune: false, 
     pruneKeepDays: 30 
   };
+
+  // Check LFS installation and enabled status
+  const checkLFSStatus = useCallback(async (): Promise<void> => {
+    try {
+      setLfsStatus(prev => ({ ...prev, loading: true }));
+      
+      const [isInstalled, lfsInfo, presets, tracked] = await Promise.all([
+        IsLFSInstalled(),
+        IsLFSEnabled(repoPath),
+        GetPresetPatterns(),
+        GetTrackedPatterns(repoPath).catch(() => []),
+      ]);
+      
+      setLfsStatus({
+        isInstalled,
+        isEnabled: lfsInfo.enabled,
+        version: lfsInfo.version,
+        hasError: lfsInfo.hasError,
+        error: lfsInfo.error,
+        loading: false,
+      });
+      
+      setPanelState(prev => ({
+        ...prev,
+        presetPatterns: presets || [],
+        trackedPatterns: tracked || [],
+      }));
+    } catch (err) {
+      console.error('Failed to check LFS status:', err);
+      setLfsStatus({
+        isInstalled: false,
+        isEnabled: false,
+        loading: false,
+        hasError: true,
+        error: err instanceof Error ? err.message : 'Failed to check LFS status',
+      });
+    }
+  }, [repoPath]);
+
+  useEffect(() => {
+    checkLFSStatus();
+  }, [checkLFSStatus]);
 
   const fetchStatuses = useCallback(async (): Promise<void> => {
     try {
@@ -487,6 +578,84 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
     const interval = setInterval(fetchStatuses, 10000);
     return () => clearInterval(interval);
   }, [fetchStatuses]);
+
+  // Initialize LFS for the repository
+  const handleInitializeLFS = async (): Promise<void> => {
+    setPanelState(prev => ({ ...prev, isInitializing: true }));
+    try {
+      const result = await InitializeLFS(repoPath);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to initialize LFS');
+        return;
+      }
+      
+      // If there are selected presets, track them
+      const selectedPatterns = Array.from(panelState.selectedPresets);
+      for (const pattern of selectedPatterns) {
+        await TrackPattern(repoPath, pattern);
+      }
+      
+      toast.success(`Git LFS enabled${selectedPatterns.length > 0 ? ` with ${selectedPatterns.length} tracked patterns` : ''}`);
+      await checkLFSStatus();
+      onUpdate();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to initialize LFS: ${errorMessage}`);
+    } finally {
+      setPanelState(prev => ({ ...prev, isInitializing: false }));
+    }
+  };
+
+  // Toggle a preset pattern selection
+  const handleTogglePreset = (pattern: string): void => {
+    setPanelState(prev => {
+      const newSelected = new Set(prev.selectedPresets);
+      if (newSelected.has(pattern)) {
+        newSelected.delete(pattern);
+      } else {
+        newSelected.add(pattern);
+      }
+      return { ...prev, selectedPresets: newSelected };
+    });
+  };
+
+  // Add a new pattern (when LFS is already enabled)
+  const handleAddPattern = async (pattern: string): Promise<void> => {
+    if (!pattern.trim()) return;
+    
+    setPanelState(prev => ({ ...prev, isAddingPattern: true }));
+    try {
+      const result = await TrackPattern(repoPath, pattern.trim());
+      if (!result.success) {
+        toast.error(result.error || 'Failed to track pattern');
+        return;
+      }
+      toast.success(`Now tracking "${pattern}"`);
+      setPanelState(prev => ({ ...prev, customPattern: '' }));
+      await checkLFSStatus();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to track pattern: ${errorMessage}`);
+    } finally {
+      setPanelState(prev => ({ ...prev, isAddingPattern: false }));
+    }
+  };
+
+  // Remove a tracked pattern
+  const handleRemovePattern = async (pattern: string): Promise<void> => {
+    try {
+      const result = await UntrackPattern(repoPath, pattern);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to untrack pattern');
+        return;
+      }
+      toast.success(`Stopped tracking "${pattern}"`);
+      await checkLFSStatus();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to untrack pattern: ${errorMessage}`);
+    }
+  };
 
   const handleTaskToggle = async (taskType: BackgroundTaskType, enabled: boolean): Promise<void> => {
     try {
@@ -549,8 +718,287 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
     }
   };
 
+  // Group presets by category
+  const presetsByCategory = panelState.presetPatterns.reduce<Record<string, PresetPattern[]>>((acc, preset) => {
+    const category = preset.category || 'other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(preset);
+    return acc;
+  }, {});
+
+  const categoryLabels: Record<string, string> = {
+    industrial: 'Industrial Automation',
+    archives: 'Archives',
+    cad: 'CAD/CAM',
+    media: 'Media Files',
+    documents: 'Documents',
+    other: 'Other',
+  };
+
+  // Loading state
+  if (lfsStatus.loading) {
+    return (
+      <div className="space-y-4">
+        <Card className="bg-theme-base">
+          <CardContent className="py-8">
+            <div className="flex items-center justify-center gap-2 text-theme-muted">
+              <RefreshCw style={iconStyle} className="animate-spin" />
+              <span>Checking LFS status...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // LFS not installed
+  if (!lfsStatus.isInstalled) {
+    return (
+      <div className="space-y-4">
+        <Card className="bg-theme-base border-yellow-500/30">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle style={iconStyle} className="text-yellow-500" />
+              <CardTitle className="text-yellow-500">Git LFS Not Installed</CardTitle>
+            </div>
+            <CardDescription>
+              Git Large File Storage (LFS) is not installed on your system. LFS is required to efficiently 
+              manage large binary files like industrial automation projects, CAD files, and images.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-theme-secondary rounded-lg p-4 space-y-2">
+              <p className="text-theme-primary text-sm font-medium">To install Git LFS:</p>
+              <div className="space-y-1">
+                <p className="text-theme-muted text-sm">• <strong>macOS:</strong> <code className="bg-theme-base px-1.5 py-0.5 rounded text-xs">brew install git-lfs</code></p>
+                <p className="text-theme-muted text-sm">• <strong>Windows:</strong> Download from <code className="bg-theme-base px-1.5 py-0.5 rounded text-xs">git-lfs.com</code></p>
+                <p className="text-theme-muted text-sm">• <strong>Linux:</strong> <code className="bg-theme-base px-1.5 py-0.5 rounded text-xs">apt install git-lfs</code> or <code className="bg-theme-base px-1.5 py-0.5 rounded text-xs">yum install git-lfs</code></p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={checkLFSStatus}
+                className="mt-3"
+              >
+                <RefreshCw style={iconStyleSm} />
+                Check Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // LFS installed but not enabled for this repo
+  if (!lfsStatus.isEnabled) {
+    return (
+      <div className="space-y-4">
+        {/* Enable LFS Card */}
+        <Card className="bg-theme-base">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <HardDrive style={iconStyle} className="text-theme-muted" />
+              <div>
+                <CardTitle>Enable Large File Support</CardTitle>
+                {lfsStatus.version && (
+                  <Badge variant="outline" className="mt-1 text-xs">
+                    {lfsStatus.version}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <CardDescription>
+              Git LFS helps you manage large files like industrial automation projects (*.acd, *.L5X), 
+              CAD files, and other binary formats. Enable LFS to keep your repository fast and efficient.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Preset pattern selection */}
+            <div className="space-y-3">
+              <p className="text-theme-primary text-sm font-medium">
+                Select file types to track with LFS (optional):
+              </p>
+              
+              {Object.entries(presetsByCategory).map(([category, patterns]) => (
+                <div key={category} className="space-y-2">
+                  <p className="text-theme-muted text-xs uppercase tracking-wide">
+                    {categoryLabels[category] || category}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {patterns.map((preset) => {
+                      const isSelected = panelState.selectedPresets.has(preset.pattern);
+                      return (
+                        <button
+                          key={preset.pattern}
+                          onClick={() => handleTogglePreset(preset.pattern)}
+                          className={`
+                            flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs
+                            transition-colors border
+                            ${isSelected 
+                              ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
+                              : 'bg-theme-secondary border-theme-default text-theme-muted hover:border-theme-hover hover:text-theme-primary'
+                            }
+                          `}
+                          title={preset.description}
+                        >
+                          {isSelected && <Check style={{ width: 12, height: 12 }} />}
+                          {preset.pattern}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              
+              {panelState.selectedPresets.size > 0 && (
+                <p className="text-theme-muted text-xs">
+                  {panelState.selectedPresets.size} pattern{panelState.selectedPresets.size !== 1 ? 's' : ''} selected
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                onClick={handleInitializeLFS}
+                disabled={panelState.isInitializing}
+                loading={panelState.isInitializing}
+              >
+                <Zap style={iconStyleSm} />
+                Enable LFS
+              </Button>
+              <p className="text-theme-muted text-xs">
+                You can add more file patterns later
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // LFS is enabled - show full settings
   return (
     <div className="space-y-4">
+      {/* LFS Status */}
+      <Card className="bg-theme-base">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 style={iconStyle} className="text-green-500" />
+              <CardTitle>Large File Support Enabled</CardTitle>
+            </div>
+            {lfsStatus.version && (
+              <Badge variant="outline" className="text-xs">
+                {lfsStatus.version}
+              </Badge>
+            )}
+          </div>
+          <CardDescription>
+            Git LFS is active for this repository. Large binary files will be stored efficiently.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {/* Tracked Patterns */}
+      <Card className="bg-theme-base">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <FileText style={iconStyle} className="text-theme-muted" />
+            <CardTitle>Tracked File Patterns</CardTitle>
+          </div>
+          <CardDescription>
+            These file patterns are being managed by Git LFS. Add patterns for large files 
+            that shouldn't be stored directly in the repository.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Current tracked patterns */}
+          {panelState.trackedPatterns.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {panelState.trackedPatterns.map((tracked) => (
+                <Badge 
+                  key={tracked.pattern} 
+                  variant="outline"
+                  className="flex items-center gap-1 px-2 py-1"
+                >
+                  <HardDrive style={{ width: 12, height: 12 }} />
+                  {tracked.pattern}
+                  <button
+                    onClick={() => handleRemovePattern(tracked.pattern)}
+                    className="ml-1 hover:text-red-400 transition-colors"
+                    title="Stop tracking this pattern"
+                  >
+                    ×
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-theme-muted text-sm">
+              No file patterns are being tracked yet. Add patterns below.
+            </p>
+          )}
+
+          {/* Add new pattern */}
+          <div className="space-y-3 pt-2 border-t border-theme-default">
+            <p className="text-theme-primary text-sm font-medium pt-2">Add Pattern</p>
+            
+            {/* Quick add from presets */}
+            <div className="space-y-2">
+              <p className="text-theme-muted text-xs">Quick add from presets:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {panelState.presetPatterns
+                  .filter(p => !panelState.trackedPatterns.some(t => t.pattern === p.pattern))
+                  .slice(0, 12)
+                  .map((preset) => (
+                    <button
+                      key={preset.pattern}
+                      onClick={() => handleAddPattern(preset.pattern)}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs
+                        bg-theme-secondary border border-theme-default text-theme-muted 
+                        hover:border-theme-hover hover:text-theme-primary transition-colors"
+                      title={preset.description}
+                      disabled={panelState.isAddingPattern}
+                    >
+                      <Plus style={{ width: 10, height: 10 }} />
+                      {preset.pattern}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* Custom pattern input */}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="*.custom or path/to/files/*"
+                value={panelState.customPattern}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => 
+                  setPanelState(prev => ({ ...prev, customPattern: e.target.value }))
+                }
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter') {
+                    handleAddPattern(panelState.customPattern);
+                  }
+                }}
+                className="flex-1 h-8 text-sm"
+                disabled={panelState.isAddingPattern}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddPattern(panelState.customPattern)}
+                disabled={!panelState.customPattern.trim() || panelState.isAddingPattern}
+                loading={panelState.isAddingPattern}
+              >
+                <Plus style={iconStyleSm} />
+                Add
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* LFS auto-download task */}
       <BackgroundTaskCard
         taskType={BackgroundTaskType.TaskLFSFetch}
