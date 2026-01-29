@@ -230,8 +230,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       
       const folderName = path.split('/').pop();
       if (info.isRepo) {
-        showMessage('success', `Opened repository: ${folderName}`);
-        
         try {
           const state = await GetMergeState(path);
           if (state.inMerge || state.inRebase) {
@@ -248,8 +246,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
         } catch (err) {
           console.error('Failed to check merge state:', err);
         }
-      } else {
-        showMessage('info', `Opened folder: ${folderName} (no version control)`);
       }
       
       try {
@@ -790,8 +786,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       if (result.hasConflicts) {
         setConflictedFiles((result.conflictedFiles || []) as ConflictedFile[]);
         showMessage('info', `Found ${result.conflictedFiles?.length || 0} potential conflict(s) when merging ${source} → ${target}`);
-      } else {
-        showMessage('success', `No conflicts detected - ready to merge ${source} into ${target}`);
       }
       
       setIsCheckingConflicts(false);

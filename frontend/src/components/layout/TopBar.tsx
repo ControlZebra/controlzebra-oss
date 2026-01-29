@@ -29,6 +29,7 @@ import {
   AlertDialogCancel,
 } from '../ui';
 import BranchModal from './BranchModal';
+import RewindConfirmModal from './RewindConfirmModal';
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -49,6 +50,7 @@ function TopBar(): JSX.Element {
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [isRewinding, setIsRewinding] = useState(false);
 
   const handleSync = useCallback(async (): Promise<void> => {
     await syncRepo();
@@ -59,7 +61,15 @@ function TopBar(): JSX.Element {
   }, [undoLastCommit]);
 
   const handleDiscard = useCallback(async (): Promise<void> => {
-    await discardAllChanges();
+    setIsRewinding(true);
+    try {
+      const success = await discardAllChanges();
+      if (success) {
+        setDiscardDialogOpen(false);
+      }
+    } finally {
+      setIsRewinding(false);
+    }
   }, [discardAllChanges]);
 
   // Derive display values from repo state
@@ -170,23 +180,12 @@ function TopBar(): JSX.Element {
       </AlertDialog>
 
       {/* Discard Changes Confirmation */}
-      <AlertDialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard All Changes?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently discard all your uncommitted changes.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDiscard}>
-              Discard All
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RewindConfirmModal
+        open={discardDialogOpen}
+        onClose={() => setDiscardDialogOpen(false)}
+        onConfirm={handleDiscard}
+        isLoading={isRewinding}
+      />
     </>
   );
 }
