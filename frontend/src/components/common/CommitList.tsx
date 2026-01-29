@@ -98,18 +98,18 @@ const CommitListItem = memo(function CommitListItem({
             transition-colors duration-100
             focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500
             ${isSelected
-              ? 'bg-blue-600/20 text-blue-300'
-              : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+              ? 'bg-blue-600/20 text-blue-600 dark:text-blue-300'
+              : 'text-theme-secondary hover:bg-theme-muted hover:text-theme-primary'
             }
           `}
         >
           <div className="flex items-center gap-1.5 min-w-0">
             {/* Compact time */}
-            <span className="text-gray-500 shrink-0 w-6 text-right">
+            <span className="text-theme-muted shrink-0 w-6 text-right">
               {shortTime}
             </span>
             
-            <span className="text-gray-600">·</span>
+            <span className="text-theme-muted/60">·</span>
             
             {/* Message with CSS truncation - automatically adapts to container width */}
             <span className="truncate flex-1 min-w-0">
@@ -122,14 +122,14 @@ const CommitListItem = memo(function CommitListItem({
       <TooltipContent side="right" align="start" className="max-w-xs">
         <div className="space-y-1.5">
           {/* Full message */}
-          <p className="font-medium text-gray-100 break-words">
+          <p className="font-medium text-theme-primary break-words">
             {firstLineMessage}
           </p>
           
           {/* Meta info */}
-          <div className="flex flex-col gap-0.5 text-gray-400">
+          <div className="flex flex-col gap-0.5 text-theme-secondary">
             <span>{commit.author}</span>
-            <span className="font-mono text-gray-500">{commit.shortHash}</span>
+            <span className="font-mono text-theme-muted">{commit.shortHash}</span>
             <span>{commit.relativeDate}</span>
           </div>
           
@@ -139,7 +139,7 @@ const CommitListItem = memo(function CommitListItem({
               {commit.refs!.map((ref) => (
                 <span
                   key={ref}
-                  className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs"
+                  className="px-1.5 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-300 rounded text-xs"
                 >
                   {ref}
                 </span>
@@ -173,7 +173,7 @@ function CommitList({
   if (!commits || commits.length === 0) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-gray-500 text-sm">No commit history</p>
+        <p className="text-theme-muted text-sm">No commit history</p>
       </div>
     );
   }

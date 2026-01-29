@@ -1,17 +1,23 @@
 /**
- * ExplorerPage - Main area showing file browser or welcome screen.
+ * ExplorerPage - Main area showing tabs with file browser and opened files.
  * 
- * When no folder is open: Shows welcome screen with open folder option
- * When folder is open: Shows SimpleFileBrowser (lightweight, no external dependencies)
+ * Features:
+ * - Tabs bar at the top with file browser as pinned tab
+ * - File browser shows when that tab is active
+ * - File content shows when file tabs are active
+ * - When no folder is open: Shows welcome screen
  */
 import { memo, useState, useCallback } from 'react';
-import { useRepo } from '../../../../context';
+import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/changeme/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
+import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
+import FileContentViewer from '../../../common/FileContentViewer';
 
 function ExplorerPage(): JSX.Element {
   const { repoPath, openRepo } = useRepo();
+  const { activeExplorerTab, explorerTabs } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
   const handleOpenFolder = useCallback(async (): Promise<void> => {
@@ -38,8 +44,32 @@ function ExplorerPage(): JSX.Element {
     );
   }
 
-  // Folder open - show SimpleFileBrowser
-  return <SimpleFileBrowser repoPath={repoPath} />;
+  // Find the active tab
+  const activeTab = explorerTabs.find(tab => tab.id === activeExplorerTab);
+
+  // Render content based on active tab type
+  const renderContent = (): JSX.Element => {
+    if (!activeTab || activeTab.type === 'file-browser') {
+      return <SimpleFileBrowser repoPath={repoPath} />;
+    }
+
+    // File tab - show file content
+    if (activeTab.filePath) {
+      return <FileContentViewer filePath={activeTab.filePath} />;
+    }
+
+    return <SimpleFileBrowser repoPath={repoPath} />;
+  };
+
+  // Folder open - show tabs and content
+  return (
+    <div className="flex flex-col h-full">
+      <ExplorerTabsBar />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {renderContent()}
+      </div>
+    </div>
+  );
 }
 
 export default memo(ExplorerPage);

@@ -68,6 +68,15 @@ export function OpenInTerminal(path: string): $CancellablePromise<$models.OpenFi
 }
 
 /**
+ * ReadTextFile reads the content of a text file
+ */
+export function ReadTextFile(path: string): $CancellablePromise<$models.ReadTextFileResult> {
+    return $Call.ByID(2092725219, path).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
  * RevealInFinder opens the containing folder in the system file manager and selects the file
  */
 export function RevealInFinder(path: string): $CancellablePromise<$models.OpenFileResult> {
@@ -79,3 +88,4 @@ export function RevealInFinder(path: string): $CancellablePromise<$models.OpenFi
 // Private type creation functions
 const $$createType0 = $models.OpenFileResult.createFrom;
 const $$createType1 = $models.DirectoryContents.createFrom;
+const $$createType2 = $models.ReadTextFileResult.createFrom;

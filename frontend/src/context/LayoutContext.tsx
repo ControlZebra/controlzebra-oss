@@ -16,7 +16,14 @@ import {
   useEffect,
   type ReactNode 
 } from 'react';
-import { VIEWS, BOTTOM_PANELS, type ViewType, type BottomPanelType } from '../constants';
+import { 
+  VIEWS, 
+  BOTTOM_PANELS, 
+  FILE_BROWSER_TAB,
+  type ViewType, 
+  type BottomPanelType,
+  type ExplorerTab 
+} from '../constants';
 
 // ============================================================================
 // Types
@@ -50,6 +57,13 @@ interface LayoutContextValue {
   // Repository Settings
   selectedRepoSettingsCategory: string;
   setSelectedRepoSettingsCategory: (category: string) => void;
+  
+  // Explorer Tabs
+  explorerTabs: ExplorerTab[];
+  activeExplorerTab: string;
+  openExplorerTab: (tab: ExplorerTab) => void;
+  closeExplorerTab: (tabId: string) => void;
+  setActiveExplorerTab: (tabId: string) => void;
   
   // Theme
   theme: Theme;
@@ -87,6 +101,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   // Repository settings category state (for repo-specific settings view)
   const [selectedRepoSettingsCategory, setSelectedRepoSettingsCategory] = useState('remote-sync');
   
+  // Explorer tabs state - file browser is always the first (pinned) tab
+  const [explorerTabs, setExplorerTabs] = useState<ExplorerTab[]>([FILE_BROWSER_TAB]);
+  const [activeExplorerTab, setActiveExplorerTab] = useState<string>(FILE_BROWSER_TAB.id);
+  
   // Theme state
   const [theme, setTheme] = useState<Theme>('system');
 
@@ -117,6 +135,39 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   const toggleSidebar = useCallback(() => setSidebarCollapsed(prev => !prev), []);
   const toggleBottomPanel = useCallback(() => setBottomPanelCollapsed(prev => !prev), []);
 
+  // Explorer tab handlers
+  const openExplorerTab = useCallback((tab: ExplorerTab) => {
+    setExplorerTabs(prev => {
+      // Check if tab already exists
+      const existingTab = prev.find(t => t.id === tab.id);
+      if (existingTab) {
+        return prev;
+      }
+      // Add new tab
+      return [...prev, tab];
+    });
+    setActiveExplorerTab(tab.id);
+  }, []);
+
+  const closeExplorerTab = useCallback((tabId: string) => {
+    setExplorerTabs(prev => {
+      const tab = prev.find(t => t.id === tabId);
+      // Cannot close pinned tabs
+      if (tab?.isPinned) return prev;
+      
+      const newTabs = prev.filter(t => t.id !== tabId);
+      return newTabs;
+    });
+    
+    // If closing active tab, switch to file browser
+    setActiveExplorerTab(prev => {
+      if (prev === tabId) {
+        return FILE_BROWSER_TAB.id;
+      }
+      return prev;
+    });
+  }, []);
+
   // Memoized context value to prevent unnecessary re-renders
   const value = useMemo<LayoutContextValue>(() => ({
     // Sidebar
@@ -145,6 +196,13 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     selectedRepoSettingsCategory,
     setSelectedRepoSettingsCategory,
     
+    // Explorer Tabs
+    explorerTabs,
+    activeExplorerTab,
+    openExplorerTab,
+    closeExplorerTab,
+    setActiveExplorerTab,
+    
     // Theme
     theme,
     setTheme,
@@ -157,6 +215,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     activeBottomPanel,
     selectedSettingsCategory,
     selectedRepoSettingsCategory,
+    explorerTabs,
+    activeExplorerTab,
+    openExplorerTab,
+    closeExplorerTab,
     theme, 
     toggleSidebar, 
     toggleBottomPanel

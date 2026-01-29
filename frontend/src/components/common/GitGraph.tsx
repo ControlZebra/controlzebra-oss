@@ -396,17 +396,17 @@ const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSel
               transition-colors duration-100
               focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500
               ${isSelected
-                ? 'text-blue-300'
-                : 'text-gray-400 hover:text-gray-200'
+                ? 'text-blue-600 dark:text-blue-300'
+                : 'text-theme-secondary hover:text-theme-primary'
               }
             `}
           >
             {/* Compact time */}
-            <span className="text-gray-500 shrink-0 w-6 text-right">
+            <span className="text-theme-muted shrink-0 w-6 text-right">
               {shortTime}
             </span>
             
-            <span className="text-gray-600">·</span>
+            <span className="text-theme-muted/60">·</span>
             
             {/* Truncated message only (no refs) */}
             <span className="truncate flex-1 min-w-0">
@@ -418,14 +418,14 @@ const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSel
         <TooltipContent side="right" align="start" className="max-w-xs">
           <div className="space-y-1.5">
             {/* Full message */}
-            <p className="font-medium text-gray-100 break-words">
+            <p className="font-medium text-theme-primary break-words">
               {node.message.split('\n')[0]}
             </p>
             
             {/* Meta info */}
-            <div className="flex flex-col gap-0.5 text-gray-400">
+            <div className="flex flex-col gap-0.5 text-theme-secondary">
               <span>{node.author}</span>
-              <span className="font-mono text-gray-500">{node.shortHash}</span>
+              <span className="font-mono text-theme-muted">{node.shortHash}</span>
               <span>{node.relativeDate}</span>
             </div>
             
@@ -435,7 +435,7 @@ const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSel
                 {node.refs.map((ref) => (
                   <span
                     key={ref}
-                    className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs"
+                    className="px-1.5 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-300 rounded text-xs"
                   >
                     {ref}
                   </span>

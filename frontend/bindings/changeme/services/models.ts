@@ -1747,6 +1747,32 @@ export class RawDiffResult {
 }
 
 /**
+ * ReadTextFileResult contains the result of reading a text file
+ */
+export class ReadTextFileResult {
+    "success": boolean;
+    "content"?: string;
+    "error"?: string;
+
+    /** Creates a new ReadTextFileResult instance. */
+    constructor($$source: Partial<ReadTextFileResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ReadTextFileResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ReadTextFileResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ReadTextFileResult($$parsedSource as Partial<ReadTextFileResult>);
+    }
+}
+
+/**
  * RecoveryDiagnostics contains information about the repository state
  */
 export class RecoveryDiagnostics {
