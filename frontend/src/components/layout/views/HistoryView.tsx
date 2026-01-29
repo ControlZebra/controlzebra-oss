@@ -52,8 +52,8 @@ function HistoryView(): JSX.Element {
                 onClick={() => setViewMode('list')}
                 className={`p-1 rounded transition-colors ${
                   viewMode === 'list'
-                    ? 'bg-blue-600/20 text-blue-400'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
+                    ? 'bg-blue-600/20 text-blue-500 dark:text-blue-400'
+                    : 'text-theme-secondary hover:text-theme-primary hover:bg-theme-muted'
                 }`}
                 aria-label="Compact list view"
               >
@@ -70,8 +70,8 @@ function HistoryView(): JSX.Element {
                 onClick={() => setViewMode('graph')}
                 className={`p-1 rounded transition-colors ${
                   viewMode === 'graph'
-                    ? 'bg-blue-600/20 text-blue-400'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
+                    ? 'bg-blue-600/20 text-blue-500 dark:text-blue-400'
+                    : 'text-theme-secondary hover:text-theme-primary hover:bg-theme-muted'
                 }`}
                 aria-label="Git graph view"
               >

@@ -135,10 +135,10 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: Com
           <span className={`text-xs uppercase ${statusColors[file.status] || 'text-theme-secondary'}`}>
             {file.status}
           </span>
-          <span className="text-xs text-neutral-500 w-16 text-right">
-            <span className="text-green-400">+{file.additions}</span>
+          <span className="text-xs text-theme-muted w-16 text-right">
+            <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
             {' '}
-            <span className="text-red-400">-{file.deletions}</span>
+            <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>
           </span>
         </button>
       ))}

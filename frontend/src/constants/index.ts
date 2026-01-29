@@ -107,6 +107,57 @@ export const REPO_SETTINGS_CATEGORIES: SettingsCategory[] = [
 ];
 
 // ============================================================================
+// TEXT FILE EXTENSIONS
+// File extensions that can be displayed in the built-in file viewer.
+// Used by file browser to determine if a file should open in a tab or external app.
+// ============================================================================
+export const TEXT_FILE_EXTENSIONS: readonly string[] = [
+  // Code files
+  'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'html', 'xml',
+  'json', 'yaml', 'yml', 'toml',
+  'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
+  // Shell scripts
+  'sh', 'bash', 'zsh', 'fish',
+  // Config files
+  'gitignore', 'gitattributes', 'env', 'ini', 'conf', 'cfg',
+  // Text/docs
+  'txt', 'md', 'log', 'csv',
+  // Other
+  'sql', 'graphql', 'vue', 'svelte',
+] as const;
+
+/**
+ * Check if a file can be displayed as text based on its name.
+ * @param fileName - The file name to check
+ * @returns boolean - true if the file is likely a text file
+ */
+export function isTextFile(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return TEXT_FILE_EXTENSIONS.includes(ext) ||
+         fileName.startsWith('.') || // Dotfiles like .gitignore
+         !ext; // Files without extension
+}
+
+// ============================================================================
+// EXPLORER TABS
+// Tab types for the explorer main area with file browser as pinned tab.
+// ============================================================================
+export interface ExplorerTab {
+  id: string;
+  title: string;
+  type: 'file-browser' | 'file';
+  filePath?: string;
+  isPinned?: boolean;
+}
+
+export const FILE_BROWSER_TAB: ExplorerTab = {
+  id: 'file-browser',
+  title: 'Explorer',
+  type: 'file-browser',
+  isPinned: true,
+};
+
+// ============================================================================
 // PROTECTED BRANCHES
 // Default protected branch names. These branches trigger nudges/warnings.
 // Can be overridden by repository settings.

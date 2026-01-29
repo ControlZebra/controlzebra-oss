@@ -33,9 +33,10 @@ import {
   ListDirectoryWithOptions, 
   OpenFile,
 } from '../../../bindings/changeme/services/filesystemservice';
-import { useRepo } from '../../context';
+import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
+import { isTextFile, type ExplorerTab } from '../../constants';
 
 // Git status color classes
 const GIT_STATUS_COLORS: Record<string, string> = {
@@ -323,7 +324,8 @@ interface FileItemGridProps {
  */
 function FileItemGrid({ file, gitStatus, onDoubleClick }: FileItemGridProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
-  const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
+  // Only apply git status color to files, not folders
+  const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
   return (
     <button
@@ -360,7 +362,8 @@ interface FileItemListProps {
  */
 function FileItemList({ file, gitStatus, onDoubleClick }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
-  const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
+  // Only apply git status color to files, not folders
+  const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
   return (
     <button
@@ -439,6 +442,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   const { repoStatus } = useRepo();
+  const { openExplorerTab } = useLayout();
 
   // Reset current path when repo changes
   useEffect(() => {
@@ -514,16 +518,30 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     if (file.isDirectory) {
       setCurrentPath(file.path);
     } else {
-      try {
-        const result = await OpenFile(file.path);
-        if (!result.success) {
-          toast.error(`Failed to open file: ${result.error}`);
+      // Check if it's a text file we can display in a tab
+      if (isTextFile(file.name)) {
+        // Open in a tab
+        const tab: ExplorerTab = {
+          id: file.path,
+          title: file.name,
+          type: 'file',
+          filePath: file.path,
+          isPinned: false,
+        };
+        openExplorerTab(tab);
+      } else {
+        // Open binary/non-text files with default application
+        try {
+          const result = await OpenFile(file.path);
+          if (!result.success) {
+            toast.error(`Failed to open file: ${result.error}`);
+          }
+        } catch {
+          toast.error('Failed to open file');
         }
-      } catch {
-        toast.error('Failed to open file');
       }
     }
-  }, []);
+  }, [openExplorerTab]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {

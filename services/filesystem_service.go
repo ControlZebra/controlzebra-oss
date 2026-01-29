@@ -134,6 +134,63 @@ type OpenFileResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// ReadTextFileResult contains the result of reading a text file
+type ReadTextFileResult struct {
+	Success bool   `json:"success"`
+	Content string `json:"content,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ReadTextFile reads the content of a text file
+func (f *FileSystemService) ReadTextFile(path string) ReadTextFileResult {
+	if path == "" {
+		return ReadTextFileResult{
+			Success: false,
+			Error:   "Path is required",
+		}
+	}
+
+	// Check if file exists
+	info, err := os.Stat(path)
+	if err != nil {
+		return ReadTextFileResult{
+			Success: false,
+			Error:   "File does not exist",
+		}
+	}
+
+	// Check if it's a directory
+	if info.IsDir() {
+		return ReadTextFileResult{
+			Success: false,
+			Error:   "Path is a directory, not a file",
+		}
+	}
+
+	// Limit file size to 10MB to prevent memory issues
+	const maxSize = 10 * 1024 * 1024
+	if info.Size() > maxSize {
+		return ReadTextFileResult{
+			Success: false,
+			Error:   "File is too large to display (max 10MB)",
+		}
+	}
+
+	// Read file content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return ReadTextFileResult{
+			Success: false,
+			Error:   "Failed to read file: " + err.Error(),
+		}
+	}
+
+	return ReadTextFileResult{
+		Success: true,
+		Content: string(content),
+	}
+}
+
 // OpenFile opens a file with the default application
 func (f *FileSystemService) OpenFile(path string) OpenFileResult {
 	if path == "" {
