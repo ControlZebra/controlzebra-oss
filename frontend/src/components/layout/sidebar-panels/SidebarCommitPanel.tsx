@@ -5,7 +5,7 @@
 import { memo, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
 import {
   FileText,
-  RotateCcw,
+  Trash2,
   ChevronDown,
   GitBranch,
 } from 'lucide-react';
@@ -228,7 +228,7 @@ function SidebarCommitPanel({
             size="sm"
             title="Discard all changes"
           >
-            <RotateCcw style={ICON_STYLES.xs as CSSProperties} />
+            <Trash2 style={ICON_STYLES.xs as CSSProperties} />
           </Button>
         </div>
       </div>
