@@ -4,11 +4,65 @@
  * 
  * Features:
  * - Visual branch lines with colors
- * - Branch and tag labels (refs)
  * - Commit nodes with connection lines
  * - Click to select commit for details
+ * - Compact commit info with hover tooltips
+ * - Smart message truncation based on sidebar width
  */
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useRef, useState, useEffect } from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui';
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Shorten relative date to a compact format.
+ * "2 hours ago" → "2h"
+ */
+function shortenRelativeDate(relativeDate: string): string {
+  const patterns: [RegExp, string][] = [
+    [/^(\d+)\s+seconds?\s+ago$/, '$1s'],
+    [/^(\d+)\s+minutes?\s+ago$/, '$1m'],
+    [/^(\d+)\s+hours?\s+ago$/, '$1h'],
+    [/^(\d+)\s+days?\s+ago$/, '$1d'],
+    [/^(\d+)\s+weeks?\s+ago$/, '$1w'],
+    [/^(\d+)\s+months?\s+ago$/, '$1mo'],
+    [/^(\d+)\s+years?\s+ago$/, '$1y'],
+    [/^yesterday$/i, '1d'],
+    [/^last week$/i, '1w'],
+    [/^last month$/i, '1mo'],
+    [/^last year$/i, '1y'],
+  ];
+
+  for (const [pattern, replacement] of patterns) {
+    if (pattern.test(relativeDate)) {
+      return relativeDate.replace(pattern, replacement);
+    }
+  }
+  return relativeDate.slice(0, 3);
+}
+
+/**
+ * Smart truncate message based on available width.
+ * Assumes ~7px per character for monospace font at text-xs size.
+ */
+function truncateMessage(message: string, availableWidth: number): string {
+  const firstLine = message.split('\n')[0].trim();
+  // Approximate character width for text-xs monospace (~7px per char)
+  const charWidth = 7;
+  // Account for time (6ch ~42px) + separator (1ch ~7px) + padding (~16px)
+  const reservedWidth = 65;
+  const maxChars = Math.max(8, Math.floor((availableWidth - reservedWidth) / charWidth));
+  
+  if (firstLine.length <= maxChars) return firstLine;
+  return firstLine.slice(0, maxChars - 1) + '…';
+}
 
 // Graph configuration
 const CONFIG = {
@@ -311,60 +365,87 @@ interface CommitInfoProps {
   config: typeof CONFIG;
   isSelected: boolean;
   onSelect: (hash: string) => void;
+  availableWidth: number;
 }
 
 /**
- * Renders commit info (message, author, date) next to the graph.
+ * Renders compact commit info with tooltip.
+ * Format: "2h · Fix valve…" (no branch refs, just message)
  */
-const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSelect }: CommitInfoProps) {
-  const y = node.row * config.rowHeight + config.rowHeight / 2;
-  
-  // Calculate refs display
-  const refsDisplay = node.refs.length > 0 
-    ? `[${node.refs.join(', ')}] ` 
-    : '';
+const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSelect, availableWidth }: CommitInfoProps) {
+  const y = node.row * config.rowHeight;
+  const shortTime = shortenRelativeDate(node.relativeDate);
+  const truncatedMessage = truncateMessage(node.message, availableWidth);
+  const hasRefs = node.refs.length > 0;
   
   return (
-    <g 
-      className={`cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
-      onClick={() => onSelect(node.hash)}
+    <foreignObject
+      x={x}
+      y={y}
+      width={Math.max(100, availableWidth)}
+      height={config.rowHeight}
+      className="overflow-visible"
     >
-      {/* Refs labels inline */}
-      {node.refs.length > 0 && (
-        <text
-          x={x}
-          y={y + 4}
-          fill="#60a5fa"
-          fontSize={12}
-          fontFamily="monospace"
-          fontWeight="500"
-        >
-          [{node.refs.join(', ')}]
-        </text>
-      )}
-      
-      {/* Commit message */}
-      <text
-        x={x + (node.refs.length > 0 ? (refsDisplay.length * 7) : 0)}
-        y={y + 4}
-        fill={isSelected ? '#fff' : '#d1d5db'}
-        fontSize={13}
-        fontFamily="system-ui, -apple-system, sans-serif"
-      >
-        {node.shortHash} {node.message.substring(0, 50)}{node.message.length > 50 ? '...' : ''}
-      </text>
-      
-      {/* Author and date on second line */}
-      <text
-        x={x}
-        y={y + 18}
-        fill="#6b7280"
-        fontSize={11}
-        fontFamily="system-ui, -apple-system, sans-serif"
-      >
-        {node.author} • {node.relativeDate}
-      </text>
-    </g>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => onSelect(node.hash)}
+            className={`
+              w-full h-full flex items-center gap-1.5 text-left text-xs font-mono px-1
+              transition-colors duration-100
+              focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500
+              ${isSelected
+                ? 'text-blue-300'
+                : 'text-gray-400 hover:text-gray-200'
+              }
+            `}
+          >
+            {/* Compact time */}
+            <span className="text-gray-500 shrink-0 w-6 text-right">
+              {shortTime}
+            </span>
+            
+            <span className="text-gray-600">·</span>
+            
+            {/* Truncated message only (no refs) */}
+            <span className="truncate flex-1 min-w-0">
+              {truncatedMessage}
+            </span>
+          </button>
+        </TooltipTrigger>
+        
+        <TooltipContent side="right" align="start" className="max-w-xs">
+          <div className="space-y-1.5">
+            {/* Full message */}
+            <p className="font-medium text-gray-100 break-words">
+              {node.message.split('\n')[0]}
+            </p>
+            
+            {/* Meta info */}
+            <div className="flex flex-col gap-0.5 text-gray-400">
+              <span>{node.author}</span>
+              <span className="font-mono text-gray-500">{node.shortHash}</span>
+              <span>{node.relativeDate}</span>
+            </div>
+            
+            {/* Refs shown only in tooltip */}
+            {hasRefs && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {node.refs.map((ref) => (
+                  <span
+                    key={ref}
+                    className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs"
+                  >
+                    {ref}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </foreignObject>
   );
 });
 
@@ -379,6 +460,28 @@ interface GitGraphProps {
  * Main GitGraph component.
  */
 function GitGraph({ commits, selectedHash, onSelectCommit, className }: GitGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(200);
+  
+  // Measure container width for smart truncation
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+    
+    updateWidth();
+    
+    // Use ResizeObserver for responsive width updates
+    const resizeObserver = new ResizeObserver(updateWidth);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    return () => resizeObserver.disconnect();
+  }, []);
+  
   const { nodes, connections, maxColumn } = useMemo(
     () => computeGraphLayout(commits),
     [commits]
@@ -400,49 +503,54 @@ function GitGraph({ commits, selectedHash, onSelectCommit, className }: GitGraph
   
   const graphWidth = CONFIG.leftPadding + (maxColumn + 1) * CONFIG.columnWidth + CONFIG.labelPadding;
   const totalHeight = commits.length * CONFIG.rowHeight;
+  // Available width for commit info = container width - graph area
+  const infoAvailableWidth = Math.max(100, containerWidth - graphWidth - 10);
   
   return (
-    <div className={`overflow-auto ${className || ''}`}>
-      <svg
-        width="100%"
-        height={totalHeight}
-        style={{ minWidth: '400px' }}
-      >
-        {/* Connection lines (render first, behind nodes) */}
-        <g className="connections">
-          {connections.map((conn, idx) => (
-            <ConnectionPath key={idx} connection={conn} config={CONFIG} />
-          ))}
-        </g>
-        
-        {/* Commit nodes */}
-        <g className="nodes">
-          {nodes.map(node => (
-            <CommitNode
-              key={node.hash}
-              node={node}
-              config={CONFIG}
-              isSelected={node.hash === selectedHash}
-              onSelect={handleSelect}
-            />
-          ))}
-        </g>
-        
-        {/* Commit info (message, author, etc.) */}
-        <g className="commit-info">
-          {nodes.map(node => (
-            <CommitInfo
-              key={node.hash}
-              node={node}
-              x={graphWidth}
-              config={CONFIG}
-              isSelected={node.hash === selectedHash}
-              onSelect={handleSelect}
-            />
-          ))}
-        </g>
-      </svg>
-    </div>
+    <TooltipProvider delayDuration={300}>
+      <div ref={containerRef} className={`overflow-auto ${className || ''}`}>
+        <svg
+          width="100%"
+          height={totalHeight}
+          style={{ minWidth: `${graphWidth + 100}px` }}
+        >
+          {/* Connection lines (render first, behind nodes) */}
+          <g className="connections">
+            {connections.map((conn, idx) => (
+              <ConnectionPath key={idx} connection={conn} config={CONFIG} />
+            ))}
+          </g>
+          
+          {/* Commit nodes */}
+          <g className="nodes">
+            {nodes.map(node => (
+              <CommitNode
+                key={node.hash}
+                node={node}
+                config={CONFIG}
+                isSelected={node.hash === selectedHash}
+                onSelect={handleSelect}
+              />
+            ))}
+          </g>
+          
+          {/* Commit info (compact with tooltips) */}
+          <g className="commit-info">
+            {nodes.map(node => (
+              <CommitInfo
+                key={node.hash}
+                node={node}
+                x={graphWidth}
+                config={CONFIG}
+                isSelected={node.hash === selectedHash}
+                onSelect={handleSelect}
+                availableWidth={infoAvailableWidth}
+              />
+            ))}
+          </g>
+        </svg>
+      </div>
+    </TooltipProvider>
   );
 }
 
