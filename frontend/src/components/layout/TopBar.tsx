@@ -9,7 +9,7 @@
  */
 import { memo, useCallback, useState, type CSSProperties } from 'react';
 import {
-  RefreshCw,
+  ArrowUpDown,
   CodeSquare,
   ChevronDown,
   Undo2,
@@ -18,7 +18,6 @@ import {
 import { ICON_SIZES } from '../../constants';
 import { useRepo } from '../../context';
 import { 
-  Button, 
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
@@ -81,75 +80,66 @@ function TopBar(): JSX.Element {
 
   return (
     <>
-      <header className="h-[52px] bg-theme-base border-b border-theme-default flex items-center justify-center px-3 select-none shrink-0 relative">
-        {/* Center: App name / repo name */}
+      <header className="h-[52px] bg-theme-base border-b border-theme-default grid grid-cols-3 items-center px-3 select-none shrink-0">
+        {/* Left: Undo and Discard buttons */}
         <div className="flex items-center gap-2">
-          <span className="text-theme-primary font-semibold text-sm">
-            {repoPath ? repoName : 'Rewind Logic'}
-          </span>
-          
-          {repoPath && isGitRepo && (
-            <span className="text-theme-muted text-xs">• {branchName}</span>
-          )}
-          
-          {repoPath && !isGitRepo && (
-            <span className="text-yellow-500/80 text-xs">• No version control</span>
-          )}
-        </div>
-
-        {/* Right: Action buttons - only show when git repo is active */}
-        <div className="absolute right-3 flex items-center gap-2">
           {repoPath && isGitRepo && (
             <>
               {/* Undo Last Save */}
-              <Button 
-                variant="ghost" 
-                size="sm"
+              <button 
                 onClick={() => setUndoDialogOpen(true)}
                 disabled={!hasCommits}
                 title="Undo Last Save"
+                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
               >
-                <Undo2 style={iconStyle} />
-              </Button>
+                <Undo2 style={iconStyle} className="text-gray-400" />
+              </button>
 
               {/* Discard Changes */}
-              <Button 
-                variant="ghost" 
-                size="sm"
+              <button 
                 onClick={() => setDiscardDialogOpen(true)}
                 disabled={!hasChanges}
                 title="Discard All Changes"
+                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
               >
-                <Trash2 style={iconStyle} />
-              </Button>
-
-              {/* Branch selector dropdown button */}
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={() => setBranchModalOpen(true)}
-              >
-                <CodeSquare style={iconStyle} />
-                <span>{branchName}</span>
-                <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} />
-              </Button>
-
-              {/* Sync button */}
-              <Button 
-                size="sm"
-                onClick={handleSync}
-                loading={isSyncing}
-              >
-                {isSyncing ? (
-                  'Syncing...'
-                ) : (
-                  <>
-                    <RefreshCw style={iconStyle} />
-                    <span>Sync</span>
-                  </>
-                )}
-              </Button>
+                <Trash2 style={iconStyle} className="text-gray-400" />
+              </button>
             </>
+          )}
+        </div>
+
+        {/* Center: Branch selector - compact */}
+        <div className="flex justify-center">
+          <button 
+            onClick={() => repoPath && isGitRepo && setBranchModalOpen(true)}
+            disabled={!repoPath || !isGitRepo}
+            className="flex items-center justify-center gap-2 px-3 py-1.5 h-9 min-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
+          >
+            <CodeSquare style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="text-theme-muted shrink-0" />
+            <span className="text-theme-primary font-medium text-sm truncate text-center">
+              {repoPath && isGitRepo ? branchName : 'No branch'}
+            </span>
+            <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} className="text-theme-muted shrink-0" />
+          </button>
+        </div>
+
+        {/* Right: Sync button */}
+        <div className="flex items-center gap-2 justify-end">
+          {repoPath && isGitRepo && (
+            <button 
+              onClick={handleSync}
+              disabled={isSyncing}
+              title="Sync with Cloud"
+              className="flex items-center justify-center gap-2 h-9 px-3 bg-blue-600 hover:bg-blue-700 border border-blue-500 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+            >
+              <ArrowUpDown 
+                style={iconStyle} 
+                className={`text-white ${isSyncing ? 'animate-pulse' : ''}`} 
+              />
+              <span className="text-white text-sm font-medium">
+                {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
+              </span>
+            </button>
           )}
         </div>
       </header>
