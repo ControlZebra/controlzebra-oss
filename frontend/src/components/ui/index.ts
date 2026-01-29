@@ -44,3 +44,9 @@ export { default as ProgressModal } from "./progress-modal";
 export { Switch } from "./switch";
 export { Textarea } from "./textarea";
 export { Toaster } from "./sonner";
+export {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "./tooltip";
