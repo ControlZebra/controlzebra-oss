@@ -54,13 +54,13 @@ import {
   RepairRepository,
   ResetToDefaults,
   RecoverFromDetachedHead,
-} from '../../../../../bindings/changeme/services/repositorysettingsservice';
+} from '../../../../../bindings/controlzebra/services/repositorysettingsservice';
 import {
   AbortRevert,
   AbortBisect,
   AbortAM,
   AbortCurrentOperation,
-} from '../../../../../bindings/changeme/services/gitservice';
+} from '../../../../../bindings/controlzebra/services/gitservice';
 import {
   IsLFSInstalled,
   IsLFSEnabled,
@@ -69,8 +69,8 @@ import {
   GetTrackedPatterns,
   TrackPattern,
   UntrackPattern,
-} from '../../../../../bindings/changeme/services/lfsservice';
-import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../../bindings/changeme/services/models';
+} from '../../../../../bindings/controlzebra/services/lfsservice';
+import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../../bindings/controlzebra/services/models';
 
 // ============================================================================
 // Types

@@ -9,7 +9,7 @@
  */
 import { memo, useState, useEffect } from 'react';
 import { FileText, AlertCircle } from 'lucide-react';
-import { ReadTextFile } from '../../../bindings/changeme/services/filesystemservice';
+import { ReadTextFile } from '../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../constants';
 
 interface FileContentViewerProps {

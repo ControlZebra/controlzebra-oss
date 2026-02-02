@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the testing approach, conventions, and instructions for running tests in the Rewind Logic backend (Go services).
+This document describes the testing approach, conventions, and instructions for running tests in the ControlZebra backend (Go services).
 
 ## Test Organization
 

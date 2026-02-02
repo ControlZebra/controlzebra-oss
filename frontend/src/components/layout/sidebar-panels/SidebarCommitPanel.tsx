@@ -21,7 +21,7 @@ import {
 } from '../../ui/dropdown-menu';
 import { MasterBranchNudge } from '../../common';
 import { RewindConfirmModal, BranchNameModal } from '../';
-import { GetUserProfile } from '../../../../bindings/changeme/services/settingsservice';
+import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import type { FileStatus } from '../../../context';
 
 // ============================================================================

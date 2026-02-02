@@ -2,7 +2,7 @@
 
 ## Overview
 
-`FileDialogService` provides native file dialog operations for the Rewind Logic desktop app. It wraps Wails v3's dialog API to provide folder selection functionality.
+`FileDialogService` provides native file dialog operations for the ControlZebra desktop app. It wraps Wails v3's dialog API to provide folder selection functionality.
 
 ## Architecture
 

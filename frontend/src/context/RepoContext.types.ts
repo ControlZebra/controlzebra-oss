@@ -2,7 +2,7 @@
  * Type definitions for RepoContext
  * 
  * These types are derived from:
- * - Backend service models (frontend/bindings/changeme/services/models.js)
+ * - Backend service models (frontend/bindings/controlzebra/services/models.js)
  * - Component prop types
  * - React state shape analysis
  */

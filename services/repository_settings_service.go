@@ -1,4 +1,4 @@
-// Package services provides backend functionality for the Rewind Logic application.
+// Package services provides backend functionality for the ControlZebra application.
 // This file contains the RepositorySettingsService which manages repository-level
 // configuration and automatic background tasks like fetch, LFS sync, and maintenance.
 package services
@@ -138,7 +138,7 @@ func NewRepositorySettingsService() *RepositorySettingsService {
 	if err != nil {
 		configDir = "."
 	}
-	settingsDir := filepath.Join(configDir, "rewind-logic", "repositories")
+	settingsDir := filepath.Join(configDir, "control-zebra", "repositories")
 
 	return &RepositorySettingsService{
 		runner:       NewCommandRunner(),

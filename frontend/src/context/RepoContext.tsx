@@ -63,10 +63,10 @@ import {
   SkipAMPatch,
   CreateBranchFromDetached,
   RemoveAllStaleLocks,
-} from '../../bindings/changeme/services/gitservice';
-import { SyncWithProgress } from '../../bindings/changeme/services/progressservice';
-import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
-import { WatchDirectory, StopWatching } from '../../bindings/changeme/services/filewatcherservice';
+} from '../../bindings/controlzebra/services/gitservice';
+import { SyncWithProgress } from '../../bindings/controlzebra/services/progressservice';
+import { GetAppSettings, SaveAppSettings } from '../../bindings/controlzebra/services/settingsservice';
+import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
 

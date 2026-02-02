@@ -8,27 +8,27 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="rewind-logic"
+        Path="control-zebra"
         Arguments=""
-        InstallLocation="C:\Program Files\My Company\My Product">
+        InstallLocation="C:\Program Files\ControlZebra\ControlZebra">
     </Installer>
     <PackageInformation
-        PackageName="My Product"
-        PackageDisplayName="My Product"
-        PublisherName="CN=My Company"
-        PublisherDisplayName="My Company"
+        PackageName="ControlZebra"
+        PackageDisplayName="ControlZebra"
+        PublisherName="CN=ControlZebra"
+        PublisherDisplayName="ControlZebra"
         Version="0.1.0.0"
-        PackageDescription="A rewind-logic application">
+        PackageDescription="A simplified Git client for industrial automation">
         <Capabilities>
             <Capability Name="runFullTrust" />
             
         </Capabilities>
         <Applications>
             <Application
-                Id="com.example.rewindlogic"
-                Description="A rewind-logic application"
-                DisplayName="My Product"
-                ExecutableName="rewind-logic"
+                Id="com.controlzebra.controlzebra"
+                Description="A simplified Git client for industrial automation"
+                DisplayName="ControlZebra"
+                ExecutableName="control-zebra"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -41,13 +41,13 @@
         </Dependencies>
         <Properties>
             <Framework>false</Framework>
-            <DisplayName>My Product</DisplayName>
-            <PublisherDisplayName>My Company</PublisherDisplayName>
-            <Description>A rewind-logic application</Description>
+            <DisplayName>ControlZebra</DisplayName>
+            <PublisherDisplayName>ControlZebra</PublisherDisplayName>
+            <Description>A simplified Git client for industrial automation</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="rewind-logic.msix" />
+    <SaveLocation PackagePath="control-zebra.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

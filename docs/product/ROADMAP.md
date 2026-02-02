@@ -1,4 +1,4 @@
-# Rewind Logic — Roadmap
+# ControlZebra — Roadmap
 
 This roadmap translates product intent into concrete milestones with scope boundaries.
 
@@ -116,7 +116,7 @@ Acceptance criteria:
 Outcome: app identity + team workflows.
 
 Scope (proposed):
-- Rewind Logic account login using existing AgniaVault auth API (PKCE), required only for cloud/collaboration
+- ControlZebra account login using existing AgniaVault auth API (PKCE), required only for cloud/collaboration
 - Project catalog (optional): list accessible projects from backend and associate to local repos
 - Team-shared configuration:
   - centralized YAML config synced via backend
@@ -129,8 +129,8 @@ Scope (proposed):
   - GitLab via `glab`
 
 Notes:
-- Rewind Logic auth is separate from GitHub/GitLab authentication.
-- Local Git usage should work without Rewind Logic login.
+- ControlZebra auth is separate from GitHub/GitLab authentication.
+- Local Git usage should work without ControlZebra login.
 
 Additional collaboration ideas (optional, low-UX overhead):
 - Notifications: backend emits events for “new report uploaded”, “push failed”, “updates available”.
@@ -147,7 +147,7 @@ Additional collaboration ideas (optional, low-UX overhead):
 - For binary parsing diffs, do you want “structured summary” (recommended) or a raw hex diff fallback?
 
 3) Auth + collaboration:
-- Is Rewind Logic auth required to use the app, or only for optional collaboration features?
+- Is ControlZebra auth required to use the app, or only for optional collaboration features?
 
 4) Repo model:
 - Single repo at a time (simpler) or a project list of multiple repos?

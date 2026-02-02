@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Rewind Logic backend is built with Go and provides services that are exposed to the React frontend via Wails v3 bindings. All services are designed for simplicity and reliability, targeting non-technical users in industrial automation.
+The ControlZebra backend is built with Go and provides services that are exposed to the React frontend via Wails v3 bindings. All services are designed for simplicity and reliability, targeting non-technical users in industrial automation.
 
 ## Architecture
 
@@ -64,7 +64,7 @@ Services are registered in `main.go`:
 
 ```go
 app := application.New(application.Options{
-    Name:        "rewind-logic",
+    Name:        "control-zebra",
     Description: "A simplified Git client for industrial automation users",
     Services: []application.Service{
         application.NewService(services.NewGitService()),
@@ -87,7 +87,7 @@ wails3 generate bindings -ts -clean=true
 Frontend usage:
 
 ```typescript
-import { DetectRepo, Status, CommitAll } from '../bindings/changeme/gitservice';
+import { DetectRepo, Status, CommitAll } from '../bindings/controlzebra/gitservice';
 
 // All service methods are available as async functions
 const info = await DetectRepo('/path/to/repo');
@@ -126,7 +126,7 @@ go test ./services/... -v
 2. Create `services/myservice_test.go` with tests
 3. Register in `main.go` under `Services: []application.Service{}`
 4. Run `wails3 generate bindings -ts -clean=true`
-5. Import in frontend from `frontend/bindings/changeme/myservice`
+5. Import in frontend from `frontend/bindings/controlzebra/myservice`
 6. Add documentation in `docs/technical/MyService.md`
 
 ## Common Patterns

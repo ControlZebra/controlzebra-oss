@@ -72,7 +72,7 @@ function TopBar(): JSX.Element {
   }, [discardAllChanges]);
 
   // Derive display values from repo state
-  const repoName = repoPath ? repoPath.split('/').pop() : 'Rewind Logic';
+  const repoName = repoPath ? repoPath.split('/').pop() : 'ControlZebra';
   const branchName = repoInfo?.branch || 'main';
   const hasChanges = (repoStatus?.changedFiles?.length ?? 0) > 0;
   const hasCommits = (commits?.length ?? 0) > 0;

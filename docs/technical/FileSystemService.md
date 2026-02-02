@@ -2,7 +2,7 @@
 
 ## Overview
 
-`FileSystemService` provides file system operations for the Rewind Logic desktop app. It handles directory listing, file opening, and path manipulation with cross-platform support.
+`FileSystemService` provides file system operations for the ControlZebra desktop app. It handles directory listing, file opening, and path manipulation with cross-platform support.
 
 ## Methods
 

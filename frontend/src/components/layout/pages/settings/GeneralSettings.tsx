@@ -31,7 +31,7 @@ function GeneralSettings(): JSX.Element {
           Appearance
         </label>
         <p className="text-theme-muted text-sm mb-4">
-          Choose how Rewind Logic looks on your device.
+          Choose how ControlZebra looks on your device.
         </p>
         
         <div className="flex gap-3">

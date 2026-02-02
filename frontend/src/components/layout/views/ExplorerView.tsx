@@ -14,7 +14,7 @@ import { FolderOpen } from 'lucide-react';
 import { MAIN_BRANCHES } from '../../../constants';
 import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { useRepo, type FileStatus } from '../../../context';
-import { OpenFolderDialog } from '../../../../bindings/changeme/services/filedialogservice';
+import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
 import { Button } from '../../ui';
 import { SidebarCommitPanel, ExplorerStatusPanel } from '../sidebar-panels';
 

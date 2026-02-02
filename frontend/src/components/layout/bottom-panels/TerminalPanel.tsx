@@ -8,7 +8,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { Events } from '@wailsio/runtime';
-import { CreateSession, WriteInput, ResizeTerminal, CloseSession } from '../../../../bindings/changeme/services/terminalservice';
+import { CreateSession, WriteInput, ResizeTerminal, CloseSession } from '../../../../bindings/controlzebra/services/terminalservice';
 import { useRepo } from '../../../context';
 
 // ============================================================================

@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=My Product
-Comment=A rewind-logic application
+Name=ControlZebra
+Comment=A simplified Git client for industrial automation
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/rewind-logic %u
+Exec=/usr/local/bin/control-zebra %u
 Terminal=false
 Type=Application
-Icon=rewind-logic
+Icon=control-zebra
 Categories=Utility;
-StartupWMClass=rewind-logic
+StartupWMClass=control-zebra
 
  

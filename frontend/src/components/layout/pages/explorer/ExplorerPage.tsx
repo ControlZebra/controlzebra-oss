@@ -9,7 +9,7 @@
  */
 import { memo, useState, useCallback } from 'react';
 import { useRepo, useLayout } from '../../../../context';
-import { OpenFolderDialog } from '../../../../../bindings/changeme/services/filedialogservice';
+import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';

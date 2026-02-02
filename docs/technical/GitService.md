@@ -2,7 +2,7 @@
 
 ## Overview
 
-`GitService` provides a simple Go interface for core Git operations, designed for use in the Rewind Logic desktop app. All operations shell out to the `git` CLI (rather than using a Go git library) for reliability and compatibility. Designed for safe, minimal workflows for industrial automation users.
+`GitService` provides a simple Go interface for core Git operations, designed for use in the ControlZebra desktop app. All operations shell out to the `git` CLI (rather than using a Go git library) for reliability and compatibility. Designed for safe, minimal workflows for industrial automation users.
 
 ## Architecture
 

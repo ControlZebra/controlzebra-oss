@@ -14,7 +14,7 @@ func createTestRepo(t *testing.T) string {
 	t.Helper()
 
 	// Create temp directory
-	tmpDir, err := os.MkdirTemp("", "rewind-logic-test-*")
+	tmpDir, err := os.MkdirTemp("", "control-zebra-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -2251,4 +2251,4 @@ func TestCheckBranchConflicts_NonExistentBranch(t *testing.T) {
 }
 
 // NOTE: TestCheckBranchConflicts_RealRepo was removed - it was used for manual testing
-// with the actual rewind-logic repository. The unit tests above cover the functionality.
+// with the actual control-zebra repository. The unit tests above cover the functionality.

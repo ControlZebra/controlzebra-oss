@@ -1,6 +1,6 @@
-# Rewind Logic — Collaboration Spec (v4+)
+# ControlZebra — Collaboration Spec (v4+)
 
-This document expands the collaboration scope that requires Rewind Logic login (AgniaVault auth via PKCE). Local Git usage remains available without login.
+This document expands the collaboration scope that requires ControlZebra login (AgniaVault auth via PKCE). Local Git usage remains available without login.
 
 ## Summary of in-scope collaboration features
 

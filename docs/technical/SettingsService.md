@@ -15,9 +15,9 @@ SettingsService
 ## Settings Storage
 
 App settings are stored in the user's config directory:
-- **macOS:** `~/Library/Application Support/rewind-logic/settings.json`
-- **Windows:** `%APPDATA%\rewind-logic\settings.json`
-- **Linux:** `~/.config/rewind-logic/settings.json`
+- **macOS:** `~/Library/Application Support/control-zebra/settings.json`
+- **Windows:** `%APPDATA%\control-zebra\settings.json`
+- **Linux:** `~/.config/control-zebra/settings.json`
 
 ## Methods
 

@@ -1,6 +1,6 @@
 # RepositorySettingsService
 
-The `RepositorySettingsService` manages repository-level configuration and automatic background tasks for each repository opened in Rewind Logic.
+The `RepositorySettingsService` manages repository-level configuration and automatic background tasks for each repository opened in ControlZebra.
 
 ## Overview
 
@@ -143,9 +143,9 @@ type ProtectedBranchSettings struct {
 ## Storage
 
 Settings are stored in the user's config directory:
-- **macOS**: `~/Library/Application Support/rewind-logic/repositories/<repo_id>.json`
-- **Windows**: `%APPDATA%\rewind-logic\repositories\<repo_id>.json`
-- **Linux**: `~/.config/rewind-logic/repositories/<repo_id>.json`
+- **macOS**: `~/Library/Application Support/control-zebra/repositories/<repo_id>.json`
+- **Windows**: `%APPDATA%\control-zebra\repositories\<repo_id>.json`
+- **Linux**: `~/.config/control-zebra/repositories/<repo_id>.json`
 
 The `repo_id` is a SHA256 hash (first 16 hex chars) of the absolute repo path.
 
@@ -165,7 +165,7 @@ import {
     UpdateBackgroundTask, 
     StartBackgroundTasks,
     RunTaskNow 
-} from '../bindings/changeme/repositorysettingsservice';
+} from '../bindings/controlzebra/repositorysettingsservice';
 
 // Get current settings
 const settings = await GetSettings('/path/to/repo');
@@ -302,7 +302,7 @@ import {
     AbortMerge,
     RecoverFromDetachedHead,
     RepairRepository
-} from '../bindings/changeme/services/repositorysettingsservice';
+} from '../bindings/controlzebra/services/repositorysettingsservice';
 
 // Diagnose issues
 const diag = await DiagnoseRepository('/path/to/repo');

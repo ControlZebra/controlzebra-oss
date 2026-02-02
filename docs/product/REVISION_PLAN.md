@@ -1,6 +1,6 @@
-# Rewind Logic — Revision Plan (v1 / v2 / v3)
+# ControlZebra — Revision Plan (v1 / v2 / v3)
 
-This document proposes an incremental delivery plan for Rewind Logic: a simplified Git client for industrial automation users (PLC/HMI/actuator configuration workflows) who are not comfortable with Git/CLI.
+This document proposes an incremental delivery plan for ControlZebra: a simplified Git client for industrial automation users (PLC/HMI/actuator configuration workflows) who are not comfortable with Git/CLI.
 
 Guiding principles:
 - Opinionated, minimal surface area: map user language to Git actions.
@@ -289,7 +289,7 @@ Parser strategy (start simple; can evolve):
 
 ## Cross-cutting: Auth + accounts + collaboration options
 
-### Rewind Logic auth (AgniaVault backend API)
+### ControlZebra auth (AgniaVault backend API)
 - Use the existing PKCE endpoints:
   - `POST /api/auth/pkce/initiate`
   - `POST /api/auth/pkce/authenticate`
@@ -299,7 +299,7 @@ Parser strategy (start simple; can evolve):
   - Store token in OS keychain/credential vault if available; otherwise a local encrypted store.
 
 Policy:
-- Rewind Logic auth is optional for local Git usage.
+- ControlZebra auth is optional for local Git usage.
 - Only require login for collaborative/cloud features (project catalog, shared config, team workflows).
 
 ### GitHub/GitLab account connectivity via CLI
@@ -307,7 +307,7 @@ Policy:
 - Detect auth status:
   - `gh auth status`
   - `glab auth status`
-- Keep these separate from “Rewind Logic auth” (app account vs git provider account).
+- Keep these separate from "ControlZebra auth" (app account vs git provider account).
 
 ### Collaboration options (planned)
 Depending on desired meaning:

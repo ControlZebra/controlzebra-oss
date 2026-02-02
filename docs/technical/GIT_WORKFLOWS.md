@@ -1,6 +1,6 @@
 # Git Workflows Documentation
 
-This document details the complete git workflows implemented in Rewind Logic for the Explorer and Merge Changes pages, including all git commands executed, decision points, and state transitions.
+This document details the complete git workflows implemented in ControlZebra for the Explorer and Merge Changes pages, including all git commands executed, decision points, and state transitions.
 
 **Date:** January 14, 2026  
 **Version:** v2 (Post-MVP implementation)
@@ -30,7 +30,7 @@ This document details the complete git workflows implemented in Rewind Logic for
 
 ## Overview
 
-Rewind Logic uses a **CLI-first approach** - all git operations are executed via `os/exec` calling the `git` command-line tool. The backend service (`GitService`) provides high-level operations that orchestrate multiple git commands, while the frontend (`RepoContext`) manages state and user feedback.
+ControlZebra uses a **CLI-first approach** - all git operations are executed via `os/exec` calling the `git` command-line tool. The backend service (`GitService`) provides high-level operations that orchestrate multiple git commands, while the frontend (`RepoContext`) manages state and user feedback.
 
 ### Key Components
 - **Backend:** `services/git_service.go` - Wraps git CLI operations
@@ -653,7 +653,7 @@ git merge --abort
 
 ---uck State Recovery Operations
 
-When git operations are interrupted (merge conflicts, cherry-pick conflicts, revert conflicts, etc.), the repository can be left in a "stuck" state. Rewind Logic provides recovery actions to help users get unstuck.
+When git operations are interrupted (merge conflicts, cherry-pick conflicts, revert conflicts, etc.), the repository can be left in a "stuck" state. ControlZebra provides recovery actions to help users get unstuck.
 
 **Note:** Rebase operations are currently supported for recovery but **will be removed in a future version** as the application moves to a merge-only workflow.
 

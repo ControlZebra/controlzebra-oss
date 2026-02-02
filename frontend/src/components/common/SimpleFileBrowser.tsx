@@ -32,7 +32,7 @@ import {
 import { 
   ListDirectoryWithOptions, 
   OpenFile,
-} from '../../../bindings/changeme/services/filesystemservice';
+} from '../../../bindings/controlzebra/services/filesystemservice';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';

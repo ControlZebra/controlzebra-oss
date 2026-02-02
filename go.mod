@@ -1,4 +1,4 @@
-module changeme
+module controlzebra
 
 go 1.24.0
 

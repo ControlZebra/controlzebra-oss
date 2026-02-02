@@ -5,7 +5,7 @@
  * Stored as a simple array of path strings, most recent first.
  */
 
-const STORAGE_KEY = 'rewind-logic-recent-folders';
+const STORAGE_KEY = 'control-zebra-recent-folders';
 const MAX_RECENT = 5;
 
 // Export for UI components to use consistent limit

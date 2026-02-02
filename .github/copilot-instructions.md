@@ -1,7 +1,7 @@
-# Rewind Logic - Copilot Instructions
+# ControlZebra - Copilot Instructions
 
 ## Project Overview
-Rewind Logic is a simplified desktop Git client targeting non-technical users in industrial automation (PLC, HMI, actuator configs). Built with **Wails v3** (Go backend + React/Vite frontend). **Primary target: Windows**.
+ControlZebra is a simplified desktop Git client targeting non-technical users in industrial automation (PLC, HMI, actuator configs). Built with **Wails v3** (Go backend + React/Vite frontend). **Primary target: Windows**.
 
 **Current Status (January 2026):**
 - v1 MVP: ✅ Complete (repo open, commit, sync, push)
@@ -95,7 +95,7 @@ When implementing git features, shell out to these CLIs rather than using Go lib
 ### Wails Bindings
 - Auto-generated in `frontend/bindings/` - **never edit manually**
 - Regenerate with: `wails3 generate bindings -ts -clean=true`
-- Import Go service methods: `import { Greet } from '../bindings/changeme/greetservice'`
+- Import Go service methods: `import { Greet } from '../bindings/controlzebra/greetservice'`
 
 ## Development Commands
 
@@ -119,7 +119,7 @@ task common:generate:bindings
 1. Create `myservice.go` with struct and methods
 2. Register in [main.go](../main.go) under `Services: []application.Service{}`
 3. Run `task dev` - bindings auto-regenerate
-4. Import in frontend from `frontend/bindings/changeme/myservice`
+4. Import in frontend from `frontend/bindings/controlzebra/myservice`
 
 ### Frontend Views Pattern
 - Define view ID in [constants/index.js](../frontend/src/constants/index.js) under `VIEWS`
@@ -174,7 +174,7 @@ Map user-friendly labels to git commands per README:
 | `LFSGroupsSettings` | `components/layout/pages/settings/LFSGroupsSettings.jsx` | Custom LFS patterns |
 
 ## Setup Notes
-- Update `go.mod` module name from `changeme` to your actual module path
+- The `go.mod` module name is `controlzebra`
 - Ensure `git`, `gh`, and `glab` CLIs are available in PATH for development
 
 ## File Structure Quick Reference

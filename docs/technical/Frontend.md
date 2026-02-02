@@ -1,6 +1,6 @@
 # Frontend Documentation
 
-Rewind Logic frontend built with **React 18**, **Vite**, and **Tailwind CSS v4**.
+ControlZebra frontend built with **React 18**, **Vite**, and **Tailwind CSS v4**.
 
 ## Architecture Overview
 
@@ -46,7 +46,7 @@ frontend/
 │       └── index.js          # Views, sizes, colors, status types
 │
 └── bindings/                 # Auto-generated Wails bindings
-    └── changeme/services/    # Go service bindings
+    └── controlzebra/services/    # Go service bindings
 ```
 
 ## Core Concepts
@@ -179,9 +179,9 @@ Git file status types with associated colors:
 Go services are exposed via auto-generated bindings in `frontend/bindings/`:
 
 ```jsx
-import { Status, CommitAll, Sync } from '../../bindings/changeme/services/gitservice';
-import { GetAppSettings, SaveAppSettings } from '../../bindings/changeme/services/settingsservice';
-import { ListDirectory, OpenFile } from '../../bindings/changeme/services/filesystemservice';
+import { Status, CommitAll, Sync } from '../../bindings/controlzebra/services/gitservice';
+import { GetAppSettings, SaveAppSettings } from '../../bindings/controlzebra/services/settingsservice';
+import { ListDirectory, OpenFile } from '../../bindings/controlzebra/services/filesystemservice';
 ```
 
 **Important**: Never edit binding files manually. Regenerate with:
