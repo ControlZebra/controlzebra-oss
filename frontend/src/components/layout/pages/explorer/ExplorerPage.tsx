@@ -11,12 +11,13 @@ import { memo, useState, useCallback } from 'react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
+import NoGitRepoScreen from './NoGitRepoScreen';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import FileContentViewer from '../../../common/FileContentViewer';
 
 function ExplorerPage(): JSX.Element {
-  const { repoPath, openRepo } = useRepo();
+  const { repoPath, repoInfo, openRepo, initializeGitRepo, isLoading } = useRepo();
   const { activeExplorerTab, explorerTabs } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
@@ -40,6 +41,18 @@ function ExplorerPage(): JSX.Element {
         onOpenFolder={handleOpenFolder} 
         onOpenPath={openRepo}
         isLoading={isOpeningFolder} 
+      />
+    );
+  }
+
+  // Folder open but not a git repo - show init screen
+  if (!repoInfo?.isRepo) {
+    const folderName = repoPath.split('/').pop() || 'Folder';
+    return (
+      <NoGitRepoScreen
+        folderName={folderName}
+        onInitialize={initializeGitRepo}
+        isLoading={isLoading}
       />
     );
   }

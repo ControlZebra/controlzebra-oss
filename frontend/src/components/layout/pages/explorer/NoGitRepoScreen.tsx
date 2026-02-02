@@ -9,6 +9,7 @@ import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { Button } from '../../../ui';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../../ui/card';
 import GitInitForm from './GitInitForm';
+import type { GitInitOptions } from '../../../../context/RepoContext.types';
 
 // ============================================================================
 // Types
@@ -16,11 +17,12 @@ import GitInitForm from './GitInitForm';
 
 interface NoGitRepoScreenProps {
   folderName: string;
-  onInitialize?: (data: GitInitData) => void;
+  onInitialize?: (options?: GitInitOptions) => Promise<boolean>;
   isLoading?: boolean;
 }
 
-interface GitInitData {
+// Internal type for GitInitForm data (compatible with GitInitOptions)
+interface GitInitFormData {
   type: 'clone' | 'init';
   [key: string]: unknown;
 }
@@ -106,11 +108,11 @@ function NoGitRepoScreen({ folderName, onInitialize, isLoading = false }: NoGitR
     }, 500);
   }, []);
 
-  // Handle form submission (will be connected to backend later)
-  const handleFormSubmit = useCallback((data: GitInitData): void => {
+  // Handle form submission - convert form data to GitInitOptions
+  const handleFormSubmit = useCallback((data: GitInitFormData): void => {
     console.log('Repository initialization data:', data);
-    // TODO: Connect to backend - call onInitialize with form data
-    onInitialize?.(data);
+    // Pass the form data as GitInitOptions to the initialize function
+    onInitialize?.(data as GitInitOptions);
   }, [onInitialize]);
 
   // Show the initialization form

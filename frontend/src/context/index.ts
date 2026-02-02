@@ -15,4 +15,5 @@ export type {
   MergeState,
   FileResolutionsMap,
   ResolutionStrategy,
+  GitInitOptions,
 } from './RepoContext.types';

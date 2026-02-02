@@ -38,6 +38,7 @@ import {
   DiscardAll,
   DiscardFile,
   InitRepo,
+  InitRepoWithLFS,
   CheckBranchConflicts,
   GetParentBranch,
   GetMergeState,
@@ -92,6 +93,7 @@ import type {
   StartMergeResult,
   ParentBranchResult,
   BisectState,
+  GitInitOptions,
 } from './RepoContext.types';
 
 // Polling interval for status updates (in ms)
@@ -265,7 +267,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   }, [isLoading, repoPath, showMessage]);
 
   // Initialize git in current folder
-  const initializeGitRepo = useCallback(async (): Promise<boolean> => {
+  const initializeGitRepo = useCallback(async (options?: GitInitOptions): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No folder open');
       return false;
@@ -279,7 +281,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setIsLoading(true);
     
     try {
-      const result = await InitRepo(repoPath);
+      // Determine if we should use LFS
+      const useLFS = options?.lfsEnabled ?? false;
+      
+      // Initialize the repository
+      const result = useLFS 
+        ? await InitRepoWithLFS(repoPath)
+        : await InitRepo(repoPath);
       
       if (!result.success) {
         showMessage('error', result.error || 'Failed to initialize repository');
@@ -287,10 +295,32 @@ export function RepoProvider({ children }: RepoProviderProps) {
         return false;
       }
       
+      // If LFS is enabled and we have attributes to track, add them
+      if (useLFS && options?.lfsAttributes && options.lfsAttributes.length > 0) {
+        // Import TrackPattern dynamically to avoid circular deps
+        const { TrackPattern } = await import('../../bindings/controlzebra/services/lfsservice');
+        
+        for (const attr of options.lfsAttributes) {
+          try {
+            await TrackPattern(repoPath, attr.pattern);
+          } catch (err) {
+            console.warn(`Failed to track pattern ${attr.pattern}:`, err);
+          }
+        }
+      }
+      
+      // Refresh repo info
       const info = await DetectRepo(repoPath);
       setRepoInfo(info as RepoInfo);
       
-      showMessage('success', 'Version control initialized successfully');
+      // Refresh status to show current state
+      const status = await Status(repoPath);
+      setRepoStatus(status as RepoStatus);
+      
+      showMessage('success', useLFS 
+        ? 'Version control initialized with LFS enabled' 
+        : 'Version control initialized successfully'
+      );
       setIsLoading(false);
       return true;
     } catch (err) {
