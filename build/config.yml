@@ -5,11 +5,11 @@ version: '3'
 
 # This information is used to generate the build assets.
 info:
-  companyName: "Rewind Logic" # The name of the company
-  productName: "Rewind Logic" # The name of the application
-  productIdentifier: "com.rewindlogic.rewindlogic" # The unique product identifier
-  description: "A program that does X" # The application description
-  copyright: "(c) 2025, Rewind Logic" # Copyright text
+  companyName: "ControlZebra" # The name of the company
+  productName: "ControlZebra" # The name of the application
+  productIdentifier: "com.controlzebra.controlzebra" # The unique product identifier
+  description: "A simplified Git client for industrial automation users" # The application description
+  copyright: "(c) 2025, ControlZebra" # Copyright text
   comments: "Democratizing git for everyone" # Comments
   version: "0.0.1" # The application version
 

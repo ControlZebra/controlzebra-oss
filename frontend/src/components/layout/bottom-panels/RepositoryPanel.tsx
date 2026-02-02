@@ -7,7 +7,7 @@ import { Folder } from 'lucide-react';
 import { Browser } from '@wailsio/runtime';
 import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
-import { GetRemoteURL } from '../../../../bindings/changeme/services/gitservice';
+import { GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
 
 // Icon style used for consistency with other components
 // const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };

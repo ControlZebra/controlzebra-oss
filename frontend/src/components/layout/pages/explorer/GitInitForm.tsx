@@ -27,7 +27,7 @@ import {
 import { ICON_SIZES } from '../../../../constants';
 import { Button, Input, Label, Badge } from '../../../ui';
 import { Card, CardContent, CardFooter } from '../../../ui/card';
-import { GetCustomLFSGroups } from '../../../../../bindings/changeme/services/settingsservice';
+import { GetCustomLFSGroups } from '../../../../../bindings/controlzebra/services/settingsservice';
 
 // ============================================================================
 // Types

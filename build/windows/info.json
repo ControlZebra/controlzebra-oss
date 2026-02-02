@@ -5,11 +5,11 @@
 	"info": {
 		"0000": {
 			"ProductVersion": "0.1.0",
-			"CompanyName": "My Company",
-			"FileDescription": "A rewind-logic application",
-			"LegalCopyright": "© 2025, My Company",
-			"ProductName": "My Product",
-			"Comments": "This is a comment"
+			"CompanyName": "ControlZebra",
+			"FileDescription": "A simplified Git client for industrial automation",
+			"LegalCopyright": "© 2025, ControlZebra",
+			"ProductName": "ControlZebra",
+			"Comments": "Democratizing git for everyone"
 		}
 	}
 }

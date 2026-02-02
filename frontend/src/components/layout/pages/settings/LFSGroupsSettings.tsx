@@ -23,7 +23,7 @@ import {
   DeleteCustomLFSGroup,
   ExportCustomLFSGroups,
   ImportCustomLFSGroups,
-} from '../../../../../bindings/changeme/services/settingsservice';
+} from '../../../../../bindings/controlzebra/services/settingsservice';
 
 const iconStyleSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const iconStyleXs: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };

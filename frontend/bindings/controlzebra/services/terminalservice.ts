@@ -22,14 +22,14 @@ import * as $models from "./models.js";
  * CloseAllSessions terminates all terminal sessions
  */
 export function CloseAllSessions(): $CancellablePromise<void> {
-    return $Call.ByID(1431312923);
+    return $Call.ByID(827019650);
 }
 
 /**
  * CloseSession terminates a terminal session
  */
 export function CloseSession(sessionID: string): $CancellablePromise<$models.TerminalResult> {
-    return $Call.ByID(2632171917, sessionID).then(($result: any) => {
+    return $Call.ByID(1813883940, sessionID).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -38,7 +38,7 @@ export function CloseSession(sessionID: string): $CancellablePromise<$models.Ter
  * CreateSession creates a new terminal session
  */
 export function CreateSession(workingDir: string): $CancellablePromise<$models.TerminalResult> {
-    return $Call.ByID(322758575, workingDir).then(($result: any) => {
+    return $Call.ByID(2029438780, workingDir).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -47,21 +47,21 @@ export function CreateSession(workingDir: string): $CancellablePromise<$models.T
  * GetDefaultDirectory returns the default working directory
  */
 export function GetDefaultDirectory(): $CancellablePromise<string> {
-    return $Call.ByID(2357861123);
+    return $Call.ByID(3963419776);
 }
 
 /**
  * GetDefaultShell returns the default shell for the current OS
  */
 export function GetDefaultShell(): $CancellablePromise<string> {
-    return $Call.ByID(508604754);
+    return $Call.ByID(2342078297);
 }
 
 /**
  * ResizeTerminal resizes the PTY
  */
 export function ResizeTerminal(sessionID: string, cols: number, rows: number): $CancellablePromise<$models.TerminalResult> {
-    return $Call.ByID(3648900693, sessionID, cols, rows).then(($result: any) => {
+    return $Call.ByID(912823420, sessionID, cols, rows).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -70,14 +70,14 @@ export function ResizeTerminal(sessionID: string, cols: number, rows: number): $
  * SetApp sets the Wails application reference for event emission
  */
 export function SetApp(app: application$0.App | null): $CancellablePromise<void> {
-    return $Call.ByID(1356505526, app);
+    return $Call.ByID(3886079407, app);
 }
 
 /**
  * WriteInput sends input to the terminal session
  */
 export function WriteInput(sessionID: string, data: string): $CancellablePromise<$models.TerminalResult> {
-    return $Call.ByID(4128655824, sessionID, data).then(($result: any) => {
+    return $Call.ByID(3132442769, sessionID, data).then(($result: any) => {
         return $$createType0($result);
     });
 }

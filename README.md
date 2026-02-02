@@ -1,8 +1,8 @@
-# Rewind Logic
-Has
+# ControlZebra
+
 ## Introduction
 
-Read me logic is a desktop git client for specialized so usecases such as industrial automation software.
+ControlZebra is a desktop git client for specialized use cases such as industrial automation software.
 
 This is a minimal git client that can simplify git operations (in opinionated ways) and allow the review of Industrial Automation configuration files (PLC, HMI, actuator configs, etc.).
 

@@ -20,7 +20,7 @@ import * as $models from "./models.js";
  * This is a composite operation for convenience - use GetOwnLocks() directly for more control.
  */
 export function CheckLocksBeforeBranchSwitch(repoPath: string): $CancellablePromise<$models.LFSLock[]> {
-    return $Call.ByID(4281279413, repoPath).then(($result: any) => {
+    return $Call.ByID(2569946182, repoPath).then(($result: any) => {
         return $$createType1($result);
     });
 }
@@ -30,7 +30,7 @@ export function CheckLocksBeforeBranchSwitch(repoPath: string): $CancellableProm
  * This is a pure function that doesn't make any git calls.
  */
 export function FilterLocksByOwner(locks: $models.LFSLock[], owner: string): $CancellablePromise<$models.LFSLock[]> {
-    return $Call.ByID(44330752, locks, owner).then(($result: any) => {
+    return $Call.ByID(3762159395, locks, owner).then(($result: any) => {
         return $$createType1($result);
     });
 }
@@ -40,14 +40,14 @@ export function FilterLocksByOwner(locks: $models.LFSLock[], owner: string): $Ca
  * This is a standalone operation that can be used independently.
  */
 export function GetGitUser(repoPath: string): $CancellablePromise<string> {
-    return $Call.ByID(433482453, repoPath);
+    return $Call.ByID(2748239958, repoPath);
 }
 
 /**
  * GetLFSVersion returns the installed git-lfs version
  */
 export function GetLFSVersion(): $CancellablePromise<string> {
-    return $Call.ByID(3448730039);
+    return $Call.ByID(1145190098);
 }
 
 /**
@@ -55,7 +55,7 @@ export function GetLFSVersion(): $CancellablePromise<string> {
  * This is a composite operation that combines LFSLocks() + GetGitUser() + filtering.
  */
 export function GetOwnLocks(repoPath: string): $CancellablePromise<$models.LFSLock[]> {
-    return $Call.ByID(2544434162, repoPath).then(($result: any) => {
+    return $Call.ByID(3372854955, repoPath).then(($result: any) => {
         return $$createType1($result);
     });
 }
@@ -64,7 +64,7 @@ export function GetOwnLocks(repoPath: string): $CancellablePromise<$models.LFSLo
  * GetPresetPatterns returns common file patterns for industrial automation files
  */
 export function GetPresetPatterns(): $CancellablePromise<$models.PresetPattern[]> {
-    return $Call.ByID(3149659634).then(($result: any) => {
+    return $Call.ByID(278137319).then(($result: any) => {
         return $$createType3($result);
     });
 }
@@ -74,7 +74,7 @@ export function GetPresetPatterns(): $CancellablePromise<$models.PresetPattern[]
  * Parses .gitattributes for entries with filter=lfs
  */
 export function GetTrackedPatterns(repoPath: string): $CancellablePromise<$models.TrackedPattern[]> {
-    return $Call.ByID(73896211, repoPath).then(($result: any) => {
+    return $Call.ByID(3030523232, repoPath).then(($result: any) => {
         return $$createType5($result);
     });
 }
@@ -84,7 +84,7 @@ export function GetTrackedPatterns(repoPath: string): $CancellablePromise<$model
  * This runs `git lfs install` in the repo context
  */
 export function InitializeLFS(repoPath: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2299931107, repoPath).then(($result: any) => {
+    return $Call.ByID(1550991098, repoPath).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -93,7 +93,7 @@ export function InitializeLFS(repoPath: string): $CancellablePromise<$models.Ope
  * IsLFSEnabled checks if Git LFS is enabled for a repository
  */
 export function IsLFSEnabled(repoPath: string): $CancellablePromise<$models.LFSInfo> {
-    return $Call.ByID(2248796470, repoPath).then(($result: any) => {
+    return $Call.ByID(212658745, repoPath).then(($result: any) => {
         return $$createType7($result);
     });
 }
@@ -103,7 +103,7 @@ export function IsLFSEnabled(repoPath: string): $CancellablePromise<$models.LFSI
  * Result is cached after the first check for efficiency.
  */
 export function IsLFSInstalled(): $CancellablePromise<boolean> {
-    return $Call.ByID(480459609);
+    return $Call.ByID(1238983738);
 }
 
 /**
@@ -111,7 +111,7 @@ export function IsLFSInstalled(): $CancellablePromise<boolean> {
  * Equivalent to: git lfs env
  */
 export function LFSEnv(repoPath: string): $CancellablePromise<string> {
-    return $Call.ByID(3973494816, repoPath);
+    return $Call.ByID(4040949623, repoPath);
 }
 
 /**
@@ -119,7 +119,7 @@ export function LFSEnv(repoPath: string): $CancellablePromise<string> {
  * Equivalent to: git lfs fetch [remote] [refs...]
  */
 export function LFSFetch(repoPath: string, remote: string, ...refs: string[]): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2098198991, repoPath, remote, refs).then(($result: any) => {
+    return $Call.ByID(2653944688, repoPath, remote, refs).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -129,7 +129,7 @@ export function LFSFetch(repoPath: string, remote: string, ...refs: string[]): $
  * Equivalent to: git lfs fetch --all
  */
 export function LFSFetchAll(repoPath: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2107969114, repoPath).then(($result: any) => {
+    return $Call.ByID(3441729315, repoPath).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -138,7 +138,7 @@ export function LFSFetchAll(repoPath: string): $CancellablePromise<$models.Opera
  * LFSLock locks a file to prevent others from modifying it
  */
 export function LFSLock(repoPath: string, filePath: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(3881850238, repoPath, filePath).then(($result: any) => {
+    return $Call.ByID(1094142239, repoPath, filePath).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -147,7 +147,7 @@ export function LFSLock(repoPath: string, filePath: string): $CancellablePromise
  * LFSLocks returns the list of locked files in the repository
  */
 export function LFSLocks(repoPath: string): $CancellablePromise<$models.LFSLock[]> {
-    return $Call.ByID(1235608439, repoPath).then(($result: any) => {
+    return $Call.ByID(369661188, repoPath).then(($result: any) => {
         return $$createType1($result);
     });
 }
@@ -157,7 +157,7 @@ export function LFSLocks(repoPath: string): $CancellablePromise<$models.LFSLock[
  * Equivalent to: git lfs ls-files
  */
 export function LFSLsFiles(repoPath: string): $CancellablePromise<string[]> {
-    return $Call.ByID(990183995, repoPath).then(($result: any) => {
+    return $Call.ByID(3535379240, repoPath).then(($result: any) => {
         return $$createType8($result);
     });
 }
@@ -167,7 +167,7 @@ export function LFSLsFiles(repoPath: string): $CancellablePromise<string[]> {
  * Equivalent to: git lfs migrate info
  */
 export function LFSMigrateInfo(repoPath: string): $CancellablePromise<string> {
-    return $Call.ByID(798354298, repoPath);
+    return $Call.ByID(3664567621, repoPath);
 }
 
 /**
@@ -175,7 +175,7 @@ export function LFSMigrateInfo(repoPath: string): $CancellablePromise<string> {
  * Equivalent to: git lfs pointer --file=<path>
  */
 export function LFSPointer(repoPath: string, filePath: string): $CancellablePromise<string> {
-    return $Call.ByID(2540847806, repoPath, filePath);
+    return $Call.ByID(972524969, repoPath, filePath);
 }
 
 /**
@@ -183,7 +183,7 @@ export function LFSPointer(repoPath: string, filePath: string): $CancellableProm
  * Equivalent to: git lfs prune
  */
 export function LFSPrune(repoPath: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2121661795, repoPath).then(($result: any) => {
+    return $Call.ByID(1209197576, repoPath).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -193,7 +193,7 @@ export function LFSPrune(repoPath: string): $CancellablePromise<$models.Operatio
  * Equivalent to: git lfs prune --dry-run
  */
 export function LFSPruneDryRun(repoPath: string): $CancellablePromise<string> {
-    return $Call.ByID(3770905889, repoPath);
+    return $Call.ByID(548114510, repoPath);
 }
 
 /**
@@ -201,7 +201,7 @@ export function LFSPruneDryRun(repoPath: string): $CancellablePromise<string> {
  * Equivalent to: git lfs pull [remote]
  */
 export function LFSPull(repoPath: string, remote: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(4084325826, repoPath, remote).then(($result: any) => {
+    return $Call.ByID(2864524871, repoPath, remote).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -211,7 +211,7 @@ export function LFSPull(repoPath: string, remote: string): $CancellablePromise<$
  * Equivalent to: git lfs push [remote] [ref]
  */
 export function LFSPush(repoPath: string, remote: string, ref: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(4045988993, repoPath, remote, ref).then(($result: any) => {
+    return $Call.ByID(2899507132, repoPath, remote, ref).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -221,7 +221,7 @@ export function LFSPush(repoPath: string, remote: string, ref: string): $Cancell
  * Equivalent to: git lfs push --all [remote]
  */
 export function LFSPushAll(repoPath: string, remote: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(792430584, repoPath, remote).then(($result: any) => {
+    return $Call.ByID(1010659303, repoPath, remote).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -230,7 +230,7 @@ export function LFSPushAll(repoPath: string, remote: string): $CancellablePromis
  * LFSStatus returns the status of LFS-tracked files in the working directory
  */
 export function LFSStatus(repoPath: string): $CancellablePromise<$models.LFSFileStatus[]> {
-    return $Call.ByID(1587393747, repoPath).then(($result: any) => {
+    return $Call.ByID(900216298, repoPath).then(($result: any) => {
         return $$createType10($result);
     });
 }
@@ -239,7 +239,7 @@ export function LFSStatus(repoPath: string): $CancellablePromise<$models.LFSFile
  * LFSUnlock unlocks a file. If force is true, can unlock files locked by others.
  */
 export function LFSUnlock(repoPath: string, filePath: string, force: boolean): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(3255768305, repoPath, filePath, force).then(($result: any) => {
+    return $Call.ByID(1158361252, repoPath, filePath, force).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -249,7 +249,7 @@ export function LFSUnlock(repoPath: string, filePath: string, force: boolean): $
  * Runs: git lfs track "<pattern>"
  */
 export function TrackPattern(repoPath: string, pattern: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2422692425, repoPath, pattern).then(($result: any) => {
+    return $Call.ByID(982177290, repoPath, pattern).then(($result: any) => {
         return $$createType6($result);
     });
 }
@@ -259,7 +259,7 @@ export function TrackPattern(repoPath: string, pattern: string): $CancellablePro
  * Runs: git lfs untrack "<pattern>"
  */
 export function UntrackPattern(repoPath: string, pattern: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(3286138206, repoPath, pattern).then(($result: any) => {
+    return $Call.ByID(439691505, repoPath, pattern).then(($result: any) => {
         return $$createType6($result);
     });
 }

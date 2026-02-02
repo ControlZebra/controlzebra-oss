@@ -1,4 +1,4 @@
-// Package services provides backend functionality for the Rewind Logic application.
+// Package services provides backend functionality for the ControlZebra application.
 // This file contains the GitService which wraps git CLI operations.
 package services
 
@@ -2010,9 +2010,9 @@ func (g *GitService) IsProtectedBranch(repoPath string, branchName string) bool 
 }
 
 // GetProtectedBranches returns the list of protected branch names.
-// Reads from .rewind-logic/config.json in the repo, falls back to defaults.
+// Reads from .control-zebra/config.json in the repo, falls back to defaults.
 func (g *GitService) GetProtectedBranches(repoPath string) []string {
-	configPath := filepath.Join(repoPath, ".rewind-logic", "config.json")
+	configPath := filepath.Join(repoPath, ".control-zebra", "config.json")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return defaultProtectedBranches
@@ -2030,9 +2030,9 @@ func (g *GitService) GetProtectedBranches(repoPath string) []string {
 }
 
 // SetProtectedBranches updates the list of protected branches for the repo.
-// Stores in .rewind-logic/config.json in the repository.
+// Stores in .control-zebra/config.json in the repository.
 func (g *GitService) SetProtectedBranches(repoPath string, branches []string) OperationResult {
-	configDir := filepath.Join(repoPath, ".rewind-logic")
+	configDir := filepath.Join(repoPath, ".control-zebra")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return failedOp("Failed to create config directory: " + err.Error())
 	}

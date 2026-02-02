@@ -1,5 +1,5 @@
 /**
- * Shared constants for the Rewind Logic frontend.
+ * Shared constants for the ControlZebra frontend.
  * Centralizes configuration to ensure consistency across components.
  */
 
@@ -152,7 +152,7 @@ export interface ExplorerTab {
 
 export const FILE_BROWSER_TAB: ExplorerTab = {
   id: 'file-browser',
-  title: 'Explorer',
+  title: 'Quick Actions',
   type: 'file-browser',
   isPinned: true,
 };

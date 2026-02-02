@@ -22,7 +22,7 @@ import * as $models from "./models.js";
  * AddCustomLFSGroup adds a new custom LFS group
  */
 export function AddCustomLFSGroup(group: $models.CustomLFSGroup): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(1211594618, group).then(($result: any) => {
+    return $Call.ByID(3930016361, group).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -31,7 +31,7 @@ export function AddCustomLFSGroup(group: $models.CustomLFSGroup): $CancellablePr
  * DeleteCustomLFSGroup deletes a custom LFS group by ID
  */
 export function DeleteCustomLFSGroup(groupID: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2398974410, groupID).then(($result: any) => {
+    return $Call.ByID(4019406711, groupID).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -40,7 +40,7 @@ export function DeleteCustomLFSGroup(groupID: string): $CancellablePromise<$mode
  * ExportCustomLFSGroups exports custom LFS groups to a JSON file
  */
 export function ExportCustomLFSGroups(): $CancellablePromise<$models.ExportLFSGroupsResult> {
-    return $Call.ByID(1742709208).then(($result: any) => {
+    return $Call.ByID(2748950067).then(($result: any) => {
         return $$createType1($result);
     });
 }
@@ -49,7 +49,7 @@ export function ExportCustomLFSGroups(): $CancellablePromise<$models.ExportLFSGr
  * GetAppSettings returns the current app settings
  */
 export function GetAppSettings(): $CancellablePromise<$models.AppSettings> {
-    return $Call.ByID(2022119110).then(($result: any) => {
+    return $Call.ByID(4098526243).then(($result: any) => {
         return $$createType2($result);
     });
 }
@@ -58,7 +58,7 @@ export function GetAppSettings(): $CancellablePromise<$models.AppSettings> {
  * GetCustomLFSGroups returns all custom LFS groups
  */
 export function GetCustomLFSGroups(): $CancellablePromise<$models.CustomLFSGroupsData> {
-    return $Call.ByID(4181572774).then(($result: any) => {
+    return $Call.ByID(1787134927).then(($result: any) => {
         return $$createType3($result);
     });
 }
@@ -68,7 +68,7 @@ export function GetCustomLFSGroups(): $CancellablePromise<$models.CustomLFSGroup
  * Uses concurrent goroutines to fetch name and email in parallel
  */
 export function GetUserProfile(repoPath: string): $CancellablePromise<$models.UserProfile> {
-    return $Call.ByID(2720888796, repoPath).then(($result: any) => {
+    return $Call.ByID(1258519717, repoPath).then(($result: any) => {
         return $$createType4($result);
     });
 }
@@ -77,7 +77,7 @@ export function GetUserProfile(repoPath: string): $CancellablePromise<$models.Us
  * ImportCustomLFSGroups imports custom LFS groups from a JSON file
  */
 export function ImportCustomLFSGroups(merge: boolean): $CancellablePromise<$models.ImportLFSGroupsResult> {
-    return $Call.ByID(4108003661, merge).then(($result: any) => {
+    return $Call.ByID(3112124302, merge).then(($result: any) => {
         return $$createType5($result);
     });
 }
@@ -86,28 +86,28 @@ export function ImportCustomLFSGroups(merge: boolean): $CancellablePromise<$mode
  * SaveAppSettings saves the app settings
  */
 export function SaveAppSettings(settings: $models.AppSettings): $CancellablePromise<void> {
-    return $Call.ByID(4145384893, settings);
+    return $Call.ByID(3159081354, settings);
 }
 
 /**
  * SaveCustomLFSGroups saves all custom LFS groups
  */
 export function SaveCustomLFSGroups(data: $models.CustomLFSGroupsData): $CancellablePromise<void> {
-    return $Call.ByID(3907170261, data);
+    return $Call.ByID(2004902442, data);
 }
 
 /**
  * SetApp sets the application reference (called after app initialization)
  */
 export function SetApp(app: application$0.App | null): $CancellablePromise<void> {
-    return $Call.ByID(3275849951, app);
+    return $Call.ByID(1565004562, app);
 }
 
 /**
  * SetUserProfile sets the git user config
  */
 export function SetUserProfile(repoPath: string, profile: $models.UserProfile, global: boolean): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(3132053776, repoPath, profile, global).then(($result: any) => {
+    return $Call.ByID(3284937681, repoPath, profile, global).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -116,7 +116,7 @@ export function SetUserProfile(repoPath: string, profile: $models.UserProfile, g
  * UpdateCustomLFSGroup updates an existing custom LFS group
  */
 export function UpdateCustomLFSGroup(group: $models.CustomLFSGroup): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(1123005424, group).then(($result: any) => {
+    return $Call.ByID(2024044881, group).then(($result: any) => {
         return $$createType0($result);
     });
 }

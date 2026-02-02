@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	"changeme/services"
+	"controlzebra/services"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -51,7 +51,7 @@ func main() {
 	// 'Bind' is a list of Go struct instances. The frontend has access to the methods of these instances.
 	// 'Mac' options tailor the application when running an macOS.
 	app := application.New(application.Options{
-		Name:        "rewind-logic",
+		Name:        "control-zebra",
 		Description: "A simplified Git client for industrial automation users",
 		Services: []application.Service{
 			application.NewService(services.NewGitService()),

@@ -22,7 +22,7 @@ import * as $models from "./models.js";
  * PullWithProgress performs git pull with progress updates
  */
 export function PullWithProgress(repoPath: string, operationID: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2224799466, repoPath, operationID).then(($result: any) => {
+    return $Call.ByID(2788985119, repoPath, operationID).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -31,7 +31,7 @@ export function PullWithProgress(repoPath: string, operationID: string): $Cancel
  * PushWithProgress performs git push with progress updates
  */
 export function PushWithProgress(repoPath: string, operationID: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(669744157, repoPath, operationID).then(($result: any) => {
+    return $Call.ByID(4172712624, repoPath, operationID).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -40,7 +40,7 @@ export function PushWithProgress(repoPath: string, operationID: string): $Cancel
  * SetApp sets the Wails application reference for event emission
  */
 export function SetApp(app: application$0.App | null): $CancellablePromise<void> {
-    return $Call.ByID(1421554813, app);
+    return $Call.ByID(3463078608, app);
 }
 
 /**
@@ -48,7 +48,7 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
  * For branches without an upstream, it skips pull and just pushes with --set-upstream
  */
 export function SyncWithProgress(repoPath: string, operationID: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(3446382266, repoPath, operationID).then(($result: any) => {
+    return $Call.ByID(2296486007, repoPath, operationID).then(($result: any) => {
         return $$createType0($result);
     });
 }

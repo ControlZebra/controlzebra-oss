@@ -1,4 +1,4 @@
-// Package services provides backend functionality for the Rewind Logic application.
+// Package services provides backend functionality for the ControlZebra application.
 // This file contains the LFSService which wraps Git LFS CLI operations.
 package services
 

@@ -25,7 +25,7 @@ func NewSettingsService() *SettingsService {
 	if err != nil {
 		configDir = "."
 	}
-	settingsDir := filepath.Join(configDir, "rewind-logic")
+	settingsDir := filepath.Join(configDir, "control-zebra")
 
 	return &SettingsService{
 		runner:      NewCommandRunner(),

@@ -22,21 +22,21 @@ import * as $models from "./models.js";
  * GetWatchedPath returns the currently watched path
  */
 export function GetWatchedPath(): $CancellablePromise<string> {
-    return $Call.ByID(475360882);
+    return $Call.ByID(3376255377);
 }
 
 /**
  * SetApp sets the Wails application reference for event emission
  */
 export function SetApp(app: application$0.App | null): $CancellablePromise<void> {
-    return $Call.ByID(129471496, app);
+    return $Call.ByID(504384071, app);
 }
 
 /**
  * StopWatching stops watching the current directory
  */
 export function StopWatching(): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(4209519710).then(($result: any) => {
+    return $Call.ByID(2716782321).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -46,7 +46,7 @@ export function StopWatching(): $CancellablePromise<$models.OperationResult> {
  * Returns an error if the directory cannot be watched
  */
 export function WatchDirectory(path: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(45568873, path).then(($result: any) => {
+    return $Call.ByID(3149356166, path).then(($result: any) => {
         return $$createType0($result);
     });
 }
