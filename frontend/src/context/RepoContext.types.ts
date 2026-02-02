@@ -18,6 +18,22 @@ export type ConflictFileStatus = 'both-modified' | 'deleted-by-us' | 'deleted-by
 export type ResolutionStrategy = 'mine' | 'theirs' | 'both';
 export type MessageType = 'success' | 'error' | 'info' | 'warning';
 
+/**
+ * GitInitOptions - Options for initializing a git repository
+ */
+export interface GitInitOptions {
+  type: 'clone' | 'init';
+  lfsEnabled?: boolean;
+  lfsAttributes?: Array<{ pattern: string; description: string }>;
+  userName?: string;
+  userEmail?: string;
+  createReadme?: boolean;
+  createGitignore?: boolean;
+  // Clone-specific options
+  url?: string;
+  recursive?: boolean;
+}
+
 // ============================================================================
 // Backend Model Types (from services/models.js)
 // ============================================================================
@@ -321,7 +337,7 @@ export interface RepoContextValue {
   // ===== Actions =====
   openRepo: (path: string) => Promise<boolean>;
   closeRepo: () => Promise<void>;
-  initializeGitRepo: () => Promise<boolean>;
+  initializeGitRepo: (options?: GitInitOptions) => Promise<boolean>;
   commitChanges: (message: string) => Promise<boolean>;
   syncRepo: () => Promise<boolean>;
   refreshStatus: () => Promise<void>;
