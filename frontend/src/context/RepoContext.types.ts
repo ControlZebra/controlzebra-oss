@@ -18,6 +18,82 @@ export type ConflictFileStatus = 'both-modified' | 'deleted-by-us' | 'deleted-by
 export type ResolutionStrategy = 'mine' | 'theirs' | 'both';
 export type MessageType = 'success' | 'error' | 'info' | 'warning';
 
+// ============================================================================
+// GitHub Types (for Phase 2: GitHub Integration)
+// ============================================================================
+
+/**
+ * GitHubAuthStatus - Authentication status for GitHub
+ */
+export interface GitHubAuthStatus {
+  loggedIn: boolean;
+  username?: string;
+  accountType?: string; // "user" or "org"
+  protocol?: string;    // "https" or "ssh"
+  host?: string;        // e.g., "github.com"
+  token?: string;       // Masked or partial token
+  scopes?: string;      // Token scopes
+  error?: string;
+}
+
+/**
+ * GitHubAuthResult - Result of GitHub auth operation
+ */
+export interface GitHubAuthResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * GitHubRepo - Repository information from GitHub
+ */
+export interface GitHubRepo {
+  name: string;
+  fullName: string;     // owner/repo format
+  description: string;
+  url: string;
+  sshUrl: string;
+  cloneUrl: string;
+  private: boolean;
+  fork: boolean;
+  archived: boolean;
+  defaultBranch: string;
+  language: string;
+  stargazersCount: number;
+  forksCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+
+/**
+ * GitHubRepoListResult - Result of listing GitHub repositories
+ */
+export interface GitHubRepoListResult {
+  success: boolean;
+  repos: GitHubRepo[];
+  error?: string;
+}
+
+/**
+ * GitHubCloneResult - Result of cloning a GitHub repository
+ */
+export interface GitHubCloneResult {
+  success: boolean;
+  cloneDir?: string;
+  error?: string;
+}
+
+/**
+ * GitHubRepoCreateResult - Result of creating a GitHub repository
+ */
+export interface GitHubRepoCreateResult {
+  success: boolean;
+  repo?: GitHubRepo;
+  cloneDir?: string;
+  error?: string;
+}
+
 /**
  * GitInitOptions - Options for initializing a git repository
  */
@@ -411,6 +487,24 @@ export interface RepoContextValue {
   createBranchFromDetached: (branchName: string) => Promise<boolean>;
   // Lock files
   removeAllStaleLocks: () => Promise<boolean>;
+
+  // ===== GitHub Integration (Phase 2) =====
+  
+  // GitHub state
+  ghInstalled: boolean;
+  ghVersion: string;
+  ghAuthStatus: GitHubAuthStatus | null;
+  isCheckingGhAuth: boolean;
+  ghRepos: GitHubRepo[];
+  isLoadingGhRepos: boolean;
+  
+  // GitHub actions
+  checkGitHubAuth: () => Promise<void>;
+  loginGitHub: () => Promise<GitHubAuthResult>;
+  logoutGitHub: () => Promise<GitHubAuthResult>;
+  loadGitHubRepos: (limit?: number, visibility?: string) => Promise<GitHubRepoListResult>;
+  cloneGitHubRepo: (repo: string, destPath: string) => Promise<GitHubCloneResult>;
+  publishToGitHub: (name: string, description: string, isPrivate: boolean) => Promise<GitHubRepoCreateResult>;
 }
 
 // ============================================================================

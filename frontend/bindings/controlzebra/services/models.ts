@@ -940,6 +940,334 @@ export class FileStatus {
 }
 
 /**
+ * GitHubAuthResult represents the result of an auth operation
+ */
+export class GitHubAuthResult {
+    "success": boolean;
+    "message"?: string;
+    "error"?: string;
+
+    /** Creates a new GitHubAuthResult instance. */
+    constructor($$source: Partial<GitHubAuthResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubAuthResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubAuthResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubAuthResult($$parsedSource as Partial<GitHubAuthResult>);
+    }
+}
+
+/**
+ * GitHubAuthStatus represents the authentication status for GitHub
+ */
+export class GitHubAuthStatus {
+    "loggedIn": boolean;
+    "username"?: string;
+
+    /**
+     * "user" or "org"
+     */
+    "accountType"?: string;
+
+    /**
+     * "https" or "ssh"
+     */
+    "protocol"?: string;
+
+    /**
+     * e.g., "github.com"
+     */
+    "host"?: string;
+
+    /**
+     * Masked or partial token
+     */
+    "token"?: string;
+
+    /**
+     * Token scopes
+     */
+    "scopes"?: string;
+    "error"?: string;
+
+    /** Creates a new GitHubAuthStatus instance. */
+    constructor($$source: Partial<GitHubAuthStatus> = {}) {
+        if (!("loggedIn" in $$source)) {
+            this["loggedIn"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubAuthStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubAuthStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubAuthStatus($$parsedSource as Partial<GitHubAuthStatus>);
+    }
+}
+
+/**
+ * GitHubCloneResult represents the result of cloning a repository
+ */
+export class GitHubCloneResult {
+    "success": boolean;
+
+    /**
+     * Local path where repo was cloned
+     */
+    "cloneDir"?: string;
+    "error"?: string;
+
+    /** Creates a new GitHubCloneResult instance. */
+    constructor($$source: Partial<GitHubCloneResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubCloneResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubCloneResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubCloneResult($$parsedSource as Partial<GitHubCloneResult>);
+    }
+}
+
+/**
+ * GitHubRepo represents a GitHub repository
+ */
+export class GitHubRepo {
+    "name": string;
+
+    /**
+     * owner/repo format
+     */
+    "fullName": string;
+    "description": string;
+    "url": string;
+    "sshUrl": string;
+    "cloneUrl": string;
+    "private": boolean;
+    "fork": boolean;
+    "archived": boolean;
+    "defaultBranch": string;
+    "language": string;
+    "stargazersCount": number;
+    "forksCount": number;
+    "updatedAt": string;
+    "createdAt": string;
+
+    /** Creates a new GitHubRepo instance. */
+    constructor($$source: Partial<GitHubRepo> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("fullName" in $$source)) {
+            this["fullName"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
+        }
+        if (!("url" in $$source)) {
+            this["url"] = "";
+        }
+        if (!("sshUrl" in $$source)) {
+            this["sshUrl"] = "";
+        }
+        if (!("cloneUrl" in $$source)) {
+            this["cloneUrl"] = "";
+        }
+        if (!("private" in $$source)) {
+            this["private"] = false;
+        }
+        if (!("fork" in $$source)) {
+            this["fork"] = false;
+        }
+        if (!("archived" in $$source)) {
+            this["archived"] = false;
+        }
+        if (!("defaultBranch" in $$source)) {
+            this["defaultBranch"] = "";
+        }
+        if (!("language" in $$source)) {
+            this["language"] = "";
+        }
+        if (!("stargazersCount" in $$source)) {
+            this["stargazersCount"] = 0;
+        }
+        if (!("forksCount" in $$source)) {
+            this["forksCount"] = 0;
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = "";
+        }
+        if (!("createdAt" in $$source)) {
+            this["createdAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubRepo instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubRepo {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubRepo($$parsedSource as Partial<GitHubRepo>);
+    }
+}
+
+/**
+ * GitHubRepoCreateOptions contains options for creating a new repository
+ */
+export class GitHubRepoCreateOptions {
+    "name": string;
+    "description"?: string;
+    "private": boolean;
+
+    /**
+     * Clone the repo after creation
+     */
+    "clone": boolean;
+
+    /**
+     * Path to clone to (if Clone is true)
+     */
+    "clonePath": string;
+
+    /**
+     * Initialize with README
+     */
+    "addReadme": boolean;
+
+    /**
+     * .gitignore template name
+     */
+    "gitIgnore": string;
+
+    /**
+     * License template name
+     */
+    "license": string;
+
+    /** Creates a new GitHubRepoCreateOptions instance. */
+    constructor($$source: Partial<GitHubRepoCreateOptions> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("private" in $$source)) {
+            this["private"] = false;
+        }
+        if (!("clone" in $$source)) {
+            this["clone"] = false;
+        }
+        if (!("clonePath" in $$source)) {
+            this["clonePath"] = "";
+        }
+        if (!("addReadme" in $$source)) {
+            this["addReadme"] = false;
+        }
+        if (!("gitIgnore" in $$source)) {
+            this["gitIgnore"] = "";
+        }
+        if (!("license" in $$source)) {
+            this["license"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubRepoCreateOptions instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubRepoCreateOptions {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubRepoCreateOptions($$parsedSource as Partial<GitHubRepoCreateOptions>);
+    }
+}
+
+/**
+ * GitHubRepoCreateResult represents the result of creating a repository
+ */
+export class GitHubRepoCreateResult {
+    "success": boolean;
+    "repo"?: GitHubRepo;
+
+    /**
+     * Local path if cloned
+     */
+    "cloneDir"?: string;
+    "error"?: string;
+
+    /** Creates a new GitHubRepoCreateResult instance. */
+    constructor($$source: Partial<GitHubRepoCreateResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubRepoCreateResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubRepoCreateResult {
+        const $$createField1_0 = $$createType18;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("repo" in $$parsedSource) {
+            $$parsedSource["repo"] = $$createField1_0($$parsedSource["repo"]);
+        }
+        return new GitHubRepoCreateResult($$parsedSource as Partial<GitHubRepoCreateResult>);
+    }
+}
+
+/**
+ * GitHubRepoListResult represents the result of listing repositories
+ */
+export class GitHubRepoListResult {
+    "success": boolean;
+    "repos": GitHubRepo[];
+    "error"?: string;
+
+    /** Creates a new GitHubRepoListResult instance. */
+    constructor($$source: Partial<GitHubRepoListResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("repos" in $$source)) {
+            this["repos"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubRepoListResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubRepoListResult {
+        const $$createField1_0 = $$createType19;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("repos" in $$parsedSource) {
+            $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
+        }
+        return new GitHubRepoListResult($$parsedSource as Partial<GitHubRepoListResult>);
+    }
+}
+
+/**
  * GitRemoteInfo contains information about a git remote
  */
 export class GitRemoteInfo {
@@ -2001,7 +2329,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType19;
+        const $$createField3_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -2088,13 +2416,13 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType20;
-        const $$createField3_0 = $$createType20;
-        const $$createField4_0 = $$createType20;
-        const $$createField5_0 = $$createType21;
-        const $$createField6_0 = $$createType22;
-        const $$createField7_0 = $$createType23;
-        const $$createField8_0 = $$createType24;
+        const $$createField2_0 = $$createType22;
+        const $$createField3_0 = $$createType22;
+        const $$createField4_0 = $$createType22;
+        const $$createField5_0 = $$createType23;
+        const $$createField6_0 = $$createType24;
+        const $$createField7_0 = $$createType25;
+        const $$createField8_0 = $$createType26;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -2274,10 +2602,12 @@ const $$createType14 = CustomLFSGroup.createFrom;
 const $$createType15 = $Create.Array($$createType14);
 const $$createType16 = FileEntry.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = FileStatus.createFrom;
+const $$createType18 = GitHubRepo.createFrom;
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = BackgroundTaskConfig.createFrom;
-const $$createType21 = FetchSettings.createFrom;
-const $$createType22 = LFSSettings.createFrom;
-const $$createType23 = MaintenanceSettings.createFrom;
-const $$createType24 = ProtectedBranchSettings.createFrom;
+const $$createType20 = FileStatus.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = BackgroundTaskConfig.createFrom;
+const $$createType23 = FetchSettings.createFrom;
+const $$createType24 = LFSSettings.createFrom;
+const $$createType25 = MaintenanceSettings.createFrom;
+const $$createType26 = ProtectedBranchSettings.createFrom;

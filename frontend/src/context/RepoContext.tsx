@@ -65,6 +65,16 @@ import {
   CreateBranchFromDetached,
   RemoveAllStaleLocks,
 } from '../../bindings/controlzebra/services/gitservice';
+import {
+  IsGHInstalled,
+  GetGHVersion,
+  AuthLogin,
+  AuthLogout,
+  AuthStatus,
+  RepoList,
+  RepoClone,
+  RepoCreateFromLocal,
+} from '../../bindings/controlzebra/services/githubservice';
 import { SyncWithProgress } from '../../bindings/controlzebra/services/progressservice';
 import { GetAppSettings, SaveAppSettings } from '../../bindings/controlzebra/services/settingsservice';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
@@ -94,6 +104,12 @@ import type {
   ParentBranchResult,
   BisectState,
   GitInitOptions,
+  GitHubAuthStatus,
+  GitHubAuthResult,
+  GitHubRepo,
+  GitHubRepoListResult,
+  GitHubCloneResult,
+  GitHubRepoCreateResult,
 } from './RepoContext.types';
 
 // Polling interval for status updates (in ms)
@@ -133,6 +149,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
+  
+  // ===== GitHub State (Phase 2) =====
+  const [ghInstalled, setGhInstalled] = useState(false);
+  const [ghVersion, setGhVersion] = useState('');
+  const [ghAuthStatus, setGhAuthStatus] = useState<GitHubAuthStatus | null>(null);
+  const [isCheckingGhAuth, setIsCheckingGhAuth] = useState(false);
+  const [ghRepos, setGhRepos] = useState<GitHubRepo[]>([]);
+  const [isLoadingGhRepos, setIsLoadingGhRepos] = useState(false);
   
   // ===== Progress Modal State =====
   const [progressModal, setProgressModal] = useState<ProgressModalState>({
@@ -1359,7 +1383,175 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
+  // ===== GitHub Handlers (Phase 2) =====
+
+  // Check GitHub CLI installation and auth status
+  const checkGitHubAuth = useCallback(async (): Promise<void> => {
+    setIsCheckingGhAuth(true);
+    try {
+      const installed = await IsGHInstalled();
+      setGhInstalled(installed);
+      
+      if (installed) {
+        const version = await GetGHVersion();
+        setGhVersion(version);
+        
+        const status = await AuthStatus();
+        setGhAuthStatus(status as GitHubAuthStatus);
+      } else {
+        setGhVersion('');
+        setGhAuthStatus(null);
+      }
+    } catch (err) {
+      console.error('Failed to check GitHub auth:', err);
+      setGhAuthStatus(null);
+    } finally {
+      setIsCheckingGhAuth(false);
+    }
+  }, []);
+
+  // Login to GitHub
+  const loginGitHub = useCallback(async (): Promise<GitHubAuthResult> => {
+    try {
+      const result = await AuthLogin();
+      if (result.success) {
+        // Refresh auth status after login
+        await checkGitHubAuth();
+        showMessage('success', 'Successfully connected to GitHub');
+      } else {
+        showMessage('error', result.error || 'GitHub login failed');
+      }
+      return result as GitHubAuthResult;
+    } catch (err) {
+      const error = err as Error;
+      const result: GitHubAuthResult = {
+        success: false,
+        error: error.message || 'GitHub login failed',
+      };
+      showMessage('error', result.error!);
+      return result;
+    }
+  }, [checkGitHubAuth, showMessage]);
+
+  // Logout from GitHub
+  const logoutGitHub = useCallback(async (): Promise<GitHubAuthResult> => {
+    try {
+      const result = await AuthLogout();
+      if (result.success) {
+        setGhAuthStatus(null);
+        setGhRepos([]);
+        showMessage('success', 'Disconnected from GitHub');
+      } else {
+        showMessage('error', result.error || 'GitHub logout failed');
+      }
+      return result as GitHubAuthResult;
+    } catch (err) {
+      const error = err as Error;
+      const result: GitHubAuthResult = {
+        success: false,
+        error: error.message || 'GitHub logout failed',
+      };
+      showMessage('error', result.error!);
+      return result;
+    }
+  }, [showMessage]);
+
+  // Load GitHub repositories
+  const loadGitHubRepos = useCallback(async (
+    limit = 30,
+    visibility = ''
+  ): Promise<GitHubRepoListResult> => {
+    setIsLoadingGhRepos(true);
+    try {
+      const result = await RepoList(limit, visibility);
+      if (result.success) {
+        setGhRepos((result.repos || []) as GitHubRepo[]);
+      } else {
+        showMessage('error', result.error || 'Failed to load repositories');
+      }
+      return result as GitHubRepoListResult;
+    } catch (err) {
+      const error = err as Error;
+      const result: GitHubRepoListResult = {
+        success: false,
+        repos: [],
+        error: error.message || 'Failed to load repositories',
+      };
+      showMessage('error', result.error!);
+      return result;
+    } finally {
+      setIsLoadingGhRepos(false);
+    }
+  }, [showMessage]);
+
+  // Clone a GitHub repository
+  const cloneGitHubRepo = useCallback(async (
+    repo: string,
+    destPath: string
+  ): Promise<GitHubCloneResult> => {
+    try {
+      const result = await RepoClone(repo, destPath);
+      if (result.success) {
+        showMessage('success', `Repository cloned to ${result.cloneDir}`);
+        // Optionally open the cloned repo
+        if (result.cloneDir) {
+          await openRepo(result.cloneDir);
+        }
+      } else {
+        showMessage('error', result.error || 'Failed to clone repository');
+      }
+      return result as GitHubCloneResult;
+    } catch (err) {
+      const error = err as Error;
+      const result: GitHubCloneResult = {
+        success: false,
+        error: error.message || 'Failed to clone repository',
+      };
+      showMessage('error', result.error!);
+      return result;
+    }
+  }, [showMessage, openRepo]);
+
+  // Publish local repo to GitHub
+  const publishToGitHub = useCallback(async (
+    name: string,
+    description: string,
+    isPrivate: boolean
+  ): Promise<GitHubRepoCreateResult> => {
+    if (!repoPath) {
+      return {
+        success: false,
+        error: 'No repository open',
+      };
+    }
+    
+    try {
+      const result = await RepoCreateFromLocal(repoPath, name, description, isPrivate);
+      if (result.success) {
+        showMessage('success', `Repository published to GitHub as ${result.repo?.fullName || name}`);
+        // Refresh status to update remote info
+        await refreshStatus();
+      } else {
+        showMessage('error', result.error || 'Failed to publish repository');
+      }
+      return result as GitHubRepoCreateResult;
+    } catch (err) {
+      const error = err as Error;
+      const result: GitHubRepoCreateResult = {
+        success: false,
+        error: error.message || 'Failed to publish repository',
+      };
+      showMessage('error', result.error!);
+      return result;
+    }
+  }, [repoPath, showMessage, refreshStatus]);
+
   // ===== Effects =====
+
+  // Check GitHub auth status on mount
+  useEffect(() => {
+    checkGitHubAuth();
+  }, [checkGitHubAuth]);
 
   // Load last opened repository on mount
   useEffect(() => {
@@ -1568,6 +1760,20 @@ export function RepoProvider({ children }: RepoProviderProps) {
     skipAMPatch,
     createBranchFromDetached,
     removeAllStaleLocks,
+
+    // GitHub Integration (Phase 2)
+    ghInstalled,
+    ghVersion,
+    ghAuthStatus,
+    isCheckingGhAuth,
+    ghRepos,
+    isLoadingGhRepos,
+    checkGitHubAuth,
+    loginGitHub,
+    logoutGitHub,
+    loadGitHubRepos,
+    cloneGitHubRepo,
+    publishToGitHub,
   }), [
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -1591,6 +1797,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     abortAM, skipAMPatch,
     createBranchFromDetached,
     removeAllStaleLocks,
+    // GitHub dependencies
+    ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
+    checkGitHubAuth, loginGitHub, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub,
   ]);
 
   return (
