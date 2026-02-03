@@ -50,6 +50,7 @@ export {
     GitHubAuthResult,
     GitHubAuthStatus,
     GitHubCloneResult,
+    GitHubDeviceFlowResult,
     GitHubRepo,
     GitHubRepoCreateOptions,
     GitHubRepoCreateResult,

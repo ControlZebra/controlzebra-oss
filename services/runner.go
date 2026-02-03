@@ -87,3 +87,45 @@ func (r *CommandRunner) MustRunGit(repoPath string, args ...string) (string, err
 	}
 	return result.Stdout, nil
 }
+
+// RunWithStdin executes a command with provided stdin input
+func (r *CommandRunner) RunWithStdin(workDir string, stdinInput string, name string, args ...string) CommandResult {
+	ctx, cancel := context.WithTimeout(context.Background(), r.Timeout)
+	defer cancel()
+
+	return r.RunWithContextAndStdin(ctx, workDir, stdinInput, name, args...)
+}
+
+// RunWithContextAndStdin executes a command with a custom context and stdin input
+func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir string, stdinInput string, name string, args ...string) CommandResult {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = workDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmd.Stdin = bytes.NewBufferString(stdinInput)
+
+	err := cmd.Run()
+
+	result := CommandResult{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		ExitCode: 0,
+		Success:  true,
+	}
+
+	if err != nil {
+		result.Success = false
+		result.Error = err.Error()
+
+		// Extract exit code if available
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitErr.ExitCode()
+		} else {
+			result.ExitCode = -1
+		}
+	}
+
+	return result
+}

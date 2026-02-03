@@ -7,7 +7,6 @@ import { Settings } from 'lucide-react';
 import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../../constants';
 import { useLayout } from '../../../../context';
 import GitConfigForm from './GitConfigForm';
-import AccountsSettings from './AccountsSettings';
 import GeneralSettings from './GeneralSettings';
 import LFSGroupsSettings from './LFSGroupsSettings';
 
@@ -26,8 +25,6 @@ function SettingsPage(): JSX.Element {
         return <LFSGroupsSettings />;
       case 'general':
         return <GeneralSettings />;
-      case 'accounts':
-        return <AccountsSettings />;
       default:
         return null;
     }
