@@ -4,6 +4,7 @@
 import * as FileDialogService from "./filedialogservice.js";
 import * as FileSystemService from "./filesystemservice.js";
 import * as FileWatcherService from "./filewatcherservice.js";
+import * as GitHubService from "./githubservice.js";
 import * as GitService from "./gitservice.js";
 import * as LFSService from "./lfsservice.js";
 import * as ProgressService from "./progressservice.js";
@@ -14,6 +15,7 @@ export {
     FileDialogService,
     FileSystemService,
     FileWatcherService,
+    GitHubService,
     GitService,
     LFSService,
     ProgressService,
@@ -45,6 +47,13 @@ export {
     FetchSettings,
     FileEntry,
     FileStatus,
+    GitHubAuthResult,
+    GitHubAuthStatus,
+    GitHubCloneResult,
+    GitHubRepo,
+    GitHubRepoCreateOptions,
+    GitHubRepoCreateResult,
+    GitHubRepoListResult,
     GitRemoteInfo,
     GitVersion,
     GraphCommit,
