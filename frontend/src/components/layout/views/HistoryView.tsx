@@ -19,7 +19,7 @@ type ViewMode = 'list' | 'graph';
 
 function HistoryView(): JSX.Element {
   const { repoPath, graphCommits, selectedCommit, selectCommit } = useRepo();
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('graph');
 
   const handleSelect = useCallback((hash: string | null): void => {
     // Toggle selection if clicking the same commit (hash will be null)
