@@ -53,6 +53,7 @@ The ControlZebra backend is built with Go and provides services that are exposed
 | Service | Purpose | Documentation |
 |---------|---------|---------------|
 | [GitService](GitService.md) | Git operations via CLI | Repo detection, status, commits, sync |
+| [GitHubService](GitHubService.md) | GitHub CLI operations | Auth, repo list/clone/create |
 | [SettingsService](SettingsService.md) | App preferences & git config | Theme, last repo, user profile |
 | [FileSystemService](FileSystemService.md) | File operations | Directory listing, file opening |
 | [FileDialogService](FileDialogService.md) | Native dialogs | Folder selection |
@@ -68,6 +69,8 @@ app := application.New(application.Options{
     Description: "A simplified Git client for industrial automation users",
     Services: []application.Service{
         application.NewService(services.NewGitService()),
+        application.NewService(services.NewLFSService()),
+        application.NewService(services.NewGitHubService()),
         application.NewService(services.NewSettingsService()),
         application.NewService(services.NewFileSystemService()),
         application.NewService(fileDialogService),
