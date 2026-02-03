@@ -39,7 +39,7 @@ type GitHubAuthStatus struct {
 // GitHubRepo represents a GitHub repository
 type GitHubRepo struct {
 	Name            string `json:"name"`
-	FullName        string `json:"fullName"`        // owner/repo format
+	FullName        string `json:"fullName"` // owner/repo format
 	Description     string `json:"description"`
 	URL             string `json:"url"`
 	SSHURL          string `json:"sshUrl"`
@@ -74,11 +74,11 @@ type GitHubRepoCreateOptions struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Private     bool   `json:"private"`
-	Clone       bool   `json:"clone"`       // Clone the repo after creation
-	ClonePath   string `json:"clonePath"`   // Path to clone to (if Clone is true)
-	AddReadme   bool   `json:"addReadme"`   // Initialize with README
-	GitIgnore   string `json:"gitIgnore"`   // .gitignore template name
-	License     string `json:"license"`     // License template name
+	Clone       bool   `json:"clone"`     // Clone the repo after creation
+	ClonePath   string `json:"clonePath"` // Path to clone to (if Clone is true)
+	AddReadme   bool   `json:"addReadme"` // Initialize with README
+	GitIgnore   string `json:"gitIgnore"` // .gitignore template name
+	License     string `json:"license"`   // License template name
 }
 
 // GitHubRepoCreateResult represents the result of creating a repository
