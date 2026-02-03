@@ -56,6 +56,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(services.NewGitService()),
 			application.NewService(services.NewLFSService()),
+			application.NewService(services.NewGitHubService()),
 			application.NewService(settingsService),
 			application.NewService(services.NewFileSystemService()),
 			application.NewService(fileDialogService),
