@@ -46,6 +46,16 @@ export interface GitHubAuthResult {
 }
 
 /**
+ * GitHubDeviceFlowResult - Device flow authentication state
+ */
+export interface GitHubDeviceFlowResult {
+  success: boolean;
+  userCode?: string;        // The one-time code user needs to enter
+  verificationUrl?: string; // URL to visit for authentication
+  error?: string;
+}
+
+/**
  * GitHubRepo - Repository information from GitHub
  */
 export interface GitHubRepo {
@@ -501,6 +511,9 @@ export interface RepoContextValue {
   // GitHub actions
   checkGitHubAuth: () => Promise<void>;
   loginGitHub: () => Promise<GitHubAuthResult>;
+  startGitHubLogin: () => Promise<GitHubDeviceFlowResult>;
+  completeGitHubLogin: () => Promise<GitHubAuthResult>;
+  cancelGitHubLogin: () => Promise<GitHubAuthResult>;
   logoutGitHub: () => Promise<GitHubAuthResult>;
   loadGitHubRepos: (limit?: number, visibility?: string) => Promise<GitHubRepoListResult>;
   cloneGitHubRepo: (repo: string, destPath: string) => Promise<GitHubCloneResult>;

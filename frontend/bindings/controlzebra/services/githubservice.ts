@@ -15,14 +15,45 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
- * AuthLogin initiates the GitHub authentication flow.
- * This opens a browser for the user to authenticate.
- * Returns immediately after starting the auth flow - the actual auth happens
- * in the browser and the CLI handles the callback.
+ * AuthLogin initiates the GitHub authentication flow using device code.
+ * This runs the gh auth login command and waits for completion.
+ * The flow shows a code that the user must enter in their browser.
  */
 export function AuthLogin(): $CancellablePromise<$models.GitHubAuthResult> {
     return $Call.ByID(3633986302).then(($result: any) => {
         return $$createType0($result);
+    });
+}
+
+/**
+ * AuthLoginCancel cancels an in-progress device flow authentication
+ */
+export function AuthLoginCancel(): $CancellablePromise<$models.GitHubAuthResult> {
+    return $Call.ByID(979810388).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * AuthLoginComplete checks if the device flow authentication has completed.
+ * This should be called after AuthLoginStart and after the user has entered the code.
+ * It polls the auth status to detect successful authentication.
+ */
+export function AuthLoginComplete(): $CancellablePromise<$models.GitHubAuthResult> {
+    return $Call.ByID(1398634085).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * AuthLoginStart initiates the device code authentication flow.
+ * Returns the user code and verification URL for the user to complete auth in browser.
+ * After calling this, call AuthLoginComplete to wait for the auth to finish.
+ * The gh CLI process will continue running in the background until the user completes auth.
+ */
+export function AuthLoginStart(): $CancellablePromise<$models.GitHubDeviceFlowResult> {
+    return $Call.ByID(2121897454).then(($result: any) => {
+        return $$createType1($result);
     });
 }
 
@@ -40,7 +71,7 @@ export function AuthLogout(): $CancellablePromise<$models.GitHubAuthResult> {
  */
 export function AuthStatus(): $CancellablePromise<$models.GitHubAuthStatus> {
     return $Call.ByID(3725782427).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -65,7 +96,7 @@ export function IsGHInstalled(): $CancellablePromise<boolean> {
  */
 export function RepoClone(repo: string, destPath: string): $CancellablePromise<$models.GitHubCloneResult> {
     return $Call.ByID(3713232932, repo, destPath).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -74,7 +105,7 @@ export function RepoClone(repo: string, destPath: string): $CancellablePromise<$
  */
 export function RepoCreate(options: $models.GitHubRepoCreateOptions): $CancellablePromise<$models.GitHubRepoCreateResult> {
     return $Call.ByID(1420268655, options).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -86,7 +117,7 @@ export function RepoCreate(options: $models.GitHubRepoCreateOptions): $Cancellab
  */
 export function RepoCreateFromLocal(localPath: string, name: string, description: string, $private: boolean): $CancellablePromise<$models.GitHubRepoCreateResult> {
     return $Call.ByID(1048591282, localPath, name, description, $private).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -97,7 +128,7 @@ export function RepoCreateFromLocal(localPath: string, name: string, description
  */
 export function RepoList(limit: number, visibility: string): $CancellablePromise<$models.GitHubRepoListResult> {
     return $Call.ByID(106928271, limit, visibility).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -106,13 +137,14 @@ export function RepoList(limit: number, visibility: string): $CancellablePromise
  */
 export function RepoListForOrg(org: string, limit: number): $CancellablePromise<$models.GitHubRepoListResult> {
     return $Call.ByID(1651014432, org, limit).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = $models.GitHubAuthResult.createFrom;
-const $$createType1 = $models.GitHubAuthStatus.createFrom;
-const $$createType2 = $models.GitHubCloneResult.createFrom;
-const $$createType3 = $models.GitHubRepoCreateResult.createFrom;
-const $$createType4 = $models.GitHubRepoListResult.createFrom;
+const $$createType1 = $models.GitHubDeviceFlowResult.createFrom;
+const $$createType2 = $models.GitHubAuthStatus.createFrom;
+const $$createType3 = $models.GitHubCloneResult.createFrom;
+const $$createType4 = $models.GitHubRepoCreateResult.createFrom;
+const $$createType5 = $models.GitHubRepoListResult.createFrom;

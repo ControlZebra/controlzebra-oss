@@ -1047,6 +1047,41 @@ export class GitHubCloneResult {
 }
 
 /**
+ * GitHubDeviceFlowResult represents the device flow authentication state
+ */
+export class GitHubDeviceFlowResult {
+    "success": boolean;
+
+    /**
+     * The one-time code user needs to enter
+     */
+    "userCode"?: string;
+
+    /**
+     * URL to visit for authentication
+     */
+    "verificationUrl"?: string;
+    "error"?: string;
+
+    /** Creates a new GitHubDeviceFlowResult instance. */
+    constructor($$source: Partial<GitHubDeviceFlowResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubDeviceFlowResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubDeviceFlowResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubDeviceFlowResult($$parsedSource as Partial<GitHubDeviceFlowResult>);
+    }
+}
+
+/**
  * GitHubRepo represents a GitHub repository
  */
 export class GitHubRepo {

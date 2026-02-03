@@ -69,6 +69,9 @@ import {
   IsGHInstalled,
   GetGHVersion,
   AuthLogin,
+  AuthLoginStart,
+  AuthLoginComplete,
+  AuthLoginCancel,
   AuthLogout,
   AuthStatus,
   RepoList,
@@ -106,6 +109,7 @@ import type {
   GitInitOptions,
   GitHubAuthStatus,
   GitHubAuthResult,
+  GitHubDeviceFlowResult,
   GitHubRepo,
   GitHubRepoListResult,
   GitHubCloneResult,
@@ -1433,6 +1437,52 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [checkGitHubAuth, showMessage]);
 
+  // Start GitHub login (device flow) - returns verification code
+  const startGitHubLogin = useCallback(async (): Promise<GitHubDeviceFlowResult> => {
+    try {
+      const result = await AuthLoginStart();
+      return result as GitHubDeviceFlowResult;
+    } catch (err) {
+      const error = err as Error;
+      return {
+        success: false,
+        error: error.message || 'Failed to start GitHub login',
+      };
+    }
+  }, []);
+
+  // Complete GitHub login (check if auth completed)
+  const completeGitHubLogin = useCallback(async (): Promise<GitHubAuthResult> => {
+    try {
+      const result = await AuthLoginComplete();
+      if (result.success) {
+        await checkGitHubAuth();
+        showMessage('success', 'Successfully connected to GitHub');
+      }
+      return result as GitHubAuthResult;
+    } catch (err) {
+      const error = err as Error;
+      return {
+        success: false,
+        error: error.message || 'GitHub login not completed',
+      };
+    }
+  }, [checkGitHubAuth, showMessage]);
+
+  // Cancel GitHub login (abort in-progress device flow)
+  const cancelGitHubLogin = useCallback(async (): Promise<GitHubAuthResult> => {
+    try {
+      const result = await AuthLoginCancel();
+      return result as GitHubAuthResult;
+    } catch (err) {
+      const error = err as Error;
+      return {
+        success: false,
+        error: error.message || 'Failed to cancel GitHub login',
+      };
+    }
+  }, []);
+
   // Logout from GitHub
   const logoutGitHub = useCallback(async (): Promise<GitHubAuthResult> => {
     try {
@@ -1770,6 +1820,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     isLoadingGhRepos,
     checkGitHubAuth,
     loginGitHub,
+    startGitHubLogin,
+    completeGitHubLogin,
+    cancelGitHubLogin,
     logoutGitHub,
     loadGitHubRepos,
     cloneGitHubRepo,
@@ -1799,7 +1852,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     removeAllStaleLocks,
     // GitHub dependencies
     ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
-    checkGitHubAuth, loginGitHub, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub,
+    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub,
   ]);
 
   return (

@@ -99,3 +99,21 @@ func TestFormatInt(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubService_AuthLogout(t *testing.T) {
+	svc := NewGitHubService()
+	if !svc.IsGHInstalled() {
+		t.Skip("gh CLI not installed")
+	}
+
+	// Test logout - should succeed even if not logged in
+	// (the fix handles the "not logged in" case gracefully)
+	result := svc.AuthLogout()
+	t.Logf("Logout result - Success: %v, Message: %s, Error: %s",
+		result.Success, result.Message, result.Error)
+
+	// Verify the result is successful (either logged out or already logged out)
+	if !result.Success {
+		t.Errorf("AuthLogout failed unexpectedly: %s", result.Error)
+	}
+}
