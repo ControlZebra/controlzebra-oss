@@ -34,6 +34,16 @@
   /* Accents */
   --color-accent-primary: theme(colors.blue.600);
   --color-accent-primary-hover: theme(colors.blue.700);
+  
+  /* File Browser - OneDrive/GDrive style (light mode) */
+  --color-fb-base: theme(colors.white);
+  --color-fb-surface: theme(colors.neutral.50);
+  --color-fb-hover: theme(colors.neutral.100);
+  --color-fb-selected: theme(colors.blue.50);
+  --color-fb-selected-border: theme(colors.blue.200);
+  --color-fb-sidebar: theme(colors.neutral.50);
+  --color-fb-toolbar: theme(colors.white);
+  --color-fb-breadcrumb: theme(colors.white);
 }
 
 /* Dark theme */
@@ -62,6 +72,16 @@
   /* Accents */
   --color-accent-primary: theme(colors.blue.500);
   --color-accent-primary-hover: theme(colors.blue.400);
+  
+  /* File Browser - OneDrive/GDrive style (dark mode) */
+  --color-fb-base: theme(colors.neutral.900);
+  --color-fb-surface: theme(colors.neutral.800);
+  --color-fb-hover: theme(colors.neutral.700);
+  --color-fb-selected: theme(colors.blue.950);
+  --color-fb-selected-border: theme(colors.blue.700);
+  --color-fb-sidebar: theme(colors.neutral.800);
+  --color-fb-toolbar: theme(colors.neutral.900);
+  --color-fb-breadcrumb: theme(colors.neutral.900);
 }
 
 /* Theme utility classes using CSS variables */
@@ -118,6 +138,39 @@
 
 @utility bg-theme-interactive-active {
   background-color: var(--color-interactive-active);
+}
+
+/* File Browser specific utilities */
+@utility bg-fb-base {
+  background-color: var(--color-fb-base);
+}
+
+@utility bg-fb-surface {
+  background-color: var(--color-fb-surface);
+}
+
+@utility bg-fb-hover {
+  background-color: var(--color-fb-hover);
+}
+
+@utility bg-fb-selected {
+  background-color: var(--color-fb-selected);
+}
+
+@utility border-fb-selected {
+  border-color: var(--color-fb-selected-border);
+}
+
+@utility bg-fb-sidebar {
+  background-color: var(--color-fb-sidebar);
+}
+
+@utility bg-fb-toolbar {
+  background-color: var(--color-fb-toolbar);
+}
+
+@utility bg-fb-breadcrumb {
+  background-color: var(--color-fb-breadcrumb);
 }
 
 /* Screen transition animation */

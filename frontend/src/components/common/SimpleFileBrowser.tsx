@@ -29,24 +29,39 @@ import {
   EyeOff,
   RefreshCw,
   Home,
+  X,
+  ExternalLink,
+  Clipboard,
+  Trash2,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 import { 
   ListDirectoryWithOptions, 
   OpenFile,
 } from '../../../bindings/controlzebra/services/filesystemservice';
+import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
 import { isTextFile, type ExplorerTab } from '../../constants';
 
-// Git status color classes
+// Git status color classes - used for text and icons
 const GIT_STATUS_COLORS: Record<string, string> = {
-  added: 'text-green-400',
-  modified: 'text-yellow-400',
-  deleted: 'text-red-400',
-  renamed: 'text-blue-400',
+  added: 'text-green-500',
+  modified: 'text-yellow-500',
+  deleted: 'text-red-500',
+  renamed: 'text-blue-500',
   untracked: 'text-gray-500',
+};
+
+// Git status single-letter labels
+const GIT_STATUS_LABELS: Record<string, string> = {
+  added: 'A',
+  modified: 'M',
+  deleted: 'D',
+  renamed: 'R',
+  untracked: 'U',
 };
 
 // File extension to icon mapping
@@ -105,14 +120,6 @@ const EXTENSION_ICONS: Record<string, LucideIcon> = {
   xls: FileSpreadsheet,
   xlsx: FileSpreadsheet,
 };
-
-interface FileEntry {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  size?: number;
-  modTime?: string;
-}
 
 interface RepoStatus {
   changedFiles?: Array<{
@@ -181,7 +188,7 @@ function formatFileSize(bytes?: number): string {
 /**
  * Format date for display
  */
-function formatDate(timestamp?: string): string {
+function formatDate(timestamp?: number): string {
   if (!timestamp) return '';
   const date = new Date(timestamp);
   const currentYear = new Date().getFullYear();
@@ -196,6 +203,21 @@ interface BreadcrumbsProps {
   currentPath: string | null;
   rootPath: string | null;
   onNavigate: (path: string) => void;
+}
+
+/**
+ * Truncate text in the middle (macOS style)
+ * Shows beginning and end of text with ellipsis in the middle
+ */
+function truncateMiddle(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  
+  const ellipsis = '…';
+  const charsToShow = maxLength - ellipsis.length;
+  const frontChars = Math.ceil(charsToShow / 2);
+  const backChars = Math.floor(charsToShow / 2);
+  
+  return text.substring(0, frontChars) + ellipsis + text.substring(text.length - backChars);
 }
 
 /**
@@ -225,28 +247,28 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }: BreadcrumbsProps) {
   if (parts.length === 0) return null;
 
   return (
-    <nav className="flex items-center gap-1 px-3 py-2 bg-theme-surface border-b border-theme-default overflow-x-auto">
+    <nav className="flex items-center gap-1 px-4 py-3 bg-fb-breadcrumb overflow-x-auto">
       <button
         onClick={() => rootPath && onNavigate(rootPath)}
-        className="p-1 hover:bg-theme-muted rounded text-theme-muted hover:text-theme-primary transition-colors shrink-0"
+        className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors shrink-0"
         title="Go to root"
       >
-        <Home className="w-4 h-4" />
+        <Home className="w-5 h-5" />
       </button>
       
       {parts.map((part, index) => (
         <div key={part.path} className="flex items-center shrink-0">
-          <ChevronRight className="w-4 h-4 text-theme-muted" />
+          <ChevronRight className="w-5 h-5 text-theme-muted" />
           <button
             onClick={() => onNavigate(part.path)}
-            className={`px-2 py-1 rounded text-sm transition-colors truncate max-w-[150px] ${
+            className={`px-2 py-1.5 rounded text-base transition-colors ${
               index === parts.length - 1
-                ? 'text-theme-primary font-medium'
-                : 'text-theme-muted hover:text-theme-secondary hover:bg-theme-muted'
+                ? 'text-theme-primary font-semibold'
+                : 'text-theme-muted hover:text-theme-secondary hover:bg-fb-hover'
             }`}
             title={part.name}
           >
-            {part.name}
+            {truncateMiddle(part.name, 20)}
           </button>
         </div>
       ))}
@@ -267,18 +289,18 @@ interface ToolbarProps {
  */
 function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh }: ToolbarProps) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-theme-surface border-b border-theme-default">
+    <div className="flex items-center justify-between px-3 py-2 bg-fb-toolbar border-b border-theme-default">
       <div className="flex items-center gap-2">
         <button
           onClick={onRefresh}
-          className="p-1.5 hover:bg-theme-muted rounded text-theme-muted hover:text-theme-primary transition-colors"
+          className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
           title="Refresh"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
         <button
           onClick={onShowHiddenChange}
-          className={`p-1.5 hover:bg-theme-muted rounded transition-colors ${
+          className={`p-1.5 hover:bg-fb-hover rounded transition-colors ${
             showHidden ? 'text-theme-primary' : 'text-theme-muted hover:text-theme-secondary'
           }`}
           title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
@@ -287,12 +309,12 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
         </button>
       </div>
       
-      <div className="flex items-center gap-1 bg-theme-muted rounded p-0.5">
+      <div className="flex items-center gap-1 bg-fb-surface rounded p-0.5">
         <button
           onClick={() => onViewModeChange('grid')}
           className={`p-1.5 rounded transition-colors ${
             viewMode === 'grid' 
-              ? 'bg-theme-surface text-theme-primary shadow-sm' 
+              ? 'bg-fb-base text-theme-primary shadow-sm' 
               : 'text-theme-muted hover:text-theme-secondary'
           }`}
           title="Grid view"
@@ -303,7 +325,7 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
           onClick={() => onViewModeChange('list')}
           className={`p-1.5 rounded transition-colors ${
             viewMode === 'list' 
-              ? 'bg-theme-surface text-theme-primary shadow-sm' 
+              ? 'bg-fb-base text-theme-primary shadow-sm' 
               : 'text-theme-muted hover:text-theme-secondary'
           }`}
           title="List view"
@@ -332,7 +354,7 @@ function FileItemGrid({ file, gitStatus, onDoubleClick }: FileItemGridProps) {
   return (
     <button
       onDoubleClick={onDoubleClick}
-      className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-theme-muted transition-colors group w-full"
+      className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-fb-hover transition-colors group w-full"
       title={file.name}
     >
       <div className={`relative ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
@@ -361,30 +383,13 @@ interface FileItemListProps {
   onSelect?: () => void;
 }
 
-// Git status display configuration
-const GIT_STATUS_ICON_COLORS: Record<string, string> = {
-  added: 'text-green-500',
-  modified: 'text-yellow-500',
-  deleted: 'text-red-500',
-  renamed: 'text-blue-500',
-  untracked: 'text-gray-500',
-};
-
-const GIT_STATUS_LABELS: Record<string, string> = {
-  added: 'A',
-  modified: 'M',
-  deleted: 'D',
-  renamed: 'R',
-  untracked: 'U',
-};
-
 /**
  * Git status icon component
  */
 const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string }) {
   if (!status) return <div className="w-4 h-4" />; // Empty spacer
   
-  const colorClass = GIT_STATUS_ICON_COLORS[status] || 'text-gray-500';
+  const colorClass = GIT_STATUS_COLORS[status] || 'text-gray-500';
   const statusLabel = GIT_STATUS_LABELS[status] || '?';
   
   return (
@@ -392,7 +397,7 @@ const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string 
       {statusLabel}
     </span>
   );
-})
+});
 
 /**
  * File item component for table view (used in virtualized list)
@@ -406,10 +411,10 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
       role="row"
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
-      className={`flex items-center h-9 px-3 cursor-pointer border-b border-theme-default transition-colors ${
+      className={`flex items-center h-9 px-3 cursor-pointer border-b border-theme-muted transition-colors ${
         isSelected 
-          ? 'bg-blue-500/20 hover:bg-blue-500/25' 
-          : 'hover:bg-theme-muted'
+          ? 'bg-fb-selected border-l-2 border-l-blue-500' 
+          : 'hover:bg-fb-hover border-l-2 border-l-transparent'
       }`}
     >
       {/* Git Status Column */}
@@ -453,7 +458,7 @@ const FileTableHeader = memo(function FileTableHeader() {
   return (
     <div 
       role="row" 
-      className="flex items-center h-8 px-3 bg-theme-surface border-b border-theme-default text-xs text-theme-muted font-medium sticky top-0 z-10"
+      className="flex items-center h-8 px-3 bg-fb-surface border-b border-theme-default text-xs text-theme-muted font-medium sticky top-0 z-10"
     >
       {/* Git Status Column - no header text */}
       <div className="w-6 shrink-0" role="columnheader" aria-label="Git status" />
@@ -506,6 +511,114 @@ function LoadingStateInternal() {
     </div>
   );
 }
+
+interface FileDetailsSidebarProps {
+  file: FileEntry | null;
+  gitStatus?: string;
+  onClose: () => void;
+}
+
+/**
+ * Right sidebar showing file details and actions
+ */
+const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, onClose }: FileDetailsSidebarProps) {
+  if (!file) return null;
+
+  const Icon = getFileIcon(file.name, file.isDirectory);
+  const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
+  const statusLabel = gitStatus ? GIT_STATUS_LABELS[gitStatus] : '';
+
+  return (
+    <div className="w-72 shrink-0 bg-fb-sidebar border-l border-theme-default flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-theme-default">
+        <h3 className="text-sm font-semibold text-theme-primary truncate">Details</h3>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
+          title="Close details"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* File Info */}
+      <div className="flex-1 overflow-auto p-4">
+        {/* Icon and Name */}
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className={`mb-3 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
+            <Icon className="w-16 h-16" />
+          </div>
+          <h4 className={`text-sm font-medium break-all ${statusColor || 'text-theme-primary'}`}>
+            {file.name}
+          </h4>
+          {gitStatus && (
+            <span className={`text-xs mt-1 ${GIT_STATUS_COLORS[gitStatus]}`}>
+              {statusLabel} - {gitStatus.charAt(0).toUpperCase() + gitStatus.slice(1)}
+            </span>
+          )}
+        </div>
+
+        {/* File Properties */}
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-theme-muted">Type</span>
+            <span className="text-theme-primary">
+              {file.isDirectory ? 'Folder' : file.name.split('.').pop()?.toUpperCase() || 'File'}
+            </span>
+          </div>
+          {!file.isDirectory && file.size !== undefined && (
+            <div className="flex justify-between">
+              <span className="text-theme-muted">Size</span>
+              <span className="text-theme-primary">{formatFileSize(file.size)}</span>
+            </div>
+          )}
+          {file.modTime && (
+            <div className="flex justify-between">
+              <span className="text-theme-muted">Modified</span>
+              <span className="text-theme-primary">{formatDate(file.modTime)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="mt-6 pt-4 border-t border-theme-muted">
+          <h5 className="text-xs font-medium text-theme-muted mb-3 uppercase tracking-wider">Actions</h5>
+          <div className="space-y-1">
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
+              onClick={() => toast.info('Open in Finder coming soon')}
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Open in Finder</span>
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
+              onClick={() => toast.info('Copy path coming soon')}
+            >
+              <Clipboard className="w-4 h-4" />
+              <span>Copy Path</span>
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
+              onClick={() => toast.info('Download coming soon')}
+            >
+              <Download className="w-4 h-4" />
+              <span>Download</span>
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded transition-colors"
+              onClick={() => toast.info('Delete coming soon')}
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 interface SimpleFileBrowserProps {
   repoPath: string | null;
@@ -613,8 +726,9 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   useEffect(() => {
     if (!currentPath) return;
     
-    const handleFileChanged = (data: { path?: string }) => {
-      if (data?.path?.startsWith(currentPath) || data?.path === currentPath) {
+    const handleFileChanged = (ev: { data?: { path?: string } }) => {
+      const path = ev.data?.path;
+      if (path?.startsWith(currentPath) || path === currentPath) {
         setRefreshTrigger(prev => prev + 1);
       }
     };
@@ -718,8 +832,19 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setShowHidden(prev => !prev);
   }, []);
 
+  // Handle closing the sidebar (deselect file)
+  const handleCloseSidebar = useCallback(() => {
+    setSelectedPath(null);
+  }, []);
+
+  // Find the selected file object
+  const selectedFile = useMemo(() => {
+    if (!selectedPath || !files) return null;
+    return files.find(f => f.path === selectedPath) || null;
+  }, [selectedPath, files]);
+
   return (
-    <div className="flex flex-col h-full bg-theme-base">
+    <div className="flex flex-col h-full bg-fb-base">
       <Breadcrumbs 
         currentPath={currentPath} 
         rootPath={repoPath} 
@@ -740,32 +865,46 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         </div>
       )}
       
-      {files === null ? (
-        <LoadingStateInternal />
-      ) : files.length === 0 ? (
-        <EmptyDirectory />
-      ) : viewMode === 'grid' ? (
-        <div className="flex-1 overflow-auto">
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 p-3">
-            {files.map((file) => (
-              <FileItemGrid
-                key={file.path}
-                file={file}
-                gitStatus={gitStatusMap[file.name]}
-                onDoubleClick={() => handleItemDoubleClick(file)}
-              />
-            ))}
-          </div>
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Main file listing area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {files === null ? (
+            <LoadingStateInternal />
+          ) : files.length === 0 ? (
+            <EmptyDirectory />
+          ) : viewMode === 'grid' ? (
+            <div className="flex-1 overflow-auto bg-fb-base">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 p-3">
+                {files.map((file) => (
+                  <FileItemGrid
+                    key={file.path}
+                    file={file}
+                    gitStatus={gitStatusMap[file.name]}
+                    onDoubleClick={() => handleItemDoubleClick(file)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <VirtualizedFileTable
+              files={files}
+              gitStatusMap={gitStatusMap}
+              selectedPath={selectedPath}
+              onSelect={handleSelect}
+              onDoubleClick={handleItemDoubleClick}
+            />
+          )}
         </div>
-      ) : (
-        <VirtualizedFileTable
-          files={files}
-          gitStatusMap={gitStatusMap}
-          selectedPath={selectedPath}
-          onSelect={handleSelect}
-          onDoubleClick={handleItemDoubleClick}
-        />
-      )}
+
+        {/* Right sidebar for file details */}
+        {selectedFile && (
+          <FileDetailsSidebar
+            file={selectedFile}
+            gitStatus={selectedFile ? gitStatusMap[selectedFile.name] : undefined}
+            onClose={handleCloseSidebar}
+          />
+        )}
+      </div>
     </div>
   );
 }
