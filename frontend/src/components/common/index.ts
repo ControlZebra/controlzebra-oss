@@ -11,3 +11,4 @@ export { default as RecoveryBanner } from './RecoveryBanner';
 export { default as GitGraph } from './GitGraph';
 export { default as CommitList } from './CommitList';
 export { default as SimpleFileBrowser } from './SimpleFileBrowser';
+export { default as RepoSwitcher } from './RepoSwitcher';
