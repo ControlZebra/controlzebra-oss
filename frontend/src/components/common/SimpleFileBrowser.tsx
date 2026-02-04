@@ -7,9 +7,11 @@
  * - Grid/List view toggle
  * - Hidden files toggle
  * - Git status badges
+ * - Virtualized table view for performance
  * - Uses Lucide icons (no external file browser dependencies)
  */
-import { memo, useState, useCallback, useMemo, useEffect } from 'react';
+import { memo, useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Folder,
   File,
@@ -355,48 +357,127 @@ interface FileItemListProps {
   file: FileEntry;
   gitStatus?: string;
   onDoubleClick: () => void;
+  isSelected?: boolean;
+  onSelect?: () => void;
 }
 
+// Git status display configuration
+const GIT_STATUS_ICON_COLORS: Record<string, string> = {
+  added: 'text-green-500',
+  modified: 'text-yellow-500',
+  deleted: 'text-red-500',
+  renamed: 'text-blue-500',
+  untracked: 'text-gray-500',
+};
+
+const GIT_STATUS_LABELS: Record<string, string> = {
+  added: 'A',
+  modified: 'M',
+  deleted: 'D',
+  renamed: 'R',
+  untracked: 'U',
+};
+
 /**
- * File item component for list view
+ * Git status icon component
  */
-function FileItemList({ file, gitStatus, onDoubleClick }: FileItemListProps) {
+const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string }) {
+  if (!status) return <div className="w-4 h-4" />; // Empty spacer
+  
+  const colorClass = GIT_STATUS_ICON_COLORS[status] || 'text-gray-500';
+  const statusLabel = GIT_STATUS_LABELS[status] || '?';
+  
+  return (
+    <span className={`text-xs font-semibold w-4 h-4 flex items-center justify-center ${colorClass}`} title={status}>
+      {statusLabel}
+    </span>
+  );
+})
+
+/**
+ * File item component for table view (used in virtualized list)
+ */
+const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick, isSelected, onSelect }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
-  // Only apply git status color to files, not folders
   const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
   return (
-    <button
+    <div
+      role="row"
+      onClick={onSelect}
       onDoubleClick={onDoubleClick}
-      className="flex items-center gap-3 px-3 py-2 hover:bg-theme-muted transition-colors w-full text-left rounded"
+      className={`flex items-center h-9 px-3 cursor-pointer border-b border-theme-default transition-colors ${
+        isSelected 
+          ? 'bg-blue-500/20 hover:bg-blue-500/25' 
+          : 'hover:bg-theme-muted'
+      }`}
     >
-      <div className={`relative shrink-0 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
-        <Icon className="w-5 h-5" />
-        {gitStatus && (
-          <div className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
-            gitStatus === 'added' ? 'bg-green-500' :
-            gitStatus === 'modified' ? 'bg-yellow-500' :
-            gitStatus === 'deleted' ? 'bg-red-500' :
-            'bg-gray-500'
-          }`} />
-        )}
+      {/* Git Status Column */}
+      <div className="w-6 shrink-0 flex items-center justify-center" role="cell">
+        <GitStatusIcon status={!file.isDirectory ? gitStatus : undefined} />
       </div>
-      <span className={`flex-1 truncate text-sm ${statusColor || 'text-theme-primary'}`}>
-        {file.name}
-      </span>
-      {!file.isDirectory && (
-        <>
-          <span className="text-xs text-theme-muted shrink-0 w-16 text-right">
-            {formatFileSize(file.size)}
-          </span>
-          <span className="text-xs text-theme-muted shrink-0 w-20 text-right">
-            {formatDate(file.modTime)}
-          </span>
-        </>
-      )}
-    </button>
+      
+      {/* Type Icon Column */}
+      <div className="w-8 shrink-0 flex items-center justify-center" role="cell">
+        <Icon className={`w-4 h-4 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`} />
+      </div>
+      
+      {/* Name Column */}
+      <div className="flex-1 min-w-0 pr-4" role="cell">
+        <span className={`text-sm truncate block ${statusColor || 'text-theme-primary'}`}>
+          {file.name}
+        </span>
+      </div>
+      
+      {/* Size Column */}
+      <div className="w-20 shrink-0 text-right pr-4" role="cell">
+        <span className="text-xs text-theme-muted">
+          {!file.isDirectory ? formatFileSize(file.size) : '—'}
+        </span>
+      </div>
+      
+      {/* Modified Column */}
+      <div className="w-24 shrink-0 text-right" role="cell">
+        <span className="text-xs text-theme-muted">
+          {formatDate(file.modTime)}
+        </span>
+      </div>
+    </div>
   );
-}
+});
+
+/**
+ * Table header for list view
+ */
+const FileTableHeader = memo(function FileTableHeader() {
+  return (
+    <div 
+      role="row" 
+      className="flex items-center h-8 px-3 bg-theme-surface border-b border-theme-default text-xs text-theme-muted font-medium sticky top-0 z-10"
+    >
+      {/* Git Status Column - no header text */}
+      <div className="w-6 shrink-0" role="columnheader" aria-label="Git status" />
+      
+      {/* Type Icon Column - no header text */}
+      <div className="w-8 shrink-0" role="columnheader" aria-label="Type" />
+      
+      {/* Name Column */}
+      <div className="flex-1 min-w-0 pr-4" role="columnheader">
+        Name
+      </div>
+      
+      {/* Size Column */}
+      <div className="w-20 shrink-0 text-right pr-4" role="columnheader">
+        Size
+      </div>
+      
+      {/* Modified Column */}
+      <div className="w-24 shrink-0 text-right" role="columnheader">
+        Modified
+      </div>
+    </div>
+  );
+});
 
 /**
  * Empty state when directory is empty
@@ -431,6 +512,78 @@ interface SimpleFileBrowserProps {
 }
 
 /**
+ * Virtualized file table component for list view
+ */
+interface VirtualizedFileTableProps {
+  files: FileEntry[];
+  gitStatusMap: Record<string, string>;
+  selectedPath: string | null;
+  onSelect: (path: string) => void;
+  onDoubleClick: (file: FileEntry) => void;
+}
+
+function VirtualizedFileTable({ 
+  files, 
+  gitStatusMap, 
+  selectedPath, 
+  onSelect, 
+  onDoubleClick 
+}: VirtualizedFileTableProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  
+  const rowVirtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 36, // 9 * 4 = 36px (h-9)
+    overscan: 10, // Render 10 extra items above/below viewport
+  });
+
+  return (
+    <div 
+      ref={parentRef} 
+      className="flex-1 overflow-auto"
+      role="table"
+      aria-label="Files"
+    >
+      <FileTableHeader />
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+        role="rowgroup"
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const file = files[virtualRow.index];
+          return (
+            <div
+              key={file.path}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <FileTableRow
+                file={file}
+                gitStatus={gitStatusMap[file.name]}
+                isSelected={selectedPath === file.path}
+                onSelect={() => onSelect(file.path)}
+                onDoubleClick={() => onDoubleClick(file)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Main SimpleFileBrowser component
  */
 function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
@@ -440,6 +593,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   const [showHidden, setShowHidden] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   
   const { repoStatus } = useRepo();
   const { openExplorerTab } = useLayout();
@@ -447,7 +601,13 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   // Reset current path when repo changes
   useEffect(() => {
     setCurrentPath(repoPath);
+    setSelectedPath(null);
   }, [repoPath]);
+
+  // Clear selection when navigating to a new directory
+  useEffect(() => {
+    setSelectedPath(null);
+  }, [currentPath]);
 
   // Subscribe to file change events
   useEffect(() => {
@@ -513,6 +673,11 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setCurrentPath(path);
   }, []);
 
+  // Handle file selection (single click)
+  const handleSelect = useCallback((path: string) => {
+    setSelectedPath(path);
+  }, []);
+
   // Handle file/folder double-click
   const handleItemDoubleClick = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) {
@@ -575,12 +740,12 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         </div>
       )}
       
-      <div className="flex-1 overflow-auto">
-        {files === null ? (
-          <LoadingStateInternal />
-        ) : files.length === 0 ? (
-          <EmptyDirectory />
-        ) : viewMode === 'grid' ? (
+      {files === null ? (
+        <LoadingStateInternal />
+      ) : files.length === 0 ? (
+        <EmptyDirectory />
+      ) : viewMode === 'grid' ? (
+        <div className="flex-1 overflow-auto">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2 p-3">
             {files.map((file) => (
               <FileItemGrid
@@ -591,19 +756,16 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
               />
             ))}
           </div>
-        ) : (
-          <div className="flex flex-col p-2">
-            {files.map((file) => (
-              <FileItemList
-                key={file.path}
-                file={file}
-                gitStatus={gitStatusMap[file.name]}
-                onDoubleClick={() => handleItemDoubleClick(file)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <VirtualizedFileTable
+          files={files}
+          gitStatusMap={gitStatusMap}
+          selectedPath={selectedPath}
+          onSelect={handleSelect}
+          onDoubleClick={handleItemDoubleClick}
+        />
+      )}
     </div>
   );
 }
