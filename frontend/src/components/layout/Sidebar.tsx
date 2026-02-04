@@ -18,7 +18,7 @@ interface ViewConfig {
 // ============================================================================
 
 const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
-  [VIEWS.EXPLORER]: { title: 'Quick Actions', Component: ExplorerView },
+  [VIEWS.EXPLORER]: { title: 'Next Step Advisor', Component: ExplorerView },
   [VIEWS.HISTORY]: { title: 'Commit History', Component: HistoryView },
   [VIEWS.MERGE_CHANGES]: { title: 'Merge Changes', Component: MergeChangesView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
