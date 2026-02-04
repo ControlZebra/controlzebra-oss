@@ -6,9 +6,9 @@
  */
 import { memo, useMemo, useCallback, type CSSProperties } from 'react';
 import {
-  Folder,
+  House,
   Clock,
-  Combine,
+  GitMerge,
   Sliders,
   Settings,
   UserCircle,
@@ -42,9 +42,9 @@ interface NavButtonProps {
 // Top navigation items (main workspace views)
 // requiresGit: true means the view requires an active git repository
 const TOP_NAV_ITEMS: NavItem[] = [
-  { id: VIEWS.EXPLORER, Icon: Folder, label: 'Quick Actions', requiresGit: false },
+  { id: VIEWS.EXPLORER, Icon: House, label: 'Next Step Advisor', requiresGit: false },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History', requiresGit: true },
-  { id: VIEWS.MERGE_CHANGES, Icon: Combine, label: 'Combine Versions', requiresGit: true },
+  { id: VIEWS.MERGE_CHANGES, Icon: GitMerge, label: 'Combine Versions', requiresGit: true },
   { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];
 
