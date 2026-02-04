@@ -5,7 +5,7 @@
  * - No folder: Prompt to open folder
  * - Not a git repo: Initialize option
  * - Has changes: Commit form with changed files
- * - Needs push: Sync/publish prompt
+ * - Needs push: Sync/publish prompt with GitHub integration
  * - Feature branch synced: Merge request option
  * - Main branch synced: All caught up
  */
@@ -17,6 +17,7 @@ import { useRepo, type FileStatus } from '../../../context';
 import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
 import { Button } from '../../ui';
 import { SidebarCommitPanel, ExplorerStatusPanel } from '../sidebar-panels';
+import { GitHubDeviceFlowModal } from '../../common';
 
 // ============================================================================
 // Types
@@ -29,6 +30,12 @@ type PanelState =
   | { type: 'push'; ahead: number; hasUpstream: boolean; totalLocalCommits: number }
   | { type: 'featureBranch'; branchName: string }
   | { type: 'synced' };
+
+interface DeviceFlowState {
+  isOpen: boolean;
+  userCode: string;
+  verificationUrl: string;
+}
 
 // ============================================================================
 // Component
@@ -48,10 +55,24 @@ function ExplorerView(): JSX.Element {
     isLoading,
     isCommitting,
     isSyncing,
+    // Remote state
+    hasRemote,
+    refreshRemotes,
+    // GitHub state
+    ghInstalled,
+    ghAuthStatus,
+    startGitHubLogin,
+    publishToGitHub,
   } = useRepo();
   
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
   const [isRewinding, setIsRewinding] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
+    isOpen: false,
+    userCode: '',
+    verificationUrl: '',
+  });
 
   // Derive panel state from repo status
   const panelState = useMemo((): PanelState => {
@@ -100,6 +121,49 @@ function ExplorerView(): JSX.Element {
     }
   }, [rewindToLastSnapshot]);
 
+  // Handle GitHub connect button - start device flow authentication
+  const handleConnectGitHub = useCallback(async (): Promise<void> => {
+    const result = await startGitHubLogin();
+    
+    if (result.success && result.userCode) {
+      setDeviceFlow({
+        isOpen: true,
+        userCode: result.userCode,
+        verificationUrl: result.verificationUrl || 'https://github.com/login/device',
+      });
+    }
+  }, [startGitHubLogin]);
+
+  // Handle device flow completion
+  const handleDeviceFlowComplete = useCallback(() => {
+    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
+    // Remotes will be refreshed when user publishes
+  }, []);
+
+  // Handle device flow cancel
+  const handleDeviceFlowCancel = useCallback(() => {
+    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
+  }, []);
+
+  // Handle publish to GitHub button
+  const handlePublishToGitHub = useCallback(async (): Promise<void> => {
+    if (!repoPath) return;
+    
+    // Use folder name as repository name
+    const repoName = repoPath.split('/').pop() || 'my-repo';
+    
+    setIsPublishing(true);
+    try {
+      const result = await publishToGitHub(repoName, '', true);
+      if (result.success) {
+        // Refresh remotes after successful publish
+        await refreshRemotes();
+      }
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [repoPath, publishToGitHub, refreshRemotes]);
+
   // No folder open - show open folder prompt
   if (panelState.type === 'noFolder') {
     return (
@@ -140,19 +204,36 @@ function ExplorerView(): JSX.Element {
 
   // All other states use the unified status panel
   return (
-    <ExplorerStatusPanel
-      status={panelState.type}
-      folderName={panelState.type === 'noRepo' ? panelState.folderName : undefined}
-      branchName={panelState.type === 'featureBranch' ? panelState.branchName : undefined}
-      repoPath={repoPath || undefined}
-      ahead={panelState.type === 'push' ? panelState.ahead : undefined}
-      hasUpstream={panelState.type === 'push' ? panelState.hasUpstream : undefined}
-      totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
-      onInitialize={initializeGitRepo}
-      onSync={syncRepo}
-      isLoading={isLoading}
-      isSyncing={isSyncing}
-    />
+    <>
+      <ExplorerStatusPanel
+        status={panelState.type}
+        folderName={panelState.type === 'noRepo' ? panelState.folderName : undefined}
+        branchName={panelState.type === 'featureBranch' ? panelState.branchName : undefined}
+        repoPath={repoPath || undefined}
+        ahead={panelState.type === 'push' ? panelState.ahead : undefined}
+        hasUpstream={panelState.type === 'push' ? panelState.hasUpstream : undefined}
+        hasRemote={hasRemote}
+        totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
+        onInitialize={initializeGitRepo}
+        onSync={syncRepo}
+        onConnectGitHub={handleConnectGitHub}
+        onPublishToGitHub={handlePublishToGitHub}
+        isLoading={isLoading}
+        isSyncing={isSyncing}
+        isPublishing={isPublishing}
+        ghInstalled={ghInstalled}
+        ghAuthStatus={ghAuthStatus}
+      />
+      
+      {/* GitHub Device Flow Modal */}
+      <GitHubDeviceFlowModal
+        isOpen={deviceFlow.isOpen}
+        userCode={deviceFlow.userCode}
+        verificationUrl={deviceFlow.verificationUrl}
+        onComplete={handleDeviceFlowComplete}
+        onCancel={handleDeviceFlowCancel}
+      />
+    </>
   );
 }
 

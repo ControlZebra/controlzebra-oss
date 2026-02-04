@@ -86,6 +86,7 @@ import {
 import { SyncWithProgress } from '../../bindings/controlzebra/services/progressservice';
 import { GetAppSettings, SaveAppSettings, SetUserProfile } from '../../bindings/controlzebra/services/settingsservice';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
+import { GetRemotes } from '../../bindings/controlzebra/services/repositorysettingsservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
 import {
@@ -178,6 +179,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   
+  // ===== Remote State =====
+  const [hasRemote, setHasRemote] = useState(false);
+  
   // ===== GitHub State (Phase 2) =====
   const [ghInstalled, setGhInstalled] = useState(false);
   const [ghVersion, setGhVersion] = useState('');
@@ -260,6 +264,25 @@ export function RepoProvider({ children }: RepoProviderProps) {
     await Promise.all([refreshStatus(), refreshCommits()]);
   }, [refreshStatus, refreshCommits]);
 
+  // Check if repository has remotes configured
+  const refreshRemotes = useCallback(async (): Promise<boolean> => {
+    if (!repoPath) {
+      setHasRemote(false);
+      return false;
+    }
+    
+    try {
+      const remotes = await GetRemotes(repoPath);
+      const hasRemoteConfigured = remotes && remotes.length > 0;
+      setHasRemote(hasRemoteConfigured);
+      return hasRemoteConfigured;
+    } catch (err) {
+      console.error('Failed to check remotes:', err);
+      setHasRemote(false);
+      return false;
+    }
+  }, [repoPath]);
+
   // ===== Repo Operations =====
 
   // Open a folder by path
@@ -292,6 +315,16 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
       
       if (info.isRepo) {
+        // Check if repo has remotes configured
+        try {
+          const remotes = await GetRemotes(path);
+          const hasRemoteConfigured = remotes && remotes.length > 0;
+          setHasRemote(hasRemoteConfigured);
+        } catch (err) {
+          console.error('Failed to check remotes:', err);
+          setHasRemote(false);
+        }
+        
         try {
           const state = await GetMergeState(path);
           if (state.inMerge || state.inRebase) {
@@ -308,6 +341,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         } catch (err) {
           console.error('Failed to check merge state:', err);
         }
+      } else {
+        setHasRemote(false);
       }
       
       try {
@@ -2026,6 +2061,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     isCommitting,
     isDiffLoading,
     
+    // Remote state
+    hasRemote,
+    refreshRemotes,
+    
     // Progress modal state
     progressModal,
     handleProgressComplete,
@@ -2126,6 +2165,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
+    hasRemote, refreshRemotes,
     progressModal, handleProgressComplete,
     showMessage,
     openRepo, closeRepo, initializeGitRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
