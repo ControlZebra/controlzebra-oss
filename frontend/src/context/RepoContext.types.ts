@@ -413,6 +413,10 @@ export interface RepoContextValue {
   isCommitting: boolean;
   isDiffLoading: boolean;
 
+  // Remote state
+  hasRemote: boolean;
+  refreshRemotes: () => Promise<boolean>;
+
   // Progress modal state
   progressModal: ProgressModalState;
   handleProgressComplete: (success: boolean, error?: string) => void;

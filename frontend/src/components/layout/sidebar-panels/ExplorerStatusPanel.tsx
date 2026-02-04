@@ -19,11 +19,13 @@ import {
   GitPullRequest,
   Cloud,
   Upload,
+  Github,
   type LucideIcon,
 } from 'lucide-react';
 import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { Button } from '../../ui';
 import { toast } from 'sonner';
+import type { GitHubAuthStatus } from '../../../context/RepoContext.types';
 
 // ============================================================================
 // Types
@@ -51,11 +53,17 @@ interface ExplorerStatusPanelProps {
   repoPath?: string;
   ahead?: number;
   hasUpstream?: boolean;
+  hasRemote?: boolean;
   totalLocalCommits?: number;
   onInitialize?: () => void;
   onSync?: () => void;
+  onConnectGitHub?: () => void;
+  onPublishToGitHub?: () => void;
   isLoading?: boolean;
   isSyncing?: boolean;
+  isPublishing?: boolean;
+  ghInstalled?: boolean;
+  ghAuthStatus?: GitHubAuthStatus | null;
 }
 
 // ============================================================================
@@ -119,11 +127,17 @@ function ExplorerStatusPanel({
   repoPath,
   ahead = 0,
   hasUpstream = true,
+  hasRemote = true,
   totalLocalCommits = 0,
   onInitialize,
   onSync,
+  onConnectGitHub,
+  onPublishToGitHub,
   isLoading = false,
   isSyncing = false,
+  isPublishing = false,
+  ghInstalled = false,
+  ghAuthStatus = null,
 }: ExplorerStatusPanelProps): JSX.Element {
   const handleCreateMergeRequest = (): void => {
     toast.info('Merge request creation coming soon!');
@@ -151,25 +165,72 @@ function ExplorerStatusPanel({
 
     case 'push': {
       const pendingCount = hasUpstream ? ahead : totalLocalCommits;
+      
+      // Case 1: Remote exists - show Push Changes / Sync button
+      if (hasRemote) {
+        return (
+          <PanelLayout
+            type="push"
+            title={`${pendingCount} snapshot${pendingCount !== 1 ? 's' : ''} pending`}
+            subtitle={hasUpstream ? 'Ready to sync' : 'Branch not published'}
+          >
+            <Button 
+              onClick={onSync} 
+              loading={isSyncing} 
+              size="sm"
+              variant="secondary"
+              className="w-full"
+            >
+              {hasUpstream ? (
+                <Cloud style={ICON_STYLES.sm as CSSProperties} />
+              ) : (
+                <Upload style={ICON_STYLES.sm as CSSProperties} />
+              )}
+              {hasUpstream ? 'Push Changes' : 'Push Changes'}
+            </Button>
+          </PanelLayout>
+        );
+      }
+      
+      // Case 2: No remote, not authenticated - show Connect GitHub button
+      if (!ghAuthStatus?.loggedIn) {
+        return (
+          <PanelLayout
+            type="push"
+            title={`${pendingCount} snapshot${pendingCount !== 1 ? 's' : ''} pending`}
+            subtitle="Connect GitHub to share your work"
+          >
+            <Button 
+              onClick={onConnectGitHub} 
+              disabled={!ghInstalled}
+              size="sm"
+              className="w-full"
+            >
+              <Github style={ICON_STYLES.sm as CSSProperties} />
+              Connect GitHub
+            </Button>
+            {!ghInstalled && (
+              <p className="text-yellow-400 text-xs mt-2">GitHub CLI not installed</p>
+            )}
+          </PanelLayout>
+        );
+      }
+      
+      // Case 3: No remote, authenticated - show Publish to GitHub button
       return (
         <PanelLayout
           type="push"
           title={`${pendingCount} snapshot${pendingCount !== 1 ? 's' : ''} pending`}
-          subtitle={hasUpstream ? 'Ready to sync' : 'Branch not published'}
+          subtitle="Publish your repository to GitHub"
         >
           <Button 
-            onClick={onSync} 
-            loading={isSyncing} 
+            onClick={onPublishToGitHub} 
+            loading={isPublishing}
             size="sm"
-            variant="secondary"
             className="w-full"
           >
-            {hasUpstream ? (
-              <Cloud style={ICON_STYLES.sm as CSSProperties} />
-            ) : (
-              <Upload style={ICON_STYLES.sm as CSSProperties} />
-            )}
-            {hasUpstream ? 'Sync' : 'Publish'}
+            <Github style={ICON_STYLES.sm as CSSProperties} />
+            Publish to GitHub
           </Button>
         </PanelLayout>
       );
