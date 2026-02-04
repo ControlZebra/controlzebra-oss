@@ -63,6 +63,7 @@ function ExplorerView(): JSX.Element {
     ghAuthStatus,
     startGitHubLogin,
     publishToGitHub,
+    loadUserOrganizations,
   } = useRepo();
   
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
@@ -145,16 +146,17 @@ function ExplorerView(): JSX.Element {
     setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
   }, []);
 
-  // Handle publish to GitHub button
-  const handlePublishToGitHub = useCallback(async (): Promise<void> => {
+  // Handle publish to GitHub with form data
+  const handlePublishToGitHub = useCallback(async (
+    name: string,
+    isPrivate: boolean,
+    owner: string
+  ): Promise<void> => {
     if (!repoPath) return;
-    
-    // Use folder name as repository name
-    const repoName = repoPath.split('/').pop() || 'my-repo';
     
     setIsPublishing(true);
     try {
-      const result = await publishToGitHub(repoName, '', true);
+      const result = await publishToGitHub(name, '', isPrivate, owner);
       if (result.success) {
         // Refresh remotes after successful publish
         await refreshRemotes();
@@ -218,6 +220,7 @@ function ExplorerView(): JSX.Element {
         onSync={syncRepo}
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
+        onLoadOrganizations={loadUserOrganizations}
         isLoading={isLoading}
         isSyncing={isSyncing}
         isPublishing={isPublishing}

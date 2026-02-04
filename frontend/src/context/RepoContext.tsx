@@ -77,6 +77,7 @@ import {
   RepoList,
   RepoClone,
   RepoCreateFromLocal,
+  ListUserOrganizations,
 } from '../../bindings/controlzebra/services/githubservice';
 import {
   InitializeLFS,
@@ -139,6 +140,7 @@ import type {
   GitHubRepoListResult,
   GitHubCloneResult,
   GitHubRepoCreateResult,
+  GitHubOrganizationsResult,
 } from './RepoContext.types';
 
 // Polling interval for status updates (in ms)
@@ -1895,7 +1897,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const publishToGitHub = useCallback(async (
     name: string,
     description: string,
-    isPrivate: boolean
+    isPrivate: boolean,
+    owner?: string
   ): Promise<GitHubRepoCreateResult> => {
     if (!repoPath) {
       return {
@@ -1905,9 +1908,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
     
     try {
-      const result = await RepoCreateFromLocal(repoPath, name, description, isPrivate);
+      const result = await RepoCreateFromLocal(repoPath, name, description, isPrivate, owner || '');
       if (result.success) {
-        showMessage('success', `Repository published to GitHub as ${result.repo?.fullName || name}`);
+        const displayName = owner ? `${owner}/${name}` : name;
+        showMessage('success', `Repository published to GitHub as ${result.repo?.fullName || displayName}`);
         // Refresh status to update remote info
         await refreshStatus();
       } else {
@@ -1924,6 +1928,22 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return result;
     }
   }, [repoPath, showMessage, refreshStatus]);
+
+  // Load user's organizations for publish form
+  const loadUserOrganizations = useCallback(async (): Promise<GitHubOrganizationsResult> => {
+    try {
+      const result = await ListUserOrganizations();
+      return result as GitHubOrganizationsResult;
+    } catch (err) {
+      const error = err as Error;
+      return {
+        success: false,
+        username: '',
+        organizations: [],
+        error: error.message || 'Failed to load organizations',
+      };
+    }
+  }, []);
 
   // ===== Effects =====
 
@@ -2161,6 +2181,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     loadGitHubRepos,
     cloneGitHubRepo,
     publishToGitHub,
+    loadUserOrganizations,
   }), [
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -2187,7 +2208,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     removeAllStaleLocks,
     // GitHub dependencies
     ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
-    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub,
+    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations,
   ]);
 
   return (
