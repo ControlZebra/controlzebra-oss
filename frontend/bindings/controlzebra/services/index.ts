@@ -51,6 +51,8 @@ export {
     GitHubAuthStatus,
     GitHubCloneResult,
     GitHubDeviceFlowResult,
+    GitHubOrganization,
+    GitHubOrganizationsResult,
     GitHubRepo,
     GitHubRepoCreateOptions,
     GitHubRepoCreateResult,

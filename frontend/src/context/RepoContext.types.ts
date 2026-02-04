@@ -105,6 +105,25 @@ export interface GitHubRepoCreateResult {
 }
 
 /**
+ * GitHubOrganization - A GitHub organization the user belongs to
+ */
+export interface GitHubOrganization {
+  login: string;       // Organization slug/name
+  name: string;        // Display name
+  description?: string; // Organization description
+}
+
+/**
+ * GitHubOrganizationsResult - Result of listing user's organizations
+ */
+export interface GitHubOrganizationsResult {
+  success: boolean;
+  username: string;      // The authenticated user's username
+  organizations: GitHubOrganization[]; // Organizations the user belongs to
+  error?: string;
+}
+
+/**
  * GitInitOptions - Options for initializing a git repository
  */
 export interface GitInitOptions {
@@ -521,7 +540,8 @@ export interface RepoContextValue {
   logoutGitHub: () => Promise<GitHubAuthResult>;
   loadGitHubRepos: (limit?: number, visibility?: string) => Promise<GitHubRepoListResult>;
   cloneGitHubRepo: (repo: string, destPath: string) => Promise<GitHubCloneResult>;
-  publishToGitHub: (name: string, description: string, isPrivate: boolean) => Promise<GitHubRepoCreateResult>;
+  publishToGitHub: (name: string, description: string, isPrivate: boolean, owner?: string) => Promise<GitHubRepoCreateResult>;
+  loadUserOrganizations: () => Promise<GitHubOrganizationsResult>;
 }
 
 // ============================================================================

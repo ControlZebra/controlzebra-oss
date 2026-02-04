@@ -116,6 +116,21 @@ type GitHubCloneResult struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// GitHubOrganization represents a GitHub organization
+type GitHubOrganization struct {
+	Login       string `json:"login"`       // Organization slug/name
+	Name        string `json:"name"`        // Display name
+	Description string `json:"description"` // Organization description
+}
+
+// GitHubOrganizationsResult represents the result of listing organizations
+type GitHubOrganizationsResult struct {
+	Success       bool                 `json:"success"`
+	Username      string               `json:"username"`      // The authenticated user's username
+	Organizations []GitHubOrganization `json:"organizations"` // Organizations the user belongs to
+	Error    string `json:"error,omitempty"`
+}
+
 // ============================================================================
 // CLI Detection
 // ============================================================================
@@ -485,6 +500,45 @@ func (g *GitHubService) AuthStatus() GitHubAuthStatus {
 	return status
 }
 
+// ListUserOrganizations returns the authenticated user's username and their organizations
+// This is used for the "publish to GitHub" form to allow users to choose the repo owner
+func (g *GitHubService) ListUserOrganizations() GitHubOrganizationsResult {
+	// First get the authenticated username
+	authStatus := g.AuthStatus()
+	if !authStatus.LoggedIn {
+		return GitHubOrganizationsResult{
+			Success: false,
+			Error:   "Not logged in to GitHub",
+		}
+	}
+
+	// Get user's organizations using gh api
+	result := g.runner.Run("", "gh", "api", "user/orgs", "--jq", ".[].login")
+	
+	orgs := []GitHubOrganization{}
+	if result.Success && result.Stdout != "" {
+		// Parse organization logins (one per line)
+		lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+		for _, line := range lines {
+			login := strings.TrimSpace(line)
+			if login != "" {
+				orgs = append(orgs, GitHubOrganization{
+					Login: login,
+					Name:  login, // Use login as name for simplicity
+				})
+			}
+		}
+	}
+	// Note: If result is not successful, we still return success with empty orgs list
+	// since the user might not have any organizations
+
+	return GitHubOrganizationsResult{
+		Success:       true,
+		Username:      authStatus.Username,
+		Organizations: orgs,
+	}
+}
+
 // ============================================================================
 // Repository Listing
 // ============================================================================
@@ -785,8 +839,10 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 // RepoCreateFromLocal creates a new GitHub repository from an existing local repository
 // localPath: path to the local git repository
 // name: name for the new GitHub repository (optional, defaults to folder name)
+// description: repository description
 // private: whether the repository should be private
-func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, description string, private bool) GitHubRepoCreateResult {
+// owner: the owner for the repository (username or organization login). If empty, defaults to authenticated user.
+func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, description string, private bool, owner string) GitHubRepoCreateResult {
 	if localPath == "" {
 		return GitHubRepoCreateResult{
 			Success: false,
@@ -794,10 +850,32 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 		}
 	}
 
+	// Sanitize inputs to prevent command injection
+	// GitHub usernames/org names: alphanumeric, hyphens only (no leading hyphen)
+	// Repo names: alphanumeric, hyphens, underscores, periods
+	if owner != "" && !isValidGitHubOwner(owner) {
+		return GitHubRepoCreateResult{
+			Success: false,
+			Error:   "Invalid owner name: must contain only alphanumeric characters and hyphens",
+		}
+	}
+	if name != "" && !isValidGitHubRepoName(name) {
+		return GitHubRepoCreateResult{
+			Success: false,
+			Error:   "Invalid repository name: must contain only alphanumeric characters, hyphens, underscores, and periods",
+		}
+	}
+
 	args := []string{"repo", "create"}
 
-	if name != "" {
-		args = append(args, name)
+	// Construct the repository name with owner if specified
+	repoIdentifier := name
+	if owner != "" && name != "" {
+		repoIdentifier = owner + "/" + name
+	}
+
+	if repoIdentifier != "" {
+		args = append(args, repoIdentifier)
 	}
 
 	args = append(args, "--source", localPath)
@@ -823,11 +901,18 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 		}
 	}
 
+	// Construct the full name for the result
+	fullName := name
+	if owner != "" && name != "" {
+		fullName = owner + "/" + name
+	}
+
 	return GitHubRepoCreateResult{
 		Success: true,
 		Repo: GitHubRepo{
-			Name:    name,
-			Private: private,
+			Name:     name,
+			FullName: fullName,
+			Private:  private,
 		},
 	}
 }
@@ -871,4 +956,27 @@ func getBool(m map[string]interface{}, key string) bool {
 // formatInt converts an int to a string
 func formatInt(n int) string {
 	return strconv.Itoa(n)
+}
+
+// isValidGitHubOwner validates a GitHub username or organization name
+// GitHub usernames: alphanumeric and hyphens, cannot start with hyphen, max 39 chars
+func isValidGitHubOwner(owner string) bool {
+	if len(owner) == 0 || len(owner) > 39 {
+		return false
+	}
+	if owner[0] == '-' {
+		return false
+	}
+	validOwnerPattern := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
+	return validOwnerPattern.MatchString(owner)
+}
+
+// isValidGitHubRepoName validates a GitHub repository name
+// Repo names: alphanumeric, hyphens, underscores, periods, max 100 chars
+func isValidGitHubRepoName(name string) bool {
+	if len(name) == 0 || len(name) > 100 {
+		return false
+	}
+	validRepoPattern := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	return validRepoPattern.MatchString(name)
 }

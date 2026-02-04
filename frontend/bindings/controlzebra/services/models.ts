@@ -1082,6 +1082,94 @@ export class GitHubDeviceFlowResult {
 }
 
 /**
+ * GitHubOrganization represents a GitHub organization
+ */
+export class GitHubOrganization {
+    /**
+     * Organization slug/name
+     */
+    "login": string;
+
+    /**
+     * Display name
+     */
+    "name": string;
+
+    /**
+     * Organization description
+     */
+    "description": string;
+
+    /** Creates a new GitHubOrganization instance. */
+    constructor($$source: Partial<GitHubOrganization> = {}) {
+        if (!("login" in $$source)) {
+            this["login"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubOrganization instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubOrganization {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubOrganization($$parsedSource as Partial<GitHubOrganization>);
+    }
+}
+
+/**
+ * GitHubOrganizationsResult represents the result of listing organizations
+ */
+export class GitHubOrganizationsResult {
+    "success": boolean;
+
+    /**
+     * The authenticated user's username
+     */
+    "username": string;
+
+    /**
+     * Organizations the user belongs to
+     */
+    "organizations": GitHubOrganization[];
+    "error"?: string;
+
+    /** Creates a new GitHubOrganizationsResult instance. */
+    constructor($$source: Partial<GitHubOrganizationsResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("username" in $$source)) {
+            this["username"] = "";
+        }
+        if (!("organizations" in $$source)) {
+            this["organizations"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubOrganizationsResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubOrganizationsResult {
+        const $$createField2_0 = $$createType19;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("organizations" in $$parsedSource) {
+            $$parsedSource["organizations"] = $$createField2_0($$parsedSource["organizations"]);
+        }
+        return new GitHubOrganizationsResult($$parsedSource as Partial<GitHubOrganizationsResult>);
+    }
+}
+
+/**
  * GitHubRepo represents a GitHub repository
  */
 export class GitHubRepo {
@@ -1260,7 +1348,7 @@ export class GitHubRepoCreateResult {
      * Creates a new GitHubRepoCreateResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoCreateResult {
-        const $$createField1_0 = $$createType18;
+        const $$createField1_0 = $$createType20;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repo" in $$parsedSource) {
             $$parsedSource["repo"] = $$createField1_0($$parsedSource["repo"]);
@@ -1293,7 +1381,7 @@ export class GitHubRepoListResult {
      * Creates a new GitHubRepoListResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoListResult {
-        const $$createField1_0 = $$createType19;
+        const $$createField1_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
@@ -2364,7 +2452,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType21;
+        const $$createField3_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -2451,13 +2539,13 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType22;
-        const $$createField3_0 = $$createType22;
-        const $$createField4_0 = $$createType22;
-        const $$createField5_0 = $$createType23;
-        const $$createField6_0 = $$createType24;
-        const $$createField7_0 = $$createType25;
-        const $$createField8_0 = $$createType26;
+        const $$createField2_0 = $$createType24;
+        const $$createField3_0 = $$createType24;
+        const $$createField4_0 = $$createType24;
+        const $$createField5_0 = $$createType25;
+        const $$createField6_0 = $$createType26;
+        const $$createField7_0 = $$createType27;
+        const $$createField8_0 = $$createType28;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -2637,12 +2725,14 @@ const $$createType14 = CustomLFSGroup.createFrom;
 const $$createType15 = $Create.Array($$createType14);
 const $$createType16 = FileEntry.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = GitHubRepo.createFrom;
+const $$createType18 = GitHubOrganization.createFrom;
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = FileStatus.createFrom;
+const $$createType20 = GitHubRepo.createFrom;
 const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = BackgroundTaskConfig.createFrom;
-const $$createType23 = FetchSettings.createFrom;
-const $$createType24 = LFSSettings.createFrom;
-const $$createType25 = MaintenanceSettings.createFrom;
-const $$createType26 = ProtectedBranchSettings.createFrom;
+const $$createType22 = FileStatus.createFrom;
+const $$createType23 = $Create.Array($$createType22);
+const $$createType24 = BackgroundTaskConfig.createFrom;
+const $$createType25 = FetchSettings.createFrom;
+const $$createType26 = LFSSettings.createFrom;
+const $$createType27 = MaintenanceSettings.createFrom;
+const $$createType28 = ProtectedBranchSettings.createFrom;
