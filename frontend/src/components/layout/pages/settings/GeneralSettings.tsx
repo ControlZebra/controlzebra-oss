@@ -1,10 +1,15 @@
 /**
- * GeneralSettings - App preferences including theme selection.
+ * GeneralSettings - App preferences including theme selection and analytics consent.
  */
-import { memo, type CSSProperties, type JSX } from 'react';
-import { Sun, Moon, Monitor, type LucideIcon } from 'lucide-react';
+import { memo, useState, type CSSProperties, type JSX } from 'react';
+import { Sun, Moon, Monitor, BarChart3, type LucideIcon } from 'lucide-react';
 import { useLayout, type Theme } from '../../../../context';
 import { ICON_SIZES } from '../../../../constants';
+import { 
+  getAnalyticsConsent, 
+  setAnalyticsConsent, 
+  type AnalyticsConsent 
+} from '../../../../lib/analytics';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -20,8 +25,39 @@ const THEME_OPTIONS: ThemeOption[] = [
   { id: 'system', label: 'System', Icon: Monitor },
 ];
 
+interface AnalyticsOption {
+  id: AnalyticsConsent;
+  label: string;
+  description: string;
+}
+
+const ANALYTICS_OPTIONS: AnalyticsOption[] = [
+  { 
+    id: 'minimal', 
+    label: 'Minimal', 
+    description: 'Only track errors to help fix bugs' 
+  },
+  { 
+    id: 'standard', 
+    label: 'Standard', 
+    description: 'Track usage patterns to improve features' 
+  },
+  { 
+    id: 'full', 
+    label: 'Full', 
+    description: 'Includes session replay for UX research' 
+  },
+];
+
 function GeneralSettings(): JSX.Element {
   const { theme, setTheme } = useLayout();
+  const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(getAnalyticsConsent);
+
+  // Handle analytics consent change
+  const handleAnalyticsChange = (level: AnalyticsConsent) => {
+    setAnalyticsConsent(level);
+    setAnalyticsConsentState(level);
+  };
 
   return (
     <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
@@ -57,10 +93,55 @@ function GeneralSettings(): JSX.Element {
         </div>
       </div>
 
-      {/* More settings can be added here */}
+      {/* Analytics Consent */}
       <div className="border-t border-theme-default pt-6">
-        <p className="text-theme-muted text-sm text-center">
-          More preferences coming soon
+        <div className="flex items-center gap-2 mb-3">
+          <BarChart3 style={iconStyle} className="text-theme-secondary" />
+          <label className="block text-theme-primary text-sm font-medium">
+            Privacy & Analytics
+          </label>
+        </div>
+        <p className="text-theme-muted text-sm mb-4">
+          Help improve ControlZebra by sharing anonymous usage data.
+        </p>
+        
+        <div className="flex flex-col gap-2">
+          {ANALYTICS_OPTIONS.map(({ id, label, description }) => {
+            const isSelected = analyticsConsent === id;
+            return (
+              <button
+                key={id}
+                onClick={() => handleAnalyticsChange(id)}
+                className={`
+                  flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left
+                  ${isSelected 
+                    ? 'border-blue-500 bg-blue-500/10' 
+                    : 'border-theme-default bg-theme-surface hover:border-theme-muted'
+                  }
+                `}
+              >
+                <div className={`
+                  w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center flex-shrink-0
+                  ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-theme-muted'}
+                `}>
+                  {isSelected && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                  )}
+                </div>
+                <div>
+                  <span className={`text-sm font-medium block ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-theme-primary'}`}>
+                    {label}
+                  </span>
+                  <span className="text-theme-muted text-xs">
+                    {description}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-theme-muted text-xs mt-3">
+          No personal information or file contents are ever collected.
         </p>
       </div>
     </div>

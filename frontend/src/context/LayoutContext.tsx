@@ -14,6 +14,7 @@ import {
   useCallback, 
   useMemo, 
   useEffect,
+  useRef,
   type ReactNode 
 } from 'react';
 import { 
@@ -24,6 +25,7 @@ import {
   type BottomPanelType,
   type ExplorerTab 
 } from '../constants';
+import { trackViewChanged, trackSettingsOpened } from '../lib/analytics';
 
 // ============================================================================
 // Types
@@ -86,9 +88,28 @@ const DEFAULT_BOTTOM_PANEL_HEIGHT = 160;  // 10rem
 
 export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   // Sidebar state
-  const [activeView, setActiveView] = useState<ViewType>(VIEWS.EXPLORER);
+  const [activeView, _setActiveView] = useState<ViewType>(VIEWS.EXPLORER);
+  const previousView = useRef<ViewType>(VIEWS.EXPLORER);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  
+  // Wrap setActiveView to track view changes
+  const setActiveView = useCallback((view: ViewType) => {
+    if (view !== previousView.current) {
+      trackViewChanged({
+        fromView: previousView.current,
+        toView: view,
+      });
+      
+      // Track settings opened specifically
+      if (view === VIEWS.SETTINGS) {
+        trackSettingsOpened({ category: 'general' });
+      }
+      
+      previousView.current = view;
+    }
+    _setActiveView(view);
+  }, []);
   
   // Bottom panel state
   const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
