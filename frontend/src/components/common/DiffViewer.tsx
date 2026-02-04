@@ -39,7 +39,7 @@ function DiffHeader({ fileDiff }: DiffHeaderProps) {
         <span className={cn('text-xs font-medium uppercase', statusColors[fileDiff.status] || 'text-theme-muted')}>
           {fileDiff.status}
         </span>
-        <span className="text-sm text-theme-primary font-mono">
+        <span className="text-sm text-theme-primary">
           {fileDiff.oldPath && fileDiff.oldPath !== fileDiff.path
             ? `${fileDiff.oldPath} → ${fileDiff.path}`
             : fileDiff.path}

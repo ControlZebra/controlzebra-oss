@@ -175,7 +175,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
           {/* Status message */}
           <div
             className={cn(
-              "text-sm font-mono break-words",
+              "text-sm break-words",
               isComplete && !success ? "text-red-600 dark:text-red-400" : "text-theme-secondary"
             )}
           >

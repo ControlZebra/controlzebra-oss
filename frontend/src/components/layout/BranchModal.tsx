@@ -50,7 +50,7 @@ const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect }: Bra
       )}
     >
       <GitBranch style={iconStyle} className={isCurrent ? "text-blue-400" : "text-theme-secondary"} />
-      <span className="flex-1 text-sm font-mono truncate">{branch.name}</span>
+      <span className="flex-1 text-sm truncate">{branch.name}</span>
       {isCurrent && <Check style={iconStyle} className="text-blue-400" />}
       {branch.upstream && (
         <span className="text-xs text-theme-muted">{branch.upstream}</span>
@@ -175,7 +175,7 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
                   />
                 </div>
                 <p className="text-xs text-theme-muted">
-                  Branch will be created from current branch: <span className="font-mono text-theme-secondary">{repoInfo?.branch}</span>
+                  Branch will be created from current branch: <span className="text-theme-secondary">{repoInfo?.branch}</span>
                 </p>
                 <Button
                   className="w-full"

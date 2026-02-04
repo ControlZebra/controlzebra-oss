@@ -392,7 +392,7 @@ const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSel
             type="button"
             onClick={() => onSelect(node.hash)}
             className={`
-              w-full h-full flex items-center gap-1.5 text-left text-xs font-mono px-1
+              w-full h-full flex items-center gap-1.5 text-left text-xs px-1
               transition-colors duration-100
               focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500
               ${isSelected
@@ -425,7 +425,7 @@ const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSel
             {/* Meta info */}
             <div className="flex flex-col gap-0.5 text-theme-secondary">
               <span>{node.author}</span>
-              <span className="font-mono text-theme-muted">{node.shortHash}</span>
+              <span className="text-theme-muted">{node.shortHash}</span>
               <span>{node.relativeDate}</span>
             </div>
             

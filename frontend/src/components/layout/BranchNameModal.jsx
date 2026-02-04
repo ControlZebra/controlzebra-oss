@@ -89,7 +89,7 @@ function BranchNameModal({
               />
             </div>
             <p className="text-xs text-theme-muted">
-              Creates branch from <span className="font-mono text-theme-secondary">{currentBranch}</span>, moves changes there, and saves.
+              Creates branch from <span className="text-theme-secondary">{currentBranch}</span>, moves changes there, and saves.
             </p>
           </div>
 

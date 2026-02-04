@@ -300,7 +300,7 @@ const GroupFormModal = memo(function GroupFormModal({
                       variant="info"
                       className={`flex items-center gap-1 pr-1 ${selectedColorOption.bg} ${selectedColorOption.class}`}
                     >
-                      <span className="font-mono">{ext}</span>
+                      <span>{ext}</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveExtension(index)}
@@ -402,7 +402,7 @@ const GroupCard = memo(function GroupCard({ group, onEdit, onDelete }: GroupCard
         {group.extensions.slice(0, 8).map((ext) => (
           <span
             key={ext}
-            className={`px-2 py-0.5 text-xs rounded font-mono ${colorOption.bg} ${colorOption.class}`}
+            className={`px-2 py-0.5 text-xs rounded ${colorOption.bg} ${colorOption.class}`}
           >
             {ext}
           </span>

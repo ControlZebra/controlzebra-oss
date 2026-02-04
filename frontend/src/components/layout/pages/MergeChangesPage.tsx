@@ -482,7 +482,7 @@ const FileResolutionPanel = memo(function FileResolutionPanel({
         <h2 className="text-theme-primary text-xl font-semibold">
           {fileName}
         </h2>
-        <p className="text-theme-muted text-xs font-mono mt-1">{filePath}</p>
+        <p className="text-theme-muted text-xs mt-1">{filePath}</p>
       </div>
 
       {/* Resolution cards */}

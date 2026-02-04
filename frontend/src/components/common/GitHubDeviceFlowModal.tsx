@@ -123,7 +123,7 @@ function GitHubDeviceFlowModal({
             
             <div className="bg-gray-900 rounded-lg p-4 border border-theme-default">
               <div className="flex items-center justify-between gap-3">
-                <code className="text-2xl font-mono font-bold text-theme-primary tracking-widest">
+                <code className="text-2xl font-bold text-theme-primary tracking-widest">
                   {userCode}
                 </code>
                 <Button variant="secondary" size="sm" onClick={handleCopyCode} className="shrink-0">

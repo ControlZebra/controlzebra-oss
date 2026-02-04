@@ -309,7 +309,6 @@ function ExplorerStatusPanel({
               value={repoName}
               onChange={(e) => setRepoName(e.target.value)}
               placeholder="my-repo"
-              className="font-mono"
             />
           </div>
           
@@ -393,7 +392,7 @@ function ExplorerStatusPanel({
         <PanelLayout
           type="featureBranch"
           title="Branch synced"
-          subtitle={<><span className="font-mono">{branchName}</span> is up to date</>}
+          subtitle={<><span>{branchName}</span> is up to date</>}
         >
           <Button 
             onClick={handleCreateMergeRequest}
