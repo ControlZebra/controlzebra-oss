@@ -109,7 +109,7 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }: ChangedFile
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-theme-muted font-mono truncate block" title={file.path}>
+                    <span className="text-xs text-theme-muted truncate block" title={file.path}>
                       {shortenedPath}
                     </span>
                   </td>

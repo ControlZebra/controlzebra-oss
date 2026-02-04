@@ -94,7 +94,7 @@ const CommitListItem = memo(function CommitListItem({
           type="button"
           onClick={() => onSelect(commit.hash)}
           className={`
-            w-full text-left px-3 py-1.5 text-xs font-mono
+            w-full text-left px-3 py-1.5 text-xs
             transition-colors duration-100
             focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500
             ${isSelected
@@ -129,7 +129,7 @@ const CommitListItem = memo(function CommitListItem({
           {/* Meta info */}
           <div className="flex flex-col gap-0.5 text-theme-secondary">
             <span>{commit.author}</span>
-            <span className="font-mono text-theme-muted">{commit.shortHash}</span>
+            <span className="text-theme-muted">{commit.shortHash}</span>
             <span>{commit.relativeDate}</span>
           </div>
           

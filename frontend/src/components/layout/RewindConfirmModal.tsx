@@ -101,7 +101,7 @@ function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: Rew
             {/* Confirmation input */}
             <div>
               <label className="block text-xs text-theme-secondary mb-2">
-                Type <span className="font-mono font-bold text-theme-primary">{CONFIRMATION_WORD}</span> to confirm
+                Type <span className="font-bold text-theme-primary">{CONFIRMATION_WORD}</span> to confirm
               </label>
               <Input
                 value={inputValue}

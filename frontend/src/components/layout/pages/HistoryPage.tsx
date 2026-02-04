@@ -73,7 +73,7 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack }: CommitHeader
         <div className="flex items-center gap-4 text-xs text-theme-muted">
           <div className="flex items-center gap-1.5">
             <Hash style={iconXsStyle} />
-            <span className="font-mono">{commit.shortHash}</span>
+            <span>{commit.shortHash}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <User style={iconXsStyle} />
@@ -126,7 +126,7 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: Com
           className="w-full flex items-center gap-2 px-4 py-2 hover-bg-theme-interactive transition-colors text-left"
         >
           <FileText style={iconStyle} className="text-theme-secondary shrink-0" />
-          <span className="flex-1 text-sm text-theme-primary truncate font-mono">
+          <span className="flex-1 text-sm text-theme-primary truncate">
             {file.oldPath && file.oldPath !== file.path 
               ? `${file.oldPath} → ${file.path}`
               : file.path

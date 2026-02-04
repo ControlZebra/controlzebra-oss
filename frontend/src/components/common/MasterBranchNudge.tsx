@@ -36,7 +36,7 @@ function MasterBranchNudge({
       >
         <AlertCircle style={iconStyleXs} className="text-amber-600 dark:text-amber-500 shrink-0" />
         <span className="text-amber-800 dark:text-amber-200 flex-1">
-          On <code className="font-mono">{branchName}</code>
+          On <code>{branchName}</code>
         </span>
         {onDismiss && (
           <button onClick={onDismiss} className="text-amber-600 dark:text-amber-400 hover:text-amber-700">
@@ -65,7 +65,7 @@ function MasterBranchNudge({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-          You're working on <code className="font-mono bg-amber-200 dark:bg-amber-500/20 px-1 rounded text-amber-900 dark:text-amber-100">{branchName}</code>
+          You're working on <code className="bg-amber-200 dark:bg-amber-500/20 px-1 rounded text-amber-900 dark:text-amber-100">{branchName}</code>
         </p>
         <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-1">
           Consider creating a new branch for your changes. This keeps {branchName} clean and makes it easier to review your work.
