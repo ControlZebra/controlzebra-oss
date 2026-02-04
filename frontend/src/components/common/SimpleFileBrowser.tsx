@@ -40,6 +40,7 @@ import {
   FileEdit,
   Copy,
   Info,
+  Cloud,
   type LucideIcon,
 } from 'lucide-react';
 import { 
@@ -48,6 +49,7 @@ import {
   RevealInFinder,
   CopyToClipboard,
 } from '../../../bindings/controlzebra/services/filesystemservice';
+import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
@@ -78,6 +80,30 @@ async function revealPathInFinder(path: string): Promise<boolean> {
     toast.error('Failed to reveal in Finder');
     return false;
   }
+}
+
+/**
+ * Convert a git remote URL to a web-browseable URL
+ * Handles SSH (git@github.com:user/repo.git) and HTTPS formats
+ */
+function gitUrlToWebUrl(gitUrl: string): string {
+  if (!gitUrl) return '';
+  
+  let webUrl = gitUrl.trim();
+  
+  // Handle SSH format: git@github.com:user/repo.git -> https://github.com/user/repo
+  if (webUrl.startsWith('git@')) {
+    webUrl = webUrl
+      .replace(/^git@/, 'https://')
+      .replace(/:([^/])/, '/$1'); // Replace first : with /
+  }
+  
+  // Remove .git suffix if present
+  if (webUrl.endsWith('.git')) {
+    webUrl = webUrl.slice(0, -4);
+  }
+  
+  return webUrl;
 }
 
 /**
@@ -337,57 +363,122 @@ interface ToolbarProps {
   onShowHiddenChange: () => void;
   onRefresh: () => void;
   currentPath: string | null;
+  repoPath: string | null;
 }
 
 /**
  * Toolbar with view toggle and actions
  */
-function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh, currentPath }: ToolbarProps) {
+function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh, currentPath, repoPath }: ToolbarProps) {
   const handleOpenInFinder = useCallback(async () => {
     if (!currentPath) return;
     await revealPathInFinder(currentPath);
   }, [currentPath]);
 
   const handleCopyLink = useCallback(async () => {
-    if (!currentPath) return;
-    await copyTextToClipboard(currentPath, 'Path copied to clipboard');
-  }, [currentPath]);
+    if (!currentPath || !repoPath) {
+      toast.error('No repository path available');
+      return;
+    }
+    
+    try {
+      // Get the remote URL from git
+      const remoteUrl = await GetRemoteURL(repoPath);
+      if (!remoteUrl) {
+        toast.error('No remote repository configured');
+        return;
+      }
+      
+      // Convert git URL to web URL
+      const webBaseUrl = gitUrlToWebUrl(remoteUrl);
+      if (!webBaseUrl) {
+        toast.error('Could not parse remote URL');
+        return;
+      }
+      
+      // Calculate relative path from repo root
+      const relativePath = currentPath.startsWith(repoPath)
+        ? currentPath.slice(repoPath.length)
+        : '';
+      
+      // URL-encode the path segments to handle special characters:
+      // - Spaces → %20
+      // - # → %23 (hash/anchor)
+      // - ? → %3F (query string)
+      // - & → %26 (query params)
+      // - + → %2B (plus sign)
+      // - % → %25 (percent sign itself)
+      // - Special chars like !, @, $, etc.
+      // We encode each path segment separately to preserve the / separators
+      const encodedPath = relativePath
+        .split('/')
+        .map(segment => encodeURIComponent(segment))
+        .join('/');
+      
+      // Construct the full web URL (e.g., https://github.com/user/repo/tree/main/path/to/folder)
+      // Note: We use /tree/main as a common default, but this could be enhanced to detect the actual branch
+      const fullUrl = encodedPath
+        ? `${webBaseUrl}/tree/main${encodedPath}`
+        : webBaseUrl;
+      
+      await copyTextToClipboard(fullUrl, 'Remote link copied to clipboard');
+    } catch (err) {
+      console.error('Failed to get remote URL:', err);
+      toast.error('Failed to get remote repository URL');
+    }
+  }, [currentPath, repoPath]);
+
+  const handleViewInCloud = useCallback(() => {
+    toast.info('View in Cloud coming soon');
+  }, []);
 
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-fb-toolbar border-b border-theme-default">
       <div className="flex items-center gap-1">
         <button
           onClick={handleOpenInFinder}
-          className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
           title="Open in Finder"
           disabled={!currentPath}
         >
           <FolderOpen className="w-4 h-4" />
+          <span>Open</span>
         </button>
         <button
           onClick={onRefresh}
-          className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
           title="Reload"
         >
           <RefreshCw className="w-4 h-4" />
+          <span>Reload</span>
         </button>
         <button
           onClick={onShowHiddenChange}
-          className={`p-1.5 hover:bg-fb-hover rounded transition-colors ${
+          className={`flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded transition-colors text-xs ${
             showHidden ? 'text-theme-primary' : 'text-theme-muted hover:text-theme-secondary'
           }`}
           title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
         >
           {showHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          <span>{showHidden ? 'Hide Hidden' : 'Show Hidden'}</span>
         </button>
         <div className="w-px h-4 bg-theme-muted mx-1" />
         <button
           onClick={handleCopyLink}
-          className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
-          title="Copy folder path"
-          disabled={!currentPath}
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
+          title="Copy remote repository link"
+          disabled={!currentPath || !repoPath}
         >
           <Link className="w-4 h-4" />
+          <span>Copy Link</span>
+        </button>
+        <button
+          onClick={handleViewInCloud}
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
+          title="View in Cloud"
+        >
+          <Cloud className="w-4 h-4" />
+          <span>View in Cloud</span>
         </button>
       </div>
       
@@ -531,17 +622,18 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
           </div>
           
           {/* Name Column */}
-          <div className="flex-1 min-w-0 pr-2 flex items-center gap-2" role="cell">
-            <span className={`text-sm truncate ${statusColor || 'text-theme-primary'}`}>
+          <div className="flex-1 min-w-0 pr-2 flex items-center" role="cell">
+            <span className={`text-sm truncate flex-1 ${statusColor || 'text-theme-primary'}`}>
               {file.name}
             </span>
-            {/* Share button - visible on hover */}
+            {/* Share button - visible on hover, positioned at right end */}
             <button
               onClick={handleShareClick}
-              className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-fb-hover text-theme-muted hover:text-theme-primary transition-all shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-fb-hover text-theme-muted hover:text-theme-primary transition-all shrink-0 text-xs"
               title="Share"
             >
               <Share2 className="w-3.5 h-3.5" />
+              <span>Share</span>
             </button>
           </div>
           
@@ -624,7 +716,7 @@ const FileTableHeader = memo(function FileTableHeader() {
   return (
     <div 
       role="row" 
-      className="flex items-center h-8 px-3 bg-fb-surface border-b border-theme-default text-xs text-theme-muted font-medium sticky top-0 z-10"
+      className="flex items-center h-8 px-3 bg-fb-base border-b border-theme-default text-xs text-theme-muted font-bold sticky top-0 z-10"
     >
       {/* Git Status Column - no header text */}
       <div className="w-6 shrink-0" role="columnheader" aria-label="Git status" />
@@ -1074,6 +1166,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         onShowHiddenChange={handleToggleHidden}
         onRefresh={handleRefresh}
         currentPath={currentPath}
+        repoPath={repoPath}
       />
       
       {error && (
