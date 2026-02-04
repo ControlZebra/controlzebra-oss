@@ -40,28 +40,33 @@
    - Added FileTableRow component with per-row border separator
    - Updated row layout/hover/selection styles
 
-4. **Implement selection state and highlighting**
-   - Track “clicked file” in the file browser component state and apply a clear highlight style.
+4. ✅ **Implement selection state and highlighting**
+   - Track "clicked file" in the file browser component state and apply a clear highlight style.
    - Ensure selection is preserved when re-rendering with virtualization.
+   - Added blue left border for selected rows with bg-fb-selected background
 
-5. **Add right sidebar for file details + actions (empty placeholders)**
+5. ✅ **Add right sidebar for file details + actions (empty placeholders)**
    - When a file is selected, show a details panel with header + stub action section.
    - Layout: main file table left, details sidebar right.
+   - Added FileDetailsSidebar component with file info and action buttons (Open in Finder, Copy Path, Download, Delete - all placeholder)
 
-6. **Breadcrumb styling update**
-   - Increase breadcrumb font size.
+6. ✅ **Breadcrumb styling update**
+   - Increase breadcrumb font size (text-sm → text-base).
    - Remove the separator line below the breadcrumb area.
+   - Increased icon sizes for home button and chevron separators
 
-7. **Finalize background color scheme (OneDrive/GDrive style)**
+7. ✅ **Finalize background color scheme (OneDrive/GDrive style)**
    - Define a cohesive neutral palette for background, hover, selected, and panel surfaces.
    - Apply across file table, toolbar, sidebar, and breadcrumbs.
+   - Added new CSS variables: --color-fb-base, --color-fb-surface, --color-fb-hover, --color-fb-selected, --color-fb-selected-border, --color-fb-sidebar, --color-fb-toolbar, --color-fb-breadcrumb
+   - Created utility classes: bg-fb-base, bg-fb-surface, bg-fb-hover, bg-fb-selected, border-fb-selected, bg-fb-sidebar, bg-fb-toolbar, bg-fb-breadcrumb
 
 8. **Add per-file context menu (dummy actions)**
    - Right-click menu with placeholder items (no-op handlers).
    - Ensure it works with virtualization (menu anchored to row).
 
 9. **Update file manager toolbar actions**
-   - Add buttons: Open in Finder/Explorer (dummy), Reload, Show Hidden Files (toggle), Copy Link (dummy).
+   - Add buttons: Open in Finder/Explorer (dummy), open in cloud, Reload, Show Hidden Files (toggle), Copy Link (dummy).
    - Wire Reload and Show Hidden Files to existing/placeholder handlers.
 
 10. **QA pass and polish**

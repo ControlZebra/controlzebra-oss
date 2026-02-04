@@ -40,8 +40,8 @@ const TabItem = memo(function TabItem({
         border-r border-theme-default min-w-0 max-w-[180px]
         transition-colors duration-150
         ${isActive 
-          ? 'bg-theme-elevated border-b-2 border-b-blue-500' 
-          : 'bg-theme-surface hover:bg-theme-elevated/50'
+          ? 'bg-fb-base' 
+          : 'bg-theme-elevated hover:bg-theme-muted'
         }
       `}
       title={tab.filePath || tab.title}
@@ -91,7 +91,7 @@ function ExplorerTabsBar(): JSX.Element {
   } = useLayout();
 
   return (
-    <div className="flex items-center bg-theme-surface border-b border-theme-default overflow-x-auto shrink-0">
+    <div className="flex items-center bg-theme-elevated border-b border-theme-default overflow-x-auto shrink-0">
       {explorerTabs.map(tab => (
         <TabItem
           key={tab.id}
@@ -103,7 +103,7 @@ function ExplorerTabsBar(): JSX.Element {
       ))}
       
       {/* Empty space to fill remaining area */}
-      <div className="flex-1 bg-theme-surface min-w-[40px]" />
+      <div className="flex-1 bg-theme-elevated min-w-[40px]" />
     </div>
   );
 }
