@@ -37,7 +37,6 @@ import {
   Share2,
   FolderOpen,
   Link,
-  FileEdit,
   Copy,
   Info,
   Cloud,
@@ -340,7 +339,7 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }: BreadcrumbsProps) {
       
       {parts.map((part, index) => (
         <div key={part.path} className="flex items-center shrink-0">
-          <ChevronRight className="w-5 h-5 text-theme-muted" />
+          {index !== 0 && <ChevronRight className="w-5 h-5 text-theme-muted" />}
           <button
             onClick={() => onNavigate(part.path)}
             className={`px-2 py-1.5 rounded text-base transition-colors ${
@@ -563,7 +562,6 @@ interface FileItemListProps {
 type FileContextAction = 
   | 'open'
   | 'preview'
-  | 'open-with'
   | 'reveal-in-finder'
   | 'copy-path'
   | 'copy-name'
@@ -665,14 +663,10 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
             <ContextMenuShortcut>␣</ContextMenuShortcut>
           </ContextMenuItem>
         )}
-        <ContextMenuItem onClick={() => onContextAction?.('open-with', file)}>
-          <FileEdit className="mr-2 h-4 w-4" />
-          <span>Open With...</span>
-        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onContextAction?.('reveal-in-finder', file)}>
           <FolderOpen className="mr-2 h-4 w-4" />
-          <span>Reveal in Finder</span>
+          <span>{IS_MAC_OS ? 'Reveal in Finder' : 'Reveal in Explorer'}</span>
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onContextAction?.('copy-path', file)}>
@@ -1137,9 +1131,6 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         break;
       case 'preview':
         handlePreview(file);
-        break;
-      case 'open-with':
-        toast.info('Open With coming soon');
         break;
       case 'reveal-in-finder':
         await revealPathInFinder(file.path);
