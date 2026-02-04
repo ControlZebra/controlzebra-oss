@@ -144,6 +144,8 @@ const GIT_STATUS_LABELS: Record<string, string> = {
   untracked: 'U',
 };
 
+const IS_MAC_OS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
 // File extension to icon mapping
 const EXTENSION_ICONS: Record<string, LucideIcon> = {
   // Code files
@@ -560,13 +562,11 @@ interface FileItemListProps {
 // Context menu action types
 type FileContextAction = 
   | 'open'
+  | 'preview'
   | 'open-with'
   | 'reveal-in-finder'
   | 'copy-path'
   | 'copy-name'
-  | 'rename'
-  | 'duplicate'
-  | 'delete'
   | 'share'
   | 'get-info';
 
@@ -656,8 +656,15 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
         <ContextMenuItem onClick={() => onContextAction?.('open', file)}>
           <ExternalLink className="mr-2 h-4 w-4" />
           <span>Open</span>
-          <ContextMenuShortcut>⌘O</ContextMenuShortcut>
+           <ContextMenuShortcut>⏎</ContextMenuShortcut>
         </ContextMenuItem>
+        {!file.isDirectory && isTextFile(file.name) && (
+          <ContextMenuItem onClick={() => onContextAction?.('preview', file)}>
+            <Eye className="mr-2 h-4 w-4" />
+            <span>Preview</span>
+            <ContextMenuShortcut>␣</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => onContextAction?.('open-with', file)}>
           <FileEdit className="mr-2 h-4 w-4" />
           <span>Open With...</span>
@@ -671,22 +678,10 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
         <ContextMenuItem onClick={() => onContextAction?.('copy-path', file)}>
           <Clipboard className="mr-2 h-4 w-4" />
           <span>Copy Path</span>
-          <ContextMenuShortcut>⌘⇧C</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onContextAction?.('copy-name', file)}>
           <Copy className="mr-2 h-4 w-4" />
           <span>Copy Name</span>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => onContextAction?.('rename', file)}>
-          <FileEdit className="mr-2 h-4 w-4" />
-          <span>Rename</span>
-          <ContextMenuShortcut>⏎</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onContextAction?.('duplicate', file)}>
-          <Copy className="mr-2 h-4 w-4" />
-          <span>Duplicate</span>
-          <ContextMenuShortcut>⌘D</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onContextAction?.('share', file)}>
@@ -696,13 +691,6 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
         <ContextMenuItem onClick={() => onContextAction?.('get-info', file)}>
           <Info className="mr-2 h-4 w-4" />
           <span>Get Info</span>
-          <ContextMenuShortcut>⌘I</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onClick={() => onContextAction?.('delete', file)}>
-          <Trash2 className="mr-2 h-4 w-4" />
-          <span>Move to Trash</span>
-          <ContextMenuShortcut>⌘⌫</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -1063,35 +1051,42 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setSelectedPath(path);
   }, []);
 
-  // Handle file/folder double-click
+  // Handle in-app preview (for text files)
+  const handlePreview = useCallback((file: FileEntry) => {
+    if (file.isDirectory) return;
+    
+    // Check if it's a text file we can display in a tab
+    if (isTextFile(file.name)) {
+      // Open in a tab
+      const tab: ExplorerTab = {
+        id: file.path,
+        title: file.name,
+        type: 'file',
+        filePath: file.path,
+        isPinned: false,
+      };
+      openExplorerTab(tab);
+    } else {
+      toast.info('Preview not available for this file type');
+    }
+  }, [openExplorerTab]);
+
+  // Handle file/folder double-click - opens in default application
   const handleItemDoubleClick = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) {
       setCurrentPath(file.path);
     } else {
-      // Check if it's a text file we can display in a tab
-      if (isTextFile(file.name)) {
-        // Open in a tab
-        const tab: ExplorerTab = {
-          id: file.path,
-          title: file.name,
-          type: 'file',
-          filePath: file.path,
-          isPinned: false,
-        };
-        openExplorerTab(tab);
-      } else {
-        // Open binary/non-text files with default application
-        try {
-          const result = await OpenFile(file.path);
-          if (!result.success) {
-            toast.error(`Failed to open file: ${result.error}`);
-          }
-        } catch {
-          toast.error('Failed to open file');
+      // Open file with default application
+      try {
+        const result = await OpenFile(file.path);
+        if (!result.success) {
+          toast.error(`Failed to open file: ${result.error}`);
         }
+      } catch {
+        toast.error('Failed to open file');
       }
     }
-  }, [openExplorerTab]);
+  }, []);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -1108,11 +1103,40 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setSelectedPath(null);
   }, []);
 
+  // Find the selected file object
+  const selectedFile = useMemo(() => {
+    if (!selectedPath || !files) return null;
+    return files.find(f => f.path === selectedPath) || null;
+  }, [selectedPath, files]);
+
+  // Handle keyboard events for preview and open
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Space bar triggers preview for selected file
+      if (e.code === 'Space' && selectedFile && !selectedFile.isDirectory) {
+        e.preventDefault();
+        handlePreview(selectedFile);
+      }
+
+      // Enter key opens the selected file or enters the selected folder
+      if (e.key === 'Enter' && selectedFile) {
+        e.preventDefault();
+        handleItemDoubleClick(selectedFile);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedFile, handlePreview]);
+
   // Handle context menu actions
   const handleContextAction = useCallback(async (action: FileContextAction, file: FileEntry) => {
     switch (action) {
       case 'open':
         handleItemDoubleClick(file);
+        break;
+      case 'preview':
+        handlePreview(file);
         break;
       case 'open-with':
         toast.info('Open With coming soon');
@@ -1126,15 +1150,6 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
       case 'copy-name':
         await copyTextToClipboard(file.name, 'Name copied to clipboard');
         break;
-      case 'rename':
-        toast.info('Rename coming soon');
-        break;
-      case 'duplicate':
-        toast.info('Duplicate coming soon');
-        break;
-      case 'delete':
-        toast.info('Move to Trash coming soon');
-        break;
       case 'share':
         toast.info('Share coming soon');
         break;
@@ -1143,13 +1158,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         setSelectedPath(file.path);
         break;
     }
-  }, [handleItemDoubleClick]);
-
-  // Find the selected file object
-  const selectedFile = useMemo(() => {
-    if (!selectedPath || !files) return null;
-    return files.find(f => f.path === selectedPath) || null;
-  }, [selectedPath, files]);
+  }, [handleItemDoubleClick, handlePreview]);
 
   return (
     <div className="flex flex-col h-full bg-fb-base">

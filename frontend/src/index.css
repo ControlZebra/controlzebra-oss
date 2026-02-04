@@ -67,7 +67,7 @@
   
   /* Interactive */
   --color-interactive-hover: theme(colors.neutral.700/50);
-  --color-interactive-active: theme(colors.blue.900/30);
+  --color-interactive-active: theme(colors.blue.800/45);
   
   /* Accents */
   --color-accent-primary: theme(colors.blue.500);
@@ -138,6 +138,10 @@
 
 @utility bg-theme-interactive-active {
   background-color: var(--color-interactive-active);
+}
+
+@utility bg-theme-hover {
+  background-color: var(--color-interactive-hover);
 }
 
 /* File Browser specific utilities */

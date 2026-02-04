@@ -60,8 +60,8 @@ const RepoItem = memo(function RepoItem({
       className={cn(
         "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
         isSelected
-          ? "bg-blue-600/20 text-blue-300"
-          : "hover:bg-theme-hover text-theme-primary",
+          ? "bg-blue-500/25 dark:bg-blue-500/30 text-blue-600 dark:text-blue-300"
+          : "hover:bg-neutral-200 dark:hover:bg-neutral-700/60 text-theme-primary",
         isCloning && "opacity-50 cursor-wait"
       )}
     >
@@ -353,9 +353,9 @@ function RepoSwitcher(): JSX.Element {
           ) : filteredRepos.length > 0 ? (
             <div className="py-1">
               {isLoggedIn && (
-                <div className="px-3 py-1.5 text-xs text-theme-muted font-medium uppercase tracking-wide flex items-center gap-2">
+                <div className="px-3 py-1.5 text-xs text-theme-muted font-medium  tracking-wide flex items-center gap-2">
                   <Github style={iconStyle} />
-                  GitHub repositories
+                  Remote Repositories
                 </div>
               )}
               {filteredRepos.map((repo) => (
