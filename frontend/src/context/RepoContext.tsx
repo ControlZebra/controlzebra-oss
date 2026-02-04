@@ -83,6 +83,25 @@ import { GetAppSettings, SaveAppSettings } from '../../bindings/controlzebra/ser
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
+import {
+  trackRepoOpened,
+  trackRepoClosed,
+  trackRepoInitialized,
+  trackCommitCreated,
+  trackCommitBranchAndSave,
+  trackCommitUndone,
+  trackChangesDiscarded,
+  trackSyncStarted,
+  trackSyncCompleted,
+  trackSyncFailed,
+  trackBranchSwitched,
+  trackBranchCreated,
+  trackConflictDetected,
+  trackConflictResolved,
+  trackMergeCompleted,
+  trackMergeAborted,
+  trackErrorShown,
+} from '../lib/analytics';
 
 import type {
   RepoContextValue,
@@ -172,6 +191,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // ===== Refs =====
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const operationIdCounter = useRef(0);
+  const repoOpenTimeRef = useRef<number>(0);
 
   // ===== Core Handlers =====
 
@@ -252,6 +272,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setRepoInfo(info as RepoInfo);
       addRecentFolder(path);
       
+      // Track repo opened event
+      trackRepoOpened({
+        isGitRepo: info.isRepo,
+        hasRemote: Boolean(info.remoteUrl),
+        branchName: info.branch || 'unknown',
+      });
+      repoOpenTimeRef.current = Date.now();
+      
       try {
         await SaveAppSettings({ lastRepoPath: path, theme: 'dark' });
       } catch (err) {
@@ -288,6 +316,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return true;
     } catch (err) {
       const error = err as Error;
+      trackErrorShown({
+        errorContext: 'repo_open',
+        actionAttempted: 'open_repo',
+      });
       showMessage('error', `Failed to open folder: ${error.message || err}`);
       setIsLoading(false);
       return false;
@@ -345,6 +377,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
       const status = await Status(repoPath);
       setRepoStatus(status as RepoStatus);
       
+      // Track repo initialized
+      trackRepoInitialized({
+        lfsEnabled: useLFS,
+        initialCommitMade: false, // We don't make an initial commit in this function
+      });
+      
       showMessage('success', useLFS 
         ? 'Version control initialized with LFS enabled' 
         : 'Version control initialized successfully'
@@ -353,6 +391,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return true;
     } catch (err) {
       const error = err as Error;
+      trackErrorShown({
+        errorContext: 'repo_init',
+        actionAttempted: 'initialize_repo',
+      });
       showMessage('error', `Failed to initialize: ${error.message || err}`);
       setIsLoading(false);
       return false;
@@ -361,6 +403,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Close the current repository
   const closeRepo = useCallback(async (): Promise<void> => {
+    // Track repo closed event
+    if (repoOpenTimeRef.current > 0) {
+      const sessionDuration = Math.round((Date.now() - repoOpenTimeRef.current) / 1000);
+      trackRepoClosed({ sessionDurationSeconds: sessionDuration });
+      repoOpenTimeRef.current = 0;
+    }
+    
     setRepoPath(null);
     setRepoInfo(null);
     setRepoStatus(null);
@@ -404,15 +453,36 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
     
     setIsCommitting(true);
+    const startTime = Date.now();
+    const filesChanged = repoStatus?.changedFiles?.length ?? 0;
+    const currentBranch = repoInfo?.branch || 'unknown';
     
     try {
       const result = await CommitAll(repoPath, message);
       
       if (!result.success) {
+        trackCommitCreated({
+          success: false,
+          filesChanged,
+          branchName: currentBranch,
+          messageLength: message.length,
+          isProtectedBranch: currentBranch === 'main' || currentBranch === 'master',
+          durationMs: Date.now() - startTime,
+          errorType: 'git_error',
+        });
         showMessage('error', result.error || 'Failed to save changes');
         setIsCommitting(false);
         return false;
       }
+      
+      trackCommitCreated({
+        success: true,
+        filesChanged,
+        branchName: currentBranch,
+        messageLength: message.length,
+        isProtectedBranch: currentBranch === 'main' || currentBranch === 'master',
+        durationMs: Date.now() - startTime,
+      });
       
       showMessage('success', 'Changes saved successfully');
       await refreshAll();
@@ -420,11 +490,20 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return true;
     } catch (err) {
       const error = err as Error;
+      trackCommitCreated({
+        success: false,
+        filesChanged,
+        branchName: currentBranch,
+        messageLength: message.length,
+        isProtectedBranch: currentBranch === 'main' || currentBranch === 'master',
+        durationMs: Date.now() - startTime,
+        errorType: 'exception',
+      });
       showMessage('error', `Failed to save: ${error.message || err}`);
       setIsCommitting(false);
       return false;
     }
-  }, [repoPath, showMessage, refreshAll]);
+  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll]);
 
   // Generate unique operation ID
   const generateOperationId = useCallback((): string => {
@@ -443,9 +522,17 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setIsSyncing(false);
     
     if (success) {
+      trackSyncCompleted({
+        success: true,
+        durationMs: 0, // Duration tracked in sync itself
+      });
       showMessage('success', 'Synced successfully');
       refreshAll();
     } else if (error) {
+      trackSyncFailed({
+        errorType: 'sync_error',
+        hadConflicts: error.toLowerCase().includes('conflict'),
+      });
       showMessage('error', error);
     }
   }, [closeProgressModal, showMessage, refreshAll]);
@@ -458,6 +545,16 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
     
     const operationId = generateOperationId();
+    const currentBranch = repoInfo?.branch || 'unknown';
+    const localAhead = repoStatus?.ahead ?? 0;
+    const localBehind = repoStatus?.behind ?? 0;
+    
+    // Track sync started
+    trackSyncStarted({
+      branchName: currentBranch,
+      localAhead,
+      localBehind,
+    });
     
     setIsSyncing(true);
     setProgressModal({
@@ -476,12 +573,16 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return true;
     } catch (err) {
       const error = err as Error;
+      trackSyncFailed({
+        errorType: 'exception',
+        hadConflicts: false,
+      });
       closeProgressModal();
       setIsSyncing(false);
       showMessage('error', `Sync failed: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, generateOperationId, closeProgressModal]);
+  }, [repoPath, repoInfo, repoStatus, showMessage, generateOperationId, closeProgressModal]);
 
   // ===== Diff Operations =====
 
@@ -591,6 +692,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
+    const fromBranch = repoInfo?.branch || 'unknown';
+    
     try {
       const result = await CheckoutBranch(repoPath, branchName);
       
@@ -598,6 +701,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || 'Failed to switch branch');
         return false;
       }
+      
+      trackBranchSwitched({
+        fromBranch,
+        toBranch: branchName,
+        usedStash: false,
+      });
       
       showMessage('success', result.message || `Switched to ${branchName}`);
       clearSelection();
@@ -609,7 +718,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to switch branch: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
+  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches]);
 
   // Create new branch and switch to it
   const createBranch = useCallback(async (branchName: string): Promise<boolean> => {
@@ -618,6 +727,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
+    const fromBranch = repoInfo?.branch || 'unknown';
+    
     try {
       const result = await CreateBranchAndCheckout(repoPath, branchName);
       
@@ -625,6 +736,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || 'Failed to create branch');
         return false;
       }
+      
+      trackBranchCreated({
+        branchName,
+        fromBranch,
+        movedUncommittedChanges: false,
+      });
       
       showMessage('success', result.message || `Created branch ${branchName}`);
       clearSelection();
@@ -636,7 +753,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to create branch: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
+  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches]);
 
   // Create new branch, switch to it, and commit changes
   const branchAndCommit = useCallback(async (branchName: string, message: string): Promise<boolean> => {
@@ -655,6 +772,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
+    const fromBranch = repoInfo?.branch || 'unknown';
+    const wasOnProtectedBranch = fromBranch === 'main' || fromBranch === 'master';
+    const filesChanged = repoStatus?.changedFiles?.length ?? 0;
+    
     try {
       const switchResult = await StashAndSwitchBranch(repoPath, branchName.trim(), true);
       
@@ -670,6 +791,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
         return false;
       }
       
+      trackCommitBranchAndSave({
+        newBranchName: branchName,
+        filesChanged,
+        wasOnProtectedBranch,
+      });
+      
       showMessage('success', `Created branch "${branchName}" and saved changes`);
       clearSelection();
       await refreshAll();
@@ -680,7 +807,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, clearSelection, refreshAll, refreshBranches]);
+  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches]);
 
   // ===== Recovery Operations =====
 
@@ -698,6 +825,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || 'Failed to undo last commit');
         return false;
       }
+      
+      trackCommitUndone({ commitsResetCount: 1 });
       
       showMessage('success', result.message || 'Undid last commit');
       clearSelection();
@@ -717,6 +846,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
+    const filesDiscarded = repoStatus?.changedFiles?.length ?? 0;
+    
     try {
       const result = await DiscardAll(repoPath, true);
       
@@ -724,6 +855,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || 'Failed to discard changes');
         return false;
       }
+      
+      trackChangesDiscarded({
+        filesDiscarded,
+        wasPartial: false,
+      });
       
       showMessage('success', result.message || 'All changes discarded');
       clearSelection();
@@ -734,7 +870,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to discard: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, clearSelection, refreshAll]);
+  }, [repoPath, repoStatus, showMessage, clearSelection, refreshAll]);
 
   // Rewind to last snapshot
   const rewindToLastSnapshot = useCallback(async (): Promise<boolean> => {
@@ -776,6 +912,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || 'Failed to discard file changes');
         return false;
       }
+      
+      trackChangesDiscarded({
+        filesDiscarded: 1,
+        wasPartial: true,
+      });
       
       showMessage('success', result.message || `Discarded changes to ${filePath}`);
       setSelectedFileIndex(null);
@@ -843,6 +984,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
       
       if (result.hasConflicts) {
         setConflictedFiles((result.conflictedFiles || []) as ConflictedFile[]);
+        
+        // Track conflict detected
+        trackConflictDetected({
+          conflictedFilesCount: result.conflictedFiles?.length || 0,
+          conflictSource: 'merge',
+        });
+        
         showMessage('info', `Found ${result.conflictedFiles?.length || 0} potential conflict(s) when merging ${source} → ${target}`);
       }
       
@@ -1009,6 +1157,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
         return false;
       }
 
+      // Track conflict resolution
+      trackConflictResolved({
+        resolutionStrategy: strategy === 'mine' ? 'ours' : strategy === 'theirs' ? 'theirs' : 'both',
+      });
+
       setFileResolutions(prev => ({ ...prev, [filePath]: strategy }));
       showMessage('success', result.message || `Resolved "${filePath.split('/').pop()}"`);
       setIsResolvingConflict(false);
@@ -1059,6 +1212,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
 
+    const conflictsRemaining = conflictedFiles.length;
+
     try {
       const result = await AbortMerge(repoPath);
       
@@ -1066,6 +1221,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || result.message || 'Failed to abort merge');
         return false;
       }
+
+      trackMergeAborted({ conflictsRemaining });
 
       showMessage('success', result.message || 'Merge aborted');
       clearConflicts();
@@ -1076,7 +1233,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to abort merge: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, showMessage, clearConflicts, refreshStatus]);
+  }, [repoPath, conflictedFiles, showMessage, clearConflicts, refreshStatus]);
 
   // Complete the merge with a commit message
   const completeMerge = useCallback(async (message: string): Promise<boolean> => {
@@ -1093,6 +1250,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
     const isSquash = conflictCheckResult?.isSquashMerge ?? isSquashMerge;
     const parentBranchName = detectedParentBranch?.name;
+    const totalConflicts = conflictedFiles.length;
+    const strategiesUsed = Object.values(fileResolutions).filter(Boolean) as string[];
 
     try {
       let result;
@@ -1107,6 +1266,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
         showMessage('error', result.error || result.message || 'Failed to complete merge');
         return false;
       }
+
+      // Track merge completed
+      trackMergeCompleted({
+        totalConflicts,
+        resolutionStrategiesUsed: strategiesUsed,
+      });
 
       const successMsg = isSquash ? 'Squash merge completed successfully' : 'Merge completed successfully';
       showMessage('success', result.message || successMsg);
