@@ -316,7 +316,7 @@ const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
             ) : (
               <Play style={iconSm} className="mr-2" />
             )}
-            Start {isSquashMerge ? 'Squash Merge' : 'Merge'}
+            Start Merge
           </Button>
         </div>
       </div>
