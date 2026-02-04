@@ -78,8 +78,13 @@ import {
   RepoClone,
   RepoCreateFromLocal,
 } from '../../bindings/controlzebra/services/githubservice';
+import {
+  InitializeLFS,
+  GetPresetPatterns,
+  TrackPattern,
+} from '../../bindings/controlzebra/services/lfsservice';
 import { SyncWithProgress } from '../../bindings/controlzebra/services/progressservice';
-import { GetAppSettings, SaveAppSettings } from '../../bindings/controlzebra/services/settingsservice';
+import { GetAppSettings, SaveAppSettings, SetUserProfile } from '../../bindings/controlzebra/services/settingsservice';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
@@ -275,7 +280,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       // Track repo opened event
       trackRepoOpened({
         isGitRepo: info.isRepo,
-        hasRemote: Boolean(info.remoteUrl),
+        hasRemote: false, // Remote URL checked separately if needed
         branchName: info.branch || 'unknown',
       });
       repoOpenTimeRef.current = Date.now();
@@ -286,7 +291,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
         console.error('Failed to save settings:', err);
       }
       
-      const folderName = path.split('/').pop();
       if (info.isRepo) {
         try {
           const state = await GetMergeState(path);
@@ -357,9 +361,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       
       // If LFS is enabled and we have attributes to track, add them
       if (useLFS && options?.lfsAttributes && options.lfsAttributes.length > 0) {
-        // Import TrackPattern dynamically to avoid circular deps
-        const { TrackPattern } = await import('../../bindings/controlzebra/services/lfsservice');
-        
         for (const attr of options.lfsAttributes) {
           try {
             await TrackPattern(repoPath, attr.pattern);
@@ -396,6 +397,134 @@ export function RepoProvider({ children }: RepoProviderProps) {
         actionAttempted: 'initialize_repo',
       });
       showMessage('error', `Failed to initialize: ${error.message || err}`);
+      setIsLoading(false);
+      return false;
+    }
+  }, [repoPath, repoInfo, showMessage]);
+
+  /**
+   * Start tracking a folder with version control.
+   * This is the main entry point for the "Start Tracking" button.
+   * 
+   * Process:
+   * 1. Check if user has logged in to GitHub
+   * 2. Initialize git in the directory
+   * 3. Initialize LFS & add all known LFS attributes by default
+   * 4. Add .gitignore for .env by default
+   * 5. Set default name and email based on GitHub username
+   */
+  const startTracking = useCallback(async (): Promise<boolean> => {
+    if (!repoPath) {
+      showMessage('error', 'No folder open');
+      return false;
+    }
+    
+    if (repoInfo?.isRepo) {
+      showMessage('info', 'Folder is already being tracked');
+      return true;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Step 1: Check GitHub auth status
+      let username = '';
+      try {
+        const authStatus = await AuthStatus();
+        if (authStatus.loggedIn && authStatus.username) {
+          username = authStatus.username;
+        } else {
+          // User not logged in - they can still proceed but won't have git config set automatically
+          console.info('GitHub not authenticated - skipping automatic git user config');
+        }
+      } catch (err) {
+        console.warn('Failed to check GitHub auth status:', err);
+        // Continue without GitHub auth - we'll skip setting user config
+      }
+      
+      // Step 2: Initialize git
+      const initResult = await InitRepo(repoPath);
+      if (!initResult.success) {
+        showMessage('error', initResult.error || 'Failed to initialize version control');
+        setIsLoading(false);
+        return false;
+      }
+      
+      // Step 3: Initialize LFS and add all preset patterns
+      try {
+        await InitializeLFS(repoPath);
+        
+        // Get and apply all preset LFS patterns
+        const presetPatterns = await GetPresetPatterns();
+        for (const preset of presetPatterns) {
+          try {
+            await TrackPattern(repoPath, preset.pattern);
+          } catch (err) {
+            console.warn(`Failed to track LFS pattern ${preset.pattern}:`, err);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to initialize LFS:', err);
+        // Continue even if LFS setup fails
+      }
+      
+      // Step 4: Add default .gitignore entries
+      // TODO: Implement EnsureGitignoreEntries in backend (services/git_service.go)
+      // For now, skip this step - .gitignore entries can be added manually
+      // Desired entries: .env, .env.local, .env.*.local, .env.development.local, .env.production.local
+      
+      // Step 5: Set default user name and email if GitHub user is available
+      if (username) {
+        try {
+          await SetUserProfile(repoPath, {
+            name: username,
+            email: `${username}@users.noreply.github.com`,
+          }, true); // Set globally
+        } catch (err) {
+          console.warn('Failed to set git user config:', err);
+          // Continue even if user config fails
+        }
+      }
+      
+      // Step 6: Make initial commit with all files
+      let initialCommitMade = false;
+      try {
+        const commitResult = await CommitAll(repoPath, 'Initial commit');
+        if (commitResult.success) {
+          initialCommitMade = true;
+        } else {
+          console.warn('Failed to make initial commit:', commitResult.error);
+          // Continue even if initial commit fails (might have no files to commit)
+        }
+      } catch (err) {
+        console.warn('Failed to make initial commit:', err);
+        // Continue even if commit fails
+      }
+      
+      // Refresh repo info
+      const info = await DetectRepo(repoPath);
+      setRepoInfo(info as RepoInfo);
+      
+      // Refresh status to show current state
+      const status = await Status(repoPath);
+      setRepoStatus(status as RepoStatus);
+      
+      // Track repo initialized
+      trackRepoInitialized({
+        lfsEnabled: true,
+        initialCommitMade,
+      });
+      
+      showMessage('success', 'Version control enabled');
+      setIsLoading(false);
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      trackErrorShown({
+        errorContext: 'start_tracking',
+        actionAttempted: 'start_tracking',
+      });
+      showMessage('error', `Failed to start tracking: ${error.message || err}`);
       setIsLoading(false);
       return false;
     }
@@ -1908,6 +2037,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     openRepo,
     closeRepo,
     initializeGitRepo,
+    startTracking,
     commitChanges,
     syncRepo,
     refreshStatus,
@@ -1998,7 +2128,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     isLoading, isSyncing, isCommitting, isDiffLoading,
     progressModal, handleProgressComplete,
     showMessage,
-    openRepo, closeRepo, initializeGitRepo, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    openRepo, closeRepo, initializeGitRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,

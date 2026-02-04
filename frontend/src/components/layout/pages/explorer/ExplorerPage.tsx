@@ -6,18 +6,18 @@
  * - File browser shows when that tab is active
  * - File content shows when file tabs are active
  * - When no folder is open: Shows welcome screen
+ * - Non-git folders: Shows file browser like usual (start tracking via sidebar)
  */
 import { memo, useState, useCallback } from 'react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
-import NoGitRepoScreen from './NoGitRepoScreen';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import FileContentViewer from '../../../common/FileContentViewer';
 
 function ExplorerPage(): JSX.Element {
-  const { repoPath, repoInfo, openRepo, initializeGitRepo, isLoading } = useRepo();
+  const { repoPath, openRepo } = useRepo();
   const { activeExplorerTab, explorerTabs } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
@@ -45,17 +45,7 @@ function ExplorerPage(): JSX.Element {
     );
   }
 
-  // Folder open but not a git repo - show init screen
-  if (!repoInfo?.isRepo) {
-    const folderName = repoPath.split('/').pop() || 'Folder';
-    return (
-      <NoGitRepoScreen
-        folderName={folderName}
-        onInitialize={initializeGitRepo}
-        isLoading={isLoading}
-      />
-    );
-  }
+  // For both git repos and non-git folders, show the file browser
 
   // Find the active tab
   const activeTab = explorerTabs.find(tab => tab.id === activeExplorerTab);
