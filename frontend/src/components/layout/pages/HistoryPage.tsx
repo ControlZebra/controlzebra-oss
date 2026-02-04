@@ -2,7 +2,7 @@
  * HistoryPage - Main area content for Commit History view.
  * Shows commit details + file list, or file diff when viewing a specific file.
  */
-import { memo, useCallback, type CSSProperties } from 'react';
+import { memo, useCallback, useState, type CSSProperties } from 'react';
 import { 
   FileText, 
   User, 
@@ -11,11 +11,22 @@ import {
   Minus, 
   Hash,
   ChevronLeft,
+  RotateCcw,
 } from 'lucide-react';
 import { VIEWS, ICON_SIZES } from '../../../constants';
 import { useRepo, type CommitDetail } from '../../../context';
 import { DiffViewer, EmptyState, LoadingState } from '../../common';
-import { Button } from '../../ui';
+import { 
+  Button,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '../../ui';
 
 // ============================================================================
 // Types
@@ -32,6 +43,8 @@ interface CommitFile {
 interface CommitHeaderProps {
   commit: CommitDetail;
   onBack?: () => void;
+  onRestore?: () => void;
+  isRestoring?: boolean;
 }
 
 interface CommitFileListProps {
@@ -53,7 +66,7 @@ const iconXsStyle: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs
 /**
  * CommitHeader - Shows commit metadata (author, date, message).
  */
-const CommitHeader = memo(function CommitHeader({ commit, onBack }: CommitHeaderProps): JSX.Element {
+const CommitHeader = memo(function CommitHeader({ commit, onBack, onRestore, isRestoring }: CommitHeaderProps): JSX.Element {
   return (
     <div className="border-b border-theme-default bg-theme-elevated">
       {/* Back button when viewing file diff */}
@@ -66,10 +79,26 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack }: CommitHeader
         </div>
       )}
       <div className="px-4 py-3">
-        <h2 className="text-theme-primary font-medium mb-2">{commit.message}</h2>
-        {commit.body && (
-          <p className="text-theme-secondary text-sm mb-3 whitespace-pre-wrap">{commit.body}</p>
-        )}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-theme-primary font-medium mb-2">{commit.message}</h2>
+            {commit.body && (
+              <p className="text-theme-secondary text-sm mb-3 whitespace-pre-wrap">{commit.body}</p>
+            )}
+          </div>
+          {onRestore && (
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={onRestore}
+              disabled={isRestoring}
+              className="shrink-0 bg-theme-muted hover:bg-theme-elevated text-theme-primary border border-theme-default"
+            >
+              <RotateCcw style={iconStyle} className={isRestoring ? 'animate-spin' : ''} />
+              <span>{isRestoring ? 'Restoring...' : 'Restore'}</span>
+            </Button>
+          )}
+        </div>
         <div className="flex items-center gap-4 text-xs text-theme-muted">
           <div className="flex items-center gap-1.5">
             <Hash style={iconXsStyle} />
@@ -154,7 +183,12 @@ function HistoryPage(): JSX.Element {
     isDiffLoading,
     loadCommitFileDiff,
     selectCommit,
+    revertCommit,
   } = useRepo();
+
+  // State for restore confirmation modal
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // Handle clicking a file in commit detail view
   const handleCommitFileSelect = useCallback((filePath: string): void => {
@@ -168,18 +202,66 @@ function HistoryPage(): JSX.Element {
     }
   }, [selectedCommit, selectCommit]);
 
+  // Open restore confirmation modal
+  const handleRestoreClick = useCallback((): void => {
+    setShowRestoreConfirm(true);
+  }, []);
+
+  // Confirm and execute restore (revert)
+  const handleRestoreConfirm = useCallback(async (): Promise<void> => {
+    if (!selectedCommit) return;
+    
+    setIsRestoring(true);
+    try {
+      await revertCommit(selectedCommit.hash);
+    } finally {
+      setIsRestoring(false);
+      setShowRestoreConfirm(false);
+    }
+  }, [selectedCommit, revertCommit]);
+
   if (isDiffLoading) {
     return <LoadingState />;
   }
+
+  // Restore confirmation modal
+  const restoreConfirmModal = (
+    <AlertDialog open={showRestoreConfirm} onOpenChange={setShowRestoreConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Restore this snapshot?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will create a new commit that undoes all changes from "{selectedCommit?.message}". 
+            Your commit history will be preserved.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={handleRestoreConfirm}
+            disabled={isRestoring}
+          >
+            {isRestoring ? 'Restoring...' : 'Restore'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   // Viewing a file diff from a commit
   if (selectedCommit && selectedCommitFile && currentDiff) {
     return (
       <div className="flex flex-col h-full min-h-0">
-        <CommitHeader commit={selectedCommit} onBack={handleBackToCommit} />
+        <CommitHeader 
+          commit={selectedCommit} 
+          onBack={handleBackToCommit}
+          onRestore={handleRestoreClick}
+          isRestoring={isRestoring}
+        />
         <div className="flex-1 overflow-hidden min-h-0">
           <DiffViewer fileDiff={currentDiff} showHeader={true} />
         </div>
+        {restoreConfirmModal}
       </div>
     );
   }
@@ -188,11 +270,16 @@ function HistoryPage(): JSX.Element {
   if (selectedCommit) {
     return (
       <div className="flex flex-col h-full min-h-0">
-        <CommitHeader commit={selectedCommit} />
+        <CommitHeader 
+          commit={selectedCommit}
+          onRestore={handleRestoreClick}
+          isRestoring={isRestoring}
+        />
         <CommitFileList 
           files={(selectedCommit.files || []) as CommitFile[]} 
           onFileSelect={handleCommitFileSelect}
         />
+        {restoreConfirmModal}
       </div>
     );
   }

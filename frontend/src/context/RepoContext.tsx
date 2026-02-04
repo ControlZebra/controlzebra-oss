@@ -57,6 +57,7 @@ import {
   AbortRevert,
   ContinueRevert,
   SkipRevertCommit,
+  RevertCommit,
   AbortBisect,
   GetBisectState,
   AbortAM,
@@ -1539,6 +1540,24 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [repoPath, showMessage, refreshAll]);
 
+  const revertCommit = useCallback(async (commitHash: string): Promise<boolean> => {
+    if (!repoPath) return false;
+    try {
+      const result = await RevertCommit(repoPath, commitHash);
+      if (result.success) {
+        showMessage('success', result.message);
+        await refreshAll();
+        return true;
+      }
+      showMessage('error', result.error || result.message);
+      return false;
+    } catch (err) {
+      const error = err as Error;
+      showMessage('error', `Failed to revert commit: ${error.message}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll]);
+
   const abortBisect = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
     try {
@@ -2080,6 +2099,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     abortCherryPick,
     continueCherryPick,
     skipCherryPickCommit,
+    revertCommit,
     abortRevert,
     continueRevert,
     skipRevertCommit,
@@ -2126,7 +2146,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     resolveConflict, applyAllResolutions, abortMerge, completeMerge, refreshMergeState,
     abortCurrentOperation,
     abortCherryPick, continueCherryPick, skipCherryPickCommit,
-    abortRevert, continueRevert, skipRevertCommit,
+    revertCommit, abortRevert, continueRevert, skipRevertCommit,
     abortBisect, getBisectState,
     abortAM, skipAMPatch,
     createBranchFromDetached,
