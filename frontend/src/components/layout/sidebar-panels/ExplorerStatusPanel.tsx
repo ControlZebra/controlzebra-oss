@@ -10,7 +10,7 @@
  * - Subtitle
  * - Optional action button
  */
-import { memo, useState, useEffect, useCallback, type CSSProperties, type ReactNode } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, type CSSProperties, type ReactNode } from 'react';
 import { 
   AlertTriangle, 
   CheckCircle2, 
@@ -20,14 +20,24 @@ import {
   Cloud,
   Upload,
   Github,
-  Pencil,
   Lock,
   Globe,
-  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { ICON_STYLES } from '../../../lib/gitHelpers';
-import { Button } from '../../ui';
+import { 
+  Button, 
+  Input, 
+  Label, 
+  Select, 
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  type SelectOption,
+} from '../../ui';
+import { cn } from '../../../lib/utils';
 import { toast } from 'sonner';
 import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../../context/RepoContext.types';
 
@@ -148,13 +158,11 @@ function ExplorerStatusPanel({
   // State for publish form
   const defaultRepoName = repoPath?.split('/').pop() || 'my-repo';
   const [repoName, setRepoName] = useState(defaultRepoName);
-  const [isEditingName, setIsEditingName] = useState(false);
   const [isPrivate, setIsPrivate] = useState(true);
   const [selectedOwner, setSelectedOwner] = useState<string>('');
   const [organizations, setOrganizations] = useState<GitHubOrganization[]>([]);
   const [username, setUsername] = useState<string>('');
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
-  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
 
   // Load organizations when authenticated and in publish mode
   useEffect(() => {
@@ -194,13 +202,17 @@ function ExplorerStatusPanel({
     toast.info('Merge request creation coming soon!');
   };
 
-  // Get display name for selected owner
-  const getOwnerDisplayName = () => {
-    if (selectedOwner === username) {
-      return `${username} (personal)`;
+  // Memoized options for the owner Select component
+  const ownerOptions = useMemo((): SelectOption[] => {
+    const options: SelectOption[] = [];
+    if (username) {
+      options.push({ value: username, label: `${username} (personal)` });
     }
-    return selectedOwner || 'Select owner';
-  };
+    organizations.forEach((org) => {
+      options.push({ value: org.login, label: org.name || org.login });
+    });
+    return options;
+  }, [username, organizations]);
 
   switch (status) {
     case 'noRepo':
@@ -290,122 +302,75 @@ function ExplorerStatusPanel({
           
           {/* Repository Name Field */}
           <div className="mb-3">
-            <label className="block text-theme-muted text-xs mb-1.5 text-left">Repository Name</label>
-            <div className="relative">
-              {isEditingName ? (
-                <input
-                  type="text"
-                  value={repoName}
-                  onChange={(e) => setRepoName(e.target.value)}
-                  onBlur={() => setIsEditingName(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') setIsEditingName(false);
-                    if (e.key === 'Escape') {
-                      setRepoName(defaultRepoName);
-                      setIsEditingName(false);
-                    }
-                  }}
-                  autoFocus
-                  className="w-full px-3 py-2 text-sm bg-theme-secondary border border-theme-border rounded-md text-theme-primary focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingName(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm bg-theme-secondary border border-theme-border rounded-md text-theme-primary hover:border-theme-border-hover transition-colors"
-                >
-                  <span className="font-mono truncate">{repoName}</span>
-                  <Pencil style={{ width: 14, height: 14 }} className="text-theme-muted flex-shrink-0 ml-2" />
-                </button>
-              )}
-            </div>
+            <Label htmlFor="repo-name" className="text-left">Repository Name</Label>
+            <Input
+              id="repo-name"
+              type="text"
+              value={repoName}
+              onChange={(e) => setRepoName(e.target.value)}
+              placeholder="my-repo"
+              className="font-mono"
+            />
           </div>
           
-          {/* Visibility Toggle */}
+          {/* Visibility Dropdown */}
           <div className="mb-3">
-            <label className="block text-theme-muted text-xs mb-1.5 text-left">Visibility</label>
-            <div className="flex gap-1 p-1 bg-theme-secondary rounded-md border border-theme-border">
-              <button
-                type="button"
-                onClick={() => setIsPrivate(true)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded transition-colors ${
-                  isPrivate 
-                    ? 'bg-theme-primary text-theme-primary-inverted' 
-                    : 'text-theme-muted hover:text-theme-primary'
-                }`}
-              >
-                <Lock style={{ width: 12, height: 12 }} />
-                Private
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsPrivate(false)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded transition-colors ${
-                  !isPrivate 
-                    ? 'bg-theme-primary text-theme-primary-inverted' 
-                    : 'text-theme-muted hover:text-theme-primary'
-                }`}
-              >
-                <Globe style={{ width: 12, height: 12 }} />
-                Public
-              </button>
-            </div>
+            <Label className="text-left">Visibility</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-9 w-full items-center justify-between rounded border border-theme-default bg-theme-surface px-3 py-2 text-sm transition-colors",
+                    "hover:border-theme-hover",
+                    "focus:outline-none focus:border-blue-500"
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-theme-primary">
+                    {isPrivate ? (
+                      <><Lock style={{ width: 14, height: 14 }} /> Private</>
+                    ) : (
+                      <><Globe style={{ width: 14, height: 14 }} /> Public</>
+                    )}
+                  </span>
+                  <svg
+                    className="h-4 w-4 text-theme-muted"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                <DropdownMenuRadioGroup
+                  value={isPrivate ? 'private' : 'public'}
+                  onValueChange={(value) => setIsPrivate(value === 'private')}
+                >
+                  <DropdownMenuRadioItem value="private" className="flex-col items-start py-2">
+                    <span className="font-semibold text-theme-primary">Private</span>
+                    <span className="text-xs text-theme-muted">Only you and collaborators can see this repository</span>
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="public" className="flex-col items-start py-2">
+                    <span className="font-semibold text-theme-primary">Public</span>
+                    <span className="text-xs text-theme-muted">Anyone on the internet can see this repository</span>
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           {/* Owner Dropdown */}
           <div className="mb-4">
-            <label className="block text-theme-muted text-xs mb-1.5 text-left">Owner</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsOwnerDropdownOpen(!isOwnerDropdownOpen)}
-                disabled={isLoadingOrgs}
-                className="w-full flex items-center justify-between px-3 py-2 text-sm bg-theme-secondary border border-theme-border rounded-md text-theme-primary hover:border-theme-border-hover transition-colors disabled:opacity-50"
-              >
-                <span className="truncate">{isLoadingOrgs ? 'Loading...' : getOwnerDisplayName()}</span>
-                <ChevronDown style={{ width: 14, height: 14 }} className={`text-theme-muted flex-shrink-0 ml-2 transition-transform ${isOwnerDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {isOwnerDropdownOpen && !isLoadingOrgs && (
-                <div className="absolute z-10 mt-1 w-full bg-theme-secondary border border-theme-border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                  {/* Personal Account */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedOwner(username);
-                      setIsOwnerDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center px-3 py-2 text-sm text-left hover:bg-theme-hover transition-colors ${
-                      selectedOwner === username ? 'bg-theme-hover text-theme-primary' : 'text-theme-secondary'
-                    }`}
-                  >
-                    <span className="truncate">{username} (personal)</span>
-                  </button>
-                  
-                  {/* Organizations */}
-                  {organizations.length > 0 && (
-                    <>
-                      <div className="h-px bg-theme-border my-1" />
-                      {organizations.map((org) => (
-                        <button
-                          key={org.login}
-                          type="button"
-                          onClick={() => {
-                            setSelectedOwner(org.login);
-                            setIsOwnerDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center px-3 py-2 text-sm text-left hover:bg-theme-hover transition-colors ${
-                            selectedOwner === org.login ? 'bg-theme-hover text-theme-primary' : 'text-theme-secondary'
-                          }`}
-                        >
-                          <span className="truncate">{org.name || org.login}</span>
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            <Label className="text-left">Owner</Label>
+            <Select
+              value={selectedOwner}
+              onValueChange={setSelectedOwner}
+              options={ownerOptions}
+              placeholder={isLoadingOrgs ? 'Loading...' : 'Select owner'}
+              disabled={isLoadingOrgs}
+            />
           </div>
           
           {/* Publish Button */}
