@@ -507,6 +507,7 @@ export interface RepoContextValue {
   continueCherryPick: () => Promise<boolean>;
   skipCherryPickCommit: () => Promise<boolean>;
   // Revert
+  revertCommit: (commitHash: string) => Promise<boolean>;
   abortRevert: () => Promise<boolean>;
   continueRevert: () => Promise<boolean>;
   skipRevertCommit: () => Promise<boolean>;
