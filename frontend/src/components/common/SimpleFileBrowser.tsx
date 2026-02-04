@@ -34,17 +34,71 @@ import {
   Clipboard,
   Trash2,
   Download,
+  Share2,
+  FolderOpen,
+  Link,
+  FileEdit,
+  Copy,
+  Info,
   type LucideIcon,
 } from 'lucide-react';
 import { 
   ListDirectoryWithOptions, 
   OpenFile,
+  RevealInFinder,
+  CopyToClipboard,
 } from '../../../bindings/controlzebra/services/filesystemservice';
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
 import { isTextFile, type ExplorerTab } from '../../constants';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from '../ui/context-menu';
+
+/**
+ * Helper to reveal a path in Finder with consistent error handling
+ */
+async function revealPathInFinder(path: string): Promise<boolean> {
+  try {
+    const result = await RevealInFinder(path);
+    if (!result.success) {
+      toast.error(result.error || 'Failed to reveal in Finder');
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('RevealInFinder error:', err);
+    toast.error('Failed to reveal in Finder');
+    return false;
+  }
+}
+
+/**
+ * Helper to copy text to clipboard with consistent error handling
+ */
+async function copyTextToClipboard(text: string, successMessage = 'Copied to clipboard'): Promise<boolean> {
+  try {
+    const result = await CopyToClipboard(text);
+    if (result.success) {
+      toast.success(successMessage);
+      return true;
+    } else {
+      toast.error(result.error || 'Failed to copy to clipboard');
+      return false;
+    }
+  } catch (err) {
+    console.error('CopyToClipboard error:', err);
+    toast.error('Failed to copy to clipboard');
+    return false;
+  }
+}
 
 // Git status color classes - used for text and icons
 const GIT_STATUS_COLORS: Record<string, string> = {
@@ -282,19 +336,38 @@ interface ToolbarProps {
   showHidden: boolean;
   onShowHiddenChange: () => void;
   onRefresh: () => void;
+  currentPath: string | null;
 }
 
 /**
  * Toolbar with view toggle and actions
  */
-function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh }: ToolbarProps) {
+function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh, currentPath }: ToolbarProps) {
+  const handleOpenInFinder = useCallback(async () => {
+    if (!currentPath) return;
+    await revealPathInFinder(currentPath);
+  }, [currentPath]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!currentPath) return;
+    await copyTextToClipboard(currentPath, 'Path copied to clipboard');
+  }, [currentPath]);
+
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-fb-toolbar border-b border-theme-default">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
+        <button
+          onClick={handleOpenInFinder}
+          className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
+          title="Open in Finder"
+          disabled={!currentPath}
+        >
+          <FolderOpen className="w-4 h-4" />
+        </button>
         <button
           onClick={onRefresh}
           className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
-          title="Refresh"
+          title="Reload"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -306,6 +379,15 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
           title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
         >
           {showHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+        </button>
+        <div className="w-px h-4 bg-theme-muted mx-1" />
+        <button
+          onClick={handleCopyLink}
+          className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors"
+          title="Copy folder path"
+          disabled={!currentPath}
+        >
+          <Link className="w-4 h-4" />
         </button>
       </div>
       
@@ -381,7 +463,21 @@ interface FileItemListProps {
   onDoubleClick: () => void;
   isSelected?: boolean;
   onSelect?: () => void;
+  onContextAction?: (action: FileContextAction, file: FileEntry) => void;
 }
+
+// Context menu action types
+type FileContextAction = 
+  | 'open'
+  | 'open-with'
+  | 'reveal-in-finder'
+  | 'copy-path'
+  | 'copy-name'
+  | 'rename'
+  | 'duplicate'
+  | 'delete'
+  | 'share'
+  | 'get-info';
 
 /**
  * Git status icon component
@@ -402,52 +498,122 @@ const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string 
 /**
  * File item component for table view (used in virtualized list)
  */
-const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick, isSelected, onSelect }: FileItemListProps) {
+const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick, isSelected, onSelect, onContextAction }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
+  const handleShareClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onContextAction?.('share', file);
+  }, [file, onContextAction]);
+  
   return (
-    <div
-      role="row"
-      onClick={onSelect}
-      onDoubleClick={onDoubleClick}
-      className={`flex items-center h-9 px-3 cursor-pointer border-b border-theme-muted transition-colors ${
-        isSelected 
-          ? 'bg-fb-selected border-l-2 border-l-blue-500' 
-          : 'hover:bg-fb-hover border-l-2 border-l-transparent'
-      }`}
-    >
-      {/* Git Status Column */}
-      <div className="w-6 shrink-0 flex items-center justify-center" role="cell">
-        <GitStatusIcon status={!file.isDirectory ? gitStatus : undefined} />
-      </div>
-      
-      {/* Type Icon Column */}
-      <div className="w-8 shrink-0 flex items-center justify-center" role="cell">
-        <Icon className={`w-4 h-4 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`} />
-      </div>
-      
-      {/* Name Column */}
-      <div className="flex-1 min-w-0 pr-4" role="cell">
-        <span className={`text-sm truncate block ${statusColor || 'text-theme-primary'}`}>
-          {file.name}
-        </span>
-      </div>
-      
-      {/* Size Column */}
-      <div className="w-20 shrink-0 text-right pr-4" role="cell">
-        <span className="text-xs text-theme-muted">
-          {!file.isDirectory ? formatFileSize(file.size) : '—'}
-        </span>
-      </div>
-      
-      {/* Modified Column */}
-      <div className="w-24 shrink-0 text-right" role="cell">
-        <span className="text-xs text-theme-muted">
-          {formatDate(file.modTime)}
-        </span>
-      </div>
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          role="row"
+          onClick={onSelect}
+          onDoubleClick={onDoubleClick}
+          className={`flex items-center h-9 px-3 cursor-pointer border-b border-theme-muted transition-colors group ${
+            isSelected 
+              ? 'bg-fb-selected border-l-2 border-l-blue-500' 
+              : 'hover:bg-fb-hover border-l-2 border-l-transparent'
+          }`}
+        >
+          {/* Git Status Column */}
+          <div className="w-6 shrink-0 flex items-center justify-center" role="cell">
+            <GitStatusIcon status={!file.isDirectory ? gitStatus : undefined} />
+          </div>
+          
+          {/* Type Icon Column */}
+          <div className="w-8 shrink-0 flex items-center justify-center" role="cell">
+            <Icon className={`w-4 h-4 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`} />
+          </div>
+          
+          {/* Name Column */}
+          <div className="flex-1 min-w-0 pr-2 flex items-center gap-2" role="cell">
+            <span className={`text-sm truncate ${statusColor || 'text-theme-primary'}`}>
+              {file.name}
+            </span>
+            {/* Share button - visible on hover */}
+            <button
+              onClick={handleShareClick}
+              className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-fb-hover text-theme-muted hover:text-theme-primary transition-all shrink-0"
+              title="Share"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          
+          {/* Size Column */}
+          <div className="w-20 shrink-0 text-right pr-4" role="cell">
+            <span className="text-xs text-theme-muted">
+              {!file.isDirectory ? formatFileSize(file.size) : '—'}
+            </span>
+          </div>
+          
+          {/* Modified Column */}
+          <div className="w-24 shrink-0 text-right" role="cell">
+            <span className="text-xs text-theme-muted">
+              {formatDate(file.modTime)}
+            </span>
+          </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        <ContextMenuItem onClick={() => onContextAction?.('open', file)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          <span>Open</span>
+          <ContextMenuShortcut>⌘O</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('open-with', file)}>
+          <FileEdit className="mr-2 h-4 w-4" />
+          <span>Open With...</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('reveal-in-finder', file)}>
+          <FolderOpen className="mr-2 h-4 w-4" />
+          <span>Reveal in Finder</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('copy-path', file)}>
+          <Clipboard className="mr-2 h-4 w-4" />
+          <span>Copy Path</span>
+          <ContextMenuShortcut>⌘⇧C</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('copy-name', file)}>
+          <Copy className="mr-2 h-4 w-4" />
+          <span>Copy Name</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('rename', file)}>
+          <FileEdit className="mr-2 h-4 w-4" />
+          <span>Rename</span>
+          <ContextMenuShortcut>⏎</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('duplicate', file)}>
+          <Copy className="mr-2 h-4 w-4" />
+          <span>Duplicate</span>
+          <ContextMenuShortcut>⌘D</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('share', file)}>
+          <Share2 className="mr-2 h-4 w-4" />
+          <span>Share...</span>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('get-info', file)}>
+          <Info className="mr-2 h-4 w-4" />
+          <span>Get Info</span>
+          <ContextMenuShortcut>⌘I</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={() => onContextAction?.('delete', file)}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          <span>Move to Trash</span>
+          <ContextMenuShortcut>⌘⌫</ContextMenuShortcut>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 
@@ -522,11 +688,21 @@ interface FileDetailsSidebarProps {
  * Right sidebar showing file details and actions
  */
 const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, onClose }: FileDetailsSidebarProps) {
-  if (!file) return null;
-
-  const Icon = getFileIcon(file.name, file.isDirectory);
+  const Icon = file ? getFileIcon(file.name, file.isDirectory) : File;
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   const statusLabel = gitStatus ? GIT_STATUS_LABELS[gitStatus] : '';
+
+  const handleRevealInFinder = useCallback(async () => {
+    if (!file) return;
+    await revealPathInFinder(file.path);
+  }, [file]);
+
+  const handleCopyPath = useCallback(async () => {
+    if (!file) return;
+    await copyTextToClipboard(file.path, 'Path copied to clipboard');
+  }, [file]);
+
+  if (!file) return null;
 
   return (
     <div className="w-72 shrink-0 bg-fb-sidebar border-l border-theme-default flex flex-col h-full">
@@ -587,14 +763,14 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
           <div className="space-y-1">
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
-              onClick={() => toast.info('Open in Finder coming soon')}
+              onClick={handleRevealInFinder}
             >
-              <ExternalLink className="w-4 h-4" />
-              <span>Open in Finder</span>
+              <FolderOpen className="w-4 h-4" />
+              <span>Reveal in Finder</span>
             </button>
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
-              onClick={() => toast.info('Copy path coming soon')}
+              onClick={handleCopyPath}
             >
               <Clipboard className="w-4 h-4" />
               <span>Copy Path</span>
@@ -608,10 +784,10 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
             </button>
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded transition-colors"
-              onClick={() => toast.info('Delete coming soon')}
+              onClick={() => toast.info('Move to Trash coming soon')}
             >
               <Trash2 className="w-4 h-4" />
-              <span>Delete</span>
+              <span>Move to Trash</span>
             </button>
           </div>
         </div>
@@ -633,6 +809,7 @@ interface VirtualizedFileTableProps {
   selectedPath: string | null;
   onSelect: (path: string) => void;
   onDoubleClick: (file: FileEntry) => void;
+  onContextAction: (action: FileContextAction, file: FileEntry) => void;
 }
 
 function VirtualizedFileTable({ 
@@ -640,7 +817,8 @@ function VirtualizedFileTable({
   gitStatusMap, 
   selectedPath, 
   onSelect, 
-  onDoubleClick 
+  onDoubleClick,
+  onContextAction,
 }: VirtualizedFileTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   
@@ -687,6 +865,7 @@ function VirtualizedFileTable({
                 isSelected={selectedPath === file.path}
                 onSelect={() => onSelect(file.path)}
                 onDoubleClick={() => onDoubleClick(file)}
+                onContextAction={onContextAction}
               />
             </div>
           );
@@ -837,6 +1016,43 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setSelectedPath(null);
   }, []);
 
+  // Handle context menu actions
+  const handleContextAction = useCallback(async (action: FileContextAction, file: FileEntry) => {
+    switch (action) {
+      case 'open':
+        handleItemDoubleClick(file);
+        break;
+      case 'open-with':
+        toast.info('Open With coming soon');
+        break;
+      case 'reveal-in-finder':
+        await revealPathInFinder(file.path);
+        break;
+      case 'copy-path':
+        await copyTextToClipboard(file.path, 'Path copied to clipboard');
+        break;
+      case 'copy-name':
+        await copyTextToClipboard(file.name, 'Name copied to clipboard');
+        break;
+      case 'rename':
+        toast.info('Rename coming soon');
+        break;
+      case 'duplicate':
+        toast.info('Duplicate coming soon');
+        break;
+      case 'delete':
+        toast.info('Move to Trash coming soon');
+        break;
+      case 'share':
+        toast.info('Share coming soon');
+        break;
+      case 'get-info':
+        // Select the file to show details in sidebar
+        setSelectedPath(file.path);
+        break;
+    }
+  }, [handleItemDoubleClick]);
+
   // Find the selected file object
   const selectedFile = useMemo(() => {
     if (!selectedPath || !files) return null;
@@ -857,6 +1073,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         showHidden={showHidden}
         onShowHiddenChange={handleToggleHidden}
         onRefresh={handleRefresh}
+        currentPath={currentPath}
       />
       
       {error && (
@@ -892,6 +1109,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
               selectedPath={selectedPath}
               onSelect={handleSelect}
               onDoubleClick={handleItemDoubleClick}
+              onContextAction={handleContextAction}
             />
           )}
         </div>

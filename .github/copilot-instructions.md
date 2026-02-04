@@ -15,7 +15,7 @@ See [docs/product/REVISION_PLAN.md](../docs/product/REVISION_PLAN.md) for detail
 
 ## Engineer Instructions
 
-**Role**: You are a senior developer. Your task is to create efficient, reliable, and fast code.
+**Role**: You are a senior developer. Your task is to create secure, efficient, reliable, and fast code.
 
 ### Workflow Principles
 
