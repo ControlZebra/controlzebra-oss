@@ -281,3 +281,10 @@
   font-size: 11px;
 }
 
+html,
+body,
+#root {
+  -webkit-user-select: none; /* Safari */
+  user-select: none;
+}
+
