@@ -2854,6 +2854,161 @@ func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
 // Revert Operations
 // ============================================================================
 
+// RevertCommit creates a new commit that undoes the changes from a specified commit.
+// Unlike reset, this preserves history by creating a new "anti-commit".
+// Requires a clean working tree (no uncommitted changes).
+// If the revert causes conflicts, the repo will be in a revert state.
+// Use AbortRevert() to cancel or ContinueRevert() after resolving conflicts.
+// Runs: git revert --no-edit <commitHash>
+func (g *GitService) RevertCommit(repoPath string, commitHash string) OperationResult {
+	if commitHash == "" {
+		return failedOp("Commit hash is required")
+	}
+
+	// Validate the commit hash exists
+	result := g.runner.RunGit(repoPath, "cat-file", "-t", commitHash)
+	if !result.Success {
+		return failedOp("Invalid commit hash: " + commitHash)
+	}
+	if trimOutput(result.Stdout) != "commit" {
+		return failedOp("The provided hash is not a commit")
+	}
+
+	// Check for clean working tree
+	if err := g.requireCleanWorkingTree(repoPath); err != nil {
+		return failedOp(err.Error())
+	}
+
+	// Check if already in a stuck state (merge, rebase, cherry-pick, revert, etc.)
+	state := g.GetMergeState(repoPath)
+	if state.InMerge || state.InRebase || state.InCherryPick || state.InRevert {
+		return failedOp("Cannot revert: repository is in the middle of another operation. Resolve or abort it first.")
+	}
+
+	// Get short hash for user-friendly messages
+	shortHashResult := g.runner.RunGit(repoPath, "rev-parse", "--short", commitHash)
+	shortHash := commitHash[:7]
+	if shortHashResult.Success {
+		shortHash = trimOutput(shortHashResult.Stdout)
+	}
+
+	// Get the commit subject for the message
+	subjectResult := g.runner.RunGit(repoPath, "log", "-1", "--format=%s", commitHash)
+	subject := ""
+	if subjectResult.Success {
+		subject = trimOutput(subjectResult.Stdout)
+		if len(subject) > 50 {
+			subject = subject[:47] + "..."
+		}
+	}
+
+	// Run the revert with --no-edit to use the default commit message
+	revertResult := g.runner.RunGit(repoPath, "revert", "--no-edit", commitHash)
+	if !revertResult.Success {
+		errMsg := getErrorMessage(revertResult)
+
+		// Check if it's a conflict
+		if strings.Contains(errMsg, "conflict") || strings.Contains(errMsg, "CONFLICT") {
+			// Get conflicted files for a better message
+			conflicted, _ := g.GetConflictedFiles(repoPath)
+			conflictCount := len(conflicted)
+			if conflictCount > 0 {
+				return OperationResult{
+					Success: false,
+					Message: fmt.Sprintf("Revert of %s caused conflicts in %d file(s). Resolve conflicts and use 'Continue Revert' or 'Abort Revert'.", shortHash, conflictCount),
+					Error:   "conflicts",
+				}
+			}
+			return failedOp(fmt.Sprintf("Revert of %s caused conflicts. Resolve them and continue or abort the revert.", shortHash))
+		}
+
+		// Check if it's an empty commit (no changes to revert)
+		if strings.Contains(errMsg, "nothing to commit") || strings.Contains(errMsg, "empty") {
+			return failedOp(fmt.Sprintf("Revert of %s would result in an empty commit (changes may already be undone)", shortHash))
+		}
+
+		return failedOp("Failed to revert commit: " + errMsg)
+	}
+
+	// Build success message
+	if subject != "" {
+		return successOp(fmt.Sprintf("Successfully reverted commit %s: \"%s\"", shortHash, subject))
+	}
+	return successOp(fmt.Sprintf("Successfully reverted commit %s", shortHash))
+}
+
+// RevertCommitWithMessage creates a new commit that undoes the changes from a specified commit
+// with a custom commit message.
+// Requires a clean working tree (no uncommitted changes).
+// Runs: git revert -m <message> <commitHash> (via stdin for message)
+func (g *GitService) RevertCommitWithMessage(repoPath string, commitHash string, message string) OperationResult {
+	if commitHash == "" {
+		return failedOp("Commit hash is required")
+	}
+	if message == "" {
+		return failedOp("Commit message is required")
+	}
+
+	// Validate the commit hash exists
+	result := g.runner.RunGit(repoPath, "cat-file", "-t", commitHash)
+	if !result.Success {
+		return failedOp("Invalid commit hash: " + commitHash)
+	}
+	if trimOutput(result.Stdout) != "commit" {
+		return failedOp("The provided hash is not a commit")
+	}
+
+	// Check for clean working tree
+	if err := g.requireCleanWorkingTree(repoPath); err != nil {
+		return failedOp(err.Error())
+	}
+
+	// Check if already in a stuck state
+	state := g.GetMergeState(repoPath)
+	if state.InMerge || state.InRebase || state.InCherryPick || state.InRevert {
+		return failedOp("Cannot revert: repository is in the middle of another operation. Resolve or abort it first.")
+	}
+
+	// Get short hash for user-friendly messages
+	shortHashResult := g.runner.RunGit(repoPath, "rev-parse", "--short", commitHash)
+	shortHash := commitHash[:7]
+	if shortHashResult.Success {
+		shortHash = trimOutput(shortHashResult.Stdout)
+	}
+
+	// Run the revert with --no-commit first, then commit with custom message
+	revertResult := g.runner.RunGit(repoPath, "revert", "--no-commit", commitHash)
+	if !revertResult.Success {
+		errMsg := getErrorMessage(revertResult)
+
+		// Check if it's a conflict
+		if strings.Contains(errMsg, "conflict") || strings.Contains(errMsg, "CONFLICT") {
+			conflicted, _ := g.GetConflictedFiles(repoPath)
+			conflictCount := len(conflicted)
+			if conflictCount > 0 {
+				return OperationResult{
+					Success: false,
+					Message: fmt.Sprintf("Revert of %s caused conflicts in %d file(s). Resolve conflicts and use 'Continue Revert' or 'Abort Revert'.", shortHash, conflictCount),
+					Error:   "conflicts",
+				}
+			}
+			return failedOp(fmt.Sprintf("Revert of %s caused conflicts. Resolve them and continue or abort the revert.", shortHash))
+		}
+
+		return failedOp("Failed to revert commit: " + errMsg)
+	}
+
+	// Commit with the custom message
+	commitResult := g.runner.RunGit(repoPath, "commit", "-m", message)
+	if !commitResult.Success {
+		// If commit fails, try to clean up
+		g.runner.RunGit(repoPath, "reset", "--hard", "HEAD")
+		return failedOp("Revert staged but commit failed: " + getErrorMessage(commitResult))
+	}
+
+	return successOp(fmt.Sprintf("Successfully reverted commit %s with custom message", shortHash))
+}
+
 // AbortRevert aborts the current revert operation.
 // Runs: git revert --abort
 func (g *GitService) AbortRevert(repoPath string) OperationResult {
