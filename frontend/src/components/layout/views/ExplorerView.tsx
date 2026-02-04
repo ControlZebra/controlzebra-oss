@@ -47,7 +47,7 @@ function ExplorerView(): JSX.Element {
     repoInfo,
     repoStatus, 
     openRepo, 
-    initializeGitRepo,
+    startTracking,
     commitChanges,
     branchAndCommit,
     syncRepo,
@@ -216,7 +216,7 @@ function ExplorerView(): JSX.Element {
         hasUpstream={panelState.type === 'push' ? panelState.hasUpstream : undefined}
         hasRemote={hasRemote}
         totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
-        onInitialize={initializeGitRepo}
+        onInitialize={startTracking}
         onSync={syncRepo}
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
