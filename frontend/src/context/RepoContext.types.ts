@@ -446,7 +446,7 @@ export interface RepoContextValue {
   // ===== Actions =====
   openRepo: (path: string) => Promise<boolean>;
   closeRepo: () => Promise<void>;
-  initializeGitRepo: (options?: GitInitOptions) => Promise<boolean>;
+  startTracking: () => Promise<boolean>;
   commitChanges: (message: string) => Promise<boolean>;
   syncRepo: () => Promise<boolean>;
   refreshStatus: () => Promise<void>;

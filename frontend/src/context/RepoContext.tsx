@@ -38,7 +38,6 @@ import {
   DiscardAll,
   DiscardFile,
   InitRepo,
-  InitRepoWithLFS,
   CheckBranchConflicts,
   GetParentBranch,
   GetMergeState,
@@ -132,7 +131,6 @@ import type {
   StartMergeResult,
   ParentBranchResult,
   BisectState,
-  GitInitOptions,
   GitHubAuthStatus,
   GitHubAuthResult,
   GitHubDeviceFlowResult,
@@ -366,78 +364,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
   }, [isLoading, repoPath, showMessage]);
-
-  // Initialize git in current folder
-  const initializeGitRepo = useCallback(async (options?: GitInitOptions): Promise<boolean> => {
-    if (!repoPath) {
-      showMessage('error', 'No folder open');
-      return false;
-    }
-    
-    if (repoInfo?.isRepo) {
-      showMessage('info', 'Folder is already a Git repository');
-      return true;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Determine if we should use LFS
-      const useLFS = options?.lfsEnabled ?? false;
-      
-      // Initialize the repository
-      const result = useLFS 
-        ? await InitRepoWithLFS(repoPath)
-        : await InitRepo(repoPath);
-      
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to initialize repository');
-        setIsLoading(false);
-        return false;
-      }
-      
-      // If LFS is enabled and we have attributes to track, add them
-      if (useLFS && options?.lfsAttributes && options.lfsAttributes.length > 0) {
-        for (const attr of options.lfsAttributes) {
-          try {
-            await TrackPattern(repoPath, attr.pattern);
-          } catch (err) {
-            console.warn(`Failed to track pattern ${attr.pattern}:`, err);
-          }
-        }
-      }
-      
-      // Refresh repo info
-      const info = await DetectRepo(repoPath);
-      setRepoInfo(info as RepoInfo);
-      
-      // Refresh status to show current state
-      const status = await Status(repoPath);
-      setRepoStatus(status as RepoStatus);
-      
-      // Track repo initialized
-      trackRepoInitialized({
-        lfsEnabled: useLFS,
-        initialCommitMade: false, // We don't make an initial commit in this function
-      });
-      
-      showMessage('success', useLFS 
-        ? 'Version control initialized with LFS enabled' 
-        : 'Version control initialized successfully'
-      );
-      setIsLoading(false);
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      trackErrorShown({
-        errorContext: 'repo_init',
-        actionAttempted: 'initialize_repo',
-      });
-      showMessage('error', `Failed to initialize: ${error.message || err}`);
-      setIsLoading(false);
-      return false;
-    }
-  }, [repoPath, repoInfo, showMessage]);
 
   /**
    * Start tracking a folder with version control.
@@ -2095,7 +2021,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
     // Actions
     openRepo,
     closeRepo,
-    initializeGitRepo,
     startTracking,
     commitChanges,
     syncRepo,
@@ -2189,7 +2114,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     hasRemote, refreshRemotes,
     progressModal, handleProgressComplete,
     showMessage,
-    openRepo, closeRepo, initializeGitRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    openRepo, closeRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
