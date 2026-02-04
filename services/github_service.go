@@ -128,7 +128,7 @@ type GitHubOrganizationsResult struct {
 	Success       bool                 `json:"success"`
 	Username      string               `json:"username"`      // The authenticated user's username
 	Organizations []GitHubOrganization `json:"organizations"` // Organizations the user belongs to
-	Error    string `json:"error,omitempty"`
+	Error         string               `json:"error,omitempty"`
 }
 
 // ============================================================================
@@ -514,7 +514,7 @@ func (g *GitHubService) ListUserOrganizations() GitHubOrganizationsResult {
 
 	// Get user's organizations using gh api
 	result := g.runner.Run("", "gh", "api", "user/orgs", "--jq", ".[].login")
-	
+
 	orgs := []GitHubOrganization{}
 	if result.Success && result.Stdout != "" {
 		// Parse organization logins (one per line)
