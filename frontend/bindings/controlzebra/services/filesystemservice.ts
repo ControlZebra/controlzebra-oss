@@ -68,6 +68,15 @@ export function OpenInTerminal(path: string): $CancellablePromise<$models.OpenFi
 }
 
 /**
+ * OpenURL opens a URL in the system's default browser
+ */
+export function OpenURL(url: string): $CancellablePromise<$models.OpenFileResult> {
+    return $Call.ByID(2926426704, url).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * ReadTextFile reads the content of a text file
  */
 export function ReadTextFile(path: string): $CancellablePromise<$models.ReadTextFileResult> {

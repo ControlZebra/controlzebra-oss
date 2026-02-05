@@ -8,6 +8,8 @@ import type { Events } from "@wailsio/runtime";
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "file:open-in-terminal": string;
+            "file:reveal-in-finder": string;
             "folder-closed": string;
             "folder-selected": string;
             "time": string;

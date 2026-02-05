@@ -28,6 +28,21 @@ export function AddCustomLFSGroup(group: $models.CustomLFSGroup): $CancellablePr
 }
 
 /**
+ * AddRecentFolder adds a folder to the recent folders list
+ * It moves the folder to the front if it already exists
+ */
+export function AddRecentFolder(folderPath: string): $CancellablePromise<void> {
+    return $Call.ByID(978828039, folderPath);
+}
+
+/**
+ * ClearRecentFolders clears the recent folders list
+ */
+export function ClearRecentFolders(): $CancellablePromise<void> {
+    return $Call.ByID(2439245746);
+}
+
+/**
  * DeleteCustomLFSGroup deletes a custom LFS group by ID
  */
 export function DeleteCustomLFSGroup(groupID: string): $CancellablePromise<$models.OperationResult> {
@@ -64,12 +79,21 @@ export function GetCustomLFSGroups(): $CancellablePromise<$models.CustomLFSGroup
 }
 
 /**
+ * GetRecentFolders returns the list of recently opened folders
+ */
+export function GetRecentFolders(): $CancellablePromise<string[]> {
+    return $Call.ByID(4002401493).then(($result: any) => {
+        return $$createType4($result);
+    });
+}
+
+/**
  * GetUserProfile returns the git user config (global or for a specific repo)
  * Uses concurrent goroutines to fetch name and email in parallel
  */
 export function GetUserProfile(repoPath: string): $CancellablePromise<$models.UserProfile> {
     return $Call.ByID(1258519717, repoPath).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -78,7 +102,7 @@ export function GetUserProfile(repoPath: string): $CancellablePromise<$models.Us
  */
 export function ImportCustomLFSGroups(merge: boolean): $CancellablePromise<$models.ImportLFSGroupsResult> {
     return $Call.ByID(3112124302, merge).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -126,5 +150,6 @@ const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.ExportLFSGroupsResult.createFrom;
 const $$createType2 = $models.AppSettings.createFrom;
 const $$createType3 = $models.CustomLFSGroupsData.createFrom;
-const $$createType4 = $models.UserProfile.createFrom;
-const $$createType5 = $models.ImportLFSGroupsResult.createFrom;
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = $models.UserProfile.createFrom;
+const $$createType6 = $models.ImportLFSGroupsResult.createFrom;

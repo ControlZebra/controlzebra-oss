@@ -373,6 +373,47 @@ func (f *FileSystemService) RevealInFinder(path string) OpenFileResult {
 	}
 }
 
+// OpenURL opens a URL in the system's default browser
+func (f *FileSystemService) OpenURL(url string) OpenFileResult {
+	if url == "" {
+		return OpenFileResult{
+			Success: false,
+			Error:   "URL is required",
+		}
+	}
+
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: use 'open' command
+		cmd = exec.Command("open", url)
+	case "linux":
+		// Linux: use 'xdg-open' command
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		// Windows: use 'cmd /c start' command
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		return OpenFileResult{
+			Success: false,
+			Error:   "Unsupported operating system",
+		}
+	}
+
+	err := cmd.Start()
+	if err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to open URL: " + err.Error(),
+		}
+	}
+
+	return OpenFileResult{
+		Success: true,
+	}
+}
+
 // CopyToClipboard copies the given text to the system clipboard
 func (f *FileSystemService) CopyToClipboard(text string) OpenFileResult {
 	if text == "" {
