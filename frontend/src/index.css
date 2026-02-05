@@ -35,7 +35,7 @@
   --color-accent-primary: theme(colors.blue.600);
   --color-accent-primary-hover: theme(colors.blue.700);
   
-  /* File Browser - OneDrive/GDrive style (light mode) */
+  /* File Browser - (light mode) */
   --color-fb-base: theme(colors.white);
   --color-fb-surface: theme(colors.neutral.50);
   --color-fb-hover: theme(colors.neutral.100);
@@ -62,7 +62,7 @@
   --color-text-inverted: theme(colors.neutral.900);
   
   /* Borders */
-  --color-border-default: theme(colors.neutral.800);
+  --color-border-default: theme(colors.neutral.700);
   --color-border-muted: theme(colors.neutral.700);
   
   /* Interactive */
@@ -73,7 +73,7 @@
   --color-accent-primary: theme(colors.blue.500);
   --color-accent-primary-hover: theme(colors.blue.400);
   
-  /* File Browser - OneDrive/GDrive style (dark mode) */
+  /* File Browser - (dark mode) */
   --color-fb-base: theme(colors.neutral.900);
   --color-fb-surface: theme(colors.neutral.800);
   --color-fb-hover: theme(colors.neutral.700);

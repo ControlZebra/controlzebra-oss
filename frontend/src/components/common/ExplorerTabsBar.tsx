@@ -37,10 +37,10 @@ const TabItem = memo(function TabItem({
       onClick={onSelect}
       className={`
         group flex items-center gap-1.5 px-3 py-1.5 cursor-pointer
-        border-r border-theme-default min-w-0 max-w-[180px]
+        min-w-0 max-w-[180px]
         transition-colors duration-150
         ${isActive 
-          ? 'bg-fb-base' 
+          ? 'bg-fb-base rounded-t-md' 
           : 'bg-theme-elevated hover:bg-theme-muted'
         }
       `}

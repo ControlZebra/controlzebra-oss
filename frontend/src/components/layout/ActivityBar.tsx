@@ -65,7 +65,8 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
 function NavButton({ item, isActive, onClick, disabled }: NavButtonProps): JSX.Element {
   const { Icon, label } = item;
   
-  const iconStyle: CSSProperties = { width: ICON_SIZES.lg, height: ICON_SIZES.lg };
+  const iconSize = ICON_SIZES.lg * 0.7;
+  const iconStyle: CSSProperties = { width: iconSize, height: iconSize };
   
   return (
     <button
@@ -141,7 +142,7 @@ function ActivityBar(): JSX.Element {
   );
 
   return (
-    <nav className="w-14 bg-theme-base border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
+    <nav className="w-10 bg-theme-elevated border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
       {topNavButtons}
       <div className="flex-1" />
       {bottomNavButtons}
