@@ -29,7 +29,7 @@ export const ICON_SIZES: IconSizes = {
   xs: 14,  // Extra small - status indicators, inline icons
   sm: 16,  // Small - default for most icons
   md: 20,  // Medium - activity bar, prominent actions
-  lg: 24,  // Large - profile avatars, main visual elements
+  lg: 28,  // Large - profile avatars, main visual elements
 } as const;
 
 // ============================================================================

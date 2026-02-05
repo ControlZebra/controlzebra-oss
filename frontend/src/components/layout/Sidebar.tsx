@@ -73,7 +73,7 @@ function Sidebar(): JSX.Element | null {
 
   return (
     <aside 
-      className="bg-theme-surface border-r border-theme-default flex flex-col shrink-0 relative"
+      className="bg-theme-elevated border-r border-theme-default flex flex-col shrink-0 relative"
       style={{ width: sidebarWidth }}
     >
       {/* Repository selector - uses RepoSwitcher popover */}

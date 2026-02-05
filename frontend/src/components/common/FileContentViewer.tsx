@@ -92,7 +92,7 @@ function FileContentViewer({ filePath }: FileContentViewerProps): JSX.Element {
       </div>
       
       {/* Content area with line numbers */}
-      <div className="flex-1 overflow-auto font-mono text-sm bg-theme-base">
+      <div className="flex-1 overflow-auto font-mono text-sm bg-theme-surface">
         <table className="w-full border-collapse">
           <tbody>
             {lines.map((line, index) => (

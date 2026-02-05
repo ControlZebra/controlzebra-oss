@@ -80,7 +80,7 @@ function TopBar(): JSX.Element {
 
   return (
     <>
-      <header className="h-[52px] bg-theme-base border-b border-theme-default grid grid-cols-3 items-center px-3 select-none shrink-0">
+      <header className="h-[52px] bg-theme-elevated border-b border-theme-default grid grid-cols-3 items-center px-3 select-none shrink-0">
         {/* Left: Undo and Discard buttons */}
         <div className="flex items-center gap-2">
           {repoPath && isGitRepo && (
