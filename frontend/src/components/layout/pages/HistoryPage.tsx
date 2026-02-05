@@ -134,6 +134,7 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack, onRestore, isR
 
 /**
  * CommitFileList - List of files changed in a commit.
+ * Responsive: hides additions/deletions on narrow screens.
  */
 const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: CommitFileListProps): JSX.Element {
   const statusColors: Record<string, string> = {
@@ -152,19 +153,19 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: Com
         <button
           key={idx}
           onClick={() => onFileSelect(file.path)}
-          className="w-full flex items-center gap-2 px-4 py-2 hover-bg-theme-interactive transition-colors text-left"
+          className="w-full flex items-center gap-2 px-4 py-2 hover-bg-theme-interactive transition-colors text-left min-w-0"
         >
           <FileText style={iconStyle} className="text-theme-secondary shrink-0" />
-          <span className="flex-1 text-sm text-theme-primary truncate">
+          <span className="flex-1 text-sm text-theme-primary truncate min-w-0">
             {file.oldPath && file.oldPath !== file.path 
               ? `${file.oldPath} → ${file.path}`
               : file.path
             }
           </span>
-          <span className={`text-xs uppercase ${statusColors[file.status] || 'text-theme-secondary'}`}>
+          <span className={`text-xs uppercase shrink-0 ${statusColors[file.status] || 'text-theme-secondary'}`}>
             {file.status}
           </span>
-          <span className="text-xs text-theme-muted w-16 text-right">
+          <span className="text-xs text-theme-muted shrink-0 hidden sm:inline">
             <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
             {' '}
             <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>

@@ -108,9 +108,9 @@ function StatusBar(): JSX.Element {
   );
 
   return (
-    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0">
+    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">
       {/* Left: Panel tabs */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 shrink-0">
         {PANEL_TABS.map(tab => {
           const { Icon, label, id } = tab;
           const isActive = activeBottomPanel === id && !bottomPanelCollapsed;
@@ -129,41 +129,42 @@ function StatusBar(): JSX.Element {
               `}
             >
               <Icon style={iconStyle} />
-              <span>{label}</span>
+              <span className="hidden sm:inline">{label}</span>
             </button>
           );
         })}
       </div>
 
       {/* Right: Status indicators */}
-      <div className="flex items-center gap-3 text-xs">
+      <div className="flex items-center gap-3 text-xs min-w-0">
         {repoPath ? (
           <>
             {/* Branch name */}
-            <div className="flex items-center gap-1 text-theme-secondary">
-              <CodeSquare style={iconStyle} />
-              <span>{branchName}</span>
+            <div className="flex items-center gap-1 text-theme-secondary min-w-0">
+              <CodeSquare style={iconStyle} className="shrink-0" />
+              <span className="truncate max-w-[120px]">{branchName}</span>
             </div>
             
             {/* Sync status */}
-            <div className={`flex items-center gap-1 ${syncStatus.className}`}>
+            <div className={`flex items-center gap-1 shrink-0 ${syncStatus.className}`}>
               <syncStatus.Icon 
                 style={iconStyle} 
                 className={syncStatus.spinning ? 'animate-spin' : ''} 
               />
-              <span>{syncStatus.text}</span>
+              <span className="hidden sm:inline">{syncStatus.text}</span>
             </div>
 
             {/* Changes count */}
             {changesCount > 0 && (
-              <div className="flex items-center gap-1 text-yellow-400">
+              <div className="flex items-center gap-1 text-yellow-400 shrink-0">
                 <Pencil style={iconStyle} />
-                <span>{changesCount} changes</span>
+                <span className="hidden sm:inline">{changesCount} changes</span>
+                <span className="sm:hidden">{changesCount}</span>
               </div>
             )}
           </>
         ) : (
-          <span className="text-theme-muted">No repository open</span>
+          <span className="text-theme-muted truncate">No repository open</span>
         )}
       </div>
     </footer>

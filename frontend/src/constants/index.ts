@@ -90,7 +90,6 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   { id: 'git-config', name: 'Git Configuration', description: 'Name and email for commits' },
   { id: 'lfs-groups', name: 'LFS Groups', description: 'Custom file extension groups' },
   { id: 'general', name: 'General', description: 'App preferences' },
-  { id: 'accounts', name: 'Accounts', description: 'GitHub & GitLab' },
 ];
 
 // ============================================================================

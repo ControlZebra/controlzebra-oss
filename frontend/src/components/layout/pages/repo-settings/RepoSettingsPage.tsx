@@ -275,7 +275,7 @@ const BackgroundTaskCard = memo(function BackgroundTaskCard({
   const status = taskStatuses[taskType];
 
   return (
-    <Card className="bg-theme-base">
+    <Card className="bg-theme-surface">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -437,7 +437,7 @@ const RemoteSyncPanel = memo(function RemoteSyncPanel({ settings, onUpdate, repo
       />
 
       {/* Fetch options */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Settings style={iconStyle} className="text-theme-muted" />
@@ -739,7 +739,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
   if (lfsStatus.loading) {
     return (
       <div className="space-y-4">
-        <Card className="bg-theme-base">
+        <Card className="bg-theme-surface">
           <CardContent className="py-8">
             <div className="flex items-center justify-center gap-2 text-theme-muted">
               <RefreshCw style={iconStyle} className="animate-spin" />
@@ -755,7 +755,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
   if (!lfsStatus.isInstalled) {
     return (
       <div className="space-y-4">
-        <Card className="bg-theme-base border-yellow-500/30">
+        <Card className="bg-theme-surface border-yellow-500/30">
           <CardHeader>
             <div className="flex items-center gap-2">
               <AlertTriangle style={iconStyle} className="text-yellow-500" />
@@ -795,7 +795,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
     return (
       <div className="space-y-4">
         {/* Enable LFS Card */}
-        <Card className="bg-theme-base">
+        <Card className="bg-theme-surface">
           <CardHeader>
             <div className="flex items-center gap-2">
               <HardDrive style={iconStyle} className="text-theme-muted" />
@@ -881,7 +881,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
   return (
     <div className="space-y-4">
       {/* LFS Status */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -901,7 +901,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
       </Card>
 
       {/* Tracked Patterns */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <FileText style={iconStyle} className="text-theme-muted" />
@@ -1016,7 +1016,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
       />
 
       {/* LFS download options */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Clock style={iconStyle} className="text-theme-muted" />
@@ -1040,7 +1040,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
       </Card>
 
       {/* Storage management */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Trash2 style={iconStyle} className="text-theme-muted" />
@@ -1116,7 +1116,7 @@ const BranchProtectionPanel = memo(function BranchProtectionPanel({ settings, on
 
   return (
     <div className="space-y-4">
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Shield style={iconStyle} className="text-theme-muted" />
@@ -1165,7 +1165,7 @@ const BranchProtectionPanel = memo(function BranchProtectionPanel({ settings, on
         </CardContent>
       </Card>
 
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <AlertTriangle style={iconStyle} className="text-theme-muted" />
@@ -1301,7 +1301,7 @@ const PerformancePanel = memo(function PerformancePanel({ settings, onUpdate, re
       />
 
       {/* Optimization tasks selection */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Wrench style={iconStyle} className="text-theme-muted" />
@@ -1380,7 +1380,7 @@ const DetachedHeadRecovery = memo(function DetachedHeadRecovery({
   };
 
   return (
-    <Card className="bg-theme-base border-blue-500/30">
+    <Card className="bg-theme-surface border-blue-500/30">
       <CardHeader>
         <div className="flex items-center gap-2">
           <GitBranch style={iconStyle} className="text-blue-400" />
@@ -1473,7 +1473,7 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }: Tr
 
   return (
     <div className="space-y-4">
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1531,7 +1531,7 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }: Tr
       </Card>
 
       {/* Quick Fix Actions */}
-      <Card className="bg-theme-base">
+      <Card className="bg-theme-surface">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Wrench style={iconStyle} className="text-theme-muted" />
