@@ -106,10 +106,22 @@ export const REPO_SETTINGS_CATEGORIES: SettingsCategory[] = [
 ];
 
 // ============================================================================
-// TEXT FILE EXTENSIONS
+// TEXT FILE EXTENSIONS (DEPRECATED)
 // File extensions that can be displayed in the built-in file viewer.
-// Used by file browser to determine if a file should open in a tab or external app.
+// 
+// @deprecated Use the viewer registry pattern instead:
+//   import { getViewerForFile } from '../lib/viewers';
+//   const viewer = getViewerForFile(fileName);
+//   if (viewer && viewer.id !== 'unsupported') { ... }
+// 
+// This is kept for backward compatibility but will be removed in a future version.
 // ============================================================================
+
+/**
+ * @deprecated Use `getViewerForFile()` from `lib/viewers` instead.
+ * The viewer registry provides a more flexible and extensible way to
+ * determine file type support with plugin-ready architecture.
+ */
 export const TEXT_FILE_EXTENSIONS: readonly string[] = [
   // Code files
   'js', 'jsx', 'ts', 'tsx', 'css', 'scss', 'html', 'xml',
@@ -127,6 +139,20 @@ export const TEXT_FILE_EXTENSIONS: readonly string[] = [
 
 /**
  * Check if a file can be displayed as text based on its name.
+ * 
+ * @deprecated Use `getViewerForFile()` from `lib/viewers` instead.
+ * The viewer registry provides a more flexible and extensible way to
+ * determine file type support with plugin-ready architecture.
+ * 
+ * @example
+ * // Old way (deprecated):
+ * if (isTextFile(fileName)) { ... }
+ * 
+ * // New way:
+ * import { getViewerForFile } from '../lib/viewers';
+ * const viewer = getViewerForFile(fileName);
+ * if (viewer && viewer.id !== 'unsupported') { ... }
+ * 
  * @param fileName - The file name to check
  * @returns boolean - true if the file is likely a text file
  */
@@ -147,6 +173,8 @@ export interface ExplorerTab {
   type: 'file-browser' | 'file';
   filePath?: string;
   isPinned?: boolean;
+  /** Explicit viewer ID for file tabs. If not provided, auto-detected from filename. */
+  viewerId?: string;
 }
 
 export const FILE_BROWSER_TAB: ExplorerTab = {

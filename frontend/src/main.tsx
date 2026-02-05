@@ -4,6 +4,10 @@ import App from './App';
 import { PostHogProvider } from 'posthog-js/react';
 import './index.css';
 
+// Register built-in viewers before app renders
+// This must be imported early so viewers are available when components mount
+import './lib/viewers-builtin';
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element not found');

@@ -4,7 +4,7 @@
  * Features:
  * - Tabs bar at the top with file browser as pinned tab
  * - File browser shows when that tab is active
- * - File content shows when file tabs are active
+ * - File content shows when file tabs are active (using multi-viewer architecture)
  * - When no folder is open: Shows welcome screen
  * - Non-git folders: Shows file browser like usual (start tracking via sidebar)
  */
@@ -14,7 +14,7 @@ import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/
 import NoDirectoryScreen from './NoDirectoryScreen';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
-import FileContentViewer from '../../../common/FileContentViewer';
+import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
 
 function ExplorerPage(): JSX.Element {
   const { repoPath, openRepo } = useRepo();
@@ -56,9 +56,16 @@ function ExplorerPage(): JSX.Element {
       return <SimpleFileBrowser repoPath={repoPath} />;
     }
 
-    // File tab - show file content
+    // File tab - use the multi-viewer architecture
     if (activeTab.filePath) {
-      return <FileContentViewer filePath={activeTab.filePath} />;
+      // Try explicit viewerId first, then auto-detect from filename
+      const viewer = activeTab.viewerId 
+        ? getViewerById(activeTab.viewerId)
+        : getViewerForFile(activeTab.title);
+      
+      if (viewer) {
+        return <ViewerRenderer viewer={viewer} filePath={activeTab.filePath} />;
+      }
     }
 
     return <SimpleFileBrowser repoPath={repoPath} />;

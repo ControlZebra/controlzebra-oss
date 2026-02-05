@@ -6,17 +6,36 @@
  * - Other file tabs can be closed
  * - Active tab highlighting
  * - Click to switch tabs
+ * - Viewer-specific icons for file tabs
  */
-import { memo, useCallback } from 'react';
-import { X, FolderOpen, FileText, Pin } from 'lucide-react';
+import { memo, useCallback, useMemo } from 'react';
+import { X, FolderOpen, FileText, Pin, type LucideIcon } from 'lucide-react';
 import { useLayout } from '../../context';
 import { ICON_SIZES, type ExplorerTab } from '../../constants';
+import { getViewerById, getViewerForFile } from '../../lib/viewers';
 
 interface TabItemProps {
   tab: ExplorerTab;
   isActive: boolean;
   onSelect: () => void;
   onClose?: () => void;
+}
+
+/**
+ * Get the appropriate icon for a tab.
+ * Uses viewer-specific icons when available, falls back to FileText.
+ */
+function getTabIcon(tab: ExplorerTab): LucideIcon {
+  if (tab.type === 'file-browser') {
+    return FolderOpen;
+  }
+  
+  // Try to get viewer icon via explicit viewerId or auto-detect from filename
+  const viewer = tab.viewerId 
+    ? getViewerById(tab.viewerId)
+    : getViewerForFile(tab.title);
+  
+  return viewer?.icon ?? FileText;
 }
 
 const TabItem = memo(function TabItem({ 
@@ -30,7 +49,7 @@ const TabItem = memo(function TabItem({
     onClose?.();
   }, [onClose]);
 
-  const Icon = tab.type === 'file-browser' ? FolderOpen : FileText;
+  const Icon = useMemo(() => getTabIcon(tab), [tab]);
 
   return (
     <div
