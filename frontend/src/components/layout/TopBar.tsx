@@ -103,9 +103,9 @@ function TopBar(): JSX.Element {
                 onClick={() => setUndoDialogOpen(true)}
                 disabled={!hasCommits}
                 title="Undo Last Save"
-                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
+                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
               >
-                <Undo2 style={iconStyle} className="text-gray-400" />
+                <Undo2 style={iconStyle} className="currentColor" />
               </button>
 
               {/* Discard Changes */}
@@ -113,9 +113,9 @@ function TopBar(): JSX.Element {
                 onClick={() => setDiscardDialogOpen(true)}
                 disabled={!hasChanges}
                 title="Discard All Changes"
-                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
+                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
               >
-                <Trash2 style={iconStyle} className="text-gray-400" />
+                <Trash2 style={iconStyle} className="currentColor" />
               </button>
             </>
           )}
@@ -126,13 +126,13 @@ function TopBar(): JSX.Element {
           <button 
             onClick={() => repoPath && isGitRepo && setBranchModalOpen(true)}
             disabled={!repoPath || !isGitRepo}
-            className="flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
+            className="group flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
           >
-            <CodeSquare style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="text-theme-muted shrink-0" />
-            <span className="text-theme-primary font-medium text-sm truncate text-center">
+            <CodeSquare style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="transition-colors shrink-0" />
+            <span className="font-medium text-sm truncate text-center transition-colors">
               {repoPath && isGitRepo ? branchName : 'No branch'}
             </span>
-            <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} className="text-theme-muted shrink-0" />
+            <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} className="transition-colors shrink-0" />
           </button>
           
           {/* Burger menu - right of branch selector on compact view */}
@@ -141,9 +141,9 @@ function TopBar(): JSX.Element {
               <DropdownMenuTrigger asChild>
                 <button
                   title="Actions Menu"
-                  className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors shrink-0"
+                  className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 shrink-0 text-theme-muted hover:text-theme-primary"
                 >
-                  <Menu style={iconStyle} className="text-gray-400" />
+                  <Menu style={iconStyle} className="currentColor" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -180,15 +180,15 @@ function TopBar(): JSX.Element {
             <button 
               onClick={handleSync}
               disabled={isSyncing}
-              title="Sync with Cloud"
-              className="flex items-center justify-center gap-2 h-9 px-3 bg-blue-600 hover:bg-blue-700 border border-blue-500 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+              title="Sync"
+              className="flex items-center justify-center gap-2 h-7 px-2 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
             >
               <ArrowUpDown 
                 style={iconStyle} 
-                className={`text-white ${isSyncing ? 'animate-pulse' : ''}`} 
+                className={`${isSyncing ? 'animate-pulse' : ''}`} 
               />
-              <span className="text-white text-sm font-medium">
-                {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
+              <span className="text-sm font-medium">
+                {isSyncing ? 'Syncing...' : 'Sync'}
               </span>
             </button>
           )}
