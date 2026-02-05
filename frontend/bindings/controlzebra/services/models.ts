@@ -23,6 +23,11 @@ export class AppSettings {
      */
     "lastRepoPath": string;
 
+    /**
+     * Recently opened folders (max 10)
+     */
+    "recentFolders": string[];
+
     /** Creates a new AppSettings instance. */
     constructor($$source: Partial<AppSettings> = {}) {
         if (!("theme" in $$source)) {
@@ -30,6 +35,9 @@ export class AppSettings {
         }
         if (!("lastRepoPath" in $$source)) {
             this["lastRepoPath"] = "";
+        }
+        if (!("recentFolders" in $$source)) {
+            this["recentFolders"] = [];
         }
 
         Object.assign(this, $$source);
@@ -39,7 +47,11 @@ export class AppSettings {
      * Creates a new AppSettings instance from a string or object.
      */
     static createFrom($$source: any = {}): AppSettings {
+        const $$createField2_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("recentFolders" in $$parsedSource) {
+            $$parsedSource["recentFolders"] = $$createField2_0($$parsedSource["recentFolders"]);
+        }
         return new AppSettings($$parsedSource as Partial<AppSettings>);
     }
 }
@@ -106,7 +118,7 @@ export class BackgroundTaskStatus {
      * Creates a new BackgroundTaskStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): BackgroundTaskStatus {
-        const $$createField3_0 = $$createType1;
+        const $$createField3_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lastResult" in $$parsedSource) {
             $$parsedSource["lastResult"] = $$createField3_0($$parsedSource["lastResult"]);
@@ -182,7 +194,7 @@ export class BranchConflictCheckResult {
      * Creates a new BranchConflictCheckResult instance from a string or object.
      */
     static createFrom($$source: any = {}): BranchConflictCheckResult {
-        const $$createField1_0 = $$createType3;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("conflictedFiles" in $$parsedSource) {
             $$parsedSource["conflictedFiles"] = $$createField1_0($$parsedSource["conflictedFiles"]);
@@ -260,8 +272,8 @@ export class BranchList {
      * Creates a new BranchList instance from a string or object.
      */
     static createFrom($$source: any = {}): BranchList {
-        const $$createField1_0 = $$createType5;
-        const $$createField2_0 = $$createType5;
+        const $$createField1_0 = $$createType6;
+        const $$createField2_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("local" in $$parsedSource) {
             $$parsedSource["local"] = $$createField1_0($$parsedSource["local"]);
@@ -346,7 +358,7 @@ export class CommitDetail {
      * Creates a new CommitDetail instance from a string or object.
      */
     static createFrom($$source: any = {}): CommitDetail {
-        const $$createField8_0 = $$createType6;
+        const $$createField8_0 = $$createType0;
         const $$createField9_0 = $$createType8;
         const $$createField10_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
@@ -708,7 +720,7 @@ export class CustomLFSGroup {
      * Creates a new CustomLFSGroup instance from a string or object.
      */
     static createFrom($$source: any = {}): CustomLFSGroup {
-        const $$createField3_0 = $$createType6;
+        const $$createField3_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("extensions" in $$parsedSource) {
             $$parsedSource["extensions"] = $$createField3_0($$parsedSource["extensions"]);
@@ -1513,8 +1525,8 @@ export class GraphCommit {
      * Creates a new GraphCommit instance from a string or object.
      */
     static createFrom($$source: any = {}): GraphCommit {
-        const $$createField7_0 = $$createType6;
-        const $$createField8_0 = $$createType6;
+        const $$createField7_0 = $$createType0;
+        const $$createField8_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parents" in $$parsedSource) {
             $$parsedSource["parents"] = $$createField7_0($$parsedSource["parents"]);
@@ -1935,7 +1947,7 @@ export class MergeState {
      * Creates a new MergeState instance from a string or object.
      */
     static createFrom($$source: any = {}): MergeState {
-        const $$createField11_0 = $$createType6;
+        const $$createField11_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lockFiles" in $$parsedSource) {
             $$parsedSource["lockFiles"] = $$createField11_0($$parsedSource["lockFiles"]);
@@ -2138,7 +2150,7 @@ export class ProtectedBranchSettings {
      * Creates a new ProtectedBranchSettings instance from a string or object.
      */
     static createFrom($$source: any = {}): ProtectedBranchSettings {
-        const $$createField0_0 = $$createType6;
+        const $$createField0_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("protectedBranches" in $$parsedSource) {
             $$parsedSource["protectedBranches"] = $$createField0_0($$parsedSource["protectedBranches"]);
@@ -2302,9 +2314,9 @@ export class RecoveryDiagnostics {
      * Creates a new RecoveryDiagnostics instance from a string or object.
      */
     static createFrom($$source: any = {}): RecoveryDiagnostics {
-        const $$createField10_0 = $$createType6;
-        const $$createField14_0 = $$createType6;
-        const $$createField15_0 = $$createType6;
+        const $$createField10_0 = $$createType0;
+        const $$createField14_0 = $$createType0;
+        const $$createField15_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("staleLockFiles" in $$parsedSource) {
             $$parsedSource["staleLockFiles"] = $$createField10_0($$parsedSource["staleLockFiles"]);
@@ -2707,13 +2719,13 @@ export class UserProfile {
 }
 
 // Private type creation functions
-const $$createType0 = OperationResult.createFrom;
-const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = ConflictedFile.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = BranchInfo.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $Create.Array($Create.Any);
+const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = OperationResult.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);
+const $$createType3 = ConflictedFile.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = BranchInfo.createFrom;
+const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = CommitFileInfo.createFrom;
 const $$createType8 = $Create.Array($$createType7);
 const $$createType9 = CommitStats.createFrom;

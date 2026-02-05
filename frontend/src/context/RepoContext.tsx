@@ -88,6 +88,7 @@ import { SyncWithProgress } from '../../bindings/controlzebra/services/progresss
 import { GetAppSettings, SaveAppSettings, SetUserProfile } from '../../bindings/controlzebra/services/settingsservice';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
 import { GetRemotes } from '../../bindings/controlzebra/services/repositorysettingsservice';
+import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
 import {
@@ -310,7 +311,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
       repoOpenTimeRef.current = Date.now();
       
       try {
-        await SaveAppSettings({ lastRepoPath: path, theme: 'dark' });
+        const currentSettings = await GetAppSettings();
+        await SaveAppSettings({ ...currentSettings, lastRepoPath: path });
       } catch (err) {
         console.error('Failed to save settings:', err);
       }
@@ -525,7 +527,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
     
     try {
-      await SaveAppSettings({ lastRepoPath: '', theme: 'dark' });
+      const currentSettings = await GetAppSettings();
+      await SaveAppSettings({ ...currentSettings, lastRepoPath: '' });
     } catch (err) {
       console.error('Failed to clear settings:', err);
     }
@@ -1995,6 +1998,42 @@ export function RepoProvider({ children }: RepoProviderProps) {
       unsubscribe();
     };
   }, [closeRepo]);
+
+  // Listen for file:reveal-in-finder event from native menu
+  useEffect(() => {
+    const unsubscribe = Events.On('file:reveal-in-finder', async () => {
+      if (repoPath) {
+        const result = await RevealInFinder(repoPath);
+        if (!result.success && result.error) {
+          toast.error(result.error);
+        }
+      } else {
+        toast.error('No folder is currently open');
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [repoPath]);
+
+  // Listen for file:open-in-terminal event from native menu
+  useEffect(() => {
+    const unsubscribe = Events.On('file:open-in-terminal', async () => {
+      if (repoPath) {
+        const result = await OpenInTerminal(repoPath);
+        if (!result.success && result.error) {
+          toast.error(result.error);
+        }
+      } else {
+        toast.error('No folder is currently open');
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [repoPath]);
 
   // Refresh branches when repo changes
   useEffect(() => {

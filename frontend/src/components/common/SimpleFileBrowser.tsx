@@ -64,19 +64,19 @@ import {
 } from '../ui/context-menu';
 
 /**
- * Helper to reveal a path in Finder with consistent error handling
+ * Helper to reveal a path in the system file manager (Finder on macOS, Explorer on Windows)
  */
-async function revealPathInFinder(path: string): Promise<boolean> {
+async function revealInFileManager(path: string): Promise<boolean> {
   try {
     const result = await RevealInFinder(path);
     if (!result.success) {
-      toast.error(result.error || 'Failed to reveal in Finder');
+      toast.error(result.error || `Failed to reveal in ${FILE_MANAGER_NAME}`);
       return false;
     }
     return true;
   } catch (err) {
     console.error('RevealInFinder error:', err);
-    toast.error('Failed to reveal in Finder');
+    toast.error(`Failed to reveal in ${FILE_MANAGER_NAME}`);
     return false;
   }
 }
@@ -144,6 +144,9 @@ const GIT_STATUS_LABELS: Record<string, string> = {
 };
 
 const IS_MAC_OS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
+// Platform-specific file manager name
+const FILE_MANAGER_NAME = IS_MAC_OS ? 'Finder' : 'Explorer';
 
 // File extension to icon mapping
 const EXTENSION_ICONS: Record<string, LucideIcon> = {
@@ -371,9 +374,9 @@ interface ToolbarProps {
  * Toolbar with view toggle and actions
  */
 function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh, currentPath, repoPath }: ToolbarProps) {
-  const handleOpenInFinder = useCallback(async () => {
+  const handleOpenInFileManager = useCallback(async () => {
     if (!currentPath) return;
-    await revealPathInFinder(currentPath);
+    await revealInFileManager(currentPath);
   }, [currentPath]);
 
   const handleCopyLink = useCallback(async () => {
@@ -437,13 +440,13 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
     <div className="flex items-center justify-between px-3 py-2 bg-fb-toolbar border-b border-theme-default">
       <div className="flex items-center gap-1">
         <button
-          onClick={handleOpenInFinder}
+          onClick={handleOpenInFileManager}
           className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
-          title="Open in Finder"
+          title={`Open in ${FILE_MANAGER_NAME}`}
           disabled={!currentPath}
         >
           <FolderOpen className="w-4 h-4" />
-          <span>Open</span>
+          <span>Open in {FILE_MANAGER_NAME}</span>
         </button>
         <button
           onClick={onRefresh}
@@ -766,9 +769,9 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   const statusLabel = gitStatus ? GIT_STATUS_LABELS[gitStatus] : '';
 
-  const handleRevealInFinder = useCallback(async () => {
+  const handleRevealInFileManager = useCallback(async () => {
     if (!file) return;
-    await revealPathInFinder(file.path);
+    await revealInFileManager(file.path);
   }, [file]);
 
   const handleCopyPath = useCallback(async () => {
@@ -837,10 +840,10 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
           <div className="space-y-1">
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
-              onClick={handleRevealInFinder}
+              onClick={handleRevealInFileManager}
             >
               <FolderOpen className="w-4 h-4" />
-              <span>Reveal in Finder</span>
+              <span>Reveal in {FILE_MANAGER_NAME}</span>
             </button>
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
@@ -1133,7 +1136,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         handlePreview(file);
         break;
       case 'reveal-in-finder':
-        await revealPathInFinder(file.path);
+        await revealInFileManager(file.path);
         break;
       case 'copy-path':
         await copyTextToClipboard(file.path, 'Path copied to clipboard');

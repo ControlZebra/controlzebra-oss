@@ -26,36 +26,36 @@ Already implemented via `menu.AddRole(application.AppMenu)`.
 ---
 
 ### 2. File Menu
-**Priority: 🔴 HIGH**  
+**Priority: ✅ COMPLETE**  
 **Difficulty: Medium**
 
 | Item | Accelerator | Action | Status |
 |------|-------------|--------|--------|
 | Open Folder... | `CmdOrCtrl+O` | `fileDialogService.OpenFolderDialog()` | ✅ Done |
-| Open Recent | (submenu) | Load from `SettingsService.GetRecentFolders()` | 🔲 TODO |
+| Open Recent | (submenu) | Load from `SettingsService.GetRecentFolders()` | ✅ Done |
 | Separator | - | - | - |
-| Reveal in Finder/Explorer | - | `fileSystemService.ShowInExplorer()` | 🔲 TODO |
-| Open in External Terminal | - | `terminalService.OpenSystemTerminal()` | 🔲 TODO |
+| Reveal in Finder/Explorer | - | Emit `file:reveal-in-finder` (frontend calls `RevealInFinder`) | ✅ Done |
+| Open in External Terminal | - | Emit `file:open-in-terminal` (frontend calls `OpenInTerminal`) | ✅ Done |
 | Separator | - | - | - |
 | Close Folder | `CmdOrCtrl+W` | Emit `folder-closed` | ✅ Done |
 | Exit (Win/Linux) | `Alt+F4` | `app.Quit()` | ✅ Done |
 
 **Implementation Notes:**
-- **Open Recent**: Requires `SettingsService` method to track and return recent folders (max 5-10)
-- **Reveal in Finder**: Need to emit event with current repo path; frontend can call `fileSystemService.ShowInExplorer(path)`
-- **External Terminal**: `terminalService.OpenSystemTerminal()` may need implementation
+- **Open Recent**: ✅ Implemented in `SettingsService` with `GetRecentFolders()`, `AddRecentFolder()`, `ClearRecentFolders()` (max 10 folders)
+- **Reveal in Finder**: ✅ Uses existing `FileSystemService.RevealInFinder()` via `file:reveal-in-finder` event
+- **External Terminal**: ✅ Uses existing `FileSystemService.OpenInTerminal()` via `file:open-in-terminal` event
 
-**Backend Requirements:**
+**Backend Methods (implemented):**
 ```go
-// SettingsService additions needed:
+// SettingsService:
 func (s *SettingsService) GetRecentFolders() []string
-func (s *SettingsService) AddRecentFolder(path string)
+func (s *SettingsService) AddRecentFolder(path string) error
+func (s *SettingsService) ClearRecentFolders() error
 
-// FileSystemService additions needed:
-func (s *FileSystemService) ShowInExplorer(path string) error
-
-// TerminalService additions needed:
-func (s *TerminalService) OpenSystemTerminal(path string) error
+// FileSystemService (already existed):
+func (s *FileSystemService) RevealInFinder(path string) OpenFileResult
+func (s *FileSystemService) OpenInTerminal(path string) OpenFileResult
+func (s *FileSystemService) OpenURL(url string) OpenFileResult  // NEW
 ```
 
 ---
@@ -194,28 +194,29 @@ Events.On('git:undo-last-save-confirm', () => setShowUndoDialog(true));
 ---
 
 ### 7. Help Menu
-**Priority: 🟢 LOW**  
+**Priority: ✅ COMPLETE**  
 **Difficulty: Easy**
 
 | Item | Accelerator | Action | Status |
 |------|-------------|--------|--------|
-| Documentation | - | Open URL (docs link) | 🔲 TODO |
-| Report Issue | - | Open URL (GitHub Issues) | 🔲 TODO |
+| Documentation | - | `fileSystemService.OpenURL("https://controlzebra.com/docs")` | ✅ Done |
+| Report Issue | - | `fileSystemService.OpenURL("https://github.com/ControlZebra/controlzebra-releases/issues")` | ✅ Done |
 | Separator | - | - | - |
-| About ControlZebra | - | Show about dialog (Win/Linux) | 🔲 TODO |
+| About ControlZebra | - | Show about dialog window (Win/Linux only) | ✅ Done |
 
 **Implementation Notes:**
-- Use `runtime.BrowserOpenURL()` equivalent in Wails 3
-- About dialog on macOS is handled by AppMenu role
+- ✅ Uses `FileSystemService.OpenURL()` to open URLs in system browser
+- ✅ About dialog on macOS is handled by AppMenu role
+- ✅ About dialog on Windows/Linux opens a styled HTML window
 
-**Code Example:**
+**Implementation (in main.go):**
 ```go
 helpMenu := menu.AddSubmenu("Help")
 helpMenu.Add("Documentation").OnClick(func(ctx *application.Context) {
-    // Open docs URL
+    fileSystemService.OpenURL("https://controlzebra.com/docs")
 })
 helpMenu.Add("Report Issue").OnClick(func(ctx *application.Context) {
-    // Open GitHub issues URL
+    fileSystemService.OpenURL("https://github.com/ControlZebra/controlzebra-releases/issues")
 })
 if runtime.GOOS != "darwin" {
     helpMenu.AddSeparator()

@@ -40,8 +40,9 @@ func (s *SettingsService) SetApp(app *application.App) {
 
 // AppSettings contains application preferences
 type AppSettings struct {
-	Theme        string `json:"theme"`        // "dark", "light", "system"
-	LastRepoPath string `json:"lastRepoPath"` // Last opened repository path
+	Theme         string   `json:"theme"`         // "dark", "light", "system"
+	LastRepoPath  string   `json:"lastRepoPath"`  // Last opened repository path
+	RecentFolders []string `json:"recentFolders"` // Recently opened folders (max 10)
 }
 
 // UserProfile contains git user configuration
@@ -402,6 +403,59 @@ func (s *SettingsService) SaveAppSettings(settings AppSettings) error {
 	}
 
 	return os.WriteFile(settingsPath, data, 0644)
+}
+
+// maxRecentFolders is the maximum number of recent folders to keep
+const maxRecentFolders = 10
+
+// GetRecentFolders returns the list of recently opened folders
+func (s *SettingsService) GetRecentFolders() []string {
+	settings := s.GetAppSettings()
+	if settings.RecentFolders == nil {
+		return []string{}
+	}
+	return settings.RecentFolders
+}
+
+// AddRecentFolder adds a folder to the recent folders list
+// It moves the folder to the front if it already exists
+func (s *SettingsService) AddRecentFolder(folderPath string) error {
+	if folderPath == "" {
+		return nil
+	}
+
+	settings := s.GetAppSettings()
+	if settings.RecentFolders == nil {
+		settings.RecentFolders = []string{}
+	}
+
+	// Remove if already exists (will re-add at front)
+	filtered := []string{}
+	for _, f := range settings.RecentFolders {
+		if f != folderPath {
+			filtered = append(filtered, f)
+		}
+	}
+
+	// Add to front
+	settings.RecentFolders = append([]string{folderPath}, filtered...)
+
+	// Limit to maxRecentFolders
+	if len(settings.RecentFolders) > maxRecentFolders {
+		settings.RecentFolders = settings.RecentFolders[:maxRecentFolders]
+	}
+
+	// Also update LastRepoPath
+	settings.LastRepoPath = folderPath
+
+	return s.SaveAppSettings(settings)
+}
+
+// ClearRecentFolders clears the recent folders list
+func (s *SettingsService) ClearRecentFolders() error {
+	settings := s.GetAppSettings()
+	settings.RecentFolders = []string{}
+	return s.SaveAppSettings(settings)
 }
 
 // GetUserProfile returns the git user config (global or for a specific repo)
