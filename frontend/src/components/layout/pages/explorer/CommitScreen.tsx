@@ -59,20 +59,21 @@ interface ChangedFilesTableProps {
 
 /**
  * ChangedFilesTable - Table of changed files with status.
+ * Responsive: hides Path column on narrow screens.
  */
 const ChangedFilesTable = memo(function ChangedFilesTable({ files }: ChangedFilesTableProps): JSX.Element | null {
   if (!files || files.length === 0) return null;
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <table className="w-full">
+      <CardContent className="p-0 overflow-x-auto">
+        <table className="w-full min-w-[400px]">
           <thead>
             <tr className="border-b border-theme-default text-left">
               <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide w-20">Status</th>
               <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide">File Name</th>
-              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide w-32">Modified</th>
-              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide">Path</th>
+              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide w-32 hidden lg:table-cell">Modified</th>
+              <th className="px-4 py-3 text-xs font-medium text-theme-muted uppercase tracking-wide hidden md:table-cell">Path</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700/50">
@@ -98,18 +99,18 @@ const ChangedFilesTable = memo(function ChangedFilesTable({ files }: ChangedFile
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <FileText style={ICON_STYLES.sm as CSSProperties} className="text-theme-muted shrink-0" />
                       <span className="text-sm text-theme-primary truncate">{file.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 hidden lg:table-cell">
                     <span className="text-xs text-theme-muted">
                       —
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-theme-muted truncate block" title={file.path}>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span className="text-xs text-theme-muted truncate block max-w-[200px]" title={file.path}>
                       {shortenedPath}
                     </span>
                   </td>

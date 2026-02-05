@@ -6,6 +6,7 @@
  * - Sidebar collapse state and width
  * - Bottom panel collapse state, height, and active tab
  * - Theme preference (light/dark/system)
+ * - Responsive auto-collapse based on window size
  */
 import { 
   createContext, 
@@ -26,6 +27,7 @@ import {
   type ExplorerTab 
 } from '../constants';
 import { trackViewChanged, trackSettingsOpened } from '../lib/analytics';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 // ============================================================================
 // Types
@@ -87,11 +89,40 @@ const DEFAULT_SIDEBAR_WIDTH = 224;  // 14rem
 const DEFAULT_BOTTOM_PANEL_HEIGHT = 160;  // 10rem
 
 export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
+  // Responsive window size tracking
+  const { shouldCollapseSidebar, shouldCollapseBottomPanel } = useWindowSize();
+  
+  // Track if user manually toggled panels (to not override their preference)
+  const userToggledSidebar = useRef(false);
+  const userToggledBottomPanel = useRef(false);
+  
   // Sidebar state
   const [activeView, _setActiveView] = useState<ViewType>(VIEWS.EXPLORER);
   const previousView = useRef<ViewType>(VIEWS.EXPLORER);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, _setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  
+  // Wrap setSidebarCollapsed to track user intent
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    userToggledSidebar.current = true;
+    _setSidebarCollapsed(collapsed);
+  }, []);
+  
+  // Auto-collapse sidebar based on window size vs sidebar width (if user hasn't manually toggled)
+  useEffect(() => {
+    const shouldCollapse = shouldCollapseSidebar(sidebarWidth);
+    if (!userToggledSidebar.current && shouldCollapse) {
+      _setSidebarCollapsed(true);
+    }
+  }, [shouldCollapseSidebar, sidebarWidth]);
+  
+  // Reset user toggle flag when window becomes wide enough for current sidebar
+  useEffect(() => {
+    const shouldCollapse = shouldCollapseSidebar(sidebarWidth);
+    if (!shouldCollapse) {
+      userToggledSidebar.current = false;
+    }
+  }, [shouldCollapseSidebar, sidebarWidth]);
   
   // Wrap setActiveView to track view changes
   const setActiveView = useCallback((view: ViewType) => {
@@ -112,9 +143,29 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   }, []);
   
   // Bottom panel state
-  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
+  const [bottomPanelCollapsed, _setBottomPanelCollapsed] = useState(true);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(DEFAULT_BOTTOM_PANEL_HEIGHT);
   const [activeBottomPanel, setActiveBottomPanel] = useState<BottomPanelType>(BOTTOM_PANELS.TERMINAL);
+  
+  // Wrap setBottomPanelCollapsed to track user intent
+  const setBottomPanelCollapsed = useCallback((collapsed: boolean) => {
+    userToggledBottomPanel.current = true;
+    _setBottomPanelCollapsed(collapsed);
+  }, []);
+  
+  // Auto-collapse bottom panel based on window size (if user hasn't manually toggled)
+  useEffect(() => {
+    if (!userToggledBottomPanel.current && shouldCollapseBottomPanel) {
+      _setBottomPanelCollapsed(true);
+    }
+  }, [shouldCollapseBottomPanel]);
+  
+  // Reset user toggle flag when window becomes wide enough
+  useEffect(() => {
+    if (!shouldCollapseBottomPanel) {
+      userToggledBottomPanel.current = false;
+    }
+  }, [shouldCollapseBottomPanel]);
   
   // Settings category state (shared between sidebar and main area)
   const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('git-config');
@@ -153,8 +204,14 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   }, [theme]);
 
   // Toggle handlers - memoized to prevent unnecessary re-renders
-  const toggleSidebar = useCallback(() => setSidebarCollapsed(prev => !prev), []);
-  const toggleBottomPanel = useCallback(() => setBottomPanelCollapsed(prev => !prev), []);
+  const toggleSidebar = useCallback(() => {
+    _setSidebarCollapsed(prev => !prev);
+    userToggledSidebar.current = true;
+  }, []);
+  const toggleBottomPanel = useCallback(() => {
+    _setBottomPanelCollapsed(prev => !prev);
+    userToggledBottomPanel.current = true;
+  }, []);
 
   // Explorer tab handlers
   const openExplorerTab = useCallback((tab: ExplorerTab) => {

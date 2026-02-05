@@ -6,6 +6,7 @@
  * - Branch modal trigger
  * - Undo Last Save button
  * - Discard Changes button
+ * - Responsive burger menu for narrow windows
  */
 import { memo, useCallback, useState, type CSSProperties } from 'react';
 import {
@@ -14,9 +15,11 @@ import {
   ChevronDown,
   Undo2,
   Trash2,
+  Menu,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import { useRepo } from '../../context';
+import { useWindowSize } from '../../hooks';
 import { 
   AlertDialog,
   AlertDialogContent,
@@ -29,6 +32,13 @@ import {
 } from '../ui';
 import BranchModal from './BranchModal';
 import RewindConfirmModal from './RewindConfirmModal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -44,6 +54,9 @@ function TopBar(): JSX.Element {
     undoLastCommit,
     discardAllChanges,
   } = useRepo();
+
+  // Responsive state
+  const { isCompactTopBar } = useWindowSize();
 
   // Modal states
   const [branchModalOpen, setBranchModalOpen] = useState(false);
@@ -80,10 +93,10 @@ function TopBar(): JSX.Element {
 
   return (
     <>
-      <header className="h-[52px] bg-theme-elevated border-b border-theme-default grid grid-cols-3 items-center px-3 select-none shrink-0">
-        {/* Left: Undo and Discard buttons */}
-        <div className="flex items-center gap-2">
-          {repoPath && isGitRepo && (
+      <header className="h-[52px] bg-theme-elevated border-b border-theme-default flex items-center justify-between px-3 select-none shrink-0 gap-2">
+        {/* Left: Undo and Discard buttons (hidden on compact - moved to burger menu) */}
+        <div className="flex items-center gap-2 shrink-0">
+          {repoPath && isGitRepo && !isCompactTopBar && (
             <>
               {/* Undo Last Save */}
               <button 
@@ -108,12 +121,12 @@ function TopBar(): JSX.Element {
           )}
         </div>
 
-        {/* Center: Branch selector - compact */}
-        <div className="flex justify-center">
+        {/* Center: Branch selector + burger menu (on compact) */}
+        <div className="flex-1 flex justify-center items-center gap-2 min-w-0 px-2">
           <button 
             onClick={() => repoPath && isGitRepo && setBranchModalOpen(true)}
             disabled={!repoPath || !isGitRepo}
-            className="flex items-center justify-center gap-2 px-3 py-1.5 h-9 min-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
+            className="flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated"
           >
             <CodeSquare style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="text-theme-muted shrink-0" />
             <span className="text-theme-primary font-medium text-sm truncate text-center">
@@ -121,11 +134,49 @@ function TopBar(): JSX.Element {
             </span>
             <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} className="text-theme-muted shrink-0" />
           </button>
+          
+          {/* Burger menu - right of branch selector on compact view */}
+          {repoPath && isGitRepo && isCompactTopBar && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  title="Actions Menu"
+                  className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors shrink-0"
+                >
+                  <Menu style={iconStyle} className="text-gray-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => setUndoDialogOpen(true)}
+                  disabled={!hasCommits}
+                >
+                  <Undo2 style={iconStyle} className="mr-2" />
+                  Undo Last Save
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDiscardDialogOpen(true)}
+                  disabled={!hasChanges}
+                >
+                  <Trash2 style={iconStyle} className="mr-2" />
+                  Discard All Changes
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                >
+                  <ArrowUpDown style={iconStyle} className="mr-2" />
+                  {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
-        {/* Right: Sync button */}
-        <div className="flex items-center gap-2 justify-end">
-          {repoPath && isGitRepo && (
+        {/* Right: Sync button (hidden on compact - moved to burger menu) */}
+        <div className="flex items-center gap-2 justify-end shrink-0">
+          {repoPath && isGitRepo && !isCompactTopBar && (
             <button 
               onClick={handleSync}
               disabled={isSyncing}

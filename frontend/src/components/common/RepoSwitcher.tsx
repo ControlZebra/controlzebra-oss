@@ -270,16 +270,16 @@ function RepoSwitcher(): JSX.Element {
             style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }}
             className="text-theme-muted shrink-0"
           />
-          <div className="flex flex-col items-start gap-0.5 flex-1 min-w-0">
+          <div className="flex flex-col items-start gap-0.5 flex-1 min-w-0 overflow-hidden">
             <span className="text-theme-muted text-[10px] font-medium uppercase tracking-wide">
               Current repository
             </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-theme-primary font-semibold text-sm truncate">
+            <div className="flex items-center gap-1.5 w-full min-w-0">
+              <span className="text-theme-primary font-semibold text-sm truncate min-w-0 flex-1">
                 {repoName}
               </span>
               {repoPath && !isGitRepo && (
-                <span className="text-yellow-500/80 text-[10px] whitespace-nowrap">
+                <span className="text-yellow-500/80 text-[10px] whitespace-nowrap shrink-0">
                   • No git
                 </span>
               )}

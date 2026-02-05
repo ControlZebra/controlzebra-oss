@@ -40,7 +40,7 @@ const TabItem = memo(function TabItem({
         min-w-0 max-w-[180px]
         transition-colors duration-150
         ${isActive 
-          ? 'bg-fb-base rounded-t-md' 
+          ? 'bg-fb-base rounded-t-xl' 
           : 'bg-theme-elevated hover:bg-theme-muted'
         }
       `}
