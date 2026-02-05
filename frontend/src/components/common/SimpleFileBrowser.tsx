@@ -53,7 +53,8 @@ import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
-import { isTextFile, type ExplorerTab } from '../../constants';
+import { type ExplorerTab } from '../../constants';
+import { getViewerForFile } from '../../lib/viewers';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -659,7 +660,10 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
           <span>Open</span>
            <ContextMenuShortcut>⏎</ContextMenuShortcut>
         </ContextMenuItem>
-        {!file.isDirectory && isTextFile(file.name) && (
+        {!file.isDirectory && (() => {
+          const viewer = getViewerForFile(file.name);
+          return viewer && viewer.id !== 'unsupported';
+        })() && (
           <ContextMenuItem onClick={() => onContextAction?.('preview', file)}>
             <Eye className="mr-2 h-4 w-4" />
             <span>Preview</span>
@@ -1048,19 +1052,23 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setSelectedPath(path);
   }, []);
 
-  // Handle in-app preview (for text files)
+  // Handle in-app preview (for files with registered viewers)
   const handlePreview = useCallback((file: FileEntry) => {
     if (file.isDirectory) return;
     
-    // Check if it's a text file we can display in a tab
-    if (isTextFile(file.name)) {
-      // Open in a tab
+    // Find a viewer for this file
+    const viewer = getViewerForFile(file.name);
+    
+    // Only open in tab if we have a real viewer (not the unsupported fallback)
+    if (viewer && viewer.id !== 'unsupported') {
+      // Open in a tab with explicit viewerId
       const tab: ExplorerTab = {
         id: file.path,
         title: file.name,
         type: 'file',
         filePath: file.path,
         isPinned: false,
+        viewerId: viewer.id,
       };
       openExplorerTab(tab);
     } else {
