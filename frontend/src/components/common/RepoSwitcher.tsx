@@ -275,7 +275,7 @@ function RepoSwitcher(): JSX.Element {
               Current repository
             </span>
             <div className="flex items-center gap-1.5 w-full min-w-0">
-              <span className="text-theme-primary font-semibold text-sm truncate min-w-0 flex-1">
+              <span className="text-theme-primary font-semibold text-sm truncate min-w-0 flex-1 text-left">
                 {repoName}
               </span>
               {repoPath && !isGitRepo && (

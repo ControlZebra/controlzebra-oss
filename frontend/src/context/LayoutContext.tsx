@@ -93,7 +93,9 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   const { shouldCollapseSidebar, shouldCollapseBottomPanel } = useWindowSize();
   
   // Track if user manually toggled panels (to not override their preference)
-  const userToggledSidebar = useRef(false);
+  // Initialize to true so that strictly on startup, it treats the default open state as intentional,
+  // preventing immediate auto-collapse on smaller screens.
+  const userToggledSidebar = useRef(true);
   const userToggledBottomPanel = useRef(false);
   
   // Sidebar state
