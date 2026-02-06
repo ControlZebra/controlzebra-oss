@@ -7,8 +7,9 @@
  * - File content shows when file tabs are active (using multi-viewer architecture)
  * - When no folder is open: Shows welcome screen
  * - Non-git folders: Shows file browser like usual (start tracking via sidebar)
+ * - All open tabs are kept mounted (but hidden) to preserve viewer state/cache
  */
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import NoDirectoryScreen from './NoDirectoryScreen';
@@ -45,38 +46,55 @@ function ExplorerPage(): JSX.Element {
     );
   }
 
-  // For both git repos and non-git folders, show the file browser
+  // Memoize file tabs to avoid recalculating on each render
+  const fileTabs = useMemo(() => 
+    explorerTabs.filter(tab => tab.type === 'file' && tab.filePath),
+    [explorerTabs]
+  );
 
-  // Find the active tab
-  const activeTab = explorerTabs.find(tab => tab.id === activeExplorerTab);
+  // Check if file browser is active
+  const isFileBrowserActive = activeExplorerTab === 'file-browser';
 
-  // Render content based on active tab type
-  const renderContent = (): JSX.Element => {
-    if (!activeTab || activeTab.type === 'file-browser') {
-      return <SimpleFileBrowser repoPath={repoPath} />;
-    }
-
-    // File tab - use the multi-viewer architecture
-    if (activeTab.filePath) {
-      // Try explicit viewerId first, then auto-detect from filename
-      const viewer = activeTab.viewerId 
-        ? getViewerById(activeTab.viewerId)
-        : getViewerForFile(activeTab.title);
+  // Render all file tabs (mounted but hidden when not active) to preserve state
+  // This keeps viewer components mounted and their caches intact
+  const renderFileTabs = (): JSX.Element[] => {
+    return fileTabs.map(tab => {
+      const viewer = tab.viewerId 
+        ? getViewerById(tab.viewerId)
+        : getViewerForFile(tab.title);
       
-      if (viewer) {
-        return <ViewerRenderer viewer={viewer} filePath={activeTab.filePath} />;
-      }
-    }
-
-    return <SimpleFileBrowser repoPath={repoPath} />;
+      if (!viewer || !tab.filePath) return null;
+      
+      const isActive = tab.id === activeExplorerTab;
+      
+      return (
+        <div 
+          key={tab.id} 
+          className={`h-full ${isActive ? '' : 'hidden'}`}
+          style={{ display: isActive ? 'block' : 'none' }}
+        >
+          <ViewerRenderer viewer={viewer} filePath={tab.filePath} />
+        </div>
+      );
+    }).filter(Boolean) as JSX.Element[];
   };
 
   // Folder open - show tabs and content
+  // Render file browser and all file tabs, showing only the active one
   return (
     <div className="flex flex-col h-full">
       <ExplorerTabsBar />
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {renderContent()}
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        {/* File browser - always mounted, shown when active */}
+        <div 
+          className={`h-full ${isFileBrowserActive ? '' : 'hidden'}`}
+          style={{ display: isFileBrowserActive ? 'block' : 'none' }}
+        >
+          <SimpleFileBrowser repoPath={repoPath} />
+        </div>
+        
+        {/* All file tabs - mounted but hidden when not active */}
+        {renderFileTabs()}
       </div>
     </div>
   );

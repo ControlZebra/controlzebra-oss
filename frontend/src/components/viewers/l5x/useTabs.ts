@@ -1,8 +1,11 @@
 /**
  * Tab management hook for L5XViewer
  * Ported from ladder-visualizer demo
+ * 
+ * Supports optional caching of tab state by file path to persist
+ * tabs across view switches.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 // ============================================================================
 // TAB TYPES AND INTERFACES
@@ -36,6 +39,40 @@ export type TabData =
   | { type: 'aoi-local-tags'; aoiName: string }
   | { type: 'aoi-routine'; aoiName: string; routineIndex: number }
   | { type: 'module'; moduleId: number; moduleName: string };
+
+// ============================================================================
+// TAB STATE CACHE
+// Persists tab state per file path to survive view switches
+// ============================================================================
+
+interface TabStateCache {
+  tabs: Tab[];
+  activeTabId: string | null;
+}
+
+/** Module-level cache for L5X viewer tab states, keyed by file path */
+const tabStateCache = new Map<string, TabStateCache>();
+
+/**
+ * Get cached tab state for a file path.
+ */
+export function getCachedTabState(filePath: string): TabStateCache | undefined {
+  return tabStateCache.get(filePath);
+}
+
+/**
+ * Clear cached tab state for a file path.
+ */
+export function clearCachedTabState(filePath: string): void {
+  tabStateCache.delete(filePath);
+}
+
+/**
+ * Clear all cached tab states.
+ */
+export function clearAllTabStates(): void {
+  tabStateCache.clear();
+}
 
 // ============================================================================
 // TAB ID GENERATORS
@@ -80,9 +117,29 @@ export interface UseTabsResult {
   findTab: (tabId: string) => Tab | undefined;
 }
 
-export function useTabs(): UseTabsResult {
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+/**
+ * Hook for managing L5X viewer tabs.
+ * 
+ * @param filePath - Optional file path for caching tab state.
+ *                   When provided, tab state persists across view switches.
+ */
+export function useTabs(filePath?: string): UseTabsResult {
+  // Initialize from cache if available
+  const cachedState = filePath ? getCachedTabState(filePath) : undefined;
+  
+  const [tabs, setTabs] = useState<Tab[]>(cachedState?.tabs ?? []);
+  const [activeTabId, setActiveTabId] = useState<string | null>(cachedState?.activeTabId ?? null);
+
+  // Track the file path for cache updates
+  const filePathRef = useRef(filePath);
+  filePathRef.current = filePath;
+
+  // Persist tab state to cache whenever it changes
+  useEffect(() => {
+    if (filePathRef.current) {
+      tabStateCache.set(filePathRef.current, { tabs, activeTabId });
+    }
+  }, [tabs, activeTabId]);
 
   /**
    * Open a new tab or switch to an existing one

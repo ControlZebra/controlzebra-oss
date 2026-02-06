@@ -11,15 +11,17 @@
  * - Data type structure viewer
  * - AOI parameters and local tags
  * - Module information
+ * - Parsed data caching for tab persistence
  * 
  * Supports both light and dark themes via CSS custom properties.
  */
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../constants';
 import { useLayout } from '../../context/LayoutContext';
 import type { ViewerProps } from '../../lib/viewers';
+import { useCachedContent } from '../../lib/viewer-cache';
 
 // Import ladder-visualizer components and parsers
 import {
@@ -78,10 +80,7 @@ const CONTROL_ZEBRA_THEME = {
 // Types
 // ============================================================================
 
-interface L5XViewerState {
-  controller: NormalizedController | null;
-  error: string | null;
-  isLoading: boolean;
+interface L5XViewerUIState {
   showNavigator: boolean;
 }
 
@@ -92,17 +91,19 @@ interface L5XViewerState {
 /**
  * L5XViewer - Displays Rockwell Automation L5X ladder logic files.
  * Part of the multi-viewer architecture.
+ * Uses cached parsed data to persist across tab switches.
  */
 function L5XViewer({ filePath }: ViewerProps): JSX.Element {
-  const [state, setState] = useState<L5XViewerState>({
-    controller: null,
-    error: null,
-    isLoading: true,
+  // UI state (not cached - should reset on new file)
+  const [uiState, setUIState] = useState<L5XViewerUIState>({
     showNavigator: true,
   });
 
-  // Tab management
-  const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs();
+  // Tab management - internal to L5X viewer, cached by filePath
+  const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
+
+  // Track if we've auto-opened the first tab for this file
+  const autoOpenedRef = React.useRef<string | null>(null);
 
   // Get theme from LayoutContext for reactive updates
   const { theme } = useLayout();
@@ -117,88 +118,66 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
     return false;
   }, [theme]);
 
-  // Load and parse the L5X file
+  // Loader function for cached content - parses L5X file
+  const loadAndParseFile = useCallback(async (): Promise<NormalizedController> => {
+    const result = await ReadTextFile(filePath);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to read file');
+    }
+
+    const parseResult = parseString(result.content || '', 'l5x');
+
+    if (!parseResult.success || !parseResult.data) {
+      throw new Error(parseResult.errors?.[0]?.message || 'Failed to parse L5X file');
+    }
+
+    return parseResult.data;
+  }, [filePath]);
+
+  // Use cached content - persists across tab/view switches
+  const { data: controller, error, isLoading } = useCachedContent<NormalizedController>(
+    filePath,
+    loadAndParseFile
+  );
+
+  // Register AOIs when controller data is available (from cache or fresh load)
   useEffect(() => {
-    let mounted = true;
+    if (controller) {
+      // Re-register AOIs - needed for proper parameter labels
+      clearAOIs();
+      registerAOIsFromController(controller);
+    }
+  }, [controller]);
 
-    async function loadFile(): Promise<void> {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      try {
-        const result = await ReadTextFile(filePath);
-        
-        if (!mounted) return;
-        
-        if (!result.success) {
-          setState(prev => ({ 
-            ...prev, 
-            error: result.error || 'Failed to read file',
-            isLoading: false 
-          }));
+  // Auto-open first viewable routine when controller loads (only once per file, and only if no tabs from cache)
+  useEffect(() => {
+    // Skip if we already have tabs (from cache) or already auto-opened for this file
+    if (tabs.length > 0 || !controller || autoOpenedRef.current === filePath) {
+      return;
+    }
+    
+    autoOpenedRef.current = filePath;
+    
+    // Find and open first viewable routine
+    for (let pIdx = 0; pIdx < controller.programs.length; pIdx++) {
+      const program = controller.programs[pIdx];
+      for (let rIdx = 0; rIdx < program.routines.length; rIdx++) {
+        const routine = program.routines[rIdx];
+        if (routine.type === 'RLL' || routine.type === 'ST') {
+          openTab(
+            { type: 'routine', programIndex: pIdx, routineIndex: rIdx },
+            routine.name
+          );
           return;
-        }
-
-        const parseResult = parseString(result.content || '', 'l5x');
-        
-        if (!mounted) return;
-
-        if (!parseResult.success || !parseResult.data) {
-          setState(prev => ({ 
-            ...prev, 
-            error: parseResult.errors?.[0]?.message || 'Failed to parse L5X file',
-            isLoading: false 
-          }));
-          return;
-        }
-
-        const controller = parseResult.data;
-        
-        // Register AOIs for proper parameter labels
-        clearAOIs();
-        registerAOIsFromController(controller);
-
-        setState(prev => ({
-          ...prev,
-          controller,
-          isLoading: false,
-        }));
-
-        // Auto-open first viewable routine
-        for (let pIdx = 0; pIdx < controller.programs.length; pIdx++) {
-          const program = controller.programs[pIdx];
-          for (let rIdx = 0; rIdx < program.routines.length; rIdx++) {
-            const routine = program.routines[rIdx];
-            if (routine.type === 'RLL' || routine.type === 'ST') {
-              openTab(
-                { type: 'routine', programIndex: pIdx, routineIndex: rIdx },
-                routine.name
-              );
-              return;
-            }
-          }
-        }
-
-      } catch (err) {
-        if (mounted) {
-          setState(prev => ({
-            ...prev,
-            error: err instanceof Error ? err.message : 'Failed to parse file',
-            isLoading: false,
-          }));
         }
       }
     }
-
-    loadFile();
-
-    return () => {
-      mounted = false;
-    };
-  }, [filePath, openTab]);
+  }, [controller, filePath, openTab, tabs.length]);
 
   // Toggle navigator visibility
   const toggleNavigator = useCallback(() => {
-    setState(prev => ({ ...prev, showNavigator: !prev.showNavigator }));
+    setUIState(prev => ({ ...prev, showNavigator: !prev.showNavigator }));
   }, []);
 
   // ============================================================================
@@ -217,13 +196,13 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   }, [openTab]);
 
   const handleProgramTagsSelect = useCallback((programIndex: number) => {
-    if (!state.controller) return;
-    const program = state.controller.programs[programIndex];
+    if (!controller) return;
+    const program = controller.programs[programIndex];
     openTab(
       { type: 'program-tags', programIndex, programName: program.name },
       `${program.name} Tags`
     );
-  }, [state.controller, openTab]);
+  }, [controller, openTab]);
 
   const handleControllerInfoSelect = useCallback(() => {
     openTab({ type: 'controller-info' }, 'Controller Info');
@@ -308,7 +287,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   ), []);
 
   const renderTabContent = useCallback((tabData: TabData, isActive: boolean) => {
-    if (!state.controller) return null;
+    if (!controller) return null;
 
     const containerClass = `flex-1 flex flex-col overflow-hidden h-full ${isActive ? '' : 'hidden'}`;
     const ladderContentClass = `flex-1 overflow-hidden ${isDarkMode ? 'ladder-visualizer-dark' : ''}`;
@@ -318,13 +297,13 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         return (
           <div key="controller-tags" className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
-              <TagTable tags={state.controller.tags} />
+              <TagTable tags={controller.tags} />
             </div>
           </div>
         );
 
       case 'program-tags': {
-        const program = state.controller.programs[tabData.programIndex];
+        const program = controller.programs[tabData.programIndex];
         const tags = program?.tags ?? [];
         return (
           <div key={`program-tags-${tabData.programIndex}`} className={containerClass}>
@@ -343,13 +322,13 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         return (
           <div key="controller-info" className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
-              <ControllerInfo controller={state.controller} className="max-w-2xl" />
+              <ControllerInfo controller={controller} className="max-w-2xl" />
             </div>
           </div>
         );
 
       case 'data-type': {
-        const dataType = state.controller.dataTypes.find(dt => dt.name === tabData.dataTypeName);
+        const dataType = controller.dataTypes.find(dt => dt.name === tabData.dataTypeName);
         if (dataType) {
           return (
             <div key={`data-type-${tabData.dataTypeName}`} className={containerClass}>
@@ -367,7 +346,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       }
 
       case 'aoi-parameters': {
-        const aoi = state.controller.aois.find(a => a.name === tabData.aoiName);
+        const aoi = controller.aois.find(a => a.name === tabData.aoiName);
         if (aoi) {
           return (
             <div key={`aoi-parameters-${tabData.aoiName}`} className={containerClass}>
@@ -385,7 +364,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       }
 
       case 'aoi-local-tags': {
-        const aoi = state.controller.aois.find(a => a.name === tabData.aoiName);
+        const aoi = controller.aois.find(a => a.name === tabData.aoiName);
         if (aoi) {
           return (
             <div key={`aoi-local-tags-${tabData.aoiName}`} className={containerClass}>
@@ -403,7 +382,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       }
 
       case 'aoi-routine': {
-        const aoi = state.controller.aois.find(a => a.name === tabData.aoiName);
+        const aoi = controller.aois.find(a => a.name === tabData.aoiName);
         const routine = aoi?.routines[tabData.routineIndex];
         if (aoi && routine) {
           return (
@@ -432,7 +411,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       }
 
       case 'routine': {
-        const routine = state.controller.programs[tabData.programIndex]?.routines[tabData.routineIndex];
+        const routine = controller.programs[tabData.programIndex]?.routines[tabData.routineIndex];
         if (routine) {
           return (
             <div key={`routine-${tabData.programIndex}-${tabData.routineIndex}`} className={containerClass}>
@@ -460,7 +439,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       }
 
       case 'module': {
-        const module = state.controller.modules.find(m => m.id === tabData.moduleId);
+        const module = controller.modules.find(m => m.id === tabData.moduleId);
         if (module) {
           return (
             <div key={`module-${tabData.moduleId}`} className={containerClass}>
@@ -480,14 +459,14 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       default:
         return null;
     }
-  }, [state.controller, isDarkMode, renderUnsupportedRoutineType]);
+  }, [controller, isDarkMode, renderUnsupportedRoutineType]);
 
   // ============================================================================
   // Main Content Rendering
   // ============================================================================
 
   const renderMainContent = () => {
-    if (!state.controller) return null;
+    if (!controller) return null;
 
     if (tabs.length === 0) {
       return (
@@ -511,7 +490,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   // ============================================================================
 
   // Loading state
-  if (state.isLoading) {
+  if (isLoading) {
     const fileName = filePath.split('/').pop() || filePath;
     return (
       <div className="flex items-center justify-center h-full text-theme-secondary">
@@ -524,19 +503,19 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   }
 
   // Error state
-  if (state.error) {
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-3">
         <AlertCircle size={ICON_SIZES.lg} className="text-red-400" />
         <div className="text-center">
           <p className="text-theme-primary font-medium mb-1">Cannot parse L5X file</p>
-          <p className="text-sm">{state.error}</p>
+          <p className="text-sm">{error}</p>
         </div>
       </div>
     );
   }
 
-  if (!state.controller) {
+  if (!controller) {
     return (
       <div className="flex items-center justify-center h-full text-theme-secondary">
         <p>No controller data found</p>
@@ -559,11 +538,11 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Navigator sidebar */}
-        {state.showNavigator && (
+        {uiState.showNavigator && (
           <div className="w-64 border-r border-theme-default bg-theme-surface overflow-hidden flex flex-col">
             <ProgramNavigator
-              controller={state.controller}
-              programs={state.controller.programs}
+              controller={controller}
+              programs={controller.programs}
               selectedRoutine={selectedRoutine}
               selectedAOIRoutine={selectedAOIRoutine}
               onRoutineSelect={handleRoutineSelect}
@@ -584,9 +563,9 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         <button
           onClick={toggleNavigator}
           className="flex items-center justify-center w-5 bg-theme-elevated border-r border-theme-default hover:bg-theme-muted transition-colors"
-          title={state.showNavigator ? 'Hide navigator' : 'Show navigator'}
+          title={uiState.showNavigator ? 'Hide navigator' : 'Show navigator'}
         >
-          {state.showNavigator ? (
+          {uiState.showNavigator ? (
             <ChevronLeft size={14} className="text-theme-secondary" />
           ) : (
             <ChevronRight size={14} className="text-theme-secondary" />

@@ -6,6 +6,7 @@
  * - Centers image with max-width/height constraints
  * - Loading and error states
  * - Displays image dimensions when loaded
+ * - Preserves dimensions in state across tab switches
  * 
  * Future enhancements:
  * - Zoom controls
@@ -13,36 +14,47 @@
  * - Fit/fill toggle
  * - Background color toggle (checkerboard for transparency)
  */
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import type { ViewerProps } from '../../lib/viewers';
 
+// Cache for storing image dimensions by file path
+const imageDimensionsCache = new Map<string, { width: number; height: number }>();
+
 /**
  * ImageViewer component for displaying image files.
  * Part of the multi-viewer architecture.
+ * Uses cached dimensions to preserve state across tab switches.
  */
 function ImageViewer({ filePath }: ViewerProps): JSX.Element {
-  const [isLoading, setIsLoading] = useState(true);
+  // Check cache for existing dimensions
+  const cachedDimensions = useMemo(() => imageDimensionsCache.get(filePath), [filePath]);
+  
+  const [isLoading, setIsLoading] = useState(!cachedDimensions);
   const [error, setError] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
+    cachedDimensions || null
+  );
 
-  // Extract filename from path
-  const fileName = filePath.split('/').pop() || filePath;
+  // Extract filename from path - memoized
+  const fileName = useMemo(() => filePath.split('/').pop() || filePath, [filePath]);
 
-  // Convert file path to a URL that Wails can serve
-  // For local files, we use the wails asset protocol or file:// scheme
-  const imageUrl = `file://${filePath}`;
+  // Convert file path to a URL that Wails can serve - memoized
+  const imageUrl = useMemo(() => `file://${filePath}`, [filePath]);
 
   const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
     const img = event.currentTarget;
-    setDimensions({
+    const dims = {
       width: img.naturalWidth,
       height: img.naturalHeight,
-    });
+    };
+    // Cache dimensions for this file path
+    imageDimensionsCache.set(filePath, dims);
+    setDimensions(dims);
     setIsLoading(false);
     setError(null);
-  }, []);
+  }, [filePath]);
 
   const handleError = useCallback(() => {
     setIsLoading(false);
