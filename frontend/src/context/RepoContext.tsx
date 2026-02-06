@@ -91,6 +91,8 @@ import { GetRemotes } from '../../bindings/controlzebra/services/repositorysetti
 import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
+import { clearViewerCache } from '../lib/viewer-cache';
+import { clearAllTabStates } from '../components/viewers/l5x';
 import {
   trackRepoOpened,
   trackRepoClosed,
@@ -514,6 +516,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedCommit(null);
     setSelectedCommitFile(null);
     setCurrentDiff(null);
+    
+    // Clear viewer cache and L5X tab states when closing repo to free memory
+    clearViewerCache();
+    clearAllTabStates();
     
     try {
       await StopWatching();

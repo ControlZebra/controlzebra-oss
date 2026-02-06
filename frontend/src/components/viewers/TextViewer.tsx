@@ -6,60 +6,40 @@
  * - Scroll support for large files
  * - Loading and error states
  * - Monospace font for code readability
+ * - Content caching for tab persistence
  * 
  * Future enhancements:
  * - Syntax highlighting based on file extension
  * - Line wrapping toggle
  * - Search within file
  */
-import { memo, useState, useEffect } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import { FileText, AlertCircle } from 'lucide-react';
 import { ReadTextFile } from '../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../constants';
 import type { ViewerProps } from '../../lib/viewers';
+import { useCachedContent } from '../../lib/viewer-cache';
 
 /**
  * TextViewer component for displaying text-based files.
  * Part of the multi-viewer architecture.
+ * Uses cached content to persist across tab switches.
  */
 function TextViewer({ filePath }: ViewerProps): JSX.Element {
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadFile(): Promise<void> {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const result = await ReadTextFile(filePath);
-        if (mounted) {
-          if (result.success) {
-            setContent(result.content || '');
-          } else {
-            setError(result.error || 'Failed to read file');
-          }
-        }
-      } catch (err) {
-        if (mounted) {
-          setError(err instanceof Error ? err.message : 'Failed to read file');
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
+  // Loader function for cached content
+  const loadFile = useCallback(async (): Promise<string> => {
+    const result = await ReadTextFile(filePath);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to read file');
     }
-
-    loadFile();
-
-    return () => {
-      mounted = false;
-    };
+    return result.content || '';
   }, [filePath]);
+
+  // Use cached content - persists across tab/view switches
+  const { data: content, error, isLoading } = useCachedContent<string>(
+    filePath,
+    loadFile
+  );
 
   // Extract filename from path
   const fileName = filePath.split('/').pop() || filePath;
@@ -87,7 +67,8 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
     );
   }
 
-  const lines = content?.split('\n') || [];
+  // Memoize line splitting to avoid re-computation on re-renders
+  const lines = useMemo(() => content?.split('\n') || [], [content]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

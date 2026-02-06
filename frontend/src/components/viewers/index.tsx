@@ -116,3 +116,14 @@ export {
   getAllViewers,
   registerViewer,
 } from '../../lib/viewers';
+
+// Re-export cache utilities for viewers that need them
+export {
+  useCachedContent,
+  useMemoizedParse,
+  getCachedContent,
+  setCachedContent,
+  invalidateCachedContent,
+  clearViewerCache,
+  getCacheStats,
+} from '../../lib/viewer-cache';
