@@ -13,7 +13,7 @@
  */
 import { lazy } from 'react';
 import { FileText, Image as ImageIcon, FileQuestion, Cpu } from 'lucide-react';
-import { registerViewer, extMatch, nameMatch, anyMatch, matchAll } from './viewers';
+import { registerViewer, extMatch, nameMatch, anyMatch, magicMatch, matchAll } from './viewers';
 import TextViewer from '../components/viewers/TextViewer';
 import ImageViewer from '../components/viewers/ImageViewer';
 import UnsupportedViewer from '../components/viewers/UnsupportedViewer';
@@ -143,19 +143,15 @@ registerViewer({
 });
 
 // ============================================================================
-// Future Viewers (Commented placeholders)
+// PDF Viewer
+// Lazy loaded for code splitting (react-pdf + pdfjs-dist are large)
 // ============================================================================
-
-/*
-// PDF Viewer - Lazy loaded for code splitting
-import { FileType } from 'lucide-react';
-import { magicMatch } from './viewers';
 
 registerViewer({
   id: 'pdf',
   name: 'PDF Viewer',
-  description: 'Displays PDF documents',
-  icon: FileType,
+  description: 'Displays PDF documents with page navigation and zoom',
+  icon: FileText,
   priority: 0,
   builtIn: true,
   canHandle: anyMatch([
@@ -165,7 +161,6 @@ registerViewer({
   ]),
   component: lazy(() => import('../components/viewers/PDFViewer')),
 });
-*/
 
 // Log that viewers have been registered (helpful for debugging)
 if (import.meta.env.DEV) {
