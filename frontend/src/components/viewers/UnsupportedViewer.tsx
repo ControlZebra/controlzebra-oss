@@ -10,8 +10,9 @@
  * - Non-alarming, informative design
  * - Suggests alternative actions
  * 
+ * Note: The file header bar with "Open in Default App" is provided by ViewerRenderer.
+ * 
  * Future enhancements:
- * - "Open with system default" button
  * - File size and metadata display
  * - Hex preview for binary files
  */
@@ -43,12 +44,6 @@ function UnsupportedViewer({ filePath }: ViewerProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* File path header */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-theme-surface border-b border-theme-default text-sm text-theme-secondary">
-        <FileQuestion size={ICON_SIZES.sm} />
-        <span className="truncate">{filePath}</span>
-      </div>
-      
       {/* Content area */}
       <div className="flex-1 flex items-center justify-center bg-theme-surface">
         <div className="flex flex-col items-center text-center p-8 max-w-md">

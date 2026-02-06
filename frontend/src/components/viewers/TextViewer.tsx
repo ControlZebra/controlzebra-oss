@@ -8,6 +8,8 @@
  * - Monospace font for code readability
  * - Content caching for tab persistence
  * 
+ * Note: The file header bar with "Open in Default App" is provided by ViewerRenderer.
+ * 
  * Future enhancements:
  * - Syntax highlighting based on file extension
  * - Line wrapping toggle
@@ -73,12 +75,6 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* File path header */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-theme-surface border-b border-theme-default text-sm text-theme-secondary">
-        <FileText size={ICON_SIZES.sm} />
-        <span className="truncate">{filePath}</span>
-      </div>
-      
       {/* Content area with line numbers */}
       <div className="flex-1 overflow-auto font-mono text-sm bg-theme-surface">
         <table className="w-full border-collapse">
