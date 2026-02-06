@@ -76,6 +76,7 @@ export {
     PresetPattern,
     ProtectedBranchSettings,
     RawDiffResult,
+    ReadFileBase64Result,
     ReadTextFileResult,
     RecoveryDiagnostics,
     ReflogEntry,

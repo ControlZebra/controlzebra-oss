@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/base64"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -188,6 +189,111 @@ func (f *FileSystemService) ReadTextFile(path string) ReadTextFileResult {
 	return ReadTextFileResult{
 		Success: true,
 		Content: string(content),
+	}
+}
+
+// ReadFileBase64Result contains the result of reading a file as base64
+type ReadFileBase64Result struct {
+	Success  bool   `json:"success"`
+	Data     string `json:"data,omitempty"`     // Base64-encoded file content
+	MimeType string `json:"mimeType,omitempty"` // MIME type based on extension
+	Size     int64  `json:"size,omitempty"`     // File size in bytes
+	Error    string `json:"error,omitempty"`
+}
+
+// mimeTypeFromExt returns the MIME type for common image extensions
+func mimeTypeFromExt(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	case ".ico":
+		return "image/x-icon"
+	case ".svg":
+		return "image/svg+xml"
+	case ".tiff", ".tif":
+		return "image/tiff"
+	case ".avif":
+		return "image/avif"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// ReadFileBase64 reads a file and returns its content as base64-encoded data.
+// Useful for serving binary files (images, etc.) to the frontend webview
+// where file:// URLs are not available.
+// Limit: 50MB max file size.
+func (f *FileSystemService) ReadFileBase64(path string) ReadFileBase64Result {
+	if path == "" {
+		return ReadFileBase64Result{
+			Success: false,
+			Error:   "Path is required",
+		}
+	}
+
+	// Security: prevent directory traversal
+	cleanPath := filepath.Clean(path)
+	if strings.Contains(cleanPath, "..") {
+		return ReadFileBase64Result{
+			Success: false,
+			Error:   "Invalid path",
+		}
+	}
+
+	// Check if file exists
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return ReadFileBase64Result{
+			Success: false,
+			Error:   "File does not exist",
+		}
+	}
+
+	if info.IsDir() {
+		return ReadFileBase64Result{
+			Success: false,
+			Error:   "Path is a directory, not a file",
+		}
+	}
+
+	// Limit file size to 50MB
+	const maxSize = 50 * 1024 * 1024
+	if info.Size() > maxSize {
+		return ReadFileBase64Result{
+			Success: false,
+			Error:   "File is too large (max 50MB)",
+		}
+	}
+
+	// Read file content
+	content, err := os.ReadFile(cleanPath)
+	if err != nil {
+		return ReadFileBase64Result{
+			Success: false,
+			Error:   "Failed to read file: " + err.Error(),
+		}
+	}
+
+	// Encode to base64
+	encoded := base64.StdEncoding.EncodeToString(content)
+
+	// Determine MIME type from extension
+	ext := filepath.Ext(cleanPath)
+	mimeType := mimeTypeFromExt(ext)
+
+	return ReadFileBase64Result{
+		Success:  true,
+		Data:     encoded,
+		MimeType: mimeType,
+		Size:     info.Size(),
 	}
 }
 

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { PostHogProvider } from 'posthog-js/react';
 import './index.css';
+import 'react-photo-view/dist/react-photo-view.css';
 
 // Register built-in viewers before app renders
 // This must be imported early so viewers are available when components mount

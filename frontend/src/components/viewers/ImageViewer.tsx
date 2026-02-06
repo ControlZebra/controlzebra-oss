@@ -1,73 +1,177 @@
 /**
- * ImageViewer - Displays image files with zoom and pan support.
- * 
+ * ImageViewer - Displays image files with zoom, pan, and rotate support.
+ *
+ * Uses react-photo-view for fullscreen preview with gestures, and
+ * Go backend ReadFileBase64 to load images as data URLs (since file://
+ * URLs are not available in Wails webviews).
+ *
  * Features:
- * - Supports common image formats (PNG, JPG, GIF, WebP, SVG, BMP, ICO)
- * - Centers image with max-width/height constraints
+ * - Loads images via backend base64 encoding (works in Wails webview)
+ * - Inline preview with checkerboard transparency background
+ * - Click to open fullscreen viewer with:
+ *   - Pinch/scroll zoom
+ *   - Pan/drag
+ *   - Rotate (90° increments)
+ *   - Zoom in/out buttons
+ * - Displays image dimensions and file size
  * - Loading and error states
- * - Displays image dimensions when loaded
- * - Preserves dimensions in state across tab switches
- * 
- * Note: The file header bar with "Open in Default App" is provided by ViewerRenderer.
- * 
- * Future enhancements:
- * - Zoom controls
- * - Pan/drag support
- * - Fit/fill toggle
- * - Background color toggle (checkerboard for transparency)
+ * - Caches loaded data URLs to avoid redundant backend calls
  */
-import { memo, useState, useCallback, useMemo } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { memo, useState, useMemo, useEffect, useRef } from 'react';
+import { PhotoProvider, PhotoView } from 'react-photo-view';
+import {
+  AlertCircle,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Minimize,
+} from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
+import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../lib/viewers';
 
-// Cache for storing image dimensions by file path
-const imageDimensionsCache = new Map<string, { width: number; height: number }>();
+// ---------------------------------------------------------------------------
+// Cache – avoids re-fetching base64 when switching tabs
+// ---------------------------------------------------------------------------
 
-/**
- * ImageViewer component for displaying image files.
- * Part of the multi-viewer architecture.
- * Uses cached dimensions to preserve state across tab switches.
- */
-function ImageViewer({ filePath }: ViewerProps): JSX.Element {
-  // Check cache for existing dimensions
-  const cachedDimensions = useMemo(() => imageDimensionsCache.get(filePath), [filePath]);
-  
-  const [isLoading, setIsLoading] = useState(!cachedDimensions);
-  const [error, setError] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
-    cachedDimensions || null
+interface CachedImage {
+  dataUrl: string;
+  width: number;
+  height: number;
+  fileSize: number;
+}
+
+const imageCache = new Map<string, CachedImage>();
+
+/** Simple human-readable file size */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar Icons (used inside react-photo-view toolbar)
+// ---------------------------------------------------------------------------
+
+function ToolbarIcon({
+  children,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title?: string;
+}) {
+  return (
+    <div
+      className="PhotoView-Slider__toolbarIcon"
+      onClick={onClick}
+      title={title}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      {children}
+    </div>
   );
+}
 
-  // Extract filename from path - memoized
+// ---------------------------------------------------------------------------
+// ImageViewer Component
+// ---------------------------------------------------------------------------
+
+function ImageViewer({ filePath }: ViewerProps): JSX.Element {
+  const cached = imageCache.get(filePath);
+
+  const [dataUrl, setDataUrl] = useState<string | null>(cached?.dataUrl ?? null);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
+    cached ? { width: cached.width, height: cached.height } : null,
+  );
+  const [fileSize, setFileSize] = useState<number | null>(cached?.fileSize ?? null);
+  const [isLoading, setIsLoading] = useState(!cached);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
   const fileName = useMemo(() => filePath.split('/').pop() || filePath, [filePath]);
 
-  // Convert file path to a URL that Wails can serve - memoized
-  const imageUrl = useMemo(() => `file://${filePath}`, [filePath]);
+  // -----------------------------------------------------------------------
+  // Load image from backend
+  // -----------------------------------------------------------------------
 
-  const handleLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = event.currentTarget;
-    const dims = {
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-    };
-    // Cache dimensions for this file path
-    imageDimensionsCache.set(filePath, dims);
-    setDimensions(dims);
-    setIsLoading(false);
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // Already cached – skip backend call
+    if (imageCache.has(filePath)) {
+      const c = imageCache.get(filePath)!;
+      setDataUrl(c.dataUrl);
+      setDimensions({ width: c.width, height: c.height });
+      setFileSize(c.fileSize);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
     setError(null);
+
+    ReadFileBase64(filePath)
+      .then((result) => {
+        if (!mountedRef.current) return;
+
+        if (!result.success) {
+          setError(result.error || 'Failed to load image');
+          setIsLoading(false);
+          return;
+        }
+
+        const url = `data:${result.mimeType};base64,${result.data}`;
+        setDataUrl(url);
+        setFileSize(result.size ?? 0);
+
+        // Decode to get natural dimensions
+        const img = new Image();
+        img.onload = () => {
+          if (!mountedRef.current) return;
+          const dims = { width: img.naturalWidth, height: img.naturalHeight };
+          setDimensions(dims);
+          setIsLoading(false);
+
+          // Cache for tab-switch performance
+          imageCache.set(filePath, {
+            dataUrl: url,
+            width: dims.width,
+            height: dims.height,
+            fileSize: result.size ?? 0,
+          });
+        };
+        img.onerror = () => {
+          if (!mountedRef.current) return;
+          setError('Image data is corrupted or unsupported.');
+          setIsLoading(false);
+        };
+        img.src = url;
+      })
+      .catch((err) => {
+        if (!mountedRef.current) return;
+        setError(`Failed to read file: ${err?.message || err}`);
+        setIsLoading(false);
+      });
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [filePath]);
 
-  const handleError = useCallback(() => {
-    setIsLoading(false);
-    setError('Failed to load image. The file may be corrupted or inaccessible.');
-  }, []);
+  // -----------------------------------------------------------------------
+  // Error state
+  // -----------------------------------------------------------------------
 
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-3">
         <AlertCircle size={ICON_SIZES.lg} className="text-red-400" />
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <p className="text-theme-primary font-medium mb-1">Cannot display image</p>
           <p className="text-sm">{error}</p>
           <p className="text-xs text-theme-muted mt-2">{fileName}</p>
@@ -76,46 +180,83 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
     );
   }
 
+  // -----------------------------------------------------------------------
+  // Loading state
+  // -----------------------------------------------------------------------
+
+  if (isLoading || !dataUrl) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <Loader2 size={ICON_SIZES.lg} className="animate-spin text-theme-secondary" />
+        <span className="text-sm text-theme-muted">Loading {fileName}…</span>
+      </div>
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Loaded – render preview + fullscreen viewer
+  // -----------------------------------------------------------------------
+
+  const metaParts: string[] = [];
+  if (dimensions) metaParts.push(`${dimensions.width} × ${dimensions.height}`);
+  if (fileSize != null) metaParts.push(formatFileSize(fileSize));
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Dimensions info bar */}
-      {dimensions && (
-        <div className="flex items-center justify-end px-4 py-1 bg-theme-surface border-b border-theme-default text-xs text-theme-muted">
-          {dimensions.width} × {dimensions.height}
+      {/* Metadata bar */}
+      {metaParts.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-1.5 bg-theme-surface border-b border-theme-default text-xs text-theme-muted shrink-0">
+          <span>{metaParts.join('  •  ')}</span>
+          <span className="text-theme-muted/60">Click image to preview</span>
         </div>
       )}
-      
+
       {/* Image display area */}
-      <div className="flex-1 overflow-auto bg-theme-surface flex items-center justify-center p-4">
-        {/* Checkerboard background for transparency */}
-        <div 
-          className="relative"
-          style={{
-            backgroundImage: 'linear-gradient(45deg, #404040 25%, transparent 25%), linear-gradient(-45deg, #404040 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #404040 75%), linear-gradient(-45deg, transparent 75%, #404040 75%)',
-            backgroundSize: '16px 16px',
-            backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
-          }}
-        >
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-theme-surface/80 z-10">
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 size={ICON_SIZES.lg} className="animate-spin text-theme-secondary" />
-                <span className="text-sm text-theme-muted">Loading {fileName}...</span>
-              </div>
-            </div>
+      <div className="flex-1 overflow-auto flex items-center justify-center p-6">
+        <PhotoProvider
+          maskOpacity={0.92}
+          toolbarRender={({ scale, onScale, rotate, onRotate }) => (
+            <>
+              <ToolbarIcon onClick={() => onScale(scale + 0.5)} title="Zoom in">
+                <ZoomIn size={18} />
+              </ToolbarIcon>
+              <ToolbarIcon onClick={() => onScale(scale - 0.5)} title="Zoom out">
+                <ZoomOut size={18} />
+              </ToolbarIcon>
+              <ToolbarIcon onClick={() => onScale(1)} title="Actual size">
+                <Minimize size={18} />
+              </ToolbarIcon>
+              <ToolbarIcon onClick={() => onRotate(rotate + 90)} title="Rotate 90°">
+                <RotateCw size={18} />
+              </ToolbarIcon>
+            </>
           )}
-          <img
-            src={imageUrl}
-            alt={fileName}
-            onLoad={handleLoad}
-            onError={handleError}
-            className="max-w-full max-h-[calc(100vh-200px)] object-contain"
-            style={{
-              // Ensure crisp rendering for pixel art / small images
-              imageRendering: dimensions && dimensions.width < 200 ? 'pixelated' : 'auto',
-            }}
-          />
-        </div>
+        >
+          <PhotoView src={dataUrl}>
+            {/* Inline clickable preview */}
+            <div
+              className="relative cursor-zoom-in rounded-md overflow-hidden border border-theme-default shadow-lg"
+              style={{
+                // Checkerboard transparency pattern
+                backgroundImage:
+                  'linear-gradient(45deg, #404040 25%, transparent 25%), linear-gradient(-45deg, #404040 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #404040 75%), linear-gradient(-45deg, transparent 75%, #404040 75%)',
+                backgroundSize: '16px 16px',
+                backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
+              }}
+            >
+              <img
+                src={dataUrl}
+                alt={fileName}
+                className="max-w-full max-h-[calc(100vh-220px)] object-contain block"
+                style={{
+                  imageRendering:
+                    dimensions && dimensions.width < 200 ? 'pixelated' : 'auto',
+                }}
+                draggable={false}
+              />
+            </div>
+          </PhotoView>
+        </PhotoProvider>
       </div>
     </div>
   );

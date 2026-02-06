@@ -2210,6 +2210,46 @@ export class RawDiffResult {
 }
 
 /**
+ * ReadFileBase64Result contains the result of reading a file as base64
+ */
+export class ReadFileBase64Result {
+    "success": boolean;
+
+    /**
+     * Base64-encoded file content
+     */
+    "data"?: string;
+
+    /**
+     * MIME type based on extension
+     */
+    "mimeType"?: string;
+
+    /**
+     * File size in bytes
+     */
+    "size"?: number;
+    "error"?: string;
+
+    /** Creates a new ReadFileBase64Result instance. */
+    constructor($$source: Partial<ReadFileBase64Result> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ReadFileBase64Result instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ReadFileBase64Result {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ReadFileBase64Result($$parsedSource as Partial<ReadFileBase64Result>);
+    }
+}
+
+/**
  * ReadTextFileResult contains the result of reading a text file
  */
 export class ReadTextFileResult {
