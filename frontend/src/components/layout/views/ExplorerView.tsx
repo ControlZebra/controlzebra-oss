@@ -11,9 +11,9 @@
  */
 import { memo, useState, useCallback, useMemo, type CSSProperties } from 'react';
 import { FolderOpen } from 'lucide-react';
-import { MAIN_BRANCHES } from '../../../constants';
+import { MAIN_BRANCHES, VIEWS } from '../../../constants';
 import { ICON_STYLES } from '../../../lib/gitHelpers';
-import { useRepo, type FileStatus } from '../../../context';
+import { useLayout, useRepo, type FileStatus } from '../../../context';
 import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
 import { Button } from '../../ui';
 import { SidebarCommitPanel, ExplorerStatusPanel } from '../sidebar-panels';
@@ -42,6 +42,7 @@ interface DeviceFlowState {
 // ============================================================================
 
 function ExplorerView(): JSX.Element {
+  const { setActiveView, setSidebarCollapsed } = useLayout();
   const { 
     repoPath, 
     repoInfo,
@@ -166,6 +167,11 @@ function ExplorerView(): JSX.Element {
     }
   }, [repoPath, publishToGitHub, refreshRemotes]);
 
+  const handleOpenCombineChanges = useCallback((): void => {
+    setActiveView(VIEWS.MERGE_CHANGES);
+    setSidebarCollapsed(false);
+  }, [setActiveView, setSidebarCollapsed]);
+
   // No folder open - show open folder prompt
   if (panelState.type === 'noFolder') {
     return (
@@ -220,6 +226,7 @@ function ExplorerView(): JSX.Element {
         onSync={syncRepo}
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
+        onOpenCombineChanges={handleOpenCombineChanges}
         onLoadOrganizations={loadUserOrganizations}
         isLoading={isLoading}
         isSyncing={isSyncing}

@@ -13,7 +13,7 @@
  */
 import { memo, useCallback, useState, useEffect, useMemo, type CSSProperties, type ChangeEvent } from 'react';
 import {
-  GitMerge,
+  Merge,
   Search,
   Loader2,
   CheckCircle2,
@@ -143,9 +143,9 @@ const CheckPanel = memo(function CheckPanel({
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="text-center max-w-md w-full">
-        <GitMerge style={iconLg} className="text-blue-400 mx-auto mb-4" />
+        <Merge style={iconLg} className="text-blue-400 mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          Combine Versions
+          Merge changes
         </h2>
         <p className="text-theme-muted text-sm mb-6">
           Merge your changes from <span className="text-blue-400 font-medium">{currentBranch}</span> into another branch.

@@ -14,9 +14,10 @@ import { memo, useState, useEffect, useCallback, useMemo, type CSSProperties, ty
 import { 
   AlertTriangle, 
   CheckCircle2, 
-  Save, 
   GitBranch,
-  GitPullRequest,
+  Merge,
+  CloudUpload,
+  CloudCheck,
   Cloud,
   Upload,
   Github,
@@ -38,7 +39,6 @@ import {
   type SelectOption,
 } from '../../ui';
 import { cn } from '../../../lib/utils';
-import { toast } from 'sonner';
 import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../../context/RepoContext.types';
 
 // ============================================================================
@@ -73,6 +73,7 @@ interface ExplorerStatusPanelProps {
   onSync?: () => void;
   onConnectGitHub?: () => void;
   onPublishToGitHub?: (name: string, isPrivate: boolean, owner: string) => Promise<void>;
+  onOpenCombineChanges?: () => void;
   onLoadOrganizations?: () => Promise<GitHubOrganizationsResult>;
   isLoading?: boolean;
   isSyncing?: boolean;
@@ -98,12 +99,12 @@ const PANEL_CONFIGS: Record<StatusType, PanelConfig> = {
     iconColor: 'text-green-400',
   },
   push: {
-    Icon: Save,
+    Icon: CloudUpload,
     iconBg: 'bg-blue-500/10',
     iconColor: 'text-blue-400',
   },
   featureBranch: {
-    Icon: CheckCircle2,
+    Icon: CloudCheck,
     iconBg: 'bg-green-500/10',
     iconColor: 'text-green-400',
   },
@@ -148,6 +149,7 @@ function ExplorerStatusPanel({
   onSync,
   onConnectGitHub,
   onPublishToGitHub,
+  onOpenCombineChanges,
   onLoadOrganizations,
   isLoading = false,
   isSyncing = false,
@@ -157,12 +159,16 @@ function ExplorerStatusPanel({
 }: ExplorerStatusPanelProps): JSX.Element {
   // State for publish form
   const defaultRepoName = repoPath?.split('/').pop() || 'my-repo';
-  const [repoName, setRepoName] = useState(defaultRepoName);
   const [isPrivate, setIsPrivate] = useState(true);
   const [selectedOwner, setSelectedOwner] = useState<string>('');
-  const [organizations, setOrganizations] = useState<GitHubOrganization[]>([]);
   const [username, setUsername] = useState<string>('');
+  const [organizations, setOrganizations] = useState<GitHubOrganization[]>([]);
+  const [repoName, setRepoName] = useState(defaultRepoName);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
+
+  const handleOpenCombineChanges = useCallback((): void => {
+    onOpenCombineChanges?.();
+  }, [onOpenCombineChanges]);
 
   // Load organizations when authenticated and in publish mode
   useEffect(() => {
@@ -197,10 +203,6 @@ function ExplorerStatusPanel({
       await onPublishToGitHub(repoName, isPrivate, owner);
     }
   }, [onPublishToGitHub, repoName, isPrivate, selectedOwner, username]);
-
-  const handleCreateMergeRequest = (): void => {
-    toast.info('Merge request creation coming soon!');
-  };
 
   // Memoized options for the owner Select component
   const ownerOptions = useMemo((): SelectOption[] => {
@@ -249,7 +251,6 @@ function ExplorerStatusPanel({
               onClick={onSync} 
               loading={isSyncing} 
               size="sm"
-              variant="secondary"
               className="w-full"
             >
               {hasUpstream ? (
@@ -395,13 +396,12 @@ function ExplorerStatusPanel({
           subtitle={<><span>{branchName}</span> is up to date</>}
         >
           <Button 
-            onClick={handleCreateMergeRequest}
+            onClick={handleOpenCombineChanges}
             size="sm"
-            variant="outline"
             className="w-full"
           >
-            <GitPullRequest style={ICON_STYLES.sm as CSSProperties} />
-            Merge Request
+            <Merge style={ICON_STYLES.sm as CSSProperties} />
+            I am ready to merge
           </Button>
         </PanelLayout>
       );

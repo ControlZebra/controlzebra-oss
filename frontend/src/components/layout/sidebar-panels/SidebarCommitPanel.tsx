@@ -7,7 +7,7 @@ import {
   FileText,
   Trash2,
   ChevronDown,
-  GitBranch,
+  GitBranchPlus,
 } from 'lucide-react';
 import { FILE_STATUS, isProtectedBranch, type FileStatusType } from '../../../constants';
 import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName } from '../../../lib/gitHelpers';
@@ -187,9 +187,10 @@ function SidebarCommitPanel({
                 disabled={!message.trim() || isCommitting} 
                 loading={isCommitting}
                 size="sm"
+                variant="default"
                 className="flex-1"
               >
-                <GitBranch style={ICON_STYLES.xs as CSSProperties} />
+                <GitBranchPlus style={ICON_STYLES.xs as CSSProperties} />
                 Branch & Save
               </Button>
               <DropdownMenu>
@@ -216,6 +217,7 @@ function SidebarCommitPanel({
               disabled={!message.trim()} 
               loading={isCommitting}
               size="sm"
+              variant="default"
               className="flex-1"
             >
               Save
