@@ -36,6 +36,19 @@
   /* Accents */
   --color-accent-primary: theme(colors.blue.600);
   --color-accent-primary-hover: theme(colors.blue.700);
+  --color-accent-muted: theme(colors.blue.600);
+  --color-accent-subtle: theme(colors.blue.600/60);
+  --color-accent-bg: theme(colors.blue.500/10);
+  --color-accent-border: theme(colors.blue.500/30);
+  --color-accent-border-strong: theme(colors.blue.500);
+  
+  /* Warning / Amber */
+  --color-warning: theme(colors.amber.600);
+  --color-warning-muted: theme(colors.amber.700);
+  --color-warning-subtle: theme(colors.amber.600/60);
+  --color-warning-bg: theme(colors.amber.500/10);
+  --color-warning-border: theme(colors.amber.400/30);
+  --color-warning-border-strong: theme(colors.amber.500);
   
   /* File Browser - (light mode) */
   --color-fb-base: theme(colors.white);
@@ -74,6 +87,19 @@
   /* Accents */
   --color-accent-primary: theme(colors.blue.500);
   --color-accent-primary-hover: theme(colors.blue.400);
+  --color-accent-muted: theme(colors.blue.400);
+  --color-accent-subtle: theme(colors.blue.400/60);
+  --color-accent-bg: theme(colors.blue.500/10);
+  --color-accent-border: theme(colors.blue.500/30);
+  --color-accent-border-strong: theme(colors.blue.500);
+  
+  /* Warning / Amber */
+  --color-warning: theme(colors.orange.400);
+  --color-warning-muted: theme(colors.orange.400);
+  --color-warning-subtle: theme(colors.orange.400/60);
+  --color-warning-bg: theme(colors.orange.500/10);
+  --color-warning-border: theme(colors.orange.500/30);
+  --color-warning-border-strong: theme(colors.orange.500);
   
   /* File Browser - (dark mode) */
   --color-fb-base: theme(colors.neutral.900);
@@ -190,6 +216,10 @@
   background-color: var(--color-bg-base);
 }
 
+@utility bg-theme-base-50 {
+  background-color: color-mix(in srgb, var(--color-bg-base) 50%, transparent);
+}
+
 @utility bg-theme-surface {
   background-color: var(--color-bg-surface);
 }
@@ -243,6 +273,56 @@
 
 @utility bg-theme-hover {
   background-color: var(--color-interactive-hover);
+}
+
+/* Warning / Amber theme utilities */
+@utility text-theme-accent {
+  color: var(--color-accent-primary);
+}
+
+@utility text-theme-accent-muted {
+  color: var(--color-accent-muted);
+}
+
+@utility text-theme-accent-subtle {
+  color: var(--color-accent-subtle);
+}
+
+@utility bg-theme-accent {
+  background-color: var(--color-accent-bg);
+}
+
+@utility border-theme-accent {
+  border-color: var(--color-accent-border);
+}
+
+@utility border-theme-accent-strong {
+  border-color: var(--color-accent-border-strong);
+}
+
+/* Warning / Amber theme utilities */
+@utility text-theme-warning {
+  color: var(--color-warning);
+}
+
+@utility text-theme-warning-muted {
+  color: var(--color-warning-muted);
+}
+
+@utility text-theme-warning-subtle {
+  color: var(--color-warning-subtle);
+}
+
+@utility bg-theme-warning {
+  background-color: var(--color-warning-bg);
+}
+
+@utility border-theme-warning {
+  border-color: var(--color-warning-border);
+}
+
+@utility border-theme-warning-strong {
+  border-color: var(--color-warning-border-strong);
 }
 
 /* File Browser specific utilities */

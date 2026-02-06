@@ -3777,7 +3777,7 @@ func (g *GitService) GetConflictSidesInfo(repoPath string, parentBranch string) 
 	result := ConflictSidesInfo{}
 
 	// Get "ours" commit info (HEAD)
-	oursFormat := "%H|%an|%ci|%s"
+	oursFormat := "%H|%an|%cI|%s"
 	oursResult := g.runner.RunGit(repoPath, "log", "-1", "--pretty=format:"+oursFormat, "HEAD")
 	if oursResult.Success {
 		parts := strings.SplitN(trimOutput(oursResult.Stdout), "|", 4)
