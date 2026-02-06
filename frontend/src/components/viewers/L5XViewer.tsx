@@ -102,9 +102,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   // Tab management - internal to L5X viewer, cached by filePath
   const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
 
-  // Track if we've auto-opened the first tab for this file
-  const autoOpenedRef = React.useRef<string | null>(null);
-
   // Get theme from LayoutContext for reactive updates
   const { theme } = useLayout();
   
@@ -149,31 +146,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       registerAOIsFromController(controller);
     }
   }, [controller]);
-
-  // Auto-open first viewable routine when controller loads (only once per file, and only if no tabs from cache)
-  useEffect(() => {
-    // Skip if we already have tabs (from cache) or already auto-opened for this file
-    if (tabs.length > 0 || !controller || autoOpenedRef.current === filePath) {
-      return;
-    }
-    
-    autoOpenedRef.current = filePath;
-    
-    // Find and open first viewable routine
-    for (let pIdx = 0; pIdx < controller.programs.length; pIdx++) {
-      const program = controller.programs[pIdx];
-      for (let rIdx = 0; rIdx < program.routines.length; rIdx++) {
-        const routine = program.routines[rIdx];
-        if (routine.type === 'RLL' || routine.type === 'ST') {
-          openTab(
-            { type: 'routine', programIndex: pIdx, routineIndex: rIdx },
-            routine.name
-          );
-          return;
-        }
-      }
-    }
-  }, [controller, filePath, openTab, tabs.length]);
 
   // Toggle navigator visibility
   const toggleNavigator = useCallback(() => {
