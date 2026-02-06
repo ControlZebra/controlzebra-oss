@@ -35,6 +35,12 @@ function ExplorerPage(): JSX.Element {
     setIsOpeningFolder(false);
   }, [openRepo]);
 
+  // Memoize file tabs - must be called before any conditional returns (Rules of Hooks)
+  const fileTabs = useMemo(() => 
+    explorerTabs.filter(tab => tab.type === 'file' && tab.filePath),
+    [explorerTabs]
+  );
+
   // No folder open - show welcome screen
   if (!repoPath) {
     return (
@@ -46,18 +52,12 @@ function ExplorerPage(): JSX.Element {
     );
   }
 
-  // Memoize file tabs to avoid recalculating on each render
-  const fileTabs = useMemo(() => 
-    explorerTabs.filter(tab => tab.type === 'file' && tab.filePath),
-    [explorerTabs]
-  );
-
   // Check if file browser is active
   const isFileBrowserActive = activeExplorerTab === 'file-browser';
 
-  // Render all file tabs (mounted but hidden when not active) to preserve state
+  // Memoize rendered file tabs to avoid recreating elements on every render
   // This keeps viewer components mounted and their caches intact
-  const renderFileTabs = (): JSX.Element[] => {
+  const renderedFileTabs = useMemo(() => {
     return fileTabs.map(tab => {
       const viewer = tab.viewerId 
         ? getViewerById(tab.viewerId)
@@ -70,14 +70,14 @@ function ExplorerPage(): JSX.Element {
       return (
         <div 
           key={tab.id} 
-          className={`h-full ${isActive ? '' : 'hidden'}`}
+          className="h-full"
           style={{ display: isActive ? 'block' : 'none' }}
         >
           <ViewerRenderer viewer={viewer} filePath={tab.filePath} />
         </div>
       );
     }).filter(Boolean) as JSX.Element[];
-  };
+  }, [fileTabs, activeExplorerTab]);
 
   // Folder open - show tabs and content
   // Render file browser and all file tabs, showing only the active one
@@ -87,14 +87,14 @@ function ExplorerPage(): JSX.Element {
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {/* File browser - always mounted, shown when active */}
         <div 
-          className={`h-full ${isFileBrowserActive ? '' : 'hidden'}`}
+          className="h-full"
           style={{ display: isFileBrowserActive ? 'block' : 'none' }}
         >
           <SimpleFileBrowser repoPath={repoPath} />
         </div>
         
         {/* All file tabs - mounted but hidden when not active */}
-        {renderFileTabs()}
+        {renderedFileTabs}
       </div>
     </div>
   );
