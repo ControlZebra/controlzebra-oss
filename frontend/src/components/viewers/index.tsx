@@ -128,6 +128,7 @@ export type { ViewerHeaderProps } from './ViewerHeader';
 export { default as TextViewer } from './TextViewer';
 export { default as ImageViewer } from './ImageViewer';
 export { default as UnsupportedViewer } from './UnsupportedViewer';
+// PDFViewer is lazy-loaded via the registry, not eagerly exported
 
 // Re-export types from lib/viewers for convenience
 export type { ViewerProps, ViewerConfig } from '../../lib/viewers';

@@ -29,6 +29,10 @@ export default defineConfig({
           if (id.includes('ladder-visualizer')) {
             return 'vendor-ladder';
           }
+          // PDF viewer (react-pdf + pdfjs-dist)
+          if (id.includes('react-pdf') || id.includes('pdfjs-dist')) {
+            return 'vendor-pdf';
+          }
           // React core
           if (id.includes('node_modules/react-dom')) {
             return 'vendor-react-dom';
