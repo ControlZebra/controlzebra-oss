@@ -9,7 +9,7 @@
  * Viewers are matched by priority (highest first). The first viewer
  * whose `canHandle()` returns true will be used for a file.
  */
-import type { ComponentType, LazyExoticComponent, ReactElement } from 'react';
+import type { ComponentType, LazyExoticComponent } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 // ============================================================================

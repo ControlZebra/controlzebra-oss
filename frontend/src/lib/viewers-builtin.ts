@@ -11,7 +11,8 @@
  * - Use negative for fallback viewers
  * - Use positive for preferred/specialized viewers
  */
-import { FileText, Image as ImageIcon, FileQuestion } from 'lucide-react';
+import { lazy } from 'react';
+import { FileText, Image as ImageIcon, FileQuestion, Cpu } from 'lucide-react';
 import { registerViewer, extMatch, nameMatch, anyMatch, matchAll } from './viewers';
 import TextViewer from '../components/viewers/TextViewer';
 import ImageViewer from '../components/viewers/ImageViewer';
@@ -106,6 +107,25 @@ registerViewer({
 });
 
 // ============================================================================
+// L5X/Industrial File Viewer
+// Handles Rockwell Automation L5X ladder logic files
+// ============================================================================
+
+/** Extensions handled by the L5X viewer */
+const L5X_EXTENSIONS = ['l5x', 'l5k'];
+
+registerViewer({
+  id: 'l5x-ladder',
+  name: 'Ladder Logic Viewer',
+  description: 'Displays Rockwell Automation L5X ladder logic',
+  icon: Cpu,
+  priority: 10, // Higher priority than text for .l5x files
+  builtIn: true,
+  canHandle: extMatch(L5X_EXTENSIONS),
+  component: lazy(() => import('../components/viewers/L5XViewer')),
+});
+
+// ============================================================================
 // Unsupported Viewer (Fallback)
 // Catches all files not handled by other viewers
 // ============================================================================
@@ -127,8 +147,8 @@ registerViewer({
 
 /*
 // PDF Viewer - Lazy loaded for code splitting
-import { lazy } from 'react';
 import { FileType } from 'lucide-react';
+import { magicMatch } from './viewers';
 
 registerViewer({
   id: 'pdf',
@@ -143,21 +163,6 @@ registerViewer({
     magicMatch([[0x25, 0x50, 0x44, 0x46]]),
   ]),
   component: lazy(() => import('../components/viewers/PDFViewer')),
-});
-*/
-
-/*
-// Industrial File Viewers - L5X, ACD, etc.
-// These would be registered by the ladder-visualizer integration
-registerViewer({
-  id: 'l5x-ladder',
-  name: 'Ladder Logic Viewer',
-  description: 'Displays Rockwell Automation L5X ladder logic',
-  icon: Cpu,
-  priority: 10, // Higher priority than text for .l5x files
-  builtIn: true,
-  canHandle: extMatch(['l5x']),
-  component: lazy(() => import('../components/viewers/L5XViewer')),
 });
 */
 

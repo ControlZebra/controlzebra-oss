@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Import ladder-visualizer base styles - required for L5X viewer */
+@import "ladder-visualizer/dist/styles/index.css";
 
 /* ============================================================================
    THEME CONFIGURATION
@@ -82,6 +84,103 @@
   --color-fb-sidebar: theme(colors.neutral.800);
   --color-fb-toolbar: theme(colors.neutral.900);
   --color-fb-breadcrumb: theme(colors.neutral.900);
+}
+
+/* ============================================================================
+   LADDER-VISUALIZER CSS VARIABLE OVERRIDES
+   Maps ControlZebra's theme to ladder-visualizer CSS variables.
+   ============================================================================ */
+
+/* Light mode ladder-visualizer variables */
+:root {
+  /* Ladder diagram colors */
+  --ladder-power-rail-color: theme(colors.blue.600);
+  --ladder-wire-color: theme(colors.neutral.600);
+  --ladder-contact-color: theme(colors.neutral.700);
+  --ladder-contact-nc-color: theme(colors.red.600);
+  --ladder-coil-color: theme(colors.neutral.700);
+  --ladder-box-border-color: theme(colors.neutral.400);
+  --ladder-box-bg-color: theme(colors.white);
+  --ladder-box-text-color: theme(colors.neutral.800);
+  --ladder-box-label-color: theme(colors.neutral.700);
+  --ladder-rung-number-bg: theme(colors.neutral.100);
+  --ladder-rung-number-color: theme(colors.neutral.500);
+  --ladder-branch-connector-color: theme(colors.neutral.600);
+  
+  /* Table colors */
+  --table-header-bg: linear-gradient(180deg, theme(colors.neutral.100) 0%, theme(colors.neutral.200) 100%);
+  --table-header-text: theme(colors.neutral.700);
+  --table-header-border: theme(colors.neutral.300);
+  --table-cell-bg: theme(colors.white);
+  --table-cell-text: theme(colors.neutral.700);
+  --table-cell-border: theme(colors.neutral.200);
+  --table-row-alt-bg: theme(colors.neutral.50);
+  --table-row-hover-bg: theme(colors.blue.50);
+  
+  /* Navigator colors */
+  --navigator-bg: theme(colors.white);
+  --navigator-text: theme(colors.neutral.700);
+  --navigator-text-secondary: theme(colors.neutral.500);
+  --navigator-border: theme(colors.neutral.200);
+  --navigator-item-hover-bg: theme(colors.neutral.100);
+  --navigator-item-selected-bg: theme(colors.blue.50);
+  --navigator-item-selected-border: theme(colors.blue.500);
+  --navigator-badge-bg: theme(colors.neutral.100);
+  --navigator-badge-text: theme(colors.neutral.600);
+  
+  /* General UI colors */
+  --lv-bg-primary: theme(colors.white);
+  --lv-bg-secondary: theme(colors.neutral.50);
+  --lv-text-primary: theme(colors.neutral.700);
+  --lv-text-secondary: theme(colors.neutral.500);
+  --lv-border-default: theme(colors.neutral.200);
+  --lv-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --lv-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Dark mode ladder-visualizer variables */
+.dark {
+  /* Ladder diagram colors */
+  --ladder-power-rail-color: theme(colors.blue.400);
+  --ladder-wire-color: theme(colors.neutral.400);
+  --ladder-contact-color: theme(colors.neutral.300);
+  --ladder-contact-nc-color: theme(colors.red.400);
+  --ladder-coil-color: theme(colors.neutral.300);
+  --ladder-box-border-color: theme(colors.neutral.600);
+  --ladder-box-bg-color: theme(colors.neutral.800);
+  --ladder-box-text-color: theme(colors.neutral.200);
+  --ladder-box-label-color: theme(colors.neutral.300);
+  --ladder-rung-number-bg: theme(colors.neutral.800);
+  --ladder-rung-number-color: theme(colors.neutral.500);
+  --ladder-branch-connector-color: theme(colors.neutral.400);
+  
+  /* Table colors */
+  --table-header-bg: linear-gradient(180deg, theme(colors.neutral.800) 0%, theme(colors.neutral.700) 100%);
+  --table-header-text: theme(colors.neutral.200);
+  --table-header-border: theme(colors.neutral.600);
+  --table-cell-bg: theme(colors.neutral.900);
+  --table-cell-text: theme(colors.neutral.300);
+  --table-cell-border: theme(colors.neutral.700);
+  --table-row-alt-bg: theme(colors.neutral.800);
+  --table-row-hover-bg: theme(colors.neutral.700);
+  
+  /* Navigator colors */
+  --navigator-bg: theme(colors.neutral.900);
+  --navigator-text: theme(colors.neutral.200);
+  --navigator-text-secondary: theme(colors.neutral.400);
+  --navigator-border: theme(colors.neutral.700);
+  --navigator-item-hover-bg: theme(colors.neutral.800);
+  --navigator-item-selected-bg: theme(colors.blue.900/50);
+  --navigator-item-selected-border: theme(colors.blue.500);
+  --navigator-badge-bg: theme(colors.neutral.700);
+  --navigator-badge-text: theme(colors.neutral.400);
+  
+  /* General UI colors */
+  --lv-bg-primary: theme(colors.neutral.900);
+  --lv-bg-secondary: theme(colors.neutral.800);
+  --lv-text-primary: theme(colors.neutral.200);
+  --lv-text-secondary: theme(colors.neutral.400);
+  --lv-border-default: theme(colors.neutral.700);
 }
 
 /* Theme utility classes using CSS variables */
