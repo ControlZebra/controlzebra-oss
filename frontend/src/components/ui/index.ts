@@ -44,6 +44,7 @@ export { default as ProgressModal } from "./progress-modal";
 export { Select, ToggleGroup, type SelectOption, type ToggleGroupOption } from "./select";
 export { Switch } from "./switch";
 export { Textarea } from "./textarea";
+export { default as UndoLastSaveDialog } from './UndoLastSaveDialog';
 export { Toaster } from "./sonner";
 export {
   Tooltip,

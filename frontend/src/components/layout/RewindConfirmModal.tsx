@@ -22,7 +22,7 @@ interface RewindConfirmModalProps {
 // Constants
 // ============================================================================
 
-const CONFIRMATION_WORD = 'Rewind';
+const CONFIRMATION_WORD = 'Delete';
 
 // ============================================================================
 // Component
@@ -82,19 +82,19 @@ function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: Rew
               />
             </div>
             <h2 className="text-lg font-semibold text-theme-primary">
-              Rewind Changes?
+              Delete Uncommitted Changes?
             </h2>
           </div>
 
           {/* Content */}
           <div className="px-6 py-4 space-y-4">
             <p className="text-sm text-theme-secondary">
-              This action will permanently discard all uncommitted changes and return your files to the last saved snapshot.
+              This will permanently delete all uncommitted changes and restore files to the last saved snapshot.
             </p>
             
             <div className="p-3 rounded bg-red-500/10 border border-red-500/30">
               <p className="text-sm text-red-400 font-medium">
-                ⚠️ This cannot be undone. All unsaved work will be lost.
+                ⚠️ This cannot be undone. Any work not saved in a commit will be lost.
               </p>
             </div>
 
@@ -128,7 +128,7 @@ function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: Rew
               disabled={!isConfirmEnabled}
               loading={isLoading}
             >
-              Rewind
+              Delete Changes
             </Button>
           </div>
         </div>
