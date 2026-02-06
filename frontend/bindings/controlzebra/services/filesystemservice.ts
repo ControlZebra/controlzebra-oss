@@ -77,11 +77,23 @@ export function OpenURL(url: string): $CancellablePromise<$models.OpenFileResult
 }
 
 /**
+ * ReadFileBase64 reads a file and returns its content as base64-encoded data.
+ * Useful for serving binary files (images, etc.) to the frontend webview
+ * where file:// URLs are not available.
+ * Limit: 50MB max file size.
+ */
+export function ReadFileBase64(path: string): $CancellablePromise<$models.ReadFileBase64Result> {
+    return $Call.ByID(894044062, path).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
  * ReadTextFile reads the content of a text file
  */
 export function ReadTextFile(path: string): $CancellablePromise<$models.ReadTextFileResult> {
     return $Call.ByID(3246798046, path).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -97,4 +109,5 @@ export function RevealInFinder(path: string): $CancellablePromise<$models.OpenFi
 // Private type creation functions
 const $$createType0 = $models.OpenFileResult.createFrom;
 const $$createType1 = $models.DirectoryContents.createFrom;
-const $$createType2 = $models.ReadTextFileResult.createFrom;
+const $$createType2 = $models.ReadFileBase64Result.createFrom;
+const $$createType3 = $models.ReadTextFileResult.createFrom;
