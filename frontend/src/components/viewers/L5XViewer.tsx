@@ -15,13 +15,14 @@
  * 
  * Supports both light and dark themes via CSS custom properties.
  */
-import React, { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../constants';
 import { useLayout } from '../../context/LayoutContext';
 import type { ViewerProps } from '../../lib/viewers';
 import { useCachedContent } from '../../lib/viewer-cache';
+import { ViewerHeader } from './ViewerHeader';
 
 // Import ladder-visualizer components and parsers
 import {
@@ -501,11 +502,8 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-theme-surface border-b border-theme-default text-sm">
-        <Cpu size={ICON_SIZES.sm} className="text-theme-secondary" />
-        <span className="text-theme-secondary truncate flex-1">{filePath}</span>
-      </div>
+      {/* Header toolbar with file path and Open in Default App */}
+      <ViewerHeader filePath={filePath} icon={Cpu} />
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">

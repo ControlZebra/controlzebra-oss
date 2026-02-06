@@ -3,12 +3,14 @@
  * 
  * This module provides:
  * - ViewerRenderer: The main component that renders viewers with Suspense + ErrorBoundary
+ * - ViewerHeader: Common header bar with file path and "Open in Default App" button
  * - ViewerErrorBoundary: Exported for custom error boundary usage
  * - Re-exports of types from lib/viewers
  */
 import { memo, Suspense, type ReactElement } from 'react';
 import { Loader2 } from 'lucide-react';
 import ViewerErrorBoundary from './ViewerErrorBoundary';
+import { ViewerHeader } from './ViewerHeader';
 import type { ViewerConfig, ViewerProps } from '../../lib/viewers';
 import { ICON_SIZES } from '../../constants';
 
@@ -50,6 +52,8 @@ interface ViewerRendererProps {
   contentPeek?: Uint8Array;
   /** Optional callback when viewer errors */
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  /** Whether to show the common header bar (default: true) */
+  showHeader?: boolean;
 }
 
 /**
@@ -58,7 +62,8 @@ interface ViewerRendererProps {
  * This component:
  * 1. Wraps the viewer in Suspense for lazy-loaded components
  * 2. Wraps in ErrorBoundary to catch crashes
- * 3. Passes standard ViewerProps to the viewer component
+ * 3. Adds a common header bar with file path and "Open in Default App" button
+ * 4. Passes standard ViewerProps to the viewer component
  * 
  * @example
  * const viewer = getViewerForFile('readme.md');
@@ -71,6 +76,7 @@ function ViewerRendererInner({
   filePath, 
   contentPeek,
   onError,
+  showHeader = true,
 }: ViewerRendererProps): ReactElement {
   const ViewerComponent = viewer.component;
   const fileName = filePath.split('/').pop() || filePath;
@@ -80,11 +86,24 @@ function ViewerRendererInner({
     contentPeek,
   };
 
+  // Don't show header if viewer manages its own, or if explicitly disabled
+  const shouldShowHeader = showHeader && !viewer.managesOwnHeader;
+
   return (
     <ViewerErrorBoundary filePath={filePath} onError={onError}>
-      <Suspense fallback={<LoadingFallback fileName={fileName} />}>
-        <ViewerComponent {...viewerProps} />
-      </Suspense>
+      <div className="h-full flex flex-col overflow-hidden">
+        {shouldShowHeader && (
+          <ViewerHeader 
+            filePath={filePath} 
+            icon={viewer.icon}
+          />
+        )}
+        <div className="flex-1 overflow-hidden">
+          <Suspense fallback={<LoadingFallback fileName={fileName} />}>
+            <ViewerComponent {...viewerProps} />
+          </Suspense>
+        </div>
+      </div>
     </ViewerErrorBoundary>
   );
 }
@@ -100,6 +119,10 @@ export const ViewerRenderer = memo(ViewerRendererInner);
 
 // Export error boundary for custom use cases
 export { default as ViewerErrorBoundary } from './ViewerErrorBoundary';
+
+// Export header component for custom viewer layouts
+export { ViewerHeader } from './ViewerHeader';
+export type { ViewerHeaderProps } from './ViewerHeader';
 
 // Export viewer components
 export { default as TextViewer } from './TextViewer';

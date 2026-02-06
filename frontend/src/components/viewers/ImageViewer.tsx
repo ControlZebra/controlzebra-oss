@@ -8,6 +8,8 @@
  * - Displays image dimensions when loaded
  * - Preserves dimensions in state across tab switches
  * 
+ * Note: The file header bar with "Open in Default App" is provided by ViewerRenderer.
+ * 
  * Future enhancements:
  * - Zoom controls
  * - Pan/drag support
@@ -15,7 +17,7 @@
  * - Background color toggle (checkerboard for transparency)
  */
 import { memo, useState, useCallback, useMemo } from 'react';
-import { Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import type { ViewerProps } from '../../lib/viewers';
 
@@ -76,18 +78,12 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* File info header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-theme-surface border-b border-theme-default text-sm text-theme-secondary">
-        <div className="flex items-center gap-2 min-w-0">
-          <ImageIcon size={ICON_SIZES.sm} className="flex-shrink-0" />
-          <span className="truncate">{filePath}</span>
+      {/* Dimensions info bar */}
+      {dimensions && (
+        <div className="flex items-center justify-end px-4 py-1 bg-theme-surface border-b border-theme-default text-xs text-theme-muted">
+          {dimensions.width} × {dimensions.height}
         </div>
-        {dimensions && (
-          <span className="text-theme-muted text-xs flex-shrink-0 ml-4">
-            {dimensions.width} × {dimensions.height}
-          </span>
-        )}
-      </div>
+      )}
       
       {/* Image display area */}
       <div className="flex-1 overflow-auto bg-theme-surface flex items-center justify-center p-4">

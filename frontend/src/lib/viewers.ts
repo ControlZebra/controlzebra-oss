@@ -75,6 +75,15 @@ export interface ViewerConfig {
    * @default false
    */
   builtIn?: boolean;
+  
+  /**
+   * Whether this viewer manages its own header bar.
+   * If true, ViewerRenderer will not render the common header.
+   * Use for complex viewers with custom layouts (e.g., L5X viewer with navigator).
+   * 
+   * @default false
+   */
+  managesOwnHeader?: boolean;
 }
 
 // ============================================================================
