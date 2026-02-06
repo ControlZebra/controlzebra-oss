@@ -1848,6 +1848,11 @@ export class MergeState {
     "inMerge": boolean;
 
     /**
+     * .git/SQUASH_MSG exists (squash merge in progress)
+     */
+    "inSquashMerge": boolean;
+
+    /**
      * Detected for abort only - rebase workflow is deprecated
      */
     "inRebase": boolean;
@@ -1915,6 +1920,9 @@ export class MergeState {
         if (!("inMerge" in $$source)) {
             this["inMerge"] = false;
         }
+        if (!("inSquashMerge" in $$source)) {
+            this["inSquashMerge"] = false;
+        }
         if (!("inRebase" in $$source)) {
             this["inRebase"] = false;
         }
@@ -1947,10 +1955,10 @@ export class MergeState {
      * Creates a new MergeState instance from a string or object.
      */
     static createFrom($$source: any = {}): MergeState {
-        const $$createField11_0 = $$createType0;
+        const $$createField12_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("lockFiles" in $$parsedSource) {
-            $$parsedSource["lockFiles"] = $$createField11_0($$parsedSource["lockFiles"]);
+            $$parsedSource["lockFiles"] = $$createField12_0($$parsedSource["lockFiles"]);
         }
         return new MergeState($$parsedSource as Partial<MergeState>);
     }

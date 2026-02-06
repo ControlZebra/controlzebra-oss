@@ -2083,10 +2083,11 @@ func (g *GitService) SetProtectedBranches(repoPath string, branches []string) Op
 // Note: Rebase is detected for abort purposes only - users should abort and use merge workflow instead.
 type MergeState struct {
 	// Core merge state
-	InMerge      bool   `json:"inMerge"`
-	InRebase     bool   `json:"inRebase"` // Detected for abort only - rebase workflow is deprecated
-	HasConflicts bool   `json:"hasConflicts"`
-	Message      string `json:"message,omitempty"` // Merge commit message if available
+	InMerge       bool   `json:"inMerge"`
+	InSquashMerge bool   `json:"inSquashMerge"` // .git/SQUASH_MSG exists (squash merge in progress)
+	InRebase      bool   `json:"inRebase"`      // Detected for abort only - rebase workflow is deprecated
+	HasConflicts  bool   `json:"hasConflicts"`
+	Message       string `json:"message,omitempty"` // Merge commit message if available
 
 	// Additional stuck states
 	InCherryPick bool `json:"inCherryPick"` // .git/CHERRY_PICK_HEAD exists
@@ -2125,6 +2126,23 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		msgPath := filepath.Join(gitDir, "MERGE_MSG")
 		if msgData, err := os.ReadFile(msgPath); err == nil {
 			state.Message = strings.TrimSpace(string(msgData))
+		}
+	}
+
+	// Check for squash merge in progress (.git/SQUASH_MSG)
+	// git merge --squash does NOT create MERGE_HEAD, so we detect it separately.
+	squashMsgPath := filepath.Join(gitDir, "SQUASH_MSG")
+	if _, err := os.Stat(squashMsgPath); err == nil {
+		state.InSquashMerge = true
+		if state.StuckType == "" {
+			state.StuckType = "squash-merge"
+			state.UserMessage = "A squash merge is in progress. Resolve any conflicts and commit, or abort."
+		}
+		// Try to read the squash message
+		if msgData, err := os.ReadFile(squashMsgPath); err == nil {
+			if state.Message == "" {
+				state.Message = strings.TrimSpace(string(msgData))
+			}
 		}
 	}
 
@@ -2290,9 +2308,9 @@ func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) O
 		return failedOp("File path is required")
 	}
 
-	// Debug: Check merge state first
+	// Check merge state first (supports regular merge, squash merge, and rebase)
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InRebase {
+	if !state.InMerge && !state.InRebase && !state.InSquashMerge {
 		return failedOp("No merge in progress - cannot resolve conflict")
 	}
 
@@ -2319,9 +2337,9 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 		return failedOp("File path is required")
 	}
 
-	// Debug: Check merge state first
+	// Check merge state first (supports regular merge, squash merge, and rebase)
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InRebase {
+	if !state.InMerge && !state.InRebase && !state.InSquashMerge {
 		return failedOp("No merge in progress - cannot resolve conflict")
 	}
 
@@ -2732,8 +2750,11 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 }
 
 // CompleteSquashMerge commits a squash merge.
-// Unlike CompleteMerge, this doesn't require being in a merge state.
+// Unlike CompleteMerge, this doesn't require being in a merge state (no MERGE_HEAD).
 // It simply commits the staged changes from the squash merge.
+//
+// Prefer using CompleteMerge which auto-detects the merge type and delegates here
+// for squash merges. This method is kept public for backward compatibility.
 func (g *GitService) CompleteSquashMerge(repoPath string, message string) OperationResult {
 	if message == "" {
 		return failedOp("Commit message is required for squash merge")
@@ -2756,12 +2777,27 @@ func (g *GitService) CompleteSquashMerge(repoPath string, message string) Operat
 
 // AbortMerge aborts the current merge operation.
 // Returns the repository to the state before the merge started.
+// Handles both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) AbortMerge(repoPath string) OperationResult {
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge {
+	if !state.InMerge && !state.InSquashMerge {
 		return failedOp("No merge in progress")
 	}
 
+	// Squash merge: git merge --abort won't work because there's no MERGE_HEAD.
+	// Use git reset --merge to undo the squash merge and restore the working tree.
+	if state.InSquashMerge && !state.InMerge {
+		result := g.runner.RunGit(repoPath, "reset", "--merge")
+		if !result.Success {
+			return failedOp("Failed to abort squash merge: " + getErrorMessage(result))
+		}
+		// Clean up the SQUASH_MSG file that git reset --merge doesn't remove
+		squashMsgPath := filepath.Join(repoPath, ".git", "SQUASH_MSG")
+		os.Remove(squashMsgPath)
+		return successOp("Squash merge aborted")
+	}
+
+	// Regular merge: use git merge --abort
 	result := g.runner.RunGit(repoPath, "merge", "--abort")
 	if !result.Success {
 		return failedOp("Failed to abort: " + getErrorMessage(result))
@@ -3313,12 +3349,8 @@ func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
 	if state.HasLockFile {
 		return g.RemoveAllStaleLocks(repoPath, true)
 	}
-	if state.InMerge {
-		result := g.runner.RunGit(repoPath, "merge", "--abort")
-		if result.Success {
-			return successOp("Merge aborted")
-		}
-		return failedOp("Failed to abort merge: " + getErrorMessage(result))
+	if state.InMerge || state.InSquashMerge {
+		return g.AbortMerge(repoPath)
 	}
 	if state.InRebase {
 		result := g.runner.RunGit(repoPath, "rebase", "--abort")
@@ -3347,10 +3379,16 @@ func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
 }
 
 // CompleteMerge completes the merge by committing after all conflicts are resolved.
+// Supports both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) CompleteMerge(repoPath string, message string) OperationResult {
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge {
+	if !state.InMerge && !state.InSquashMerge {
 		return failedOp("No merge in progress")
+	}
+
+	// If this is a squash merge (no MERGE_HEAD), delegate to CompleteSquashMerge
+	if state.InSquashMerge && !state.InMerge {
+		return g.CompleteSquashMerge(repoPath, message)
 	}
 
 	// Check if there are still conflicts
