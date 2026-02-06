@@ -44,6 +44,10 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
   // Extract filename from path
   const fileName = filePath.split('/').pop() || filePath;
 
+  // Memoize line splitting to avoid re-computation on re-renders
+  // IMPORTANT: Must be called before any conditional returns to follow Rules of Hooks
+  const lines = useMemo(() => content?.split('\n') || [], [content]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-theme-secondary">
@@ -66,9 +70,6 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
       </div>
     );
   }
-
-  // Memoize line splitting to avoid re-computation on re-renders
-  const lines = useMemo(() => content?.split('\n') || [], [content]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
