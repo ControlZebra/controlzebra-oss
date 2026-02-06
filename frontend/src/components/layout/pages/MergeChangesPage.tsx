@@ -26,6 +26,7 @@ import {
   FolderOpen,
   Play,
   FileWarning,
+  GitBranch,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { Button } from '../../ui';
@@ -737,6 +738,37 @@ const NoRepoPanel = memo(function NoRepoPanel(): JSX.Element {
 });
 
 // ============================================================================
+// BRANCH DIRECTION BANNER
+// ============================================================================
+
+interface BranchDirectionBannerProps {
+  sourceBranch: string;
+  targetBranch: string;
+}
+
+const BranchDirectionBanner = memo(function BranchDirectionBanner({
+  sourceBranch,
+  targetBranch,
+}: BranchDirectionBannerProps): JSX.Element {
+  return (
+    <div className="shrink-0 border-t border-theme-default bg-theme-surface/50 px-6 py-4">
+      <div className="flex items-center justify-center gap-4">
+        <div className="flex items-center gap-2">
+          <GitBranch style={iconSm} className="text-blue-400" />
+          <span className="text-blue-400 text-lg font-semibold">{sourceBranch}</span>
+        </div>
+        <ArrowRight style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} className="text-theme-muted" />
+        <div className="flex items-center gap-2">
+          <GitBranch style={iconSm} className="text-green-400" />
+          <span className="text-green-400 text-lg font-semibold">{targetBranch}</span>
+        </div>
+      </div>
+      <p className="text-theme-muted text-xs text-center mt-1">Merging your changes into the destination branch</p>
+    </div>
+  );
+});
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -882,10 +914,15 @@ function MergeChangesPage(): JSX.Element {
     return <SuccessPanel message="Merge completed automatically." onDismiss={handleDismiss} />;
   }
 
+  // Helper: whether we are past the initial check panel (i.e. user has committed to a merge direction)
+  const showBranchBanner = !!conflictCheckResult?.success;
+
+  // Determine the content panel to show
+  let contentPanel: JSX.Element;
+
   // Check complete but merge NOT started yet - show results with "Start Merge" button
-  // This is the key decoupling: user can see conflicts without mutating working tree
   if (conflictCheckResult?.success && !conflictCheckResult?.mergeStarted) {
-    return (
+    contentPanel = (
       <ConflictCheckResultPanel
         sourceBranch={effectiveSource}
         targetBranch={effectiveTarget}
@@ -898,11 +935,9 @@ function MergeChangesPage(): JSX.Element {
         isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
-  }
-
-  // Clean merge - merge started, no conflicts (show complete panel)
-  if (conflictCheckResult?.success && conflictCheckResult?.mergeStarted && !conflictCheckResult?.hasConflicts && conflictedFiles.length === 0) {
-    return (
+  } else if (conflictCheckResult?.success && conflictCheckResult?.mergeStarted && !conflictCheckResult?.hasConflicts && conflictedFiles.length === 0) {
+    // Clean merge - merge started, no conflicts
+    contentPanel = (
       <CleanMergePanel
         sourceBranch={effectiveSource}
         targetBranch={effectiveTarget}
@@ -912,26 +947,21 @@ function MergeChangesPage(): JSX.Element {
         isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
-  }
-
-  // Conflicts exist
-  if (conflictedFiles.length > 0) {
+  } else if (conflictedFiles.length > 0 && selectedConflictFile) {
     // File selected - show resolution UI
-    if (selectedConflictFile) {
-      return (
-        <FileResolutionPanel
-          filePath={selectedConflictFile}
-          currentResolution={fileResolutions[selectedConflictFile] || null}
-          onConfirm={handleResolve}
-          onBack={() => setSelectedConflictFile(null)}
-          isProcessing={isResolvingConflict}
-          conflictSidesInfo={conflictSidesInfo as ConflictSidesInfo}
-        />
-      );
-    }
-
-    // Show overview
-    return (
+    contentPanel = (
+      <FileResolutionPanel
+        filePath={selectedConflictFile}
+        currentResolution={fileResolutions[selectedConflictFile] || null}
+        onConfirm={handleResolve}
+        onBack={() => setSelectedConflictFile(null)}
+        isProcessing={isResolvingConflict}
+        conflictSidesInfo={conflictSidesInfo as ConflictSidesInfo}
+      />
+    );
+  } else if (conflictedFiles.length > 0) {
+    // Conflicts overview
+    contentPanel = (
       <ConflictsOverviewPanel
         conflictedFiles={conflictedFiles}
         fileResolutions={fileResolutions}
@@ -944,21 +974,34 @@ function MergeChangesPage(): JSX.Element {
         isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
+  } else {
+    // Initial state - show check panel
+    return (
+      <CheckPanel
+        currentBranch={currentBranch}
+        targetBranch={effectiveTarget}
+        onTargetChange={setTargetBranch}
+        availableBranches={availableBranches}
+        onCheck={handleCheck}
+        isChecking={isCheckingConflicts}
+        error={error || (conflictCheckResult && !conflictCheckResult.success ? conflictCheckResult.error || null : null)}
+        isSquashMerge={isSquashMerge}
+        onSquashChange={setIsSquashMerge}
+      />
+    );
   }
 
-  // Initial state - show check panel
+  // Wrap content with branch direction banner
   return (
-    <CheckPanel
-      currentBranch={currentBranch}
-      targetBranch={effectiveTarget}
-      onTargetChange={setTargetBranch}
-      availableBranches={availableBranches}
-      onCheck={handleCheck}
-      isChecking={isCheckingConflicts}
-      error={error || (conflictCheckResult && !conflictCheckResult.success ? conflictCheckResult.error || null : null)}
-      isSquashMerge={isSquashMerge}
-      onSquashChange={setIsSquashMerge}
-    />
+    <div className="flex-1 flex flex-col min-h-0">
+      {contentPanel}
+      {showBranchBanner && (
+        <BranchDirectionBanner
+          sourceBranch={effectiveSource}
+          targetBranch={effectiveTarget}
+        />
+      )}
+    </div>
   );
 }
 

@@ -57,6 +57,7 @@ export function AbortCurrentOperation(repoPath: string): $CancellablePromise<$mo
 /**
  * AbortMerge aborts the current merge operation.
  * Returns the repository to the state before the merge started.
+ * Handles both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
  */
 export function AbortMerge(repoPath: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(3116495328, repoPath).then(($result: any) => {
@@ -244,6 +245,7 @@ export function CommitAll(repoPath: string, message: string): $CancellablePromis
 
 /**
  * CompleteMerge completes the merge by committing after all conflicts are resolved.
+ * Supports both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
  */
 export function CompleteMerge(repoPath: string, message: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(370211995, repoPath, message).then(($result: any) => {
@@ -253,8 +255,11 @@ export function CompleteMerge(repoPath: string, message: string): $CancellablePr
 
 /**
  * CompleteSquashMerge commits a squash merge.
- * Unlike CompleteMerge, this doesn't require being in a merge state.
+ * Unlike CompleteMerge, this doesn't require being in a merge state (no MERGE_HEAD).
  * It simply commits the staged changes from the squash merge.
+ * 
+ * Prefer using CompleteMerge which auto-detects the merge type and delegates here
+ * for squash merges. This method is kept public for backward compatibility.
  */
 export function CompleteSquashMerge(repoPath: string, message: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(3207029892, repoPath, message).then(($result: any) => {

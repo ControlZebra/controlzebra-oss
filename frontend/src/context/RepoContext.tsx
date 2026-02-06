@@ -48,7 +48,6 @@ import {
   ResolveConflictKeepBoth,
   AbortMerge,
   CompleteMerge,
-  CompleteSquashMerge,
   GetConflictSidesInfo,
   AbortCurrentOperation,
   AbortCherryPick,
@@ -1315,6 +1314,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
 
     const conflictsRemaining = conflictedFiles.length;
+    // Remember the original branch so we can switch back after abort
+    const originalBranch = conflictCheckResult?.sourceBranch;
 
     try {
       const result = await AbortMerge(repoPath);
@@ -1326,16 +1327,34 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
       trackMergeAborted({ conflictsRemaining });
 
-      showMessage('success', result.message || 'Merge aborted');
+      // Switch back to the original branch (merge checks out target, so we need to go back)
+      if (originalBranch) {
+        try {
+          const checkoutResult = await CheckoutBranch(repoPath, originalBranch);
+          if (checkoutResult.success) {
+            showMessage('success', `Merge aborted — switched back to ${originalBranch}`);
+          } else {
+            showMessage('success', result.message || 'Merge aborted');
+            console.warn('[abortMerge] Could not switch back to original branch:', checkoutResult.error || checkoutResult.message);
+          }
+        } catch (checkoutErr) {
+          showMessage('success', result.message || 'Merge aborted');
+          console.warn('[abortMerge] Error switching back to original branch:', checkoutErr);
+        }
+      } else {
+        showMessage('success', result.message || 'Merge aborted');
+      }
+
       clearConflicts();
       await refreshStatus();
+      await refreshBranches();
       return true;
     } catch (err) {
       const error = err as Error;
       showMessage('error', `Failed to abort merge: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, conflictedFiles, showMessage, clearConflicts, refreshStatus]);
+  }, [repoPath, conflictedFiles, conflictCheckResult, showMessage, clearConflicts, refreshStatus, refreshBranches]);
 
   // Complete the merge with a commit message
   const completeMerge = useCallback(async (message: string): Promise<boolean> => {
@@ -1350,19 +1369,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
 
-    const isSquash = conflictCheckResult?.isSquashMerge ?? isSquashMerge;
     const parentBranchName = detectedParentBranch?.name;
     const totalConflicts = conflictedFiles.length;
     const strategiesUsed = Object.values(fileResolutions).filter(Boolean) as string[];
 
     try {
-      let result;
-      
-      if (isSquash) {
-        result = await CompleteSquashMerge(repoPath, message || '');
-      } else {
-        result = await CompleteMerge(repoPath, message || '');
-      }
+      // CompleteMerge handles both regular and squash merges on the backend
+      const result = await CompleteMerge(repoPath, message || '');
       
       if (!result.success) {
         showMessage('error', result.error || result.message || 'Failed to complete merge');
@@ -1375,8 +1388,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
         resolutionStrategiesUsed: strategiesUsed,
       });
 
-      const successMsg = isSquash ? 'Squash merge completed successfully' : 'Merge completed successfully';
-      showMessage('success', result.message || successMsg);
+      showMessage('success', result.message || 'Merge completed successfully');
       clearConflicts();
       clearSelection();
       await refreshAll();
@@ -1401,7 +1413,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to complete merge: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, conflictedFiles, fileResolutions, conflictCheckResult, isSquashMerge, showMessage, clearConflicts, clearSelection, refreshAll, refreshBranches, detectedParentBranch]);
+  }, [repoPath, conflictedFiles, fileResolutions, showMessage, clearConflicts, clearSelection, refreshAll, refreshBranches, detectedParentBranch]);
 
   // Refresh merge state from backend
   const refreshMergeState = useCallback(async (): Promise<MergeState | null> => {

@@ -1983,7 +1983,7 @@ func TestAbortMerge_NoMergeInProgress(t *testing.T) {
 	if result.Success {
 		t.Error("Expected failure when no merge in progress")
 	}
-	if !strings.Contains(result.Error, "No merge or rebase in progress") {
+	if !strings.Contains(result.Error, "No merge in progress") {
 		t.Errorf("Expected error about no merge in progress, got: %s", result.Error)
 	}
 }
