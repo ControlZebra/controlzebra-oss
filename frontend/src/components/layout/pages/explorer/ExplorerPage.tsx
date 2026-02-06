@@ -41,22 +41,12 @@ function ExplorerPage(): JSX.Element {
     [explorerTabs]
   );
 
-  // No folder open - show welcome screen
-  if (!repoPath) {
-    return (
-      <NoDirectoryScreen 
-        onOpenFolder={handleOpenFolder} 
-        onOpenPath={openRepo}
-        isLoading={isOpeningFolder} 
-      />
-    );
-  }
-
   // Check if file browser is active
   const isFileBrowserActive = activeExplorerTab === 'file-browser';
 
   // Memoize rendered file tabs to avoid recreating elements on every render
   // This keeps viewer components mounted and their caches intact
+  // Must be called before any conditional returns (Rules of Hooks)
   const renderedFileTabs = useMemo(() => {
     return fileTabs.map(tab => {
       const viewer = tab.viewerId 
@@ -78,6 +68,17 @@ function ExplorerPage(): JSX.Element {
       );
     }).filter(Boolean) as JSX.Element[];
   }, [fileTabs, activeExplorerTab]);
+
+  // No folder open - show welcome screen
+  if (!repoPath) {
+    return (
+      <NoDirectoryScreen 
+        onOpenFolder={handleOpenFolder} 
+        onOpenPath={openRepo}
+        isLoading={isOpeningFolder} 
+      />
+    );
+  }
 
   // Folder open - show tabs and content
   // Render file browser and all file tabs, showing only the active one
