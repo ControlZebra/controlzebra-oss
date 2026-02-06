@@ -27,9 +27,18 @@ import {
   Play,
   FileWarning,
   GitBranch,
+  ClipboardCheck,
+  Wrench,
+  Flag,
+  User,
+  Clock,
+  Hash,
+  MessageSquare,
+  Info,
+  Trash2,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
-import { Button } from '../../ui';
+import { Button, Badge, Card, CardHeader, CardContent } from '../../ui';
 import { useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy } from '../../../context';
 
 // ============================================================================
@@ -39,6 +48,8 @@ import { useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy 
 interface CommitInfo {
   author?: string;
   message?: string;
+  hash?: string;
+  date?: string;
 }
 
 interface ConflictSidesInfo {
@@ -82,9 +93,11 @@ interface CleanMergePanelProps {
 interface ResolutionCardProps {
   type: 'mine' | 'theirs';
   isSelected: boolean;
+  isOtherSelected: boolean;
   onSelect: (type: 'mine' | 'theirs') => void;
   disabled: boolean;
   commitInfo?: CommitInfo;
+  branchName?: string;
 }
 
 interface FileResolutionPanelProps {
@@ -94,6 +107,8 @@ interface FileResolutionPanelProps {
   onBack: () => void;
   isProcessing: boolean;
   conflictSidesInfo?: ConflictSidesInfo;
+  sourceBranch: string;
+  targetBranch: string;
 }
 
 interface ConflictsOverviewPanelProps {
@@ -124,6 +139,88 @@ interface AlreadyUpToDatePanelProps {
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const iconLg: CSSProperties = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 };
+
+// ============================================================================
+// MERGE STEPPER
+// ============================================================================
+
+type MergeStep = 'check' | 'review' | 'resolve' | 'complete';
+
+const MERGE_STEPS: { id: MergeStep; label: string; icon: typeof Search }[] = [
+  { id: 'check', label: 'Check', icon: Search },
+  { id: 'review', label: 'Review', icon: ClipboardCheck },
+  { id: 'resolve', label: 'Resolve', icon: Wrench },
+  { id: 'complete', label: 'Complete', icon: Flag },
+];
+
+function getStepIndex(step: MergeStep): number {
+  return MERGE_STEPS.findIndex(s => s.id === step);
+}
+
+interface MergeStepperProps {
+  currentStep: MergeStep;
+}
+
+const MergeStepper = memo(function MergeStepper({ currentStep }: MergeStepperProps): JSX.Element {
+  const currentIdx = getStepIndex(currentStep);
+
+  return (
+    <div className="shrink-0 border-b border-theme-default bg-theme-surface/50 px-6 py-4">
+      <div className="flex items-center justify-center max-w-lg mx-auto">
+        {MERGE_STEPS.map((step, idx) => {
+          const isCompleted = idx < currentIdx;
+          const isActive = idx === currentIdx;
+          const StepIcon = step.icon;
+
+          return (
+            <div key={step.id} className="flex items-center flex-1 last:flex-initial">
+              {/* Step circle + label */}
+              <div className="flex flex-col items-center gap-1.5 relative">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                    isCompleted
+                      ? 'border border-green-500/50 text-green-400'
+                      : isActive
+                        ? 'border border-blue-500/50 text-blue-400'
+                        : 'border border-theme-default text-theme-muted'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <Check style={{ width: 14, height: 14 }} />
+                  ) : (
+                    <StepIcon style={{ width: 14, height: 14 }} />
+                  )}
+                </div>
+                <span
+                  className={`text-[11px] font-medium whitespace-nowrap ${
+                    isCompleted
+                      ? 'text-green-400'
+                      : isActive
+                        ? 'text-blue-400'
+                        : 'text-theme-muted'
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+
+              {/* Connector line (not after last step) */}
+              {idx < MERGE_STEPS.length - 1 && (
+                <div className="flex-1 mx-2 mt-[-18px]">
+                  <div
+                    className={`h-0.5 w-full rounded transition-all ${
+                      idx < currentIdx ? 'bg-green-500' : 'bg-theme-default'
+                    }`}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 // ============================================================================
 // STEP 1: Initial Check Panel
@@ -239,8 +336,6 @@ const CheckPanel = memo(function CheckPanel({
 // STEP 1b: Conflict Check Results (shown after dry-run, before starting merge)
 // ============================================================================
 const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
-  sourceBranch,
-  targetBranch,
   hasConflicts,
   conflictCount,
   conflictedFiles = [],
@@ -254,51 +349,65 @@ const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
       <div className="text-center max-w-md w-full">
         {hasConflicts ? (
           <>
-            <AlertTriangle style={iconLg} className="text-orange-400 mx-auto mb-4" />
+            <AlertTriangle style={iconLg} className="text-theme-warning mx-auto mb-4" />
             <h2 className="text-theme-primary text-xl font-semibold mb-2">
-              {conflictCount} Conflict{conflictCount !== 1 ? 's' : ''} Detected
+              {conflictCount === 1
+                ? 'One file needs your attention'
+                : `${conflictCount} files need your attention`}
             </h2>
-            <p className="text-theme-muted text-sm mb-6">
-              Merging <span className="text-blue-400 font-medium">{sourceBranch}</span> into{' '}
-              <span className="text-green-400 font-medium">{targetBranch}</span> will require
-              resolving {conflictCount} file conflict{conflictCount !== 1 ? 's' : ''}.
+            <p className="text-theme-secondary text-sm mb-6">
+              Both branches changed the same files. You'll choose which version to keep for each one.
             </p>
             
             {/* Preview of conflicted files */}
-            <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-6 text-left">
-              <p className="text-theme-muted text-xs uppercase tracking-wide mb-2">Files with conflicts:</p>
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {conflictedFiles.map((file) => (
-                  <div key={file.path} className="flex items-center gap-2 py-1">
-                    <FileWarning style={iconSm} className="text-orange-400 shrink-0" />
-                    <span className="text-theme-primary text-sm truncate">{file.path}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4 text-left">
-              <p className="text-orange-400 text-xs">
-                <strong>Note:</strong> Starting the merge will modify your working directory.
-                You'll need to resolve each conflict before completing the merge.
-              </p>
-            </div>
+            <Card className="mb-6 text-left">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-theme-warning text-xs uppercase tracking-wide font-medium">Files with conflicts</p>
+                  <Badge variant="outline">{conflictCount} file{conflictCount !== 1 ? 's' : ''}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="max-h-48 overflow-y-auto -mx-1">
+                  {conflictedFiles.map((file) => {
+                    const fileName = file.path.split('/').pop() || file.path;
+                    const dirPath = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';
+                    return (
+                      <div
+                        key={file.path}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-theme-muted/10 transition-colors"
+                      >
+                        <div className="shrink-0 w-8 h-8 rounded-md bg-theme-warning border border-theme-warning flex items-center justify-center">
+                          <FileWarning style={iconSm} className="text-theme-warning" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-theme-primary text-sm font-medium truncate">{fileName}</p>
+                          {dirPath && (
+                            <p className="text-theme-muted text-[11px] truncate">{dirPath}/</p>
+                          )}
+                        </div>
+                        <Badge variant="warning">Needs review</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           </>
         ) : (
           <>
-            <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
+            <CheckCircle2 style={iconLg} className="text-theme-muted mx-auto mb-4" />
             <h2 className="text-theme-primary text-xl font-semibold mb-2">
-              No Conflicts Detected
+              Ready to merge
             </h2>
-            <p className="text-theme-muted text-sm mb-6">
-              You can safely merge <span className="text-blue-400 font-medium">{sourceBranch}</span> into{' '}
-              <span className="text-green-400 font-medium">{targetBranch}</span>.
+            <p className="text-theme-secondary text-sm mb-6">
+              No conflicts found. Your changes can be merged cleanly.
             </p>
             
             {isSquashMerge && (
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4 text-left">
-                <p className="text-blue-400 text-xs">
-                  <strong>Squash merge:</strong> All commits from {sourceBranch} will be combined into a single commit.
+              <div className="bg-theme-surface border border-theme-default rounded-lg p-3 mb-4 text-left">
+                <p className="text-theme-secondary text-xs">
+                  All changes will be combined into a single save.
                 </p>
               </div>
             )}
@@ -403,47 +512,191 @@ const CleanMergePanel = memo(function CleanMergePanel({
 // STEP 2b: Conflict Resolution
 // ============================================================================
 
+// Normalize git date strings (e.g. "2026-01-15 14:30:52 +0530") into ISO 8601
+function normalizeGitDate(dateStr: string): Date {
+  let date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    // Try fixing common git %ci format: "2026-01-15 14:30:52 +0530"
+    // Convert to ISO 8601: replace first space with 'T', add colon in offset
+    const fixed = dateStr
+      .replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})/, '$1T$2')
+      .replace(/([+-])(\d{2})(\d{2})$/, '$1$2:$3');
+    date = new Date(fixed);
+  }
+  return date;
+}
+
+// Format a date string into a human-readable relative time
+function formatRelativeTime(dateStr: string): string {
+  try {
+    const date = normalizeGitDate(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatFullDate(dateStr: string): string {
+  try {
+    const date = normalizeGitDate(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 // Card for selecting mine/theirs
 const ResolutionCard = memo(function ResolutionCard({
   type,
   isSelected,
+  isOtherSelected,
   onSelect,
   disabled,
   commitInfo,
+  branchName,
 }: ResolutionCardProps): JSX.Element {
   const isMine = type === 'mine';
-  
+
+  const relativeTime = useMemo(() => {
+    if (!commitInfo?.date) return null;
+    return formatRelativeTime(commitInfo.date);
+  }, [commitInfo?.date]);
+
+  const fullDate = useMemo(() => {
+    if (!commitInfo?.date) return null;
+    return formatFullDate(commitInfo.date);
+  }, [commitInfo?.date]);
+
   return (
     <button
       onClick={() => onSelect(type)}
       disabled={disabled}
-      className={`flex-1 p-4 rounded-lg border-2 text-left transition-all ${
+      className={`relative flex-1 p-5 rounded-lg border-2 text-left transition-all flex flex-col ${
         isSelected
           ? isMine
-            ? 'border-blue-500 bg-blue-500/10'
-            : 'border-orange-500 bg-orange-500/10'
+            ? 'border-theme-accent-strong bg-theme-accent'
+            : 'border-theme-warning-strong bg-theme-warning'
           : 'border-theme-default hover:border-theme-muted bg-theme-surface'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`w-3 h-3 rounded-full ${isMine ? 'bg-blue-500' : 'bg-orange-500'}`} />
-        <h3 className="text-theme-primary font-medium">
-          {isMine ? 'Keep Mine' : 'Keep Theirs'}
-        </h3>
-      </div>
-      <p className="text-theme-muted text-xs">
-        {isMine
-          ? 'Keep your local version of this file'
-          : 'Use the incoming version from the target branch'
-        }
-      </p>
-      {commitInfo && (
-        <div className="mt-2 pt-2 border-t border-theme-default">
-          <p className="text-theme-muted text-[10px] truncate">
-            {commitInfo.author} • {commitInfo.message?.slice(0, 30)}...
-          </p>
+      {/* Discard overlay when the other card is selected */}
+      {isOtherSelected && (
+        <div className="absolute inset-0 rounded-lg bg-theme-base-50 flex items-center justify-center z-10 pointer-events-none">
+          <Trash2 style={{ width: 144, height: 144 }} className="text-red-400" />
         </div>
       )}
+      {/* Header: title + branch badge */}
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${isMine ? 'bg-[var(--color-accent-primary)]' : 'bg-[var(--color-warning)]'}`} />
+          <h3 className="text-theme-primary font-semibold text-base">
+            {isMine ? 'Keep Mine' : 'Keep Theirs'}
+          </h3>
+        </div>
+        {branchName && (
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+            isMine
+              ? 'text-theme-accent-muted border-theme-accent bg-theme-accent'
+              : 'text-theme-warning-muted border-theme-warning bg-theme-warning'
+          }`}>
+            <GitBranch style={{ width: 10, height: 10, display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />
+            {branchName}
+          </span>
+        )}
+      </div>
+
+      {/* Subtitle */}
+      <p className="text-theme-muted text-xs mb-4">
+        {isMine
+          ? 'Your version — changes you made locally'
+          : 'Their version — incoming changes from the target branch'
+        }
+      </p>
+
+      {/* Commit details section */}
+      {commitInfo && (commitInfo.author || commitInfo.message || commitInfo.hash) ? (
+        <div className="mt-auto pt-3 border-t border-theme-default space-y-2.5">
+          <p className={`text-[10px] font-medium uppercase tracking-wider ${
+            isMine ? 'text-theme-accent-subtle' : 'text-theme-warning-subtle'
+          }`}>
+            Last change on this branch
+          </p>
+
+          {/* Author */}
+          {commitInfo.author && (
+            <div className="flex items-center gap-2">
+              <User style={{ width: 12, height: 12 }} className="text-theme-muted shrink-0" />
+              <span className="text-theme-secondary text-xs font-medium">{commitInfo.author}</span>
+            </div>
+          )}
+
+          {/* Date */}
+          {relativeTime && (
+            <div className="flex items-center gap-2">
+              <Clock style={{ width: 12, height: 12 }} className="text-theme-muted shrink-0" />
+              <span className="text-theme-secondary text-xs">{relativeTime}</span>
+              {fullDate && (
+                <span className="text-theme-muted text-[10px]">({fullDate})</span>
+              )}
+            </div>
+          )}
+
+          {/* Commit message */}
+          {commitInfo.message && (
+            <div className="flex items-start gap-2">
+              <MessageSquare style={{ width: 12, height: 12 }} className="text-theme-muted shrink-0 mt-0.5" />
+              <p className="text-theme-secondary text-xs leading-relaxed line-clamp-2">
+                {commitInfo.message}
+              </p>
+            </div>
+          )}
+
+          {/* Commit hash */}
+          {commitInfo.hash && (
+            <div className="flex items-center gap-2">
+              <Hash style={{ width: 12, height: 12 }} className="text-theme-muted shrink-0" />
+              <span className="text-theme-muted text-[10px] font-mono">{commitInfo.hash.slice(0, 7)}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-auto pt-3 border-t border-theme-default">
+          <p className="text-theme-muted text-xs italic">No commit details available</p>
+        </div>
+      )}
+
+      {/* Consequence warning */}
+      <div className={`mt-3 pt-2.5 border-t border-theme-default`}>
+        <div className="flex items-start gap-1.5">
+          <Info style={{ width: 11, height: 11 }} className={`shrink-0 mt-0.5 ${
+            isMine ? 'text-theme-accent-subtle' : 'text-theme-warning-subtle'
+          }`} />
+          <p className={`text-[11px] leading-relaxed ${
+            isMine ? 'text-theme-accent-muted' : 'text-theme-warning-muted'
+          }`}>
+            {isMine
+              ? 'Incoming changes to this file will be discarded'
+              : 'Your local changes to this file will be discarded'
+            }
+          </p>
+        </div>
+      </div>
     </button>
   );
 });
@@ -456,6 +709,8 @@ const FileResolutionPanel = memo(function FileResolutionPanel({
   onBack,
   isProcessing,
   conflictSidesInfo,
+  sourceBranch,
+  targetBranch,
 }: FileResolutionPanelProps): JSX.Element {
   const [selected, setSelected] = useState<ResolutionStrategy | null>(currentResolution || null);
   const fileName = filePath.split('/').pop();
@@ -474,16 +729,10 @@ const FileResolutionPanel = memo(function FileResolutionPanel({
     <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={onBack}
-          className="text-blue-400 text-sm hover:text-blue-300 mb-2 flex items-center gap-1"
-        >
-          ← Back to overview
-        </button>
-        <h2 className="text-theme-primary text-xl font-semibold">
-          {fileName}
+        <h2 className="text-theme-primary text-xl font-normal">
+          Which version of <span className="font-semibold">{fileName}</span> do you want to keep?
         </h2>
-        <p className="text-theme-muted text-xs mt-1">{filePath}</p>
+        <p className="text-theme-muted text-xs mt-1">Project File Path: {filePath}</p>
       </div>
 
       {/* Resolution cards */}
@@ -491,16 +740,20 @@ const FileResolutionPanel = memo(function FileResolutionPanel({
         <ResolutionCard
           type="mine"
           isSelected={selected === 'mine'}
+          isOtherSelected={selected === 'theirs'}
           onSelect={() => setSelected('mine')}
           disabled={isProcessing}
           commitInfo={conflictSidesInfo?.ours}
+          branchName={sourceBranch}
         />
         <ResolutionCard
           type="theirs"
           isSelected={selected === 'theirs'}
+          isOtherSelected={selected === 'mine'}
           onSelect={() => setSelected('theirs')}
           disabled={isProcessing}
           commitInfo={conflictSidesInfo?.theirs}
+          branchName={targetBranch}
         />
       </div>
 
@@ -508,8 +761,8 @@ const FileResolutionPanel = memo(function FileResolutionPanel({
       {selected && (
         <div className={`p-4 rounded-lg border mb-6 ${
           selected === 'mine'
-            ? 'bg-blue-500/10 border-blue-500/30'
-            : 'bg-orange-500/10 border-orange-500/30'
+            ? 'bg-theme-accent border-theme-accent'
+            : 'bg-theme-warning border-theme-warning'
         }`}>
           <p className="text-sm text-theme-secondary">
             {selected === 'mine'
@@ -520,8 +773,12 @@ const FileResolutionPanel = memo(function FileResolutionPanel({
         </div>
       )}
 
-      {/* Confirm button */}
-      <div className="flex justify-center">
+      {/* Actions */}
+      <div className="flex gap-3 justify-center">
+        <Button onClick={onBack} variant="outline" disabled={isProcessing}>
+          <X style={iconSm} className="mr-2" />
+          Cancel
+        </Button>
         <Button onClick={handleConfirm} disabled={!selected || isProcessing}>
           {isProcessing ? (
             <Loader2 style={iconSm} className="animate-spin mr-2" />
@@ -554,9 +811,6 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
   
   const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
   const allResolved = resolvedCount === conflictedFiles.length;
-  const progressPercent = conflictedFiles.length > 0 
-    ? (resolvedCount / conflictedFiles.length) * 100 
-    : 0;
 
   const handleComplete = useCallback((): void => {
     onComplete(message);
@@ -566,68 +820,89 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
     <div className="flex-1 flex flex-col p-6 max-w-2xl mx-auto">
       {/* Header */}
       <div className="text-center mb-6">
-        <AlertTriangle style={iconLg} className="text-orange-400 mx-auto mb-4" />
+        <AlertTriangle style={iconLg} className="text-theme-warning mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
-          {conflictedFiles.length} Conflict{conflictedFiles.length !== 1 ? 's' : ''} Found
+          {conflictedFiles.length === 1
+            ? 'One file needs your attention'
+            : `${conflictedFiles.length} files need your attention`}
         </h2>
-        <div className="flex items-center justify-center gap-2 text-sm">
-          <span className="text-blue-400">{sourceBranch}</span>
-          <ArrowRight style={iconSm} className="text-theme-muted" />
-          <span className="text-orange-400">{targetBranch}</span>
-        </div>
+        <p className="text-theme-secondary text-sm max-w-sm mx-auto">
+          Both branches changed the same files. Choose which version to keep for each file, then complete the merge.
+        </p>
       </div>
 
-      {/* Progress */}
-      <div className="bg-theme-surface border border-theme-default rounded-lg p-4 mb-4">
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-theme-muted">Resolution Progress</span>
-          <span className={allResolved ? 'text-green-400' : 'text-orange-400'}>
-            {resolvedCount} / {conflictedFiles.length}
-          </span>
-        </div>
-        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all ${allResolved ? 'bg-green-500' : 'bg-orange-500'}`}
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-        {!allResolved && (
-          <p className="text-theme-muted text-xs mt-2">
-            Click each file in the sidebar to resolve conflicts.
-          </p>
-        )}
-      </div>
+      {/* File list */}
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <p className="text-theme-muted text-xs uppercase tracking-wide font-medium">Conflicted Files</p>
+            <Badge variant={allResolved ? 'success' : 'outline'}>
+              {resolvedCount}/{conflictedFiles.length} resolved
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="max-h-64 overflow-y-auto -mx-1 space-y-1">
+            {conflictedFiles.map(file => {
+              const isResolved = !!fileResolutions[file.path];
+              const resolution = fileResolutions[file.path];
+              const fileName = file.path.split('/').pop() || file.path;
+              const dirPath = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';
+              return (
+                <div
+                  key={file.path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors ${
+                    isResolved
+                      ? 'bg-green-500/5 hover:bg-green-500/10'
+                      : 'hover:bg-theme-muted/10'
+                  }`}
+                >
+                  {/* Status icon */}
+                  <div className={`shrink-0 w-8 h-8 rounded-md flex items-center justify-center border ${
+                    isResolved
+                      ? 'bg-green-500/10 border-green-500/20'
+                      : 'bg-theme-warning border-theme-warning'
+                  }`}>
+                    {isResolved ? (
+                      <CheckCircle2 style={iconSm} className="text-green-400" />
+                    ) : (
+                      <FileWarning style={iconSm} className="text-theme-warning" />
+                    )}
+                  </div>
 
-      {/* File list (quick access) */}
-      <div className="bg-theme-surface border border-theme-default rounded-lg mb-4 max-h-48 overflow-y-auto">
-        {conflictedFiles.map(file => {
-          const isResolved = !!fileResolutions[file.path];
-          const resolution = fileResolutions[file.path];
-          return (
-            <button
-              key={file.path}
-              onClick={() => onSelectFile(file.path)}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-theme-muted/10 border-b border-theme-default last:border-b-0 text-left"
-            >
-              {isResolved ? (
-                <Check style={iconSm} className="text-green-400 shrink-0" />
-              ) : (
-                <AlertTriangle style={iconSm} className="text-orange-400 shrink-0" />
-              )}
-              <span className="text-theme-primary text-sm truncate flex-1">
-                {file.path.split('/').pop()}
-              </span>
-              {resolution && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  resolution === 'mine' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'
-                }`}>
-                  {resolution === 'mine' ? 'Mine' : 'Theirs'}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+                  {/* File info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-theme-primary text-sm font-medium truncate">{fileName}</p>
+                    {dirPath && (
+                      <p className="text-theme-muted text-[11px] truncate">{dirPath}/</p>
+                    )}
+                  </div>
+
+                  {/* Resolution badge */}
+                  {resolution && (
+                    <Badge variant={resolution === 'mine' ? 'info' : 'warning'}>
+                      {resolution === 'mine' ? 'Mine' : 'Theirs'}
+                    </Badge>
+                  )}
+
+                  {/* Resolve / Change button */}
+                  <Button
+                    size="sm"
+                    variant={isResolved ? 'ghost' : 'default'}
+                    onClick={() => onSelectFile(file.path)}
+                  >
+                    {isResolved ? (
+                      <>Change</>  
+                    ) : (
+                      <>Resolve</>  
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Completion section (only when all resolved) */}
       {allResolved && (
@@ -659,10 +934,9 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
           onClick={onAbort}
           variant="outline"
           disabled={isProcessing}
-          className="text-red-400 border-red-400/50 hover:bg-red-500/10"
         >
           <X style={iconSm} className="mr-2" />
-          Abort Merge
+          Cancel
         </Button>
         {allResolved && (
           <Button onClick={handleComplete} disabled={isProcessing || !message.trim()}>
@@ -759,8 +1033,8 @@ const BranchDirectionBanner = memo(function BranchDirectionBanner({
         </div>
         <ArrowRight style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} className="text-theme-muted" />
         <div className="flex items-center gap-2">
-          <GitBranch style={iconSm} className="text-green-400" />
-          <span className="text-green-400 text-lg font-semibold">{targetBranch}</span>
+          <GitBranch style={iconSm} className="text-theme-warning" />
+          <span className="text-theme-warning text-lg font-semibold">{targetBranch}</span>
         </div>
       </div>
       <p className="text-theme-muted text-xs text-center mt-1">Merging your changes into the destination branch</p>
@@ -877,6 +1151,25 @@ function MergeChangesPage(): JSX.Element {
     setTargetBranch('');
   }, [clearConflicts]);
 
+  // ---- Compute the current merge step for the stepper ----
+  const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
+  const allConflictsResolved = conflictedFiles.length > 0 && resolvedCount === conflictedFiles.length;
+  const hasConflictsInMerge = conflictCheckResult?.hasConflicts || conflictedFiles.length > 0;
+
+  const currentMergeStep: MergeStep = useMemo(() => {
+    if (showSuccess) return 'complete';
+    // Merge started with conflicts, all resolved → complete step
+    if (conflictCheckResult?.mergeStarted && allConflictsResolved && conflictedFiles.length > 0) return 'complete';
+    // Merge started, no conflicts → complete step (clean merge)
+    if (conflictCheckResult?.mergeStarted && !hasConflictsInMerge) return 'complete';
+    // Merge started with conflicts, still resolving → resolve step
+    if (conflictCheckResult?.mergeStarted && hasConflictsInMerge) return 'resolve';
+    // Check done but merge not started → review step
+    if (conflictCheckResult?.success && !conflictCheckResult?.mergeStarted) return 'review';
+    // Default → check step
+    return 'check';
+  }, [showSuccess, conflictCheckResult, allConflictsResolved, conflictedFiles.length, hasConflictsInMerge]);
+
   // No repo open
   if (!repoPath) {
     return <NoRepoPanel />;
@@ -885,10 +1178,13 @@ function MergeChangesPage(): JSX.Element {
   // Loading state
   if (isCheckingConflicts) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 style={iconLg} className="text-blue-400 mx-auto mb-4 animate-spin" />
-          <p className="text-theme-muted">Analyzing branches...</p>
+      <div className="flex-1 flex flex-col min-h-0">
+        <MergeStepper currentStep="check" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 style={iconLg} className="text-blue-400 mx-auto mb-4 animate-spin" />
+            <p className="text-theme-muted">Analyzing branches...</p>
+          </div>
         </div>
       </div>
     );
@@ -957,6 +1253,8 @@ function MergeChangesPage(): JSX.Element {
         onBack={() => setSelectedConflictFile(null)}
         isProcessing={isResolvingConflict}
         conflictSidesInfo={conflictSidesInfo as ConflictSidesInfo}
+        sourceBranch={effectiveSource}
+        targetBranch={effectiveTarget}
       />
     );
   } else if (conflictedFiles.length > 0) {
@@ -975,25 +1273,29 @@ function MergeChangesPage(): JSX.Element {
       />
     );
   } else {
-    // Initial state - show check panel
+    // Initial state - show check panel with stepper
     return (
-      <CheckPanel
-        currentBranch={currentBranch}
-        targetBranch={effectiveTarget}
-        onTargetChange={setTargetBranch}
-        availableBranches={availableBranches}
-        onCheck={handleCheck}
-        isChecking={isCheckingConflicts}
-        error={error || (conflictCheckResult && !conflictCheckResult.success ? conflictCheckResult.error || null : null)}
-        isSquashMerge={isSquashMerge}
-        onSquashChange={setIsSquashMerge}
-      />
+      <div className="flex-1 flex flex-col min-h-0">
+        <MergeStepper currentStep="check" />
+        <CheckPanel
+          currentBranch={currentBranch}
+          targetBranch={effectiveTarget}
+          onTargetChange={setTargetBranch}
+          availableBranches={availableBranches}
+          onCheck={handleCheck}
+          isChecking={isCheckingConflicts}
+          error={error || (conflictCheckResult && !conflictCheckResult.success ? conflictCheckResult.error || null : null)}
+          isSquashMerge={isSquashMerge}
+          onSquashChange={setIsSquashMerge}
+        />
+      </div>
     );
   }
 
-  // Wrap content with branch direction banner
+  // Wrap content with stepper at top and branch direction banner at bottom
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      <MergeStepper currentStep={currentMergeStep} />
       {contentPanel}
       {showBranchBanner && (
         <BranchDirectionBanner
