@@ -8,7 +8,7 @@ import { memo, useMemo, useCallback, type CSSProperties } from 'react';
 import {
   House,
   Clock,
-  GitMerge,
+  Merge,
   Sliders,
   Settings,
   UserCircle,
@@ -44,7 +44,7 @@ interface NavButtonProps {
 const TOP_NAV_ITEMS: NavItem[] = [
   { id: VIEWS.EXPLORER, Icon: House, label: 'Next Step Advisor', requiresGit: false },
   { id: VIEWS.HISTORY, Icon: Clock, label: 'History', requiresGit: true },
-  { id: VIEWS.MERGE_CHANGES, Icon: GitMerge, label: 'Combine Versions', requiresGit: true },
+  { id: VIEWS.MERGE_CHANGES, Icon: Merge, label: 'Merge changes', requiresGit: true },
   { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];
 
