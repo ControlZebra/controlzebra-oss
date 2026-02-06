@@ -10,28 +10,23 @@
  */
 import { memo, useCallback, useState, type CSSProperties } from 'react';
 import {
-  ArrowUpDown,
+  RefreshCw,
+  FolderOpen,
   CodeSquare,
   ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
   Undo2,
   Trash2,
   Menu,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
-import { useRepo } from '../../context';
-import { useWindowSize } from '../../hooks';
-import { 
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from '../ui';
+import { useLayout, useRepo } from '../../context';
+import { useWindowSize, BREAKPOINTS } from '../../hooks';
+import { UndoLastSaveDialog } from '../ui';
 import BranchModal from './BranchModal';
 import RewindConfirmModal from './RewindConfirmModal';
+import { OpenFolderDialog } from '../../../bindings/controlzebra/services/filedialogservice';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,19 +36,21 @@ import {
 } from '../ui/dropdown-menu';
 
 // Shared icon style
-const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
 
 function TopBar(): JSX.Element {
   const { 
     repoPath, 
     repoInfo, 
     repoStatus,
+    openRepo,
     syncRepo, 
     isSyncing,
     commits,
     undoLastCommit,
     discardAllChanges,
   } = useRepo();
+  const { sidebarCollapsed, sidebarWidth, toggleSidebar } = useLayout();
 
   // Responsive state
   const { isCompactTopBar } = useWindowSize();
@@ -63,6 +60,21 @@ function TopBar(): JSX.Element {
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [isRewinding, setIsRewinding] = useState(false);
+  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+
+  const handleOpenFolder = useCallback(async (): Promise<void> => {
+    setIsOpeningFolder(true);
+    try {
+      const result = await OpenFolderDialog();
+      if (result.selected && result.path) {
+        await openRepo(result.path);
+      }
+    } catch (err) {
+      console.error('Failed to open folder:', err);
+    } finally {
+      setIsOpeningFolder(false);
+    }
+  }, [openRepo]);
 
   const handleSync = useCallback(async (): Promise<void> => {
     await syncRepo();
@@ -85,40 +97,71 @@ function TopBar(): JSX.Element {
   }, [discardAllChanges]);
 
   // Derive display values from repo state
-  const repoName = repoPath ? repoPath.split('/').pop() : 'ControlZebra';
   const branchName = repoInfo?.branch || 'main';
   const hasChanges = (repoStatus?.changedFiles?.length ?? 0) > 0;
   const hasCommits = (commits?.length ?? 0) > 0;
   const isGitRepo = repoInfo?.isRepo ?? false;
+  const leftPanelWidth = BREAKPOINTS.ACTIVITY_BAR_WIDTH + (sidebarCollapsed ? 0 : sidebarWidth);
 
   return (
     <>
       <header className="h-[52px] bg-theme-elevated border-b border-theme-default flex items-center justify-between px-3 select-none shrink-0 gap-2">
-        {/* Left: Undo and Discard buttons (hidden on compact - moved to burger menu) */}
-        <div className="flex items-center gap-2 shrink-0">
-          {repoPath && isGitRepo && !isCompactTopBar && (
-            <>
-              {/* Undo Last Save */}
-              <button 
-                onClick={() => setUndoDialogOpen(true)}
-                disabled={!hasCommits}
-                title="Undo Last Save"
-                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
-              >
-                <Undo2 style={iconStyle} className="currentColor" />
-              </button>
+        {/* Left: Undo and Discard buttons aligned with sidebar (hidden when sidebar collapsed or compact) */}
+        <div
+          className="flex items-center shrink-0 transition-[width,opacity] duration-150"
+          style={{ width: leftPanelWidth }}
+        >
+          <div
+            className="flex items-center justify-between gap-2 w-full"
+            style={{ paddingLeft: sidebarCollapsed ? 0 : BREAKPOINTS.ACTIVITY_BAR_WIDTH, paddingRight: 8 }}
+          >
+            <div className={`flex items-center gap-2 transition-opacity ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              {repoPath && isGitRepo && !isCompactTopBar && !sidebarCollapsed && (
+                <>
+                  {/* Open Folder */}
+                  <button 
+                    onClick={handleOpenFolder}
+                    disabled={isOpeningFolder}
+                    title="Open Folder"
+                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+                  >
+                    <FolderOpen style={iconStyle} className="currentColor" />
+                  </button>
 
-              {/* Discard Changes */}
-              <button 
-                onClick={() => setDiscardDialogOpen(true)}
-                disabled={!hasChanges}
-                title="Discard All Changes"
-                className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
-              >
-                <Trash2 style={iconStyle} className="currentColor" />
-              </button>
-            </>
-          )}
+                  {/* Undo Last Save */}
+                  <button 
+                    onClick={() => setUndoDialogOpen(true)}
+                    disabled={!hasCommits}
+                    title="Undo Last Save"
+                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+                  >
+                    <Undo2 style={iconStyle} className="currentColor" />
+                  </button>
+
+                  {/* Discard Changes */}
+                  <button 
+                    onClick={() => setDiscardDialogOpen(true)}
+                    disabled={!hasChanges}
+                    title="Discard All Changes"
+                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+                  >
+                    <Trash2 style={iconStyle} className="currentColor" />
+                  </button>
+                </>
+              )}
+            </div>
+            <button
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen style={iconStyle} className="currentColor" />
+              ) : (
+                <PanelLeftClose style={iconStyle} className="currentColor" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Center: Branch selector + burger menu (on compact) */}
@@ -126,13 +169,13 @@ function TopBar(): JSX.Element {
           <button 
             onClick={() => repoPath && isGitRepo && setBranchModalOpen(true)}
             disabled={!repoPath || !isGitRepo}
-            className="group flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+            className="group flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
           >
-            <CodeSquare style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="transition-colors shrink-0" />
+            <CodeSquare style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} className="transition-colors shrink-0" />
             <span className="font-medium text-sm truncate text-center transition-colors">
               {repoPath && isGitRepo ? branchName : 'No branch'}
             </span>
-            <ChevronDown style={{ width: ICON_SIZES.xs, height: ICON_SIZES.xs }} className="transition-colors shrink-0" />
+            <ChevronDown style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="transition-colors shrink-0" />
           </button>
           
           {/* Burger menu - right of branch selector on compact view */}
@@ -141,7 +184,7 @@ function TopBar(): JSX.Element {
               <DropdownMenuTrigger asChild>
                 <button
                   title="Actions Menu"
-                  className="flex items-center justify-center h-9 w-9 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 shrink-0 text-theme-muted hover:text-theme-primary"
+                  className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 shrink-0 text-theme-muted hover:text-theme-primary"
                 >
                   <Menu style={iconStyle} className="currentColor" />
                 </button>
@@ -166,7 +209,7 @@ function TopBar(): JSX.Element {
                   onClick={handleSync}
                   disabled={isSyncing}
                 >
-                  <ArrowUpDown style={iconStyle} className="mr-2" />
+                  <RefreshCw style={iconStyle} className="mr-2" />
                   {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -181,9 +224,9 @@ function TopBar(): JSX.Element {
               onClick={handleSync}
               disabled={isSyncing}
               title="Sync"
-              className="flex items-center justify-center gap-2 h-7 px-2 bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+              className="flex items-center justify-center gap-2 h-8 px-2 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
             >
-              <ArrowUpDown 
+              <RefreshCw 
                 style={iconStyle} 
                 className={`${isSyncing ? 'animate-pulse' : ''}`} 
               />
@@ -202,23 +245,11 @@ function TopBar(): JSX.Element {
       />
 
       {/* Undo Last Save Confirmation */}
-      <AlertDialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Undo Last Save?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will undo your last commit. Your changes will be kept but unstaged.
-              This action is safe - no work will be lost.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="default" onClick={handleUndo}>
-              Undo Last Save
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <UndoLastSaveDialog
+        open={undoDialogOpen}
+        onOpenChange={setUndoDialogOpen}
+        onConfirm={handleUndo}
+      />
 
       {/* Discard Changes Confirmation */}
       <RewindConfirmModal

@@ -1117,6 +1117,16 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   // Handle keyboard events for preview and open
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore keyboard shortcuts when user is typing in an input, textarea, or contenteditable element
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
       // Space bar triggers preview for selected file
       if (e.code === 'Space' && selectedFile && !selectedFile.isDirectory) {
         e.preventDefault();
