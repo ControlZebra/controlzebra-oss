@@ -28,6 +28,7 @@ type UpdaterService struct {
 	app            *application.App
 	currentVersion string
 	updateURL      string
+	publicKey      string // Base64-encoded Ed25519 public key for manifest signature verification
 	sidecarPath    string
 	mu             sync.Mutex
 }
@@ -65,9 +66,18 @@ func NewUpdaterService(version, updateURL string) *UpdaterService {
 		updateURL = envURL
 	}
 
+	// Public key for manifest signature verification.
+	// Can be overridden at runtime via CZ_SIGNING_PUBLIC_KEY env var (for testing).
+	// In production, the key is compiled into the sidecar via -ldflags.
+	publicKey := os.Getenv("CZ_SIGNING_PUBLIC_KEY")
+	if publicKey != "" {
+		log.Printf("[UpdaterService] manifest signature verification key overridden via CZ_SIGNING_PUBLIC_KEY")
+	}
+
 	return &UpdaterService{
 		currentVersion: version,
 		updateURL:      updateURL,
+		publicKey:      publicKey,
 	}
 }
 
@@ -146,13 +156,22 @@ func (u *UpdaterService) CheckForUpdate() (*UpdateInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, u.sidecarPath,
+	args := []string{
 		"check",
 		"--url", u.updateURL,
 		"--current", u.currentVersion,
 		"--os", runtime.GOOS,
 		"--arch", runtime.GOARCH,
-	)
+	}
+
+	// Pass public key for manifest signature verification if available.
+	// The sidecar also has a compiled-in key; this runtime override is for
+	// testing or when the service holds a key the sidecar doesn't.
+	if u.publicKey != "" {
+		args = append(args, "--public-key", u.publicKey)
+	}
+
+	cmd := exec.CommandContext(ctx, u.sidecarPath, args...)
 
 	output, err := cmd.Output()
 	if err != nil {

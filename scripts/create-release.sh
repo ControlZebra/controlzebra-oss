@@ -27,6 +27,8 @@
 #   --upload          Create GitHub Release and upload artifacts via gh CLI
 #   --min-version     Minimum app version that can auto-update to this release
 #   --mandatory       Mark this update as mandatory
+#   --sign            Sign the manifest with Ed25519 (requires CZ_SIGNING_KEY env var or --signing-key)
+#   --signing-key     Base64-encoded Ed25519 private key for manifest signing
 #
 # Expected binary naming in --dir:
 #   control-zebra-<os>-<arch>[.exe]
@@ -89,6 +91,8 @@ CHANNEL="stable"
 DO_UPLOAD=false
 MIN_VERSION=""
 MANDATORY=false
+DO_SIGN=false
+SIGNING_KEY=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -102,6 +106,8 @@ while [[ $# -gt 0 ]]; do
         --upload)       DO_UPLOAD=true; shift ;;
         --min-version)  MIN_VERSION="$2"; shift 2 ;;
         --mandatory)    MANDATORY=true; shift ;;
+        --sign)         DO_SIGN=true; shift ;;
+        --signing-key)  SIGNING_KEY="$2"; DO_SIGN=true; shift 2 ;;
         --help|-h)
             sed -n '2,/^set -euo/{ /^set -euo/d; s/^# \{0,1\}//p; }' "$0"
             exit 0
@@ -383,6 +389,33 @@ rm -f "$RECORDS_TMPFILE" "$NOTES_TMPFILE"
 
 ok "Manifest written to ${BOLD}$OUTPUT_DIR/update.json${NC}"
 echo ""
+
+# ─── Sign Manifest (optional) ─────────────────────────────────────────────────
+
+if $DO_SIGN; then
+    # Resolve signing key: --signing-key flag > CZ_SIGNING_KEY env var
+    if [[ -z "$SIGNING_KEY" ]]; then
+        SIGNING_KEY="${CZ_SIGNING_KEY:-}"
+    fi
+
+    if [[ -z "$SIGNING_KEY" ]]; then
+        die "Signing requested but no key provided. Set CZ_SIGNING_KEY env var or use --signing-key <base64>"
+    fi
+
+    info "Signing manifest with Ed25519..."
+
+    # Use the Go signing tool
+    if go run scripts/signing/main.go sign \
+        --key "$SIGNING_KEY" \
+        --file "$OUTPUT_DIR/update.json" \
+        --output "$OUTPUT_DIR/update.json.sig"; then
+        ok "Manifest signed → ${BOLD}$OUTPUT_DIR/update.json.sig${NC}"
+    else
+        die "Manifest signing failed!"
+    fi
+
+    echo ""
+fi
 
 # ─── Summary ───────────────────────────────────────────────────────────────────
 
