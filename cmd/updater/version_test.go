@@ -73,10 +73,10 @@ func TestCompareVersions(t *testing.T) {
 		{"0.3.0-rc.1", "0.3.0-beta.1", 1},
 
 		// Real-world upgrade scenarios
-		{"0.2.0", "0.3.0", -1},   // v0.2.0 → v0.3.0 is an upgrade
+		{"0.2.0", "0.3.0", -1},     // v0.2.0 → v0.3.0 is an upgrade
 		{"0.0.0-dev", "0.3.0", -1}, // dev → release is an upgrade
-		{"0.3.0", "0.3.1", -1},   // patch bump
-		{"0.3.0", "1.0.0", -1},   // major bump
+		{"0.3.0", "0.3.1", -1},     // patch bump
+		{"0.3.0", "1.0.0", -1},     // major bump
 	}
 
 	for _, tt := range tests {
