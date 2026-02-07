@@ -88,6 +88,11 @@ Section
     
     !insertmacro wails.files
 
+    # Install the updater sidecar binary alongside the main executable
+    !ifdef ARG_UPDATER_BINARY
+        File "/oname=cz-updater.exe" "${ARG_UPDATER_BINARY}"
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
@@ -99,6 +104,10 @@ SectionEnd
 
 Section "uninstall" 
     !insertmacro wails.setShellContext
+
+    # Clean up updater sidecar and any leftover backup from updates
+    Delete "$INSTDIR\cz-updater.exe"
+    Delete "$INSTDIR\${PRODUCT_EXECUTABLE}.old"
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 

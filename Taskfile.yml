@@ -33,6 +33,31 @@ tasks:
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
+  build:updater:
+    summary: Builds the updater sidecar binary (pure Go, no CGO)
+    cmds:
+      - go build -trimpath -ldflags="-w -s -X main.Version={{.APP_VERSION}}" -o {{.BIN_DIR}}/cz-updater{{exeExt}} ./cmd/updater
+    env:
+      GOOS: '{{.UPDATER_GOOS | default OS}}'
+      GOARCH: '{{.UPDATER_GOARCH | default ARCH}}'
+      CGO_ENABLED: '0'
+    sources:
+      - cmd/updater/**/*.go
+    generates:
+      - '{{.BIN_DIR}}/cz-updater{{exeExt}}'
+
+  build:updater:cross:
+    summary: Cross-compiles the updater sidecar for a specific OS/ARCH
+    cmds:
+      - go build -trimpath -ldflags="-w -s -X main.Version={{.APP_VERSION}}" -o {{.BIN_DIR}}/cz-updater-{{.TARGET_OS}}-{{.TARGET_ARCH}}{{if eq .TARGET_OS "windows"}}.exe{{end}} ./cmd/updater
+    env:
+      GOOS: '{{.TARGET_OS}}'
+      GOARCH: '{{.TARGET_ARCH}}'
+      CGO_ENABLED: '0'
+    vars:
+      TARGET_OS: '{{.TARGET_OS | default OS}}'
+      TARGET_ARCH: '{{.TARGET_ARCH | default ARCH}}'
+
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)
     cmds:

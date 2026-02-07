@@ -19,6 +19,8 @@ release: "1"
 contents:
   - src: "./bin/control-zebra"
     dst: "/usr/local/bin/control-zebra"
+  - src: "./bin/cz-updater"
+    dst: "/usr/local/bin/cz-updater"
   - src: "./build/appicon.png"
     dst: "/usr/share/icons/hicolor/128x128/apps/control-zebra.png"
   - src: "./build/linux/control-zebra.desktop"

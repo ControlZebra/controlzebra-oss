@@ -43,6 +43,7 @@ tasks:
             ref: .DEV
       - task: common:generate:icons
       - task: generate:dotdesktop
+      - task: build:updater
     cmds:
       - go build {{.BUILD_FLAGS}} -o {{.OUTPUT}}
     vars:
@@ -95,6 +96,14 @@ tasks:
             fi
           done | tr '\n' ' '
 
+  build:updater:
+    summary: Builds the updater sidecar for Linux
+    cmds:
+      - task: common:build:updater
+        vars:
+          UPDATER_GOOS: linux
+          UPDATER_GOARCH: '{{.ARCH | default ARCH}}'
+
   package:
     summary: Packages the application for Linux
     deps:
@@ -113,11 +122,13 @@ tasks:
       - task: generate:dotdesktop
     cmds:
       - cp {{.APP_BINARY}} {{.APP_NAME}}
+      - cp {{.UPDATER_BINARY}} cz-updater
       - cp ../../appicon.png {{.APP_NAME}}.png
       - wails3 generate appimage -binary {{.APP_NAME}} -icon {{.ICON}} -desktopfile {{.DESKTOP_FILE}} -outputdir {{.OUTPUT_DIR}} -builddir {{.ROOT_DIR}}/build/linux/appimage/build
     vars:
       APP_NAME: '{{.APP_NAME}}'
       APP_BINARY: '../../../bin/{{.APP_NAME}}'
+      UPDATER_BINARY: '../../../bin/cz-updater'
       ICON: '{{.APP_NAME}}.png'
       DESKTOP_FILE: '../{{.APP_NAME}}.desktop'
       OUTPUT_DIR: '../../../bin'
