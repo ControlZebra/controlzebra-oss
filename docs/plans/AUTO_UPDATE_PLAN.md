@@ -13,7 +13,7 @@ This document describes how to implement automatic updates for ControlZebra usin
    - Phase 1: Version Injection (Build Pipeline) ✅
    - Phase 2: Sidecar Binary (`cmd/updater/`) ✅
    - Phase 3: Backend — UpdaterService (Go Service) ✅
-   - Phase 4: Frontend — Update Checker UI
+   - Phase 4: Frontend — Update Checker UI ✅
    - Phase 5: Menu Integration ✅
    - Phase 6: Update Manifest & Hosting
    - Phase 7: Build Pipeline — Sidecar Packaging
@@ -608,7 +608,7 @@ Then run `task common:generate:bindings` to auto-generate frontend bindings.
 
 ---
 
-### Phase 4: Frontend — Update Checker UI
+### Phase 4: Frontend — Update Checker UI ✅ COMPLETE
 
 **Goal:** Show users when an update is available and let them download + install.
 
@@ -989,7 +989,7 @@ Phase 2 (Sidecar Binary)       ██████████  ~4 hours   — �
 Phase 7 (Sidecar Packaging)    ████░░░░░░  ~1 hour    — Depends on Phase 2
 Phase 3 (UpdaterService)       ██████████  ~2 hours   — ✅ COMPLETE
 Phase 5 (Menu Integration)     ██████████  ~30 min    — ✅ COMPLETE
-Phase 4 (Frontend UI)          ████████░░  ~4 hours   — Depends on Phase 3 (bindings)
+Phase 4 (Frontend UI)          ██████████  ~4 hours   — ✅ COMPLETE
 Phase 6 (Manifest & Hosting)   ██████░░░░  ~2 hours   — Blocked on Decisions #1, #2
 Phase 8 (Security)             ████░░░░░░  ~1 hour    — Blocked on Decision #3
 Phase 9 (Delta Updates)        ░░░░░░░░░░  Future     — Not needed for v1
