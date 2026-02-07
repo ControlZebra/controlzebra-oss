@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	_ "embed"
+	"fmt"
 	"log"
 	"runtime"
 	"time"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// Version is set at build time via -ldflags "-X main.Version=x.y.z".
+// Defaults to "0.0.0-dev" for local development builds.
+var Version = "0.0.0-dev"
 
 // Wails uses Go's `embed` package to embed the frontend files into the binary.
 // Any files in the frontend/dist folder will be embedded into the binary and
@@ -198,7 +203,7 @@ func main() {
 				BackgroundColour: application.NewRGB(30, 30, 30),
 				URL:              "about:blank",
 			})
-			aboutWindow.SetHTML(`
+			aboutHTML := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <head>
@@ -225,12 +230,13 @@ h1 { font-size: 24px; margin: 0 0 8px 0; color: #fff; }
 </head>
 <body>
 <h1>ControlZebra</h1>
-<div class="version">Version 0.2.0</div>
+<div class="version">Version %s</div>
 <div class="description">A simplified Git client for industrial automation users. Manage version control without the complexity.</div>
 <div class="copyright">© 2026 ControlZebra</div>
 </body>
 </html>
-`)
+`, Version)
+			aboutWindow.SetHTML(aboutHTML)
 		})
 	}
 
