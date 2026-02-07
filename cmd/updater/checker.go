@@ -23,22 +23,30 @@ type checkResult struct {
 
 // runCheck implements the "cz-updater check" subcommand.
 //
-// It fetches the update manifest from the given URL, finds the platform entry
-// matching the user's OS/arch, and compares versions. The result is written as
-// JSON to stdout (exit 0). Errors go to stderr (exit 1).
+// It fetches the update manifest from the given URL, optionally verifies its
+// Ed25519 signature, finds the platform entry matching the user's OS/arch, and
+// compares versions. The result is written as JSON to stdout (exit 0). Errors
+// go to stderr (exit 1).
+//
+// Signature verification:
+//   - If --public-key is provided, it overrides the compiled-in PublicKey.
+//   - If a public key is available (either source), the manifest signature is
+//     verified before parsing. Unsigned/tampered manifests are rejected.
+//   - If no public key is available, verification is skipped (dev mode).
 //
 // Usage:
 //
-//	cz-updater check --url <manifest-base-url> --current <version> --os <GOOS> --arch <GOARCH>
+//	cz-updater check --url <manifest-base-url> --current <version> --os <GOOS> --arch <GOARCH> [--public-key <base64>]
 func runCheck(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 
 	var (
-		url     string
-		current string
-		goos    string
-		goarch  string
-		timeout int
+		url       string
+		current   string
+		goos      string
+		goarch    string
+		timeout   int
+		publicKey string
 	)
 
 	fs.StringVar(&url, "url", "", "Base URL of the update manifest (required)")
@@ -46,6 +54,7 @@ func runCheck(args []string) error {
 	fs.StringVar(&goos, "os", "", "Target OS, e.g. darwin, windows, linux (required)")
 	fs.StringVar(&goarch, "arch", "", "Target architecture, e.g. amd64, arm64 (required)")
 	fs.IntVar(&timeout, "timeout", 30, "HTTP timeout in seconds")
+	fs.StringVar(&publicKey, "public-key", "", "Base64-encoded Ed25519 public key for signature verification (overrides compiled-in key)")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -65,8 +74,14 @@ func runCheck(args []string) error {
 		return fmt.Errorf("--arch is required")
 	}
 
-	// Fetch and parse the manifest
-	manifest, err := FetchManifest(url, time.Duration(timeout)*time.Second)
+	// Resolve public key: flag > compiled-in > empty (no verification)
+	effectiveKey := publicKey
+	if effectiveKey == "" {
+		effectiveKey = PublicKey
+	}
+
+	// Fetch manifest with optional signature verification
+	manifest, err := FetchManifestWithVerification(url, time.Duration(timeout)*time.Second, effectiveKey)
 	if err != nil {
 		return fmt.Errorf("manifest fetch failed: %w", err)
 	}

@@ -21,6 +21,15 @@ import (
 // Version is set at build time via -ldflags "-X main.Version=x.y.z".
 var Version = "0.0.0-dev"
 
+// PublicKey is the base64-encoded Ed25519 public key for manifest signature
+// verification. Compiled in at build time via:
+//
+//	go build -ldflags="-X main.PublicKey=<base64>" ./cmd/updater
+//
+// If empty, signature verification is skipped (dev/testing mode).
+// If set, the sidecar will refuse to accept unsigned or tampered manifests.
+var PublicKey = ""
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -37,6 +46,11 @@ func main() {
 		err = runApply(os.Args[2:])
 	case "version":
 		fmt.Println(Version)
+		if PublicKey != "" {
+			fmt.Println("signature verification: enabled")
+		} else {
+			fmt.Println("signature verification: disabled (no public key compiled in)")
+		}
 		return
 	case "help", "--help", "-h":
 		printUsage()

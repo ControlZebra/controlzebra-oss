@@ -17,7 +17,7 @@ This document describes how to implement automatic updates for ControlZebra usin
    - Phase 5: Menu Integration ✅
    - Phase 6: Update Manifest & Hosting
    - Phase 7: Build Pipeline — Sidecar Packaging ✅
-   - Phase 8: Security (Checksums & Signatures)
+   - Phase 8: Security (Checksums & Signatures) ✅
    - Phase 9: Delta Updates (Optional, Future)
 5. [File Changes Summary](#file-changes-summary)
 6. [Testing Strategy](#testing-strategy)
@@ -840,41 +840,52 @@ build:
 
 ---
 
-### Phase 8: Security (Checksums & Signatures)
+### Phase 8: Security (Checksums & Signatures) ✅ COMPLETE
 
-**Estimated time:** ~1 hour (blocked on Decision #3)
+**Estimated time:** ~1 hour
 
-#### Step 8.1: Checksum Verification (Built into Sidecar)
+#### Step 8.1: Checksum Verification (Built into Sidecar) ✅
 
 Already implemented in Phase 2's `download` subcommand — the sidecar computes SHA-256 while streaming the download and rejects mismatches. No additional setup.
 
-#### Step 8.2: Signature Verification (Recommended for Production)
+#### Step 8.2: Signature Verification ✅
 
-Sign the manifest with Ed25519 so the sidecar can verify it wasn't tampered with in transit.
+Ed25519 manifest signing and verification is fully implemented:
 
-**One-time setup:**
+**New files:**
+- `cmd/updater/signature.go` — `VerifyManifestSignature()`, `FetchSignature()`, `SignManifest()` functions using Go's `crypto/ed25519`
+- `cmd/updater/signature_test.go` — 20 tests covering valid signatures, tampered manifests, wrong keys, bad encodings, HTTP fetching, and end-to-end sign→serve→verify
+- `scripts/signing/main.go` — Standalone Go tool with `keygen`, `sign`, and `verify` subcommands
+
+**Modified files:**
+- `cmd/updater/main.go` — Added `PublicKey` build-time variable (compiled via `-ldflags "-X main.PublicKey=<base64>"`)
+- `cmd/updater/manifest.go` — Split into `FetchManifestRaw()` + `ParseManifest()` + `FetchManifestWithVerification()`
+- `cmd/updater/checker.go` — Added `--public-key` flag; uses `FetchManifestWithVerification()` which verifies before parsing
+- `services/updater_service.go` — Added `publicKey` field; passes `--public-key` to sidecar; supports `CZ_SIGNING_PUBLIC_KEY` env override
+- `Taskfile.yml` — Added `SIGNING_PUBLIC_KEY` variable; injected into sidecar build via `-X main.PublicKey`
+- `scripts/create-release.sh` — Added `--sign` / `--signing-key` flags; signs manifest after generation
+
+**Verification behavior:**
+- If `PublicKey` is compiled in (production): verification is mandatory, unsigned/tampered manifests are rejected
+- If `PublicKey` is empty (dev builds): verification is skipped, backward compatible
+- `--public-key` CLI flag overrides the compiled-in key (for testing)
+
+**Key generation and signing workflow:**
 ```bash
-openssl genpkey -algorithm Ed25519 -out private.pem
-openssl pkey -in private.pem -pubout -out public.pem
+# One-time: generate key pair
+go run ./scripts/signing/ keygen
+
+# Store public key in Taskfile.yml (SIGNING_PUBLIC_KEY)
+# Store private key in GitHub Actions secrets (UPDATE_SIGNING_KEY)
+
+# During release: sign the manifest
+./scripts/create-release.sh -v 0.1.0 -n "Release notes" --sign
+# Or with explicit key:
+go run ./scripts/signing/ sign --key "$CZ_SIGNING_KEY" --file release/0.1.0/update.json
+
+# Verify before publishing:
+go run ./scripts/signing/ verify --key "$SIGNING_PUBLIC_KEY" --file release/0.1.0/update.json --sig release/0.1.0/update.json.sig
 ```
-
-**Each release (in CI):**
-```bash
-# Sign the manifest
-openssl pkeyutl -sign -inkey private.pem -in update.json -out update.json.sig
-# Base64 encode the signature
-base64 < update.json.sig > update.json.sig.b64
-# Upload: update.json + update.json.sig.b64
-```
-
-**In the sidecar:** The `check` subcommand accepts `--public-key <base64>` (or it's compiled in via ldflags). It downloads both `update.json` and `update.json.sig.b64`, verifies the signature, and only parses the manifest if verification passes.
-
-The public key is compiled into the sidecar binary at build time:
-```bash
-go build -ldflags="-X main.PublicKey=MCowBQYDK2VwAyEA..." ./cmd/updater
-```
-
-**Store the private key** in GitHub Actions secrets (`UPDATE_SIGNING_KEY`). Never commit it to the repo.
 
 ---
 
@@ -908,6 +919,9 @@ Not needed for v1. Same concept — use `bsdiff` to generate patches from old→
 | **`frontend/src/components/common/UpdateChecker.tsx`** | **New** — update UI component | 4 |
 | **`frontend/src/App.tsx`** | Mount `<UpdateChecker />` | 4 |
 | **`frontend/bindings/`** | **Auto-generated** — updater service bindings | 3 |
+| **`cmd/updater/signature.go`** | **New** — Ed25519 verification, signature fetching, signing | 8 |
+| **`cmd/updater/signature_test.go`** | **New** — 20 signature verification tests | 8 |
+| **`scripts/signing/main.go`** | **New** — keygen/sign/verify CLI tool for releases | 8 |
 
 ---
 
@@ -981,7 +995,7 @@ go build -o bin/cz-updater ./cmd/updater
 |---|----------|---------|----------------|
 | 1 | **Where do we host updates?** | GitHub Releases + Pages, Cloudflare R2, S3, self-hosted | ✅ **GitHub Releases + Pages** — binaries as Release assets, manifest on Pages. |
 | 2 | **What is the update URL?** | `https://releases.controlzebra.com/desktop/stable/`, GitHub Pages URL | ✅ **`https://releases.controlzebra.com/desktop/stable/`** — CNAME to GitHub Pages. |
-| 3 | **Signature verification in v1?** | Yes (more secure, more setup), No (checksums only) | Yes — industrial users, supply chain security matters. |
+| 3 | **Signature verification in v1?** | Yes (more secure, more setup), No (checksums only) | ✅ **Yes** — Ed25519 manifest signatures implemented. Industrial users, supply chain security matters. |
 | 4 | **First auto-update version?** | Current is `0.0.1` / `0.2.0` (inconsistent) | ✅ **`0.1.0`** — version injection fixed in Phase 1. |
 | 5 | **Beta channel?** | Yes (two manifests), No (stable only) | Stable only for v1. |
 | 6 | **Mandatory updates?** | Always optional, sometimes mandatory | Always optional. Reserve mandatory for critical security fixes. |
@@ -999,7 +1013,7 @@ Phase 3 (UpdaterService)       ██████████  ~2 hours   — �
 Phase 5 (Menu Integration)     ██████████  ~30 min    — ✅ COMPLETE
 Phase 4 (Frontend UI)          ██████████  ~4 hours   — ✅ COMPLETE
 Phase 6 (Manifest & Hosting)   ██████████  ~2 hours   — ✅ COMPLETE
-Phase 8 (Security)             ████░░░░░░  ~1 hour    — Blocked on Decision #3
+Phase 8 (Security)             ██████████  ~1 hour    — ✅ COMPLETE
 Phase 9 (Delta Updates)        ░░░░░░░░░░  Future     — Not needed for v1
 ```
 
