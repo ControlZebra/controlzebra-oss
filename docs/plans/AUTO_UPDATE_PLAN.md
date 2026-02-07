@@ -695,11 +695,19 @@ The frontend `useUpdateChecker` hook listens for `updater:manual-check` and trig
 
 ---
 
-### Phase 6: Update Manifest & Hosting
+### Phase 6: Update Manifest & Hosting ✅ COMPLETE
 
 **Goal:** Define the manifest format and choose hosting.
 
-**Estimated time:** ~2 hours (blocked on hosting decision)
+**Estimated time:** ~2 hours
+
+**Decisions made:**
+- **Hosting:** GitHub Releases (binaries) + GitHub Pages (manifest) on `ControlZebra/controlzebra-releases` repo, CNAME to `releases.controlzebra.com`
+- **Artifact format:** Raw binaries (no archives) — sidecar downloads and stages directly
+- **Release tooling:** Manual script (`scripts/create-release.sh`) — CI workflow deferred to later
+- **First version:** `0.1.0` as baseline for auto-update
+- **Manifest URL:** `https://controlzebra.github.io/controlzebra-releases/desktop/beta/update.json`
+- **Env override:** `CZ_UPDATE_URL` env var for local testing
 
 #### Step 6.1: Manifest Format
 
@@ -971,10 +979,10 @@ go build -o bin/cz-updater ./cmd/updater
 
 | # | Question | Options | Recommendation |
 |---|----------|---------|----------------|
-| 1 | **Where do we host updates?** | GitHub Releases + Pages, Cloudflare R2, S3, self-hosted | GitHub Releases + Pages for v1. Free, already on GitHub. |
-| 2 | **What is the update URL?** | `https://releases.controlzebra.com/desktop/stable/`, GitHub Pages URL | Needs domain/CDN decision. Can start with GitHub Pages. |
+| 1 | **Where do we host updates?** | GitHub Releases + Pages, Cloudflare R2, S3, self-hosted | ✅ **GitHub Releases + Pages** — binaries as Release assets, manifest on Pages. |
+| 2 | **What is the update URL?** | `https://releases.controlzebra.com/desktop/stable/`, GitHub Pages URL | ✅ **`https://releases.controlzebra.com/desktop/stable/`** — CNAME to GitHub Pages. |
 | 3 | **Signature verification in v1?** | Yes (more secure, more setup), No (checksums only) | Yes — industrial users, supply chain security matters. |
-| 4 | **First auto-update version?** | Current is `0.0.1` / `0.2.0` (inconsistent) | Fix to `0.1.0` as the first auto-update-enabled release. |
+| 4 | **First auto-update version?** | Current is `0.0.1` / `0.2.0` (inconsistent) | ✅ **`0.1.0`** — version injection fixed in Phase 1. |
 | 5 | **Beta channel?** | Yes (two manifests), No (stable only) | Stable only for v1. |
 | 6 | **Mandatory updates?** | Always optional, sometimes mandatory | Always optional. Reserve mandatory for critical security fixes. |
 | 7 | **Windows admin privileges?** | Needed if in `Program Files` | NSIS should install to user-writable location (`AppData\Local`). |
@@ -990,7 +998,7 @@ Phase 7 (Sidecar Packaging)    ██████████  ~1 hour    — �
 Phase 3 (UpdaterService)       ██████████  ~2 hours   — ✅ COMPLETE
 Phase 5 (Menu Integration)     ██████████  ~30 min    — ✅ COMPLETE
 Phase 4 (Frontend UI)          ██████████  ~4 hours   — ✅ COMPLETE
-Phase 6 (Manifest & Hosting)   ██████░░░░  ~2 hours   — Blocked on Decisions #1, #2
+Phase 6 (Manifest & Hosting)   ██████████  ~2 hours   — ✅ COMPLETE
 Phase 8 (Security)             ████░░░░░░  ~1 hour    — Blocked on Decision #3
 Phase 9 (Delta Updates)        ░░░░░░░░░░  Future     — Not needed for v1
 ```

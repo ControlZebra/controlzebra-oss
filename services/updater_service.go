@@ -54,7 +54,17 @@ type UpdateProgress struct {
 // NewUpdaterService creates a new UpdaterService.
 //   - version: the current app version (injected at build time via -ldflags)
 //   - updateURL: base URL of the update manifest server (e.g. "https://releases.controlzebra.com/desktop/stable/")
+//
+// The update URL can be overridden at runtime by setting the CZ_UPDATE_URL
+// environment variable. This is useful for local testing:
+//
+//	CZ_UPDATE_URL=http://localhost:8080/ task dev
 func NewUpdaterService(version, updateURL string) *UpdaterService {
+	if envURL := os.Getenv("CZ_UPDATE_URL"); envURL != "" {
+		log.Printf("[UpdaterService] update URL overridden via CZ_UPDATE_URL: %s", envURL)
+		updateURL = envURL
+	}
+
 	return &UpdaterService{
 		currentVersion: version,
 		updateURL:      updateURL,
