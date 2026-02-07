@@ -16,7 +16,7 @@ This document describes how to implement automatic updates for ControlZebra usin
    - Phase 4: Frontend — Update Checker UI ✅
    - Phase 5: Menu Integration ✅
    - Phase 6: Update Manifest & Hosting
-   - Phase 7: Build Pipeline — Sidecar Packaging
+   - Phase 7: Build Pipeline — Sidecar Packaging ✅
    - Phase 8: Security (Checksums & Signatures)
    - Phase 9: Delta Updates (Optional, Future)
 5. [File Changes Summary](#file-changes-summary)
@@ -986,7 +986,7 @@ go build -o bin/cz-updater ./cmd/updater
 ```
 Phase 1 (Version Injection)    ██████████  ~1 hour    — ✅ COMPLETE
 Phase 2 (Sidecar Binary)       ██████████  ~4 hours   — ✅ COMPLETE
-Phase 7 (Sidecar Packaging)    ████░░░░░░  ~1 hour    — Depends on Phase 2
+Phase 7 (Sidecar Packaging)    ██████████  ~1 hour    — ✅ COMPLETE
 Phase 3 (UpdaterService)       ██████████  ~2 hours   — ✅ COMPLETE
 Phase 5 (Menu Integration)     ██████████  ~30 min    — ✅ COMPLETE
 Phase 4 (Frontend UI)          ██████████  ~4 hours   — ✅ COMPLETE
