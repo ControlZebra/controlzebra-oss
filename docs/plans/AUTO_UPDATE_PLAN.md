@@ -168,7 +168,7 @@ var Version = "0.0.0-dev"
 
 This will be overridden during CI/release builds with:
 ```bash
-go build -ldflags="-X main.Version=0.3.0" .
+go build -ldflags="-X main.Version=0.1.0" .
 ```
 
 #### Step 1.2: Use `Version` in the About Dialog
@@ -219,7 +219,7 @@ BUILD_FLAGS: '{{if eq .DEV "true"}}-buildvcs=false -gcflags=all="-l"{{else}}-tag
 
 **Linux** (`build/linux/Taskfile.yml`): Same pattern as macOS.
 
-Now release builds are versioned: `APP_VERSION=0.3.0 task build`
+Now release builds are versioned: `APP_VERSION=0.1.0 task build`
 
 #### Step 1.5: Sync `build/config.yml`
 
@@ -268,10 +268,10 @@ The sidecar uses simple subcommands via `os.Args` (no framework needed):
 3. Find platform entry matching --os + --arch (e.g., "darwin-arm64")
 4. Compare --current version against manifest version (semver)
 5. If manifest.version > current:
-     stdout: {"available": true, "version": "0.3.0", "releaseNotes": "...", ...}
+     stdout: {"available": true, "version": "0.1.0", "releaseNotes": "...", ...}
      exit 0
 6. Else:
-     stdout: {"available": false, "currentVersion": "0.3.0"}
+     stdout: {"available": false, "currentVersion": "0.1.0"}
      exit 0
 7. On any error:
      stderr: error message
@@ -356,7 +356,7 @@ Simple semver comparison (~30 lines of Go, no external library):
 ```go
 // CompareVersions returns -1, 0, or 1.
 // Strips leading "v", splits on ".", compares major/minor/patch as integers.
-// Pre-release tags (e.g., "0.3.0-beta.1") are treated as less than release ("0.3.0").
+// Pre-release tags (e.g., "0.1.0-beta.1") are treated as less than release ("0.1.0").
 func CompareVersions(a, b string) int
 ```
 
@@ -641,7 +641,7 @@ Follow existing UI patterns:
 **Two-part UI:**
 
 1. **Toast notification** — appears when update is available (non-blocking):
-   > "ControlZebra v0.3.0 is available. [View Details]"
+   > "ControlZebra v0.1.0 is available. [View Details]"
 
 2. **Modal dialog** — shown when user clicks "View Details" or from Help menu:
    - Version number + release notes (markdown rendered)
@@ -705,27 +705,27 @@ The frontend `useUpdateChecker` hook listens for `updater:manual-check` and trig
 
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.1.0",
   "releaseDate": "2026-03-01T00:00:00Z",
-  "releaseNotes": "## What's New in v0.3.0\n\n- Conflict resolution UI\n- Protected branch warnings\n- LFS file indicators\n- Performance improvements",
+  "releaseNotes": "## What's New in v0.1.0\n\n- Conflict resolution UI\n- Protected branch warnings\n- LFS file indicators\n- Performance improvements",
   "platforms": {
     "darwin-arm64": {
-      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.3.0-darwin-arm64.tar.gz",
+      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.1.0-darwin-arm64.tar.gz",
       "size": 15728640,
       "checksum": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "darwin-amd64": {
-      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.3.0-darwin-amd64.tar.gz",
+      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.1.0-darwin-amd64.tar.gz",
       "size": 16777216,
       "checksum": "sha256:..."
     },
     "windows-amd64": {
-      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.3.0-windows-amd64.zip",
+      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.1.0-windows-amd64.zip",
       "size": 14680064,
       "checksum": "sha256:..."
     },
     "linux-amd64": {
-      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.3.0-linux-amd64.tar.gz",
+      "url": "https://releases.controlzebra.com/desktop/stable/control-zebra-0.1.0-linux-amd64.tar.gz",
       "size": 13631488,
       "checksum": "sha256:..."
     }
@@ -755,9 +755,9 @@ Use GitHub Releases on the existing `ControlZebra/controlzebra-releases` repo:
 https://releases.controlzebra.com/desktop/
 ├── stable/
 │   ├── update.json                                    ← manifest
-│   ├── control-zebra-0.3.0-windows-amd64.zip         ← Windows binary
-│   ├── control-zebra-0.3.0-darwin-arm64.tar.gz        ← macOS ARM
-│   └── control-zebra-0.3.0-darwin-amd64.tar.gz        ← macOS Intel
+│   ├── control-zebra-0.1.0-windows-amd64.zip         ← Windows binary
+│   ├── control-zebra-0.1.0-darwin-arm64.tar.gz        ← macOS ARM
+│   └── control-zebra-0.1.0-darwin-amd64.tar.gz        ← macOS Intel
 └── beta/                                              ← future
     └── update.json
 ```
@@ -949,7 +949,7 @@ go build -o bin/cz-updater ./cmd/updater
 ./bin/cz-updater check --url http://localhost:8080/ --current 0.2.0 --os darwin --arch arm64
 
 # Test download command directly
-./bin/cz-updater download --url http://localhost:8080/control-zebra-0.3.0-darwin-arm64.tar.gz \
+./bin/cz-updater download --url http://localhost:8080/control-zebra-0.1.0-darwin-arm64.tar.gz \
   --checksum sha256:abc123...
 ```
 
@@ -974,7 +974,7 @@ go build -o bin/cz-updater ./cmd/updater
 | 1 | **Where do we host updates?** | GitHub Releases + Pages, Cloudflare R2, S3, self-hosted | GitHub Releases + Pages for v1. Free, already on GitHub. |
 | 2 | **What is the update URL?** | `https://releases.controlzebra.com/desktop/stable/`, GitHub Pages URL | Needs domain/CDN decision. Can start with GitHub Pages. |
 | 3 | **Signature verification in v1?** | Yes (more secure, more setup), No (checksums only) | Yes — industrial users, supply chain security matters. |
-| 4 | **First auto-update version?** | Current is `0.0.1` / `0.2.0` (inconsistent) | Fix to `0.3.0` as the first auto-update-enabled release. |
+| 4 | **First auto-update version?** | Current is `0.0.1` / `0.2.0` (inconsistent) | Fix to `0.1.0` as the first auto-update-enabled release. |
 | 5 | **Beta channel?** | Yes (two manifests), No (stable only) | Stable only for v1. |
 | 6 | **Mandatory updates?** | Always optional, sometimes mandatory | Always optional. Reserve mandatory for critical security fixes. |
 | 7 | **Windows admin privileges?** | Needed if in `Program Files` | NSIS should install to user-writable location (`AppData\Local`). |
