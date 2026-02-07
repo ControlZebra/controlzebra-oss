@@ -61,8 +61,8 @@ func TestVerifyManifestSignature_TamperedManifest(t *testing.T) {
 }
 
 func TestVerifyManifestSignature_WrongPublicKey(t *testing.T) {
-	_, privB64 := generateTestKeyPair(t)        // Signer's key pair
-	wrongPubB64, _ := generateTestKeyPair(t)     // Different key pair
+	_, privB64 := generateTestKeyPair(t)     // Signer's key pair
+	wrongPubB64, _ := generateTestKeyPair(t) // Different key pair
 	manifest := []byte(`{"version":"1.0.0","platforms":{}}`)
 
 	sig := signTestData(t, manifest, privB64)
