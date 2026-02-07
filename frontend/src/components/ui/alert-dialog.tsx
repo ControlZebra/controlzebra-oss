@@ -43,14 +43,15 @@ const AlertDialogTrigger = React.forwardRef<HTMLButtonElement, AlertDialogTrigge
     const context = React.useContext(AlertDialogContext);
     
     if (asChild && React.isValidElement(children)) {
-      return React.cloneElement(children as React.ReactElement<{ onClick?: React.MouseEventHandler }>, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return React.cloneElement(children as React.ReactElement<any>, {
         ...props,
         ref,
         onClick: (e: React.MouseEvent) => {
           (children as React.ReactElement<{ onClick?: React.MouseEventHandler }>).props.onClick?.(e);
           context?.onOpenChange?.(true);
         },
-      });
+      } as any);
     }
     
     return (

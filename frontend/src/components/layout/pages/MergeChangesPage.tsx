@@ -237,6 +237,7 @@ const CheckPanel = memo(function CheckPanel({
   onSquashChange,
 }: CheckPanelProps): JSX.Element {
   const [showSelector, setShowSelector] = useState(false);
+  const isSameBranch = currentBranch === (targetBranch || 'main');
 
   return (
     <div className="flex-1 flex items-center justify-center p-8">
@@ -262,10 +263,12 @@ const CheckPanel = memo(function CheckPanel({
         {/* Control panel */}
         <div className="bg-theme-surface border border-theme-default rounded-lg p-4 space-y-4">
           {/* Merge direction */}
-          <div className="flex items-center justify-center gap-3 py-2 px-3 bg-theme-base rounded-lg">
+          <div className={`flex items-center justify-center gap-3 py-2 px-3 bg-theme-base rounded-lg ${
+            isSameBranch ? 'border border-orange-500/30' : ''
+          }`}>
             <span className="text-blue-400 font-medium">{currentBranch}</span>
             <ArrowRight style={iconSm} className="text-theme-muted" />
-            <span className="text-green-400 font-medium">{targetBranch || 'main'}</span>
+            <span className={`font-medium ${isSameBranch ? 'text-orange-400' : 'text-green-400'}`}>{targetBranch || 'main'}</span>
           </div>
 
           {/* Target branch selector */}
@@ -313,7 +316,7 @@ const CheckPanel = memo(function CheckPanel({
           </div>
 
           {/* Check button */}
-          <Button onClick={onCheck} disabled={isChecking} className="w-full">
+          <Button onClick={onCheck} disabled={isChecking || isSameBranch} className="w-full">
             {isChecking ? (
               <>
                 <Loader2 style={iconSm} className="animate-spin mr-2" />
@@ -326,6 +329,16 @@ const CheckPanel = memo(function CheckPanel({
               </>
             )}
           </Button>
+
+          {/* Same branch warning */}
+          {isSameBranch && (
+            <div className="flex items-start gap-2 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-left">
+              <Info style={iconSm} className="text-orange-400 mt-0.5 shrink-0" />
+              <p className="text-orange-400 text-sm">
+                Source and destination branch are the same. Select a different destination branch to merge into.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

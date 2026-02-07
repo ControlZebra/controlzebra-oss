@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ViewerRenderer, ViewerErrorBoundary } from './index';
-import { clearViewers, registerViewer, type ViewerConfig, type ViewerProps } from '../../lib/viewers';
+import { clearViewers, type ViewerConfig, type ViewerProps } from '../../lib/viewers';
 
 // ============================================================================
 // Test Utilities
@@ -69,7 +69,7 @@ describe('ViewerErrorBoundary', () => {
   });
 
   it('should show retry button that resets error state', () => {
-    const { rerender } = render(
+    render(
       <ViewerErrorBoundary filePath="/test/file.txt">
         <CrashingViewer filePath="/test/file.txt" />
       </ViewerErrorBoundary>
@@ -170,7 +170,7 @@ describe('ViewerRenderer', () => {
   });
 
   it('should pass contentPeek to viewer', () => {
-    function ViewerWithPeek({ filePath, contentPeek }: ViewerProps) {
+    function ViewerWithPeek({ filePath: _filePath, contentPeek }: ViewerProps) {
       return (
         <div data-testid="peek-viewer">
           {contentPeek ? `Has ${contentPeek.length} bytes` : 'No peek'}

@@ -20,7 +20,7 @@ import {
 } from './viewers';
 
 // Mock viewer component for testing
-const MockComponent = ({ filePath }: ViewerProps) => null;
+const MockComponent = ({ filePath: _filePath }: ViewerProps) => null;
 
 describe('Viewer Registry', () => {
   beforeEach(() => {
