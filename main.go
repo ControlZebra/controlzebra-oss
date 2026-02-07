@@ -54,6 +54,7 @@ func main() {
 	repoSettingsService := services.NewRepositorySettingsService()
 	fileWatcherService := services.NewFileWatcherService()
 	fileSystemService := services.NewFileSystemService()
+	updaterService := services.NewUpdaterService(Version, "https://releases.controlzebra.com/desktop/stable/")
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -74,6 +75,7 @@ func main() {
 			application.NewService(progressService),
 			application.NewService(repoSettingsService),
 			application.NewService(fileWatcherService),
+			application.NewService(updaterService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -90,6 +92,7 @@ func main() {
 	settingsService.SetApp(app)
 	repoSettingsService.SetApp(app)
 	fileWatcherService.SetApp(app)
+	updaterService.SetApp(app)
 
 	// Create application menu
 	menu := app.NewMenu()
@@ -183,6 +186,10 @@ func main() {
 
 	// Help menu
 	helpMenu := menu.AddSubmenu("Help")
+	helpMenu.Add("Check for Updates...").OnClick(func(ctx *application.Context) {
+		app.Event.Emit("updater:manual-check", "")
+	})
+	helpMenu.AddSeparator()
 	helpMenu.Add("Documentation").OnClick(func(ctx *application.Context) {
 		fileSystemService.OpenURL("https://controlzebra.com/docs")
 	})

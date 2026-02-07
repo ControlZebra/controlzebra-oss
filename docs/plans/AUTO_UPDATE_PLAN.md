@@ -10,11 +10,11 @@ This document describes how to implement automatic updates for ControlZebra usin
 2. [How Auto-Updates Work (Concepts)](#how-auto-updates-work-concepts)
 3. [What We Have Today](#what-we-have-today)
 4. [Implementation Steps](#implementation-steps)
-   - Phase 1: Version Injection (Build Pipeline)
-   - Phase 2: Sidecar Binary (`cmd/updater/`)
-   - Phase 3: Backend — UpdaterService (Go Service)
+   - Phase 1: Version Injection (Build Pipeline) ✅
+   - Phase 2: Sidecar Binary (`cmd/updater/`) ✅
+   - Phase 3: Backend — UpdaterService (Go Service) ✅
    - Phase 4: Frontend — Update Checker UI
-   - Phase 5: Menu Integration
+   - Phase 5: Menu Integration ✅
    - Phase 6: Update Manifest & Hosting
    - Phase 7: Build Pipeline — Sidecar Packaging
    - Phase 8: Security (Checksums & Signatures)
@@ -148,7 +148,7 @@ Currently **empty**. This is where the sidecar's `main.go` will live (`cmd/updat
 
 ## Implementation Steps
 
-### Phase 1: Version Injection (Build Pipeline)
+### Phase 1: Version Injection (Build Pipeline) ✅ COMPLETE
 
 **Goal:** Establish a single source of truth for the app version and inject it at build time.
 
@@ -227,7 +227,7 @@ Update `build/config.yml` → `info.version` to match the current logical versio
 
 ---
 
-### Phase 2: Sidecar Binary (`cmd/updater/`)
+### Phase 2: Sidecar Binary (`cmd/updater/`) ✅ COMPLETE
 
 **Goal:** Create a standalone Go binary that handles update checking, downloading, and binary replacement.
 
@@ -362,7 +362,7 @@ func CompareVersions(a, b string) int
 
 ---
 
-### Phase 3: Backend — UpdaterService (Go Service)
+### Phase 3: Backend — UpdaterService (Go Service) ✅ COMPLETE
 
 **Goal:** Create a Wails-exposed Go service that spawns the sidecar and exposes results to the frontend.
 
@@ -674,7 +674,7 @@ function App() {
 
 ---
 
-### Phase 5: Menu Integration
+### Phase 5: Menu Integration ✅ COMPLETE
 
 **Goal:** Add "Check for Updates…" to the Help menu.
 
@@ -984,11 +984,11 @@ go build -o bin/cz-updater ./cmd/updater
 ## Implementation Priority
 
 ```
-Phase 1 (Version Injection)    ████░░░░░░  ~1 hour    — No blockers
-Phase 2 (Sidecar Binary)       ████████░░  ~4 hours   — No blockers (pure Go)
+Phase 1 (Version Injection)    ██████████  ~1 hour    — ✅ COMPLETE
+Phase 2 (Sidecar Binary)       ██████████  ~4 hours   — ✅ COMPLETE
 Phase 7 (Sidecar Packaging)    ████░░░░░░  ~1 hour    — Depends on Phase 2
-Phase 3 (UpdaterService)       ██████░░░░  ~2 hours   — Depends on Phase 2
-Phase 5 (Menu Integration)     ██░░░░░░░░  ~30 min    — Depends on Phase 3
+Phase 3 (UpdaterService)       ██████████  ~2 hours   — ✅ COMPLETE
+Phase 5 (Menu Integration)     ██████████  ~30 min    — ✅ COMPLETE
 Phase 4 (Frontend UI)          ████████░░  ~4 hours   — Depends on Phase 3 (bindings)
 Phase 6 (Manifest & Hosting)   ██████░░░░  ~2 hours   — Blocked on Decisions #1, #2
 Phase 8 (Security)             ████░░░░░░  ~1 hour    — Blocked on Decision #3
