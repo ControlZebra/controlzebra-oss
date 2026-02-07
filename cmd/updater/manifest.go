@@ -59,7 +59,7 @@ func FetchManifest(baseURL string, timeout time.Duration) (*UpdateManifest, erro
 	if manifest.Version == "" {
 		return nil, fmt.Errorf("manifest missing required 'version' field")
 	}
-	if manifest.Platforms == nil || len(manifest.Platforms) == 0 {
+	if len(manifest.Platforms) == 0 {
 		return nil, fmt.Errorf("manifest missing required 'platforms' field")
 	}
 
