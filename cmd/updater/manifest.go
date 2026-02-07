@@ -12,12 +12,12 @@ import (
 // UpdateManifest is the top-level JSON structure served at the update URL.
 // It describes the latest available release across all supported platforms.
 type UpdateManifest struct {
-	Version      string                     `json:"version"`
-	ReleaseDate  string                     `json:"releaseDate"`
-	ReleaseNotes string                     `json:"releaseNotes"`
+	Version      string                      `json:"version"`
+	ReleaseDate  string                      `json:"releaseDate"`
+	ReleaseNotes string                      `json:"releaseNotes"`
 	Platforms    map[string]PlatformArtifact `json:"platforms"`
-	MinVersion   string                     `json:"minimumVersion,omitempty"`
-	Mandatory    bool                       `json:"mandatory,omitempty"`
+	MinVersion   string                      `json:"minimumVersion,omitempty"`
+	Mandatory    bool                        `json:"mandatory,omitempty"`
 }
 
 // PlatformArtifact describes a single platform-specific download.
