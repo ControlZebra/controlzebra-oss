@@ -91,7 +91,7 @@ interface TaskStatus {
 }
 
 interface TaskStatuses {
-  [key: string]: TaskStatus;
+  [key: string]: TaskStatus | null;
 }
 
 interface FetchSettings {
@@ -343,7 +343,7 @@ const RemoteSyncPanel = memo(function RemoteSyncPanel({ settings, onUpdate, repo
   const fetchStatuses = useCallback(async (): Promise<void> => {
     try {
       const statuses = await GetTaskStatuses();
-      setTaskStatuses(statuses || {});
+      setTaskStatuses((statuses || {}) as TaskStatuses);
     } catch (err) {
       console.error('Failed to fetch task statuses:', err);
     }
@@ -567,7 +567,7 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
   const fetchStatuses = useCallback(async (): Promise<void> => {
     try {
       const statuses = await GetTaskStatuses();
-      setTaskStatuses(statuses || {});
+      setTaskStatuses((statuses || {}) as TaskStatuses);
     } catch (err) {
       console.error('Failed to fetch task statuses:', err);
     }
@@ -1209,7 +1209,7 @@ const PerformancePanel = memo(function PerformancePanel({ settings, onUpdate, re
   const fetchStatuses = useCallback(async (): Promise<void> => {
     try {
       const statuses = await GetTaskStatuses();
-      setTaskStatuses(statuses || {});
+      setTaskStatuses((statuses || {}) as TaskStatuses);
     } catch (err) {
       console.error('Failed to fetch task statuses:', err);
     }

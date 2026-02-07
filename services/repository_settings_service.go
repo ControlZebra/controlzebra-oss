@@ -505,15 +505,15 @@ func (r *RepositorySettingsService) RunTaskNow(repoPath string, taskType Backgro
 }
 
 // GetTaskStatuses returns the current status of all background tasks
-func (r *RepositorySettingsService) GetTaskStatuses() map[BackgroundTaskType]*BackgroundTaskStatus {
+func (r *RepositorySettingsService) GetTaskStatuses() map[string]*BackgroundTaskStatus {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	// Return a copy
-	statuses := make(map[BackgroundTaskType]*BackgroundTaskStatus)
+	statuses := make(map[string]*BackgroundTaskStatus)
 	for k, v := range r.taskStatuses {
 		statusCopy := *v
-		statuses[k] = &statusCopy
+		statuses[string(k)] = &statusCopy
 	}
 	return statuses
 }

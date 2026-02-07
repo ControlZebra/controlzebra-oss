@@ -10,7 +10,6 @@
  * 3. Add the view ID to constants/index.ts VIEWS
  */
 import { memo } from 'react';
-import { VIEWS } from '../../constants';
 import { useLayout } from '../../context';
 import { VIEW_REGISTRY, ExplorerPage } from './pages';
 

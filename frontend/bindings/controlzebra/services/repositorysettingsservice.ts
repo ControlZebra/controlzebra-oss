@@ -127,7 +127,7 @@ export function GetSettings(repoPath: string): $CancellablePromise<$models.Repos
 /**
  * GetTaskStatuses returns the current status of all background tasks
  */
-export function GetTaskStatuses(): $CancellablePromise<{ [_: $models.BackgroundTaskType]: $models.BackgroundTaskStatus | null }> {
+export function GetTaskStatuses(): $CancellablePromise<{ [_: string]: $models.BackgroundTaskStatus | null }> {
     return $Call.ByID(4181591900).then(($result: any) => {
         return $$createType10($result);
     });

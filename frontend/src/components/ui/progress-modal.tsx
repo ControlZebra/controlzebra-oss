@@ -3,7 +3,6 @@
  * Blocks all user interaction while operation is in progress.
  * Shows indeterminate spinner initially, then progress bar when percentage is available.
  */
-import * as React from "react";
 import { memo, useEffect, useState, useRef } from "react";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Events } from "@wailsio/runtime";
