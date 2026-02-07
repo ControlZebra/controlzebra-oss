@@ -11,6 +11,7 @@ import * as ProgressService from "./progressservice.js";
 import * as RepositorySettingsService from "./repositorysettingsservice.js";
 import * as SettingsService from "./settingsservice.js";
 import * as TerminalService from "./terminalservice.js";
+import * as UpdaterService from "./updaterservice.js";
 export {
     FileDialogService,
     FileSystemService,
@@ -21,7 +22,8 @@ export {
     ProgressService,
     RepositorySettingsService,
     SettingsService,
-    TerminalService
+    TerminalService,
+    UpdaterService
 };
 
 export {
@@ -86,5 +88,6 @@ export {
     StashEntry,
     TerminalResult,
     TrackedPattern,
+    UpdateInfo,
     UserProfile
 } from "./models.js";

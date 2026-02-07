@@ -2739,6 +2739,55 @@ export class TrackedPattern {
 }
 
 /**
+ * UpdateInfo describes an available update. Returned by CheckForUpdate when a
+ * newer version exists on the update server.
+ */
+export class UpdateInfo {
+    "version": string;
+    "releaseNotes": string;
+    "downloadURL": string;
+    "size": number;
+    "checksum": string;
+    "releaseDate": string;
+    "mandatory": boolean;
+
+    /** Creates a new UpdateInfo instance. */
+    constructor($$source: Partial<UpdateInfo> = {}) {
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("releaseNotes" in $$source)) {
+            this["releaseNotes"] = "";
+        }
+        if (!("downloadURL" in $$source)) {
+            this["downloadURL"] = "";
+        }
+        if (!("size" in $$source)) {
+            this["size"] = 0;
+        }
+        if (!("checksum" in $$source)) {
+            this["checksum"] = "";
+        }
+        if (!("releaseDate" in $$source)) {
+            this["releaseDate"] = "";
+        }
+        if (!("mandatory" in $$source)) {
+            this["mandatory"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateInfo instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UpdateInfo {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateInfo($$parsedSource as Partial<UpdateInfo>);
+    }
+}
+
+/**
  * UserProfile contains git user configuration
  */
 export class UserProfile {

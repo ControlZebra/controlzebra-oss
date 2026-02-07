@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { RepoProvider } from './context';
 import { AppLayout } from './components/layout';
+import { UpdateChecker } from './components/common';
 import { initAnalytics, trackAppLaunched, trackAppClosed } from './lib/analytics';
 
 // Check if this is first launch by looking for a stored flag
@@ -49,6 +50,7 @@ function App(): JSX.Element {
   return (
     <RepoProvider>
       <AppLayout />
+      <UpdateChecker />
     </RepoProvider>
   );
 }
