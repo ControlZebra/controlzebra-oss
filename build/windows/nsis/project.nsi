@@ -93,6 +93,22 @@ Section
         File "/oname=cz-updater.exe" "${ARG_UPDATER_BINARY}"
     !endif
 
+    # ── Bundled Git (MinGit portable) ──
+    # Installed to $INSTDIR\git\ so the app can find it relative to the executable.
+    !ifdef ARG_GIT_DIR
+        SetOutPath "$INSTDIR\git"
+        File /r "${ARG_GIT_DIR}\*.*"
+        SetOutPath $INSTDIR
+    !endif
+
+    # ── Bundled GitHub CLI (gh) ──
+    # Installed to $INSTDIR\gh\ so the app can find it relative to the executable.
+    !ifdef ARG_GH_DIR
+        SetOutPath "$INSTDIR\gh"
+        File /r "${ARG_GH_DIR}\*.*"
+        SetOutPath $INSTDIR
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
@@ -108,6 +124,10 @@ Section "uninstall"
     # Clean up updater sidecar and any leftover backup from updates
     Delete "$INSTDIR\cz-updater.exe"
     Delete "$INSTDIR\${PRODUCT_EXECUTABLE}.old"
+
+    # Clean up bundled git and gh CLI directories
+    RMDir /r "$INSTDIR\git"
+    RMDir /r "$INSTDIR\gh"
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 

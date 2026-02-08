@@ -137,13 +137,13 @@ type GitHubOrganizationsResult struct {
 
 // IsGHInstalled checks if the GitHub CLI (gh) is installed and available
 func (g *GitHubService) IsGHInstalled() bool {
-	result := g.runner.Run("", "gh", "--version")
+	result := g.runner.Run("", GhPath(), "--version")
 	return result.Success
 }
 
 // GetGHVersion returns the installed GitHub CLI version
 func (g *GitHubService) GetGHVersion() string {
-	result := g.runner.Run("", "gh", "--version")
+	result := g.runner.Run("", GhPath(), "--version")
 	if !result.Success {
 		return ""
 	}
@@ -168,7 +168,7 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https")
+	cmd := exec.CommandContext(ctx, GhPath(), "auth", "login", "--hostname", "github.com", "--git-protocol", "https")
 
 	// We need to handle the interactive prompts
 	// The gh CLI will output the verification code to stderr
@@ -217,7 +217,7 @@ func (g *GitHubService) AuthLoginStart() GitHubDeviceFlowResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 
 	// Use --web flag to make it open browser, but we'll capture the code first
-	cmd := exec.CommandContext(ctx, "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web")
+	cmd := exec.CommandContext(ctx, GhPath(), "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web")
 
 	// Create pipes for stdout and stderr
 	stderr, err := cmd.StderrPipe()
@@ -414,7 +414,7 @@ func getErrorFromOutput(output string, err error) string {
 func (g *GitHubService) AuthLogout() GitHubAuthResult {
 	// The gh CLI requires confirmation when logging out
 	// We pipe "y\n" to stdin to confirm the logout
-	result := g.runner.RunWithStdin("", "y\n", "gh", "auth", "logout", "--hostname", "github.com")
+	result := g.runner.RunWithStdin("", "y\n", GhPath(), "auth", "logout", "--hostname", "github.com")
 	if !result.Success {
 		// Check if the error is because no account is logged in
 		if strings.Contains(result.Stderr, "not logged in") || strings.Contains(result.Stderr, "no accounts") {
@@ -437,7 +437,7 @@ func (g *GitHubService) AuthLogout() GitHubAuthResult {
 
 // AuthStatus checks the current authentication status
 func (g *GitHubService) AuthStatus() GitHubAuthStatus {
-	result := g.runner.Run("", "gh", "auth", "status")
+	result := g.runner.Run("", GhPath(), "auth", "status")
 
 	status := GitHubAuthStatus{
 		LoggedIn: result.Success,
@@ -513,7 +513,7 @@ func (g *GitHubService) ListUserOrganizations() GitHubOrganizationsResult {
 	}
 
 	// Get user's organizations using gh api
-	result := g.runner.Run("", "gh", "api", "user/orgs", "--jq", ".[].login")
+	result := g.runner.Run("", GhPath(), "api", "user/orgs", "--jq", ".[].login")
 
 	orgs := []GitHubOrganization{}
 	if result.Success && result.Stdout != "" {
@@ -571,7 +571,7 @@ func (g *GitHubService) RepoList(limit int, visibility string) GitHubRepoListRes
 		args = append(args, "--visibility", visibility)
 	}
 
-	result := g.runner.Run("", "gh", args...)
+	result := g.runner.Run("", GhPath(), args...)
 	if !result.Success {
 		return GitHubRepoListResult{
 			Success: false,
@@ -648,7 +648,7 @@ func (g *GitHubService) RepoListForOrg(org string, limit int) GitHubRepoListResu
 		"--limit", formatInt(limit),
 	}
 
-	result := g.runner.Run("", "gh", args...)
+	result := g.runner.Run("", GhPath(), args...)
 	if !result.Success {
 		return GitHubRepoListResult{
 			Success: false,
@@ -722,7 +722,7 @@ func (g *GitHubService) RepoClone(repo string, destPath string) GitHubCloneResul
 		args = append(args, destPath)
 	}
 
-	result := g.runner.Run("", "gh", args...)
+	result := g.runner.Run("", GhPath(), args...)
 	if !result.Success {
 		return GitHubCloneResult{
 			Success: false,
@@ -801,7 +801,7 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 		workDir = options.ClonePath
 	}
 
-	result := g.runner.Run(workDir, "gh", args...)
+	result := g.runner.Run(workDir, GhPath(), args...)
 	if !result.Success {
 		return GitHubRepoCreateResult{
 			Success: false,
@@ -893,7 +893,7 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 	// Push after creating
 	args = append(args, "--push")
 
-	result := g.runner.Run(localPath, "gh", args...)
+	result := g.runner.Run(localPath, GhPath(), args...)
 	if !result.Success {
 		return GitHubRepoCreateResult{
 			Success: false,

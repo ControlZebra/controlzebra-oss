@@ -145,13 +145,35 @@ tasks:
 
 
   create:app:bundle:
-    summary: Creates an `.app` bundle
+    summary: Creates an `.app` bundle with bundled git & gh CLIs
     cmds:
       - mkdir -p {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/{MacOS,Resources}
       - cp build/darwin/icons.icns {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources
       - cp {{.BIN_DIR}}/{{.APP_NAME}} {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS
       - cp {{.BIN_DIR}}/cz-updater {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS/cz-updater
       - cp build/darwin/Info.plist {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents
+      # Bundle git CLI (from build/deps/darwin-<arch>/git/)
+      - |
+        ARCH={{.ARCH | default ARCH}}
+        DEPS="build/deps/darwin-${ARCH}/git"
+        if [ -d "$DEPS" ]; then
+          echo "Bundling git from $DEPS"
+          cp -R "$DEPS" {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/git
+        else
+          echo "No bundled git at $DEPS — app will use system git"
+        fi
+      # Bundle gh CLI (from build/deps/darwin-<arch>/gh/)
+      - |
+        ARCH={{.ARCH | default ARCH}}
+        DEPS="build/deps/darwin-${ARCH}/gh"
+        if [ -d "$DEPS" ]; then
+          echo "Bundling gh from $DEPS"
+          mkdir -p {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/gh/bin
+          cp "$DEPS/bin/gh" {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/gh/bin/gh
+          chmod +x {{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/gh/bin/gh
+        else
+          echo "No bundled gh at $DEPS — app will use system gh"
+        fi
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
 
   codesign:adhoc:
