@@ -41,6 +41,7 @@ func (r *CommandRunner) Run(workDir string, name string, args ...string) Command
 func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name string, args ...string) CommandResult {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workDir
+	cmd.SysProcAttr = hideWindowAttr()
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -120,6 +121,7 @@ func (r *CommandRunner) RunWithStdin(workDir string, stdinInput string, name str
 func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir string, stdinInput string, name string, args ...string) CommandResult {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workDir
+	cmd.SysProcAttr = hideWindowAttr()
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

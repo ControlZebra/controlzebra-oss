@@ -169,6 +169,7 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, GhPath(), "auth", "login", "--hostname", "github.com", "--git-protocol", "https")
+	cmd.SysProcAttr = hideWindowAttr()
 
 	// We need to handle the interactive prompts
 	// The gh CLI will output the verification code to stderr
@@ -218,6 +219,7 @@ func (g *GitHubService) AuthLoginStart() GitHubDeviceFlowResult {
 
 	// Use --web flag to make it open browser, but we'll capture the code first
 	cmd := exec.CommandContext(ctx, GhPath(), "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web")
+	cmd.SysProcAttr = hideWindowAttr()
 
 	// Create pipes for stdout and stderr
 	stderr, err := cmd.StderrPipe()
