@@ -8,6 +8,36 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="error-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#1a1a2e;color:#e94560;font-family:monospace;padding:40px;overflow:auto;">
+      <h2 style="color:#e94560;margin:0 0 16px;">⚠ Startup Error</h2>
+      <pre id="error-msg" style="white-space:pre-wrap;word-break:break-all;font-size:13px;line-height:1.6;color:#eee;"></pre>
+    </div>
+    <script>
+      // Catch any JS errors that prevent React from mounting
+      function showErr(prefix, detail) {
+        var el = document.getElementById('error-overlay');
+        var pre = document.getElementById('error-msg');
+        if (el && pre) {
+          el.style.display = 'block';
+          pre.textContent += prefix + ' ' + detail + '\n\n';
+        }
+        // Also set document title for programmatic detection
+        document.title = 'CZ_ERROR: ' + prefix;
+      }
+      window.onerror = function(msg, src, line, col, err) {
+        showErr('[onerror]', msg + '\nSource: ' + src + ':' + line + ':' + col + (err && err.stack ? '\n' + err.stack : ''));
+      };
+      window.onunhandledrejection = function(e) {
+        showErr('[unhandledrejection]', e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : String(e));
+      };
+      // Monitor: if root is still empty after 5 seconds, something went wrong
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        if (root && root.children.length === 0) {
+          showErr('[mount-timeout]', 'React did not mount within 5 seconds. The root element is empty. Check for module import errors.');
+        }
+      }, 5000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
