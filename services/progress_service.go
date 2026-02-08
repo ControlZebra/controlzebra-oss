@@ -334,6 +334,7 @@ func (p *ProgressService) runGitWithProgress(repoPath, operationID, opName strin
 
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = repoPath
+	cmd.SysProcAttr = hideWindowAttr()
 
 	// Git sends progress to stderr
 	stderrPipe, err := cmd.StderrPipe()
