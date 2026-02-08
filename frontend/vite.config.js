@@ -29,6 +29,10 @@ export default defineConfig({
           if (id.includes('ladder-visualizer')) {
             return 'vendor-ladder';
           }
+          // Supabase auth SDK
+          if (id.includes('@supabase')) {
+            return 'vendor-supabase';
+          }
           // PDF viewer (react-pdf + pdfjs-dist)
           if (id.includes('react-pdf') || id.includes('pdfjs-dist')) {
             return 'vendor-pdf';

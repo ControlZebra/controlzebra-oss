@@ -54,6 +54,7 @@ func main() {
 	repoSettingsService := services.NewRepositorySettingsService()
 	fileWatcherService := services.NewFileWatcherService()
 	fileSystemService := services.NewFileSystemService()
+	authService := services.NewAuthService()
 	updaterService := services.NewUpdaterService(Version, "https://controlzebra.github.io/controlzebra-releases/desktop/beta/")
 
 	// Create a new Wails application by providing the necessary options.
@@ -75,6 +76,7 @@ func main() {
 			application.NewService(progressService),
 			application.NewService(repoSettingsService),
 			application.NewService(fileWatcherService),
+			application.NewService(authService),
 			application.NewService(updaterService),
 		},
 		Assets: application.AssetOptions{
