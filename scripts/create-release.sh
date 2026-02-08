@@ -34,7 +34,7 @@
 #   control-zebra-<os>-<arch>[.exe]
 #
 # Supported platforms:
-#   darwin-arm64, darwin-amd64, windows-amd64, linux-amd64, linux-arm64
+#   darwin-arm64, darwin-amd64, windows-amd64, windows-arm64, linux-amd64, linux-arm64
 #
 # Examples:
 #   # Build, then generate manifest for current platform only (quick test):
@@ -173,7 +173,7 @@ FOUND_PLATFORMS=()
 FOUND_PATHS=()
 
 # Check each supported platform
-for platform in darwin-arm64 darwin-amd64 windows-amd64 linux-amd64 linux-arm64; do
+for platform in darwin-arm64 darwin-amd64 windows-amd64 windows-arm64 linux-amd64 linux-arm64; do
     os_part="${platform%-*}"
     arch_part="${platform#*-}"
 
