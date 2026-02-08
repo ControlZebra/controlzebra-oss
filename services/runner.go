@@ -70,9 +70,16 @@ func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name
 	return result
 }
 
-// RunGit is a convenience method for running git commands
+// RunGit is a convenience method for running git commands.
+// Uses the bundled git binary when available, otherwise falls back to PATH.
 func (r *CommandRunner) RunGit(repoPath string, args ...string) CommandResult {
-	return r.Run(repoPath, "git", args...)
+	return r.Run(repoPath, GitPath(), args...)
+}
+
+// RunGh is a convenience method for running gh CLI commands.
+// Uses the bundled gh binary when available, otherwise falls back to PATH.
+func (r *CommandRunner) RunGh(workDir string, args ...string) CommandResult {
+	return r.Run(workDir, GhPath(), args...)
 }
 
 // MustRunGit runs a git command and returns an error if it fails
@@ -84,6 +91,19 @@ func (r *CommandRunner) MustRunGit(repoPath string, args ...string) (string, err
 			errMsg = result.Error
 		}
 		return "", fmt.Errorf("git %v failed: %s", args, errMsg)
+	}
+	return result.Stdout, nil
+}
+
+// MustRunGh runs a gh CLI command and returns an error if it fails
+func (r *CommandRunner) MustRunGh(workDir string, args ...string) (string, error) {
+	result := r.RunGh(workDir, args...)
+	if !result.Success {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Error
+		}
+		return "", fmt.Errorf("gh %v failed: %s", args, errMsg)
 	}
 	return result.Stdout, nil
 }

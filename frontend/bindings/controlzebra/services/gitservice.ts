@@ -384,7 +384,7 @@ export function FetchAll(repoPath: string): $CancellablePromise<$models.Operatio
 /**
  * GetBisectState returns information about the current bisect session.
  */
-export function GetBisectState(repoPath: string): $CancellablePromise<{ [_: string]: any }> {
+export function GetBisectState(repoPath: string): $CancellablePromise<{ [_ in string]?: any }> {
     return $Call.ByID(3805468497, repoPath).then(($result: any) => {
         return $$createType7($result);
     });

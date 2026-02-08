@@ -37,7 +37,7 @@ type LFSInfo struct {
 // Result is cached after the first check for efficiency.
 func (l *LFSService) IsLFSInstalled() bool {
 	l.lfsCheckOnce.Do(func() {
-		result := l.runner.Run(".", "git", "lfs", "version")
+		result := l.runner.Run(".", GitPath(), "lfs", "version")
 		l.lfsInstalled = result.Success
 	})
 	return l.lfsInstalled
@@ -45,7 +45,7 @@ func (l *LFSService) IsLFSInstalled() bool {
 
 // GetLFSVersion returns the installed git-lfs version
 func (l *LFSService) GetLFSVersion() (string, error) {
-	result := l.runner.Run(".", "git", "lfs", "version")
+	result := l.runner.Run(".", GitPath(), "lfs", "version")
 	if !result.Success {
 		return "", fmt.Errorf("git-lfs is not installed: %s", result.Error)
 	}

@@ -429,12 +429,12 @@ export class CommitGraphResult {
     /**
      * branch name -> commit hash
      */
-    "branches": { [_: string]: string };
+    "branches": { [_ in string]?: string };
 
     /**
      * tag name -> commit hash
      */
-    "tags": { [_: string]: string };
+    "tags": { [_ in string]?: string };
     "hasError": boolean;
     "error"?: string;
 

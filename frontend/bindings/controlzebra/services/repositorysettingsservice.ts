@@ -75,7 +75,7 @@ export function FixRemoteURL(repoPath: string, remoteName: string, newURL: strin
 /**
  * GetAllGitConfigs returns all local git config values for the repository
  */
-export function GetAllGitConfigs(repoPath: string): $CancellablePromise<{ [_: string]: string }> {
+export function GetAllGitConfigs(repoPath: string): $CancellablePromise<{ [_ in string]?: string }> {
     return $Call.ByID(4287591701, repoPath).then(($result: any) => {
         return $$createType2($result);
     });
@@ -127,7 +127,7 @@ export function GetSettings(repoPath: string): $CancellablePromise<$models.Repos
 /**
  * GetTaskStatuses returns the current status of all background tasks
  */
-export function GetTaskStatuses(): $CancellablePromise<{ [_: string]: $models.BackgroundTaskStatus | null }> {
+export function GetTaskStatuses(): $CancellablePromise<{ [_ in string]?: $models.BackgroundTaskStatus | null }> {
     return $Call.ByID(4181591900).then(($result: any) => {
         return $$createType10($result);
     });

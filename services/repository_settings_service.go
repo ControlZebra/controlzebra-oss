@@ -393,7 +393,7 @@ func (r *RepositorySettingsService) runLFSFetch(repoPath string, settings LFSSet
 	}
 
 	// Check if LFS is installed
-	lfsCheck := r.runner.Run(".", "git", "lfs", "version")
+	lfsCheck := r.runner.Run(".", GitPath(), "lfs", "version")
 	if !lfsCheck.Success {
 		return failedOp("Git LFS is not installed")
 	}
