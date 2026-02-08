@@ -179,8 +179,12 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   const [explorerTabs, setExplorerTabs] = useState<ExplorerTab[]>([FILE_BROWSER_TAB]);
   const [activeExplorerTab, setActiveExplorerTab] = useState<string>(FILE_BROWSER_TAB.id);
   
-  // Theme state
-  const [theme, setTheme] = useState<Theme>('system');
+  // Theme state – read persisted value so login screen preference carries over
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem('cz_theme');
+    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+    return 'system';
+  });
 
   // System theme detection and application
   useEffect(() => {

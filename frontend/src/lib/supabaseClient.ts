@@ -23,7 +23,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error(
+  throw new Error(
     '[ControlZebra] Missing Supabase configuration. ' +
     'Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY in frontend/.env.local'
   );
@@ -33,7 +33,7 @@ if (!supabaseUrl || !supabaseKey) {
 // We disable the default browser-storage persistence because tokens are stored
 // securely via the Go backend (OS keychain). The frontend will explicitly
 // hydrate the session on startup from the backend store.
-export const supabase = createClient(supabaseUrl ?? '', supabaseKey ?? '', {
+export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     // Disable built-in persistence — we manage tokens through the Go keychain service
     persistSession: false,
@@ -144,12 +144,15 @@ export async function refreshSession(): Promise<AuthResult> {
  * Only stores the fields needed for rehydration (tokens + expiry).
  */
 export function serialiseSession(session: Session): string {
+  // Only persist the minimum fields needed for rehydration.
+  // The full user object is re-fetched by supabase.auth.setSession().
+  // Keeping the payload small avoids Windows Credential Manager size limits
+  // (~2560 bytes) and avoids persisting PII unnecessarily.
   return JSON.stringify({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     expires_in: session.expires_in,
     expires_at: session.expires_at,
     token_type: session.token_type,
-    user: session.user,
   });
 }

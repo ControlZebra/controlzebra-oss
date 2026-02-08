@@ -2,14 +2,15 @@
  * GeneralSettings - App preferences including theme selection and analytics consent.
  */
 import { memo, useState, type CSSProperties, type JSX } from 'react';
-import { Sun, Moon, Monitor, BarChart3, type LucideIcon } from 'lucide-react';
-import { useLayout, type Theme } from '../../../../context';
+import { Sun, Moon, Monitor, BarChart3, LogOut, type LucideIcon } from 'lucide-react';
+import { useLayout, useAuth, type Theme } from '../../../../context';
 import { ICON_SIZES } from '../../../../constants';
 import { 
   getAnalyticsConsent, 
   setAnalyticsConsent, 
   type AnalyticsConsent 
 } from '../../../../lib/analytics';
+import { Button } from '../../../ui';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -51,7 +52,9 @@ const ANALYTICS_OPTIONS: AnalyticsOption[] = [
 
 function GeneralSettings(): JSX.Element {
   const { theme, setTheme } = useLayout();
+  const { isAuthenticated, userEmail, logout } = useAuth();
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(getAnalyticsConsent);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Handle analytics consent change
   const handleAnalyticsChange = (level: AnalyticsConsent) => {
@@ -143,6 +146,40 @@ function GeneralSettings(): JSX.Element {
         <p className="text-theme-muted text-xs mt-3">
           No personal information or file contents are ever collected.
         </p>
+      </div>
+
+      {/* Account */}
+      <div className="border-t border-theme-default pt-6 mt-6">
+        <div className="flex items-center gap-2 mb-3">
+          <LogOut style={iconStyle} className="text-theme-secondary" />
+          <label className="block text-theme-primary text-sm font-medium">
+            ControlZebra Account
+          </label>
+        </div>
+        <p className="text-theme-muted text-sm mb-4">
+          {isAuthenticated
+            ? `Signed in as ${userEmail || 'your account'}.`
+            : 'Sign in required to use the app.'}
+        </p>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!isAuthenticated}
+          loading={isSigningOut}
+          onClick={async () => {
+            if (!isAuthenticated) return;
+            setIsSigningOut(true);
+            try {
+              await logout();
+            } finally {
+              setIsSigningOut(false);
+            }
+          }}
+        >
+          <LogOut style={iconStyle} />
+          <span className="ml-1.5">Sign out</span>
+        </Button>
       </div>
     </div>
   );

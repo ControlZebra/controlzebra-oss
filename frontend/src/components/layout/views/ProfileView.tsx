@@ -2,19 +2,28 @@
  * ProfileView - Profile sidebar showing ControlZebra account info.
  * Account management is handled in the main area (ProfilePage).
  */
-import { memo, type CSSProperties, type JSX } from 'react';
-import { UserCircle, Crown, Zap } from 'lucide-react';
+import { memo, useState, type CSSProperties, type JSX } from 'react';
+import { UserCircle, Crown, Zap, LogOut } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
+import { useAuth } from '../../../context';
+import { Button } from '../../ui';
 
 const avatarSize = ICON_SIZES.lg * 2;
 const avatarStyle: CSSProperties = { width: avatarSize, height: avatarSize };
 
 function ProfileView(): JSX.Element {
-  // TODO: Replace with actual ControlZebra auth state when implemented
-  const isLoggedIn = false;
-  const userName = 'User';
-  const email = 'user@example.com';
+  const { isAuthenticated, userName, userEmail, logout } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const plan = 'Free'; // 'Free' | 'Pro' | 'Team'
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -25,14 +34,14 @@ function ProfileView(): JSX.Element {
           <span>ControlZebra Account</span>
         </div>
 
-        {isLoggedIn ? (
+        {isAuthenticated ? (
           <div className="space-y-4">
             {/* User Info */}
             <div className="flex items-center gap-3">
               <UserCircle style={avatarStyle} className="text-theme-secondary" />
               <div className="flex-1 min-w-0">
-                <p className="text-theme-primary text-sm font-medium truncate">{userName}</p>
-                <p className="text-theme-muted text-xs truncate">{email}</p>
+                <p className="text-theme-primary text-sm font-medium truncate">{userName || 'ControlZebra User'}</p>
+                <p className="text-theme-muted text-xs truncate">{userEmail || 'Signed in'}</p>
               </div>
             </div>
 
@@ -49,6 +58,16 @@ function ProfileView(): JSX.Element {
                 {plan === 'Free' ? 'Upgrade for more features' : 'Thank you for your support!'}
               </p>
             </div>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={isSigningOut}
+              onClick={handleSignOut}
+            >
+              <LogOut size={12} />
+              <span className="ml-1.5">Sign out</span>
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
