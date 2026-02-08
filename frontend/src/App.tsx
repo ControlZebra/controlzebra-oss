@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { RepoProvider } from './context';
+import { AuthProvider, useAuth, RepoProvider } from './context';
 import { AppLayout } from './components/layout';
 import { UpdateChecker } from './components/common';
 import { initAnalytics, trackAppLaunched, trackAppClosed } from './lib/analytics';
+import LoginView from './components/layout/views/LoginView';
+import Spinner from './components/common/Spinner';
+import { useLoginTheme } from './hooks/useLoginTheme';
 
 // Check if this is first launch by looking for a stored flag
 const isFirstLaunch = !localStorage.getItem('cz_has_launched');
@@ -48,11 +51,39 @@ function App(): JSX.Element {
   }, []);
 
   return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+export default App;
+
+function AuthGate(): JSX.Element {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Apply theme before LayoutProvider is available (pre-auth screens)
+  useLoginTheme();
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-theme-base text-theme-primary">
+        <div className="flex items-center gap-2 text-sm text-theme-muted">
+          <Spinner size={16} />
+          <span>Loading session…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
+
+  return (
     <RepoProvider>
       <AppLayout />
       <UpdateChecker />
     </RepoProvider>
   );
 }
-
-export default App;
