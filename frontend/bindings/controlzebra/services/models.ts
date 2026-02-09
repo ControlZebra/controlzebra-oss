@@ -758,6 +758,59 @@ export class CustomLFSGroupsData {
 }
 
 /**
+ * DetectedIdentity contains the resolved git identity and where each field came from.
+ * Used by EnsureIdentity to report what was found and whether it had to auto-set anything.
+ */
+export class DetectedIdentity {
+    "name": string;
+    "email": string;
+
+    /**
+     * "local", "global", "auto-set"
+     */
+    "nameSource": string;
+
+    /**
+     * "local", "global", "auto-set"
+     */
+    "emailSource": string;
+
+    /**
+     * true if we wrote to local config
+     */
+    "wasAutoSet": boolean;
+
+    /** Creates a new DetectedIdentity instance. */
+    constructor($$source: Partial<DetectedIdentity> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("email" in $$source)) {
+            this["email"] = "";
+        }
+        if (!("nameSource" in $$source)) {
+            this["nameSource"] = "";
+        }
+        if (!("emailSource" in $$source)) {
+            this["emailSource"] = "";
+        }
+        if (!("wasAutoSet" in $$source)) {
+            this["wasAutoSet"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DetectedIdentity instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DetectedIdentity {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DetectedIdentity($$parsedSource as Partial<DetectedIdentity>);
+    }
+}
+
+/**
  * DirectoryContents contains the contents of a directory
  */
 export class DirectoryContents {
