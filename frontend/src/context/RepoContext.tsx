@@ -87,7 +87,7 @@ import { SyncWithProgress } from '../../bindings/controlzebra/services/progresss
 import { GetAppSettings, SaveAppSettings, EnsureIdentity } from '../../bindings/controlzebra/services/settingsservice';
 import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
-import { GetRemotes, WriteRepoLocalConfig } from '../../bindings/controlzebra/services/repositorysettingsservice';
+import { GetRemotes, WriteRepoLocalConfig, EnsureControlZebraDir } from '../../bindings/controlzebra/services/repositorysettingsservice';
 import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
@@ -436,10 +436,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
         // Continue even if LFS setup fails
       }
       
-      // Step 3: Add default .gitignore entries
-      // TODO: Implement EnsureGitignoreEntries in backend (services/git_service.go)
-      // For now, skip this step - .gitignore entries can be added manually
-      // Desired entries: .env, .env.local, .env.*.local, .env.development.local, .env.production.local
+      // Step 3: Create .controlzebra/ directory & ensure local.json is gitignored
+      try {
+        await EnsureControlZebraDir(repoPath);
+      } catch (err) {
+        console.warn('Failed to ensure .controlzebra directory:', err);
+      }
       
       // Step 4: Ensure git identity from ControlZebra account
       try {

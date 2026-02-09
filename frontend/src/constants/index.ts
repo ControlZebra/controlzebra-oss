@@ -106,6 +106,60 @@ export const WELCOME_CATEGORIES: SettingsCategory[] = [
 export type WelcomeCategoryId = typeof WELCOME_CATEGORIES[number]['id'];
 
 // ============================================================================
+// PROJECT SETUP STATES (Phase 12)
+// Explicit project states derived from DetectRepo, Status, and GetRemotes.
+// Used by ProjectSetupBanner and ExplorerStatusPanel for state-aware messaging.
+// ============================================================================
+
+export const PROJECT_STATES = {
+  EMPTY_UNTRACKED: 'empty-untracked',
+  HAS_FILES_UNTRACKED: 'has-files-untracked',
+  TRACKED_NO_REMOTE: 'tracked-no-remote',
+  TRACKED_WITH_REMOTE: 'tracked-with-remote',
+  JUST_CREATED: 'just-created',
+} as const;
+
+export type ProjectState = typeof PROJECT_STATES[keyof typeof PROJECT_STATES];
+
+export interface ProjectStateConfig {
+  id: ProjectState;
+  title: string;
+  subtitle: string;
+  actionLabel?: string;
+}
+
+export const PROJECT_STATE_CONFIGS: Record<ProjectState, ProjectStateConfig> = {
+  [PROJECT_STATES.EMPTY_UNTRACKED]: {
+    id: PROJECT_STATES.EMPTY_UNTRACKED,
+    title: 'Empty folder',
+    subtitle: 'This folder is empty and not tracked. Start a new project?',
+    actionLabel: 'Enable Version Control',
+  },
+  [PROJECT_STATES.HAS_FILES_UNTRACKED]: {
+    id: PROJECT_STATES.HAS_FILES_UNTRACKED,
+    title: 'Files found',
+    subtitle: 'Files found but not tracked by Git. Enable version control?',
+    actionLabel: 'Enable Version Control',
+  },
+  [PROJECT_STATES.TRACKED_NO_REMOTE]: {
+    id: PROJECT_STATES.TRACKED_NO_REMOTE,
+    title: 'Version control enabled',
+    subtitle: 'Publish to GitHub for cloud backup and collaboration.',
+    actionLabel: 'Publish to GitHub',
+  },
+  [PROJECT_STATES.TRACKED_WITH_REMOTE]: {
+    id: PROJECT_STATES.TRACKED_WITH_REMOTE,
+    title: 'Project synced',
+    subtitle: 'Your project is connected to GitHub.',
+  },
+  [PROJECT_STATES.JUST_CREATED]: {
+    id: PROJECT_STATES.JUST_CREATED,
+    title: 'Project created',
+    subtitle: 'Version control is ready. Start making changes!',
+  },
+};
+
+// ============================================================================
 // REPOSITORY SETTINGS CATEGORIES
 // Configuration for the repository-level settings view sidebar.
 // Organized from user's perspective.

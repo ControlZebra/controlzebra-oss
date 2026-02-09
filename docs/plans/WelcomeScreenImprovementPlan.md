@@ -1,7 +1,7 @@
 
 ## Implementation Plan: Welcome Screen Redesign
 
-**Status (2026-02-09):** Phases 1–9 are complete ✅
+**Status (2026-02-09):** Phases 1–12 are complete ✅
 
 ### Architecture Overview
 
@@ -395,7 +395,7 @@ The parent (`NewProjectPage`) orchestrates the actual async calls and advances `
 
 ---
 
-### Phase 10 — "Create Project" Orchestration in RepoContext
+### Phase 10 — "Create Project" Orchestration in RepoContext ✅ Complete
 
 #### 10.1 Add `createProject()` method to RepoContext
 
@@ -460,7 +460,7 @@ Expose `createProject` from `useRepo()`.
 
 ---
 
-### Phase 11 — Cleanup & Integration
+### Phase 11 — Cleanup & Integration ✅ Complete
 
 | # | Task | File |
 |---|------|------|
@@ -475,7 +475,7 @@ Expose `createProject` from `useRepo()`.
 
 ---
 
-### Phase 12 — Unified Project Setup UX (Remove 4-Step Sidebar Flow)
+### Phase 12 — Unified Project Setup UX (Remove 4-Step Sidebar Flow) ✅ Complete
 
 **Goal:** Remove the old 4-step creation process from the sidebar while preserving start tracking and GitHub publishing as clear, unified actions.
 
@@ -576,15 +576,15 @@ When user clicks “Enable Version Control,” reveal a lightweight inline secti
 ```
 Phase 1–9 (Welcome Screen Core)              ← completed ✅
   ↓
-Phase 10 (createProject in RepoContext)      ← depends on Phase 6 + 9
+Phase 10 (createProject in RepoContext)      ← completed ✅
   ↓
-Phase 11 (Cleanup)                           ← last for v1 plan
+Phase 11 (Cleanup)                           ← completed ✅
   ↓
-Phase 12 (Unified Project Setup UX)          ← depends on Phase 10 + Welcome pages
+Phase 12 (Unified Project Setup UX)          ← completed ✅
   ↓
-Phase 13 (UX Consistency & Telemetry)        ← depends on Phase 12
+Phase 13 (UX Consistency & Telemetry)        ← next up
   ↓
-Phase 14 (QA & Edge Cases)                   ← after Phase 12–13
+Phase 14 (QA & Edge Cases)                   ← after Phase 13
 ```
 
 **Estimated effort:** ~3–5 days for a senior developer. Phase 12 is the primary UX refactor; Phase 13–14 are polish + QA.
