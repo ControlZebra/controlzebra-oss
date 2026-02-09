@@ -52,11 +52,28 @@ export function DeleteCustomLFSGroup(groupID: string): $CancellablePromise<$mode
 }
 
 /**
+ * EnsureIdentity checks that the repo has git user.name and user.email configured.
+ * If either is missing from both local and global git config, it auto-sets from the
+ * provided fallback values (typically from the Supabase login) into LOCAL repo config.
+ * 
+ * Priority (read):  local repo config > global config > fallback
+ * Priority (write): only writes to local repo config, never touches global
+ * 
+ * This should be called whenever a repo is opened. The fallbackName and fallbackEmail
+ * come from the authenticated ControlZebra user (Supabase session).
+ */
+export function EnsureIdentity(repoPath: string, fallbackName: string, fallbackEmail: string): $CancellablePromise<$models.DetectedIdentity> {
+    return $Call.ByID(918403549, repoPath, fallbackName, fallbackEmail).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
  * ExportCustomLFSGroups exports custom LFS groups to a JSON file
  */
 export function ExportCustomLFSGroups(): $CancellablePromise<$models.ExportLFSGroupsResult> {
     return $Call.ByID(2748950067).then(($result: any) => {
-        return $$createType1($result);
+        return $$createType2($result);
     });
 }
 
@@ -65,7 +82,7 @@ export function ExportCustomLFSGroups(): $CancellablePromise<$models.ExportLFSGr
  */
 export function GetAppSettings(): $CancellablePromise<$models.AppSettings> {
     return $Call.ByID(4098526243).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -74,7 +91,7 @@ export function GetAppSettings(): $CancellablePromise<$models.AppSettings> {
  */
 export function GetCustomLFSGroups(): $CancellablePromise<$models.CustomLFSGroupsData> {
     return $Call.ByID(1787134927).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -83,7 +100,7 @@ export function GetCustomLFSGroups(): $CancellablePromise<$models.CustomLFSGroup
  */
 export function GetRecentFolders(): $CancellablePromise<string[]> {
     return $Call.ByID(4002401493).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -93,7 +110,7 @@ export function GetRecentFolders(): $CancellablePromise<string[]> {
  */
 export function GetUserProfile(repoPath: string): $CancellablePromise<$models.UserProfile> {
     return $Call.ByID(1258519717, repoPath).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -102,7 +119,7 @@ export function GetUserProfile(repoPath: string): $CancellablePromise<$models.Us
  */
 export function ImportCustomLFSGroups(merge: boolean): $CancellablePromise<$models.ImportLFSGroupsResult> {
     return $Call.ByID(3112124302, merge).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType7($result);
     });
 }
 
@@ -147,9 +164,10 @@ export function UpdateCustomLFSGroup(group: $models.CustomLFSGroup): $Cancellabl
 
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
-const $$createType1 = $models.ExportLFSGroupsResult.createFrom;
-const $$createType2 = $models.AppSettings.createFrom;
-const $$createType3 = $models.CustomLFSGroupsData.createFrom;
-const $$createType4 = $Create.Array($Create.Any);
-const $$createType5 = $models.UserProfile.createFrom;
-const $$createType6 = $models.ImportLFSGroupsResult.createFrom;
+const $$createType1 = $models.DetectedIdentity.createFrom;
+const $$createType2 = $models.ExportLFSGroupsResult.createFrom;
+const $$createType3 = $models.AppSettings.createFrom;
+const $$createType4 = $models.CustomLFSGroupsData.createFrom;
+const $$createType5 = $Create.Array($Create.Any);
+const $$createType6 = $models.UserProfile.createFrom;
+const $$createType7 = $models.ImportLFSGroupsResult.createFrom;

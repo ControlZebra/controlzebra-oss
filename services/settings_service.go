@@ -51,6 +51,16 @@ type UserProfile struct {
 	Email string `json:"email"`
 }
 
+// DetectedIdentity contains the resolved git identity and where each field came from.
+// Used by EnsureIdentity to report what was found and whether it had to auto-set anything.
+type DetectedIdentity struct {
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	NameSource  string `json:"nameSource"`  // "local", "global", "auto-set"
+	EmailSource string `json:"emailSource"` // "local", "global", "auto-set"
+	WasAutoSet  bool   `json:"wasAutoSet"`  // true if we wrote to local config
+}
+
 // CustomLFSGroup represents a user-defined LFS extension group
 type CustomLFSGroup struct {
 	ID          string   `json:"id"`
@@ -543,4 +553,75 @@ func (s *SettingsService) SetUserProfile(repoPath string, profile UserProfile, g
 		Success: true,
 		Message: "Profile updated successfully",
 	}
+}
+
+// EnsureIdentity checks that the repo has git user.name and user.email configured.
+// If either is missing from both local and global git config, it auto-sets from the
+// provided fallback values (typically from the Supabase login) into LOCAL repo config.
+//
+// Priority (read):  local repo config > global config > fallback
+// Priority (write): only writes to local repo config, never touches global
+//
+// This should be called whenever a repo is opened. The fallbackName and fallbackEmail
+// come from the authenticated ControlZebra user (Supabase session).
+func (s *SettingsService) EnsureIdentity(repoPath string, fallbackName string, fallbackEmail string) DetectedIdentity {
+	identity := DetectedIdentity{}
+
+	if repoPath == "" {
+		// No repo open — nothing to ensure
+		identity.Name = fallbackName
+		identity.Email = fallbackEmail
+		identity.NameSource = "auto-set"
+		identity.EmailSource = "auto-set"
+		return identity
+	}
+
+	// Read local and global config concurrently
+	var wg sync.WaitGroup
+	var localName, localEmail, globalName, globalEmail CommandResult
+
+	wg.Add(4)
+	go func() { defer wg.Done(); localName = s.runner.RunGit(repoPath, "config", "--local", "user.name") }()
+	go func() { defer wg.Done(); localEmail = s.runner.RunGit(repoPath, "config", "--local", "user.email") }()
+	go func() { defer wg.Done(); globalName = s.runner.RunGit(repoPath, "config", "--global", "user.name") }()
+	go func() { defer wg.Done(); globalEmail = s.runner.RunGit(repoPath, "config", "--global", "user.email") }()
+	wg.Wait()
+
+	// Resolve name: local > global > fallback
+	switch {
+	case localName.Success && strings.TrimSpace(localName.Stdout) != "":
+		identity.Name = strings.TrimSpace(localName.Stdout)
+		identity.NameSource = "local"
+	case globalName.Success && strings.TrimSpace(globalName.Stdout) != "":
+		identity.Name = strings.TrimSpace(globalName.Stdout)
+		identity.NameSource = "global"
+	default:
+		identity.Name = fallbackName
+		identity.NameSource = "auto-set"
+	}
+
+	// Resolve email: local > global > fallback
+	switch {
+	case localEmail.Success && strings.TrimSpace(localEmail.Stdout) != "":
+		identity.Email = strings.TrimSpace(localEmail.Stdout)
+		identity.EmailSource = "local"
+	case globalEmail.Success && strings.TrimSpace(globalEmail.Stdout) != "":
+		identity.Email = strings.TrimSpace(globalEmail.Stdout)
+		identity.EmailSource = "global"
+	default:
+		identity.Email = fallbackEmail
+		identity.EmailSource = "auto-set"
+	}
+
+	// Auto-set any missing fields into LOCAL repo config
+	if identity.NameSource == "auto-set" && identity.Name != "" {
+		s.runner.RunGit(repoPath, "config", "--local", "user.name", identity.Name)
+		identity.WasAutoSet = true
+	}
+	if identity.EmailSource == "auto-set" && identity.Email != "" {
+		s.runner.RunGit(repoPath, "config", "--local", "user.email", identity.Email)
+		identity.WasAutoSet = true
+	}
+
+	return identity
 }

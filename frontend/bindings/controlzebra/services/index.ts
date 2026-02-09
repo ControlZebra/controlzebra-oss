@@ -46,6 +46,7 @@ export {
     ConflictedFile,
     CustomLFSGroup,
     CustomLFSGroupsData,
+    DetectedIdentity,
     DirectoryContents,
     ExportLFSGroupsResult,
     FetchSettings,
