@@ -116,8 +116,8 @@ type RepositorySettings struct {
 // RepoLocalConfig holds shared configuration stored in .controlzebra/config.json.
 // This file is committed to the repository so collaborators share these settings.
 type RepoLocalConfig struct {
-	CreatedAt string `json:"createdAt,omitempty"` // ISO 8601 timestamp of project creation
-	CreatedBy string `json:"createdBy,omitempty"` // Username/email of the creator
+	CreatedAt  string `json:"createdAt,omitempty"`  // ISO 8601 timestamp of project creation
+	CreatedBy  string `json:"createdBy,omitempty"`  // Username/email of the creator
 	AppVersion string `json:"appVersion,omitempty"` // ControlZebra version that created the project
 }
 
