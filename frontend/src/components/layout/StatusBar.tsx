@@ -1,6 +1,7 @@
 /**
  * StatusBar - Application footer with panel tabs and repository status.
- * Shows commit/terminal tabs, branch info, sync status, and change count.
+ * Shows commit/terminal tabs, branch info, sync status, change count,
+ * and project state indicators (tracked/untracked/remote).
  */
 import { memo, useCallback, useMemo, type CSSProperties } from 'react';
 import {
@@ -12,10 +13,15 @@ import {
   CloudUpload,
   Pencil,
   CodeSquare,
+  FolderOpen,
+  HardDrive,
+  Cloud,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
-import { BOTTOM_PANELS, ICON_SIZES, type BottomPanelType } from '../../constants';
+import { BOTTOM_PANELS, ICON_SIZES, PROJECT_STATES, type BottomPanelType, type ProjectState } from '../../constants';
 import { useLayout, useRepo } from '../../context';
+import { trackProjectSetupStarted } from '../../lib/analytics';
 
 // ============================================================================
 // Types
@@ -71,6 +77,60 @@ function getSyncStatus(isSyncing: boolean, ahead: number, behind: number): SyncS
   return { Icon: CheckCircle, text: 'Synced', className: 'text-green-400', spinning: false };
 }
 
+/**
+ * Determines the project state indicator for the status bar.
+ * Shows tracking status and remote connectivity at a glance.
+ */
+interface ProjectStateIndicator {
+  Icon: LucideIcon;
+  text: string;
+  className: string;
+  showNudge: boolean;
+}
+
+function getProjectStateIndicator(state: ProjectState | null): ProjectStateIndicator | null {
+  switch (state) {
+    case PROJECT_STATES.EMPTY_UNTRACKED:
+    case PROJECT_STATES.HAS_FILES_UNTRACKED:
+      return {
+        Icon: FolderOpen,
+        text: 'Not tracked',
+        className: 'text-yellow-400',
+        showNudge: true,
+      };
+    case PROJECT_STATES.TRACKED_NO_REMOTE:
+      return {
+        Icon: HardDrive,
+        text: 'Local only',
+        className: 'text-yellow-400',
+        showNudge: false,
+      };
+    case PROJECT_STATES.TRACKED_WITH_REMOTE:
+      return {
+        Icon: Cloud,
+        text: 'Remote connected',
+        className: 'text-green-400',
+        showNudge: false,
+      };
+    case PROJECT_STATES.JUST_CREATED:
+      return {
+        Icon: CheckCircle,
+        text: 'Just created',
+        className: 'text-green-400',
+        showNudge: false,
+      };
+    case PROJECT_STATES.NESTED_REPO:
+      return {
+        Icon: AlertTriangle,
+        text: 'Nested repo',
+        className: 'text-orange-400',
+        showNudge: false,
+      };
+    default:
+      return null;
+  }
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -83,7 +143,7 @@ function StatusBar(): JSX.Element {
     setBottomPanelCollapsed 
   } = useLayout();
   
-  const { repoPath, repoInfo, repoStatus, isSyncing } = useRepo();
+  const { repoPath, repoInfo, repoStatus, isSyncing, hasRemote, startTracking } = useRepo();
 
   // Toggle panel: clicking active collapses, clicking inactive opens
   const handleTabClick = useCallback((panelId: BottomPanelType): void => {
@@ -106,6 +166,40 @@ function StatusBar(): JSX.Element {
     () => getSyncStatus(isSyncing, ahead, behind),
     [isSyncing, ahead, behind]
   );
+
+  // Derive project state for status bar indicator (Phase 13.1)
+  const projectState = useMemo((): ProjectState | null => {
+    if (!repoPath) return null;
+    if (!repoInfo?.isRepo) {
+      const fileCount = repoStatus?.changedFiles?.length || 0;
+      return fileCount > 0
+        ? PROJECT_STATES.HAS_FILES_UNTRACKED
+        : PROJECT_STATES.EMPTY_UNTRACKED;
+    }
+    // Nested repo check: detected repo root differs from opened path
+    if (repoInfo.path && repoInfo.path !== repoPath) {
+      return PROJECT_STATES.NESTED_REPO;
+    }
+    if (!hasRemote) return PROJECT_STATES.TRACKED_NO_REMOTE;
+    return PROJECT_STATES.TRACKED_WITH_REMOTE;
+  }, [repoPath, repoInfo?.isRepo, repoInfo?.path, hasRemote, repoStatus?.changedFiles?.length]);
+
+  // Memoize project state indicator
+  const stateIndicator = useMemo(
+    () => getProjectStateIndicator(projectState),
+    [projectState]
+  );
+
+  // Handle "Enable version control" nudge click
+  const handleNudgeClick = useCallback(async () => {
+    // Track that setup was initiated from the status bar nudge (Phase 13.2)
+    trackProjectSetupStarted({
+      projectState: projectState || 'empty-untracked',
+      source: 'status_bar_nudge',
+      hasFiles: projectState === PROJECT_STATES.HAS_FILES_UNTRACKED,
+    });
+    await startTracking();
+  }, [startTracking, projectState]);
 
   return (
     <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">
@@ -139,20 +233,41 @@ function StatusBar(): JSX.Element {
       <div className="flex items-center gap-3 text-xs min-w-0">
         {repoPath ? (
           <>
-            {/* Branch name */}
-            <div className="flex items-center gap-1 text-theme-secondary min-w-0">
-              <CodeSquare style={iconStyle} className="shrink-0" />
-              <span className="truncate max-w-[120px]">{branchName}</span>
-            </div>
+            {/* Project state indicator (Phase 13.1) */}
+            {stateIndicator && (
+              <div className={`flex items-center gap-1 shrink-0 ${stateIndicator.className}`}>
+                <stateIndicator.Icon style={iconStyle} />
+                <span className="hidden sm:inline">{stateIndicator.text}</span>
+                {stateIndicator.showNudge && (
+                  <button
+                    onClick={handleNudgeClick}
+                    className="text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1 hidden md:inline"
+                    title="Enable version control for this folder"
+                  >
+                    Enable
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Branch name — only show when tracked */}
+            {repoInfo?.isRepo && (
+              <div className="flex items-center gap-1 text-theme-secondary min-w-0">
+                <CodeSquare style={iconStyle} className="shrink-0" />
+                <span className="truncate max-w-[120px]">{branchName}</span>
+              </div>
+            )}
             
-            {/* Sync status */}
-            <div className={`flex items-center gap-1 shrink-0 ${syncStatus.className}`}>
-              <syncStatus.Icon 
-                style={iconStyle} 
-                className={syncStatus.spinning ? 'animate-spin' : ''} 
-              />
-              <span className="hidden sm:inline">{syncStatus.text}</span>
-            </div>
+            {/* Sync status — only show when tracked with remote */}
+            {repoInfo?.isRepo && hasRemote && (
+              <div className={`flex items-center gap-1 shrink-0 ${syncStatus.className}`}>
+                <syncStatus.Icon 
+                  style={iconStyle} 
+                  className={syncStatus.spinning ? 'animate-spin' : ''} 
+                />
+                <span className="hidden sm:inline">{syncStatus.text}</span>
+              </div>
+            )}
 
             {/* Changes count */}
             {changesCount > 0 && (

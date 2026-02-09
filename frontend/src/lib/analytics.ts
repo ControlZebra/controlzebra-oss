@@ -507,3 +507,83 @@ export function trackRecoveryActionTaken(properties: {
     action: properties.action,
   }, 'error');
 }
+
+// --- Project Setup Events (Phase 13.2) ---
+
+/**
+ * Track when project setup begins.
+ * Fires when user clicks "Enable Version Control" or initiates project creation.
+ */
+export function trackProjectSetupStarted(properties: {
+  projectState: string;
+  source: 'status_bar_nudge' | 'setup_banner' | 'new_project_page' | 'welcome_screen';
+  hasFiles: boolean;
+}): void {
+  trackEvent('project_setup_started', {
+    project_state: properties.projectState,
+    source: properties.source,
+    has_files: properties.hasFiles,
+  }, 'usage');
+}
+
+/**
+ * Track when project setup completes successfully (git init + initial commit).
+ */
+export function trackProjectSetupCompleted(properties: {
+  projectState: string;
+  lfsEnabled: boolean;
+  initialCommitMade: boolean;
+  durationMs: number;
+}): void {
+  trackEvent('project_setup_completed', {
+    project_state: properties.projectState,
+    lfs_enabled: properties.lfsEnabled,
+    initial_commit_made: properties.initialCommitMade,
+    duration_ms: properties.durationMs,
+  }, 'usage');
+}
+
+/**
+ * Track when user attempts to publish a local repo to GitHub.
+ */
+export function trackProjectPublishAttempted(properties: {
+  repoName: string;
+  isPrivate: boolean;
+  hasOrganization: boolean;
+  source: 'setup_banner' | 'new_project_page' | 'welcome_screen';
+}): void {
+  trackEvent('project_publish_attempted', {
+    repo_name: properties.repoName,
+    is_private: properties.isPrivate,
+    has_organization: properties.hasOrganization,
+    source: properties.source,
+  }, 'usage');
+}
+
+/**
+ * Track when GitHub publish fails.
+ */
+export function trackProjectPublishFailed(properties: {
+  errorType: string;
+  repoName: string;
+}): void {
+  trackEvent('project_publish_failed', {
+    error_type: properties.errorType,
+    repo_name: properties.repoName,
+  }, 'error');
+}
+
+/**
+ * Track when GitHub publish succeeds.
+ */
+export function trackProjectPublishCompleted(properties: {
+  repoName: string;
+  isPrivate: boolean;
+  durationMs: number;
+}): void {
+  trackEvent('project_publish_completed', {
+    repo_name: properties.repoName,
+    is_private: properties.isPrivate,
+    duration_ms: properties.durationMs,
+  }, 'usage');
+}

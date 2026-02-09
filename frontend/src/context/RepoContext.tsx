@@ -111,6 +111,11 @@ import {
   trackMergeCompleted,
   trackMergeAborted,
   trackErrorShown,
+  trackProjectSetupStarted,
+  trackProjectSetupCompleted,
+  trackProjectPublishAttempted,
+  trackProjectPublishFailed,
+  trackProjectPublishCompleted,
 } from '../lib/analytics';
 
 import type {
@@ -408,6 +413,18 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
     
     setIsLoading(true);
+    const setupStartTime = Date.now();
+
+    // Determine initial project state for analytics
+    const fileCount = repoStatus?.changedFiles?.length || 0;
+    const projectState = fileCount > 0 ? 'has-files-untracked' : 'empty-untracked';
+
+    // Track setup started
+    trackProjectSetupStarted({
+      projectState,
+      source: 'setup_banner',
+      hasFiles: fileCount > 0,
+    });
     
     try {
       // Step 1: Initialize git
@@ -478,6 +495,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
         lfsEnabled: true,
         initialCommitMade,
       });
+
+      // Track project setup completed (Phase 13.2)
+      trackProjectSetupCompleted({
+        projectState,
+        lfsEnabled: true,
+        initialCommitMade,
+        durationMs: Date.now() - setupStartTime,
+      });
       
       showMessage('success', 'Version control enabled');
       setIsLoading(false);
@@ -492,7 +517,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [repoPath, repoInfo, userName, userEmail, showMessage]);
+  }, [repoPath, repoInfo, repoStatus, userName, userEmail, showMessage]);
 
   // Close the current repository
   const closeRepo = useCallback(async (): Promise<void> => {
@@ -1869,16 +1894,39 @@ export function RepoProvider({ children }: RepoProviderProps) {
         error: 'No repository open',
       };
     }
+
+    const publishStartTime = Date.now();
+
+    // Track publish attempt (Phase 13.2)
+    trackProjectPublishAttempted({
+      repoName: name,
+      isPrivate,
+      hasOrganization: !!owner && owner.length > 0,
+      source: 'setup_banner',
+    });
     
     try {
       const result = await RepoCreateFromLocal(repoPath, name, description, isPrivate, owner || '');
       if (result.success) {
         const displayName = owner ? `${owner}/${name}` : name;
         showMessage('success', `Repository published to GitHub as ${result.repo?.fullName || displayName}`);
+
+        // Track publish completed (Phase 13.2)
+        trackProjectPublishCompleted({
+          repoName: name,
+          isPrivate,
+          durationMs: Date.now() - publishStartTime,
+        });
+
         // Refresh status to update remote info
         await refreshStatus();
       } else {
         showMessage('error', result.error || 'Failed to publish repository');
+        // Track publish failure (Phase 13.2)
+        trackProjectPublishFailed({
+          errorType: result.error || 'unknown_error',
+          repoName: name,
+        });
       }
       return result as GitHubRepoCreateResult;
     } catch (err) {
@@ -1888,6 +1936,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
         error: error.message || 'Failed to publish repository',
       };
       showMessage('error', result.error!);
+
+      // Track publish failure (Phase 13.2)
+      trackProjectPublishFailed({
+        errorType: error.message || 'exception',
+        repoName: name,
+      });
+
       return result;
     }
   }, [repoPath, showMessage, refreshStatus]);
@@ -1923,6 +1978,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
    */
   const createProject = useCallback(async (options: CreateProjectOptions): Promise<CreateProjectResult> => {
     const { path, remote, onStepChange } = options;
+    const createStartTime = Date.now();
+
+    // Track setup started (Phase 13.2)
+    trackProjectSetupStarted({
+      projectState: 'new-project',
+      source: 'new_project_page',
+      hasFiles: false, // New project page — may or may not have files
+    });
 
     try {
       // ── Step 0: Initialize ──────────────────────────────────────────
@@ -1984,6 +2047,15 @@ export function RepoProvider({ children }: RepoProviderProps) {
       if (!remote.skip && remote.repoName) {
         onStepChange?.(2);
 
+        // Track publish attempt (Phase 13.2)
+        trackProjectPublishAttempted({
+          repoName: remote.repoName,
+          isPrivate: remote.isPrivate ?? true,
+          hasOrganization: !!remote.owner && remote.owner.length > 0,
+          source: 'new_project_page',
+        });
+
+        const publishStart = Date.now();
         const pubResult = await RepoCreateFromLocal(
           path,
           remote.repoName,
@@ -2000,12 +2072,25 @@ export function RepoProvider({ children }: RepoProviderProps) {
           const errorMsg = `Project created locally, but publishing "${displayName}" failed: ${pubResult.error}`;
           showMessage('warning', errorMsg, 8000);
 
+          // Track publish failure (Phase 13.2)
+          trackProjectPublishFailed({
+            errorType: pubResult.error || 'unknown_error',
+            repoName: remote.repoName,
+          });
+
           // Still open the project so the user isn't stuck
           onStepChange?.(3);
           await openRepo(path);
 
           return { success: false, error: errorMsg };
         }
+
+        // Track publish completed (Phase 13.2)
+        trackProjectPublishCompleted({
+          repoName: remote.repoName,
+          isPrivate: remote.isPrivate ?? true,
+          durationMs: Date.now() - publishStart,
+        });
 
         showMessage('success', `Repository published to GitHub as ${pubResult.repo?.fullName || remote.repoName}`);
       }
@@ -2017,6 +2102,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
       trackRepoInitialized({
         lfsEnabled: true,
         initialCommitMade: true,
+      });
+
+      // Track project setup completed (Phase 13.2)
+      trackProjectSetupCompleted({
+        projectState: 'new-project',
+        lfsEnabled: true,
+        initialCommitMade: true,
+        durationMs: Date.now() - createStartTime,
       });
 
       return { success: true };

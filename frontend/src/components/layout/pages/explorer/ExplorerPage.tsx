@@ -52,7 +52,7 @@ function ExplorerPage(): JSX.Element {
     setIsOpeningFolder(false);
   }, [openRepo]);
 
-  // Derive project state for the setup banner (Phase 12.1)
+  // Derive project state for the setup banner (Phase 12.1, Phase 14 nested-repo check)
   const projectState = useMemo((): ProjectState | null => {
     if (!repoPath) return null;
     if (!repoInfo?.isRepo) {
@@ -61,9 +61,14 @@ function ExplorerPage(): JSX.Element {
         ? PROJECT_STATES.HAS_FILES_UNTRACKED
         : PROJECT_STATES.EMPTY_UNTRACKED;
     }
+    // Nested repo check: if the detected repo root differs from the opened path,
+    // this folder is inside another repository — suppress setup CTA (Phase 14)
+    if (repoInfo.path && repoInfo.path !== repoPath) {
+      return PROJECT_STATES.NESTED_REPO;
+    }
     if (!hasRemote) return PROJECT_STATES.TRACKED_NO_REMOTE;
     return PROJECT_STATES.TRACKED_WITH_REMOTE;
-  }, [repoPath, repoInfo?.isRepo, hasRemote, repoStatus?.changedFiles?.length]);
+  }, [repoPath, repoInfo?.isRepo, repoInfo?.path, hasRemote, repoStatus?.changedFiles?.length]);
 
   // Handle publish to GitHub with form data from the banner
   const handlePublishFromBanner = useCallback(async (
@@ -133,8 +138,11 @@ function ExplorerPage(): JSX.Element {
   }
 
   // Folder open - show tabs and content, with optional setup banner
+  // Hide banner for fully-set-up projects and nested repos (Phase 14)
   const folderName = repoPath.split('/').pop() || '';
-  const showBanner = projectState != null && projectState !== PROJECT_STATES.TRACKED_WITH_REMOTE;
+  const showBanner = projectState != null 
+    && projectState !== PROJECT_STATES.TRACKED_WITH_REMOTE
+    && projectState !== PROJECT_STATES.NESTED_REPO;
 
   return (
     <div className="flex flex-col h-full">

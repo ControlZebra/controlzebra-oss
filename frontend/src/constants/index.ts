@@ -117,6 +117,7 @@ export const PROJECT_STATES = {
   TRACKED_NO_REMOTE: 'tracked-no-remote',
   TRACKED_WITH_REMOTE: 'tracked-with-remote',
   JUST_CREATED: 'just-created',
+  NESTED_REPO: 'nested-repo',
 } as const;
 
 export type ProjectState = typeof PROJECT_STATES[keyof typeof PROJECT_STATES];
@@ -156,6 +157,11 @@ export const PROJECT_STATE_CONFIGS: Record<ProjectState, ProjectStateConfig> = {
     id: PROJECT_STATES.JUST_CREATED,
     title: 'Project created',
     subtitle: 'Version control is ready. Start making changes!',
+  },
+  [PROJECT_STATES.NESTED_REPO]: {
+    id: PROJECT_STATES.NESTED_REPO,
+    title: 'Nested repository',
+    subtitle: 'This folder is inside another git repository. Some features may behave unexpectedly.',
   },
 };
 

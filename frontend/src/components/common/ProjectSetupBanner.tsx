@@ -23,6 +23,7 @@ import {
   Github,
   Lock,
   Globe,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -107,6 +108,12 @@ const STATE_VISUALS: Record<ProjectState, StateVisual> = {
     iconBg: 'bg-green-500/10',
     iconColor: 'text-green-400',
     borderColor: 'border-green-500/30',
+  },
+  [PROJECT_STATES.NESTED_REPO]: {
+    Icon: AlertTriangle,
+    iconBg: 'bg-orange-500/10',
+    iconColor: 'text-orange-400',
+    borderColor: 'border-orange-500/30',
   },
 };
 
@@ -204,8 +211,8 @@ function ProjectSetupBanner({
     return options;
   }, [username, organizations]);
 
-  // Don't render for fully set up projects or dismissed banners
-  if (projectState === PROJECT_STATES.TRACKED_WITH_REMOTE || dismissed) {
+  // Don't render for fully set up projects, nested repos, or dismissed banners
+  if (projectState === PROJECT_STATES.TRACKED_WITH_REMOTE || projectState === PROJECT_STATES.NESTED_REPO || dismissed) {
     return null;
   }
 
