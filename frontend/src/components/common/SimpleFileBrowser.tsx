@@ -982,19 +982,29 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setSelectedPath(null);
   }, [currentPath]);
 
-  // Subscribe to file change events
+  // Subscribe to file change events with debouncing.
+  // Industry standard: coalesce rapid FS events into a single directory refresh.
+  // On Windows, fsnotify/ReadDirectoryChangesW can fire multiple events per
+  // file operation — without debouncing, each event triggers a full reload.
   useEffect(() => {
     if (!currentPath) return;
+    
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     
     const handleFileChanged = (ev: { data?: { path?: string } }) => {
       const path = ev.data?.path;
       if (path?.startsWith(currentPath) || path === currentPath) {
-        setRefreshTrigger(prev => prev + 1);
+        // Reset debounce timer on each event — only the last one fires
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          setRefreshTrigger(prev => prev + 1);
+        }, 500);
       }
     };
     
     const unsubscribe = Events.On('files-changed', handleFileChanged);
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       if (typeof unsubscribe === 'function') {
         unsubscribe();
       }
@@ -1007,19 +1017,36 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     [repoStatus, currentPath, repoPath]
   );
 
-  // Load directory contents
+  // Track the last successfully loaded path so we can distinguish
+  // "navigating to a new directory" from "in-place refresh of the same directory".
+  const lastLoadedPathRef = useRef<string | null>(null);
+
+  // Load directory contents.
+  // Key anti-flicker strategy: only show the loading spinner when navigating
+  // to a NEW directory. For in-place refreshes (file watcher events), keep
+  // showing the previous file list while the new data loads.
   useEffect(() => {
+    let aborted = false; // Guard against stale async responses on rapid navigation
+
     const loadDirectory = async () => {
       if (!currentPath) {
         setFiles([]);
+        lastLoadedPathRef.current = null;
         return;
       }
 
-      setFiles(null);
+      const isNewDirectory = currentPath !== lastLoadedPathRef.current;
+
+      // Only show loading spinner for initial/navigation loads — NOT for
+      // file-watcher refreshes. This prevents the null→loaded→null flicker.
+      if (isNewDirectory) {
+        setFiles(null);
+      }
       setError(null);
 
       try {
         const result = await ListDirectoryWithOptions(currentPath, showHidden);
+        if (aborted) return; // Stale response from a previous navigation
         if (result.error) {
           setError(result.error);
           setFiles([]);
@@ -1031,8 +1058,10 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
             return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
           });
           setFiles(entries);
+          lastLoadedPathRef.current = currentPath;
         }
       } catch (err) {
+        if (aborted) return;
         console.error('Failed to load directory:', err);
         setError('Failed to load directory');
         setFiles([]);
@@ -1040,6 +1069,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     };
 
     loadDirectory();
+    return () => { aborted = true; };
   }, [currentPath, showHidden, refreshTrigger]);
 
   // Handle navigation
@@ -1142,7 +1172,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFile, handlePreview]);
+  }, [selectedFile, handlePreview, handleItemDoubleClick]);
 
   // Handle context menu actions
   const handleContextAction = useCallback(async (action: FileContextAction, file: FileEntry) => {
