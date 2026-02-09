@@ -542,6 +542,71 @@ func (g *GitHubService) ListUserOrganizations() GitHubOrganizationsResult {
 }
 
 // ============================================================================
+// Repository Name Checking
+// ============================================================================
+
+// RepoNameCheckResult represents the result of checking if a repo name exists
+type RepoNameCheckResult struct {
+	Exists bool   `json:"exists"`
+	Error  string `json:"error,omitempty"`
+}
+
+// CheckRepoNameExists checks whether a repository with the given name already
+// exists under the specified owner (user or org). Uses `gh repo view` which
+// returns exit code 0 when the repo exists and a non-zero code when it does not.
+// owner: GitHub username or organization login
+// name: repository name to check
+func (g *GitHubService) CheckRepoNameExists(owner string, name string) RepoNameCheckResult {
+	if name == "" {
+		return RepoNameCheckResult{
+			Exists: false,
+			Error:  "Repository name is required",
+		}
+	}
+
+	// Validate inputs
+	if owner != "" && !isValidGitHubOwner(owner) {
+		return RepoNameCheckResult{
+			Exists: false,
+			Error:  "Invalid owner name: must contain only alphanumeric characters and hyphens",
+		}
+	}
+	if !isValidGitHubRepoName(name) {
+		return RepoNameCheckResult{
+			Exists: false,
+			Error:  "Invalid repository name: must contain only alphanumeric characters, hyphens, underscores, and periods",
+		}
+	}
+
+	// Build the repo identifier: owner/name or just name (defaults to authenticated user)
+	repoIdentifier := name
+	if owner != "" {
+		repoIdentifier = owner + "/" + name
+	}
+
+	result := g.runner.Run("", GhPath(), "repo", "view", repoIdentifier, "--json", "name")
+
+	if result.Success {
+		// Exit code 0 means the repo exists
+		return RepoNameCheckResult{Exists: true}
+	}
+
+	// Check if the error indicates "not found" vs an actual failure
+	errLower := strings.ToLower(result.Stderr + result.Error)
+	if strings.Contains(errLower, "could not resolve") ||
+		strings.Contains(errLower, "not found") ||
+		strings.Contains(errLower, "graphql: could not resolve") {
+		return RepoNameCheckResult{Exists: false}
+	}
+
+	// Some other error (network, auth, etc.)
+	return RepoNameCheckResult{
+		Exists: false,
+		Error:  getGHErrorMessage(result),
+	}
+}
+
+// ============================================================================
 // Repository Listing
 // ============================================================================
 
