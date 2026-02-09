@@ -55,7 +55,7 @@ function ProfileView(): JSX.Element {
                 </div>
               </div>
               <p className="text-theme-muted text-[10px]">
-                {plan === 'Free (Beta)' ? 'Upgrade for more features' : 'Thank you for making this possible!'}
+                {plan === 'Free (Beta)' ? 'Upgrade for more features' : 'Thank you for your contributions!'}
               </p>
             </div>
 
