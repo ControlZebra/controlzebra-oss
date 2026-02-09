@@ -9,13 +9,9 @@
  * - Feature branch synced: Merge request option
  * - Main branch synced: All caught up
  */
-import { memo, useState, useCallback, useMemo, type CSSProperties } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { MAIN_BRANCHES, VIEWS } from '../../../constants';
-import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { useLayout, useRepo, type FileStatus } from '../../../context';
-import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
-import { Button } from '../../ui';
 import { SidebarCommitPanel, ExplorerStatusPanel } from '../sidebar-panels';
 import { GitHubDeviceFlowModal } from '../../common';
 
@@ -47,7 +43,6 @@ function ExplorerView(): JSX.Element {
     repoPath, 
     repoInfo,
     repoStatus, 
-    openRepo, 
     startTracking,
     commitChanges,
     branchAndCommit,
@@ -67,7 +62,6 @@ function ExplorerView(): JSX.Element {
     loadUserOrganizations,
   } = useRepo();
   
-  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
   const [isRewinding, setIsRewinding] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
@@ -100,19 +94,6 @@ function ExplorerView(): JSX.Element {
     }
     return { type: 'synced' };
   }, [repoPath, repoInfo?.isRepo, repoStatus]);
-
-  const handleOpenFolder = useCallback(async (): Promise<void> => {
-    setIsOpeningFolder(true);
-    try {
-      const result = await OpenFolderDialog();
-      if (result.selected && result.path) {
-        await openRepo(result.path);
-      }
-    } catch (err) {
-      console.error('Failed to open folder:', err);
-    }
-    setIsOpeningFolder(false);
-  }, [openRepo]);
 
   const handleRewind = useCallback(async (): Promise<boolean> => {
     setIsRewinding(true);
@@ -172,26 +153,10 @@ function ExplorerView(): JSX.Element {
     setSidebarCollapsed(false);
   }, [setActiveView, setSidebarCollapsed]);
 
-  // No folder open - show open folder prompt
+  // No folder open - sidebar shows WelcomeView in this case (handled by Sidebar.tsx)
+  // So we just return null as a safety fallback
   if (panelState.type === 'noFolder') {
-    return (
-      <div className="p-4 text-center">
-        <p className="text-theme-muted text-xs mb-3">No folder open</p>
-        <Button 
-          size="sm" 
-          variant="secondary" 
-          onClick={handleOpenFolder} 
-          loading={isOpeningFolder}
-          className="w-full"
-        >
-          <FolderOpen style={ICON_STYLES.sm as CSSProperties} />
-          Open Folder
-        </Button>
-        <p className="text-theme-muted text-xs mt-3">
-          <kbd className="px-1 py-0.5 rounded bg-theme-muted text-theme-secondary text-xs">⌘O</kbd>
-        </p>
-      </div>
-    );
+    return <div className="p-4 text-center text-theme-muted text-xs">No folder open</div>;
   }
 
   // Has uncommitted changes - show commit panel

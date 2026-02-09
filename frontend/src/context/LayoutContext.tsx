@@ -62,6 +62,10 @@ interface LayoutContextValue {
   selectedRepoSettingsCategory: string;
   setSelectedRepoSettingsCategory: (category: string) => void;
   
+  // Welcome
+  selectedWelcomeCategory: string;
+  setSelectedWelcomeCategory: (category: string) => void;
+  
   // Explorer Tabs
   explorerTabs: ExplorerTab[];
   activeExplorerTab: string;
@@ -175,6 +179,9 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   // Repository settings category state (for repo-specific settings view)
   const [selectedRepoSettingsCategory, setSelectedRepoSettingsCategory] = useState('remote-sync');
   
+  // Welcome category state (for welcome screen when no repo is open)
+  const [selectedWelcomeCategory, setSelectedWelcomeCategory] = useState('recent-projects');
+  
   // Explorer tabs state - file browser is always the first (pinned) tab
   const [explorerTabs, setExplorerTabs] = useState<ExplorerTab[]>([FILE_BROWSER_TAB]);
   const [activeExplorerTab, setActiveExplorerTab] = useState<string>(FILE_BROWSER_TAB.id);
@@ -280,6 +287,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     selectedRepoSettingsCategory,
     setSelectedRepoSettingsCategory,
     
+    // Welcome
+    selectedWelcomeCategory,
+    setSelectedWelcomeCategory,
+    
     // Explorer Tabs
     explorerTabs,
     activeExplorerTab,
@@ -299,6 +310,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     activeBottomPanel,
     selectedSettingsCategory,
     selectedRepoSettingsCategory,
+    selectedWelcomeCategory,
     explorerTabs,
     activeExplorerTab,
     openExplorerTab,

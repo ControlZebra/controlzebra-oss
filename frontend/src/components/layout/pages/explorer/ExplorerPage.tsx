@@ -5,21 +5,21 @@
  * - Tabs bar at the top with file browser as pinned tab
  * - File browser shows when that tab is active
  * - File content shows when file tabs are active (using multi-viewer architecture)
- * - When no folder is open: Shows welcome screen
+ * - When no folder is open: Shows welcome pages based on selected category
  * - Non-git folders: Shows file browser like usual (start tracking via sidebar)
  * - All open tabs are kept mounted (but hidden) to preserve viewer state/cache
  */
 import { memo, useState, useCallback, useMemo } from 'react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
-import NoDirectoryScreen from './NoDirectoryScreen';
+import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../welcome';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
 
 function ExplorerPage(): JSX.Element {
   const { repoPath, openRepo } = useRepo();
-  const { activeExplorerTab, explorerTabs } = useLayout();
+  const { activeExplorerTab, explorerTabs, selectedWelcomeCategory } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
   const handleOpenFolder = useCallback(async (): Promise<void> => {
@@ -69,15 +69,15 @@ function ExplorerPage(): JSX.Element {
     }).filter(Boolean) as JSX.Element[];
   }, [fileTabs, activeExplorerTab]);
 
-  // No folder open - show welcome screen
+  // No folder open - show welcome page based on selected category
   if (!repoPath) {
-    return (
-      <NoDirectoryScreen 
-        onOpenFolder={handleOpenFolder} 
-        onOpenPath={openRepo}
-        isLoading={isOpeningFolder} 
-      />
-    );
+    switch (selectedWelcomeCategory) {
+      case 'new-project':     return <NewProjectPage />;
+      case 'clone-project':   return <CloneProjectPage />;
+      case 'open-folder':     return <OpenFolderPage onOpenFolder={handleOpenFolder} isLoading={isOpeningFolder} />;
+      case 'recent-projects':
+      default:                return <RecentProjectsPage onOpenPath={openRepo} />;
+    }
   }
 
   // Folder open - show tabs and content
