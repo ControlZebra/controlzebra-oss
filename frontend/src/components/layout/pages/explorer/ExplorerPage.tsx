@@ -6,7 +6,7 @@
  * - File browser shows when that tab is active
  * - File content shows when file tabs are active (using multi-viewer architecture)
  * - When no folder is open: Shows welcome pages based on selected category
- * - Non-git folders: Shows file browser like usual (start tracking via sidebar)
+ * - Non-git / no-remote folders: Shows ProjectSetupBanner with state-aware CTA
  * - All open tabs are kept mounted (but hidden) to preserve viewer state/cache
  */
 import { memo, useState, useCallback, useMemo } from 'react';
@@ -15,12 +15,29 @@ import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/
 import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../welcome';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
+import { ProjectSetupBanner } from '../../../common';
+import { PROJECT_STATES, type ProjectState } from '../../../../constants';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
 
 function ExplorerPage(): JSX.Element {
-  const { repoPath, openRepo } = useRepo();
+  const {
+    repoPath,
+    repoInfo,
+    repoStatus,
+    openRepo,
+    startTracking,
+    publishToGitHub,
+    startGitHubLogin,
+    loadUserOrganizations,
+    refreshRemotes,
+    hasRemote,
+    isLoading,
+    ghInstalled,
+    ghAuthStatus,
+  } = useRepo();
   const { activeExplorerTab, explorerTabs, selectedWelcomeCategory } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const handleOpenFolder = useCallback(async (): Promise<void> => {
     setIsOpeningFolder(true);
@@ -34,6 +51,41 @@ function ExplorerPage(): JSX.Element {
     }
     setIsOpeningFolder(false);
   }, [openRepo]);
+
+  // Derive project state for the setup banner (Phase 12.1)
+  const projectState = useMemo((): ProjectState | null => {
+    if (!repoPath) return null;
+    if (!repoInfo?.isRepo) {
+      const fileCount = repoStatus?.changedFiles?.length || 0;
+      return fileCount > 0
+        ? PROJECT_STATES.HAS_FILES_UNTRACKED
+        : PROJECT_STATES.EMPTY_UNTRACKED;
+    }
+    if (!hasRemote) return PROJECT_STATES.TRACKED_NO_REMOTE;
+    return PROJECT_STATES.TRACKED_WITH_REMOTE;
+  }, [repoPath, repoInfo?.isRepo, hasRemote, repoStatus?.changedFiles?.length]);
+
+  // Handle publish to GitHub with form data from the banner
+  const handlePublishFromBanner = useCallback(async (
+    name: string,
+    isPrivate: boolean,
+    owner: string
+  ): Promise<void> => {
+    setIsPublishing(true);
+    try {
+      const result = await publishToGitHub(name, '', isPrivate, owner);
+      if (result.success) {
+        await refreshRemotes();
+      }
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [publishToGitHub, refreshRemotes]);
+
+  // Handle GitHub connect from banner
+  const handleConnectGitHub = useCallback(async (): Promise<void> => {
+    await startGitHubLogin();
+  }, [startGitHubLogin]);
 
   // Memoize file tabs - must be called before any conditional returns (Rules of Hooks)
   const fileTabs = useMemo(() => 
@@ -80,11 +132,32 @@ function ExplorerPage(): JSX.Element {
     }
   }
 
-  // Folder open - show tabs and content
-  // Render file browser and all file tabs, showing only the active one
+  // Folder open - show tabs and content, with optional setup banner
+  const folderName = repoPath.split('/').pop() || '';
+  const showBanner = projectState != null && projectState !== PROJECT_STATES.TRACKED_WITH_REMOTE;
+
   return (
     <div className="flex flex-col h-full">
       <ExplorerTabsBar />
+
+      {/* State-aware project setup banner (Phase 12.2 / 12.4) */}
+      {showBanner && isFileBrowserActive && (
+        <ProjectSetupBanner
+          projectState={projectState}
+          folderName={folderName}
+          repoPath={repoPath}
+          fileCount={repoStatus?.changedFiles?.length}
+          onEnableVersionControl={startTracking}
+          onPublishToGitHub={handlePublishFromBanner}
+          onConnectGitHub={handleConnectGitHub}
+          onLoadOrganizations={loadUserOrganizations}
+          isLoading={isLoading}
+          isPublishing={isPublishing}
+          ghInstalled={ghInstalled}
+          ghAuthStatus={ghAuthStatus}
+        />
+      )}
+
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {/* File browser - always mounted, shown when active */}
         <div 

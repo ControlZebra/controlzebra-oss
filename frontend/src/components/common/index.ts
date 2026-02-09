@@ -16,3 +16,4 @@ export { default as GitHubDeviceFlowModal } from './GitHubDeviceFlowModal';
 export { default as UpdateChecker } from './UpdateChecker';
 export { default as ProjectCreationStepper } from './ProjectCreationStepper';
 export type { StepDefinition, StepperStatus, ProjectCreationStepperProps } from './ProjectCreationStepper';
+export { default as ProjectSetupBanner } from './ProjectSetupBanner';

@@ -2,8 +2,8 @@
  * ExplorerView - Sidebar view showing action panels based on repo state.
  * 
  * Displays contextual panels based on repo state:
- * - No folder: Prompt to open folder
- * - Not a git repo: Initialize option
+ * - No folder: Sidebar renders WelcomeView instead (handled by Sidebar.tsx)
+ * - Not a git repo: Initialize option via ExplorerStatusPanel
  * - Has changes: Commit form with changed files
  * - Needs push: Sync/publish prompt with GitHub integration
  * - Feature branch synced: Merge request option
