@@ -20,10 +20,13 @@ type FileWatcherService struct {
 	watcher *fsnotify.Watcher
 	mu      sync.Mutex
 
-	// Debounce settings to avoid flooding the frontend with events
-	debounceDelay time.Duration
-	pendingEvents map[string]time.Time
-	debounceMu    sync.Mutex
+	// Coalescing batch: accumulate FS events, emit after a quiet period.
+	// This prevents event storms on Windows where fsnotify/ReadDirectoryChangesW
+	// fires multiple events per file operation.
+	batchDelay   time.Duration
+	batchTimer   *time.Timer
+	batchMu      sync.Mutex
+	pendingBatch map[string]FileChangeEvent
 
 	// Currently watched path
 	watchedPath string
@@ -40,8 +43,8 @@ type FileChangeEvent struct {
 // NewFileWatcherService creates a new FileWatcherService instance
 func NewFileWatcherService() *FileWatcherService {
 	return &FileWatcherService{
-		debounceDelay: 500 * time.Millisecond, // Debounce events within 500ms
-		pendingEvents: make(map[string]time.Time),
+		batchDelay:   300 * time.Millisecond, // Coalesce events within 300ms quiet period
+		pendingBatch: make(map[string]FileChangeEvent),
 	}
 }
 
@@ -62,6 +65,15 @@ func (f *FileWatcherService) WatchDirectory(path string) OperationResult {
 		f.watcher = nil
 		f.watchedPath = ""
 	}
+
+	// Cancel any pending batch from previous watcher
+	f.batchMu.Lock()
+	if f.batchTimer != nil {
+		f.batchTimer.Stop()
+		f.batchTimer = nil
+	}
+	f.pendingBatch = make(map[string]FileChangeEvent)
+	f.batchMu.Unlock()
 
 	// Validate path
 	info, err := os.Stat(path)
@@ -145,6 +157,15 @@ func (f *FileWatcherService) StopWatching() OperationResult {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	// Cancel pending batch timer
+	f.batchMu.Lock()
+	if f.batchTimer != nil {
+		f.batchTimer.Stop()
+		f.batchTimer = nil
+	}
+	f.pendingBatch = make(map[string]FileChangeEvent)
+	f.batchMu.Unlock()
+
 	if f.watcher != nil {
 		f.watcher.Close()
 		f.watcher = nil
@@ -190,7 +211,9 @@ func (f *FileWatcherService) eventLoop() {
 	}
 }
 
-// handleEvent processes a single file system event with debouncing
+// handleEvent processes a single file system event using coalescing batch.
+// Events are accumulated and emitted together after a quiet period, preventing
+// the event storms that cause UI flickering on Windows.
 func (f *FileWatcherService) handleEvent(event fsnotify.Event) {
 	// Determine event type
 	var eventType string
@@ -218,17 +241,6 @@ func (f *FileWatcherService) handleEvent(event fsnotify.Event) {
 		return
 	}
 
-	// Debounce: skip if we've seen this path recently
-	f.debounceMu.Lock()
-	lastEvent, exists := f.pendingEvents[event.Name]
-	now := time.Now()
-	if exists && now.Sub(lastEvent) < f.debounceDelay {
-		f.debounceMu.Unlock()
-		return
-	}
-	f.pendingEvents[event.Name] = now
-	f.debounceMu.Unlock()
-
 	// Check if path is a directory
 	isDir := false
 	if info, err := os.Stat(event.Name); err == nil {
@@ -237,36 +249,42 @@ func (f *FileWatcherService) handleEvent(event fsnotify.Event) {
 
 	// If a new directory was created, start watching it
 	if eventType == "create" && isDir {
-		name := filepath.Base(event.Name)
-		if !strings.HasPrefix(name, ".") && name != "node_modules" && name != "vendor" {
+		dirName := filepath.Base(event.Name)
+		if !strings.HasPrefix(dirName, ".") && dirName != "node_modules" && dirName != "vendor" && dirName != "__pycache__" {
 			_ = f.watcher.Add(event.Name)
 		}
 	}
 
-	// Emit event to frontend
-	if f.app != nil {
-		changeEvent := FileChangeEvent{
-			Path:      event.Name,
-			EventType: eventType,
-			IsDir:     isDir,
-			Timestamp: now.UnixMilli(),
-		}
-		f.app.Event.Emit("files-changed", changeEvent)
+	// Add to coalescing batch (dedupes by path — latest event type wins)
+	f.batchMu.Lock()
+	f.pendingBatch[event.Name] = FileChangeEvent{
+		Path:      event.Name,
+		EventType: eventType,
+		IsDir:     isDir,
+		Timestamp: time.Now().UnixMilli(),
 	}
-
-	// Clean up old debounce entries periodically
-	go f.cleanupDebounce()
+	// Reset the coalescing timer — waits for a quiet period before flushing
+	if f.batchTimer != nil {
+		f.batchTimer.Stop()
+	}
+	f.batchTimer = time.AfterFunc(f.batchDelay, f.flushBatch)
+	f.batchMu.Unlock()
 }
 
-// cleanupDebounce removes old entries from the debounce map
-func (f *FileWatcherService) cleanupDebounce() {
-	f.debounceMu.Lock()
-	defer f.debounceMu.Unlock()
+// flushBatch emits all accumulated file change events to the frontend.
+// Called after the coalescing quiet period expires.
+func (f *FileWatcherService) flushBatch() {
+	f.batchMu.Lock()
+	batch := f.pendingBatch
+	f.pendingBatch = make(map[string]FileChangeEvent)
+	f.batchMu.Unlock()
 
-	cutoff := time.Now().Add(-5 * time.Second)
-	for path, timestamp := range f.pendingEvents {
-		if timestamp.Before(cutoff) {
-			delete(f.pendingEvents, path)
-		}
+	if len(batch) == 0 || f.app == nil {
+		return
+	}
+
+	// Emit individual events for consumers that need per-file detail (e.g. RepoContext)
+	for _, evt := range batch {
+		f.app.Event.Emit("files-changed", evt)
 	}
 }
