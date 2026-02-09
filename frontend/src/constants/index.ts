@@ -93,6 +93,19 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
 ];
 
 // ============================================================================
+// WELCOME CATEGORIES
+// Configuration for the welcome screen sidebar when no repo is open.
+// ============================================================================
+export const WELCOME_CATEGORIES: SettingsCategory[] = [
+  { id: 'recent-projects', name: 'Recent Projects', description: 'Resume where you left off' },
+  { id: 'new-project',     name: 'New Project',     description: 'Initialize a new repository' },
+  { id: 'clone-project',   name: 'Clone Project',   description: 'Clone from GitHub' },
+  { id: 'open-folder',     name: 'Open Folder',     description: 'Open an existing project folder' },
+];
+
+export type WelcomeCategoryId = typeof WELCOME_CATEGORIES[number]['id'];
+
+// ============================================================================
 // REPOSITORY SETTINGS CATEGORIES
 // Configuration for the repository-level settings view sidebar.
 // Organized from user's perspective.

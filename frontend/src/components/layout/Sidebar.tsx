@@ -1,7 +1,7 @@
 import { memo, useMemo, useCallback, useRef, type MouseEvent, type ComponentType } from 'react';
 import { VIEWS, type ViewType } from '../../constants';
-import { useLayout } from '../../context';
-import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView } from './views';
+import { useLayout, useRepo } from '../../context';
+import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView, WelcomeView } from './views';
 import { RepoSwitcher } from '../common';
 
 // ============================================================================
@@ -35,11 +35,20 @@ const MAX_WIDTH = 400;
 
 function Sidebar(): JSX.Element | null {
   const { activeView, sidebarCollapsed, sidebarWidth, setSidebarWidth } = useLayout();
+  const { repoPath } = useRepo();
   const isResizing = useRef(false);
 
+  // When no repo is open and we're on the explorer view, show WelcomeView instead
+  const isWelcomeMode = activeView === VIEWS.EXPLORER && !repoPath;
+
   const { title, Component } = useMemo(
-    () => VIEW_CONFIG[activeView] || VIEW_CONFIG[VIEWS.HISTORY],
-    [activeView]
+    () => {
+      if (isWelcomeMode) {
+        return { title: 'Welcome', Component: WelcomeView as ComponentType };
+      }
+      return VIEW_CONFIG[activeView] || VIEW_CONFIG[VIEWS.HISTORY];
+    },
+    [activeView, isWelcomeMode]
   );
 
   const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>): void => {
