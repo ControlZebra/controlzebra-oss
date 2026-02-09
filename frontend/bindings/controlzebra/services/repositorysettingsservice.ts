@@ -64,6 +64,16 @@ export function DiagnoseRepository(repoPath: string): $CancellablePromise<$model
 }
 
 /**
+ * EnsureControlZebraDir creates the .controlzebra/ directory and ensures the
+ * personal config file is gitignored. Call this during project initialisation.
+ */
+export function EnsureControlZebraDir(repoPath: string): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3276428263, repoPath).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * FixRemoteURL updates the remote URL (useful when remote has moved or credentials changed)
  */
 export function FixRemoteURL(repoPath: string, remoteName: string, newURL: string): $CancellablePromise<$models.OperationResult> {
@@ -130,6 +140,28 @@ export function GetSettings(repoPath: string): $CancellablePromise<$models.Repos
 export function GetTaskStatuses(): $CancellablePromise<{ [_ in string]?: $models.BackgroundTaskStatus | null }> {
     return $Call.ByID(4181591900).then(($result: any) => {
         return $$createType10($result);
+    });
+}
+
+/**
+ * ReadRepoLocalConfig reads the shared config (.controlzebra/config.json) from
+ * the repository. This file is committed and shared with collaborators.
+ * Returns a zero-value config if the file does not exist.
+ */
+export function ReadRepoLocalConfig(repoPath: string): $CancellablePromise<$models.RepoLocalConfig> {
+    return $Call.ByID(1032641254, repoPath).then(($result: any) => {
+        return $$createType11($result);
+    });
+}
+
+/**
+ * ReadRepoPersonalConfig reads the personal/machine-specific config
+ * (.controlzebra/local.json) from the repository. This file is gitignored and
+ * NOT committed. Returns a zero-value config if the file does not exist.
+ */
+export function ReadRepoPersonalConfig(repoPath: string): $CancellablePromise<$models.RepoPersonalConfig> {
+    return $Call.ByID(1468831583, repoPath).then(($result: any) => {
+        return $$createType12($result);
     });
 }
 
@@ -329,6 +361,28 @@ export function UpdateProtectedBranches(repoPath: string, protectedBranches: $mo
     });
 }
 
+/**
+ * WriteRepoLocalConfig writes the shared config (.controlzebra/config.json) to
+ * the repository. Creates the .controlzebra/ directory if it does not exist.
+ */
+export function WriteRepoLocalConfig(repoPath: string, config: $models.RepoLocalConfig): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3742543705, repoPath, config).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * WriteRepoPersonalConfig writes the personal/machine-specific config
+ * (.controlzebra/local.json) to the repository. Creates the .controlzebra/
+ * directory if it does not exist. Also ensures .controlzebra/local.json is
+ * listed in the repository's .gitignore so it is never committed.
+ */
+export function WriteRepoPersonalConfig(repoPath: string, config: $models.RepoPersonalConfig): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(2316351710, repoPath, config).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.RecoveryDiagnostics.createFrom;
@@ -341,3 +395,5 @@ const $$createType7 = $Create.Array($$createType6);
 const $$createType8 = $models.BackgroundTaskStatus.createFrom;
 const $$createType9 = $Create.Nullable($$createType8);
 const $$createType10 = $Create.Map($Create.Any, $$createType9);
+const $$createType11 = $models.RepoLocalConfig.createFrom;
+const $$createType12 = $models.RepoPersonalConfig.createFrom;

@@ -101,9 +101,30 @@ type RepositorySettings struct {
 	MaintenanceSettings MaintenanceSettings     `json:"maintenanceSettings"`
 	ProtectedBranches   ProtectedBranchSettings `json:"protectedBranches"`
 
+	// Mode flags
+	LocalOnlyMode bool `json:"localOnlyMode,omitempty"`
+
 	// Metadata
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ============================================================================
+// In-Repo Config Types (.controlzebra/ directory)
+// ============================================================================
+
+// RepoLocalConfig holds shared configuration stored in .controlzebra/config.json.
+// This file is committed to the repository so collaborators share these settings.
+type RepoLocalConfig struct {
+	CreatedAt string `json:"createdAt,omitempty"` // ISO 8601 timestamp of project creation
+	CreatedBy string `json:"createdBy,omitempty"` // Username/email of the creator
+	AppVersion string `json:"appVersion,omitempty"` // ControlZebra version that created the project
+}
+
+// RepoPersonalConfig holds personal/machine-specific configuration stored in
+// .controlzebra/local.json. This file is added to .gitignore and NOT committed.
+type RepoPersonalConfig struct {
+	LocalOnlyMode bool `json:"localOnlyMode,omitempty"` // Skip remote sync
 }
 
 // BackgroundTaskStatus represents the current status of a background task
@@ -1214,6 +1235,143 @@ func (r *RepositorySettingsService) SetUpstreamBranch(repoPath string, remoteBra
 	}
 
 	return successOp("Upstream set to: " + remoteBranch)
+}
+
+// ============================================================================
+// In-Repo Config: .controlzebra/ Directory
+// ============================================================================
+
+const controlZebraDir = ".controlzebra"
+const sharedConfigFile = "config.json"
+const personalConfigFile = "local.json"
+
+// controlZebraDirPath returns the path to the .controlzebra/ directory for a repo.
+func controlZebraDirPath(repoPath string) string {
+	return filepath.Join(repoPath, controlZebraDir)
+}
+
+// ReadRepoLocalConfig reads the shared config (.controlzebra/config.json) from
+// the repository. This file is committed and shared with collaborators.
+// Returns a zero-value config if the file does not exist.
+func (r *RepositorySettingsService) ReadRepoLocalConfig(repoPath string) RepoLocalConfig {
+	configPath := filepath.Join(controlZebraDirPath(repoPath), sharedConfigFile)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return RepoLocalConfig{}
+	}
+
+	var config RepoLocalConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return RepoLocalConfig{}
+	}
+	return config
+}
+
+// WriteRepoLocalConfig writes the shared config (.controlzebra/config.json) to
+// the repository. Creates the .controlzebra/ directory if it does not exist.
+func (r *RepositorySettingsService) WriteRepoLocalConfig(repoPath string, config RepoLocalConfig) OperationResult {
+	dirPath := controlZebraDirPath(repoPath)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return failedOp("Failed to create .controlzebra directory: " + err.Error())
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return failedOp("Failed to serialize config: " + err.Error())
+	}
+
+	configPath := filepath.Join(dirPath, sharedConfigFile)
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return failedOp("Failed to write config: " + err.Error())
+	}
+
+	return successOp("Config saved to .controlzebra/config.json")
+}
+
+// ReadRepoPersonalConfig reads the personal/machine-specific config
+// (.controlzebra/local.json) from the repository. This file is gitignored and
+// NOT committed. Returns a zero-value config if the file does not exist.
+func (r *RepositorySettingsService) ReadRepoPersonalConfig(repoPath string) RepoPersonalConfig {
+	configPath := filepath.Join(controlZebraDirPath(repoPath), personalConfigFile)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return RepoPersonalConfig{}
+	}
+
+	var config RepoPersonalConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return RepoPersonalConfig{}
+	}
+	return config
+}
+
+// WriteRepoPersonalConfig writes the personal/machine-specific config
+// (.controlzebra/local.json) to the repository. Creates the .controlzebra/
+// directory if it does not exist. Also ensures .controlzebra/local.json is
+// listed in the repository's .gitignore so it is never committed.
+func (r *RepositorySettingsService) WriteRepoPersonalConfig(repoPath string, config RepoPersonalConfig) OperationResult {
+	dirPath := controlZebraDirPath(repoPath)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return failedOp("Failed to create .controlzebra directory: " + err.Error())
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return failedOp("Failed to serialize personal config: " + err.Error())
+	}
+
+	configPath := filepath.Join(dirPath, personalConfigFile)
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return failedOp("Failed to write personal config: " + err.Error())
+	}
+
+	// Ensure .controlzebra/local.json is in .gitignore
+	r.ensureGitignoreEntry(repoPath, ".controlzebra/local.json")
+
+	return successOp("Personal config saved to .controlzebra/local.json")
+}
+
+// EnsureControlZebraDir creates the .controlzebra/ directory and ensures the
+// personal config file is gitignored. Call this during project initialisation.
+func (r *RepositorySettingsService) EnsureControlZebraDir(repoPath string) OperationResult {
+	dirPath := controlZebraDirPath(repoPath)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return failedOp("Failed to create .controlzebra directory: " + err.Error())
+	}
+
+	r.ensureGitignoreEntry(repoPath, ".controlzebra/local.json")
+
+	return successOp(".controlzebra directory ready")
+}
+
+// ensureGitignoreEntry appends `entry` to the repo's .gitignore if it is not
+// already present. Creates the .gitignore file if it does not exist.
+func (r *RepositorySettingsService) ensureGitignoreEntry(repoPath string, entry string) {
+	gitignorePath := filepath.Join(repoPath, ".gitignore")
+
+	existing, err := os.ReadFile(gitignorePath)
+	if err == nil {
+		// Check if entry already exists
+		for _, line := range strings.Split(string(existing), "\n") {
+			if strings.TrimSpace(line) == entry {
+				return // Already present
+			}
+		}
+	}
+
+	// Append entry with a preceding newline to be safe
+	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	// If file had content and didn't end with newline, add one first
+	if len(existing) > 0 && existing[len(existing)-1] != '\n' {
+		_, _ = f.WriteString("\n")
+	}
+
+	_, _ = f.WriteString(entry + "\n")
 }
 
 // ============================================================================

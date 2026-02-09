@@ -2510,6 +2510,91 @@ export class RepoInfo {
 }
 
 /**
+ * RepoLocalConfig holds shared configuration stored in .controlzebra/config.json.
+ * This file is committed to the repository so collaborators share these settings.
+ */
+export class RepoLocalConfig {
+    /**
+     * ISO 8601 timestamp of project creation
+     */
+    "createdAt"?: string;
+
+    /**
+     * Username/email of the creator
+     */
+    "createdBy"?: string;
+
+    /**
+     * ControlZebra version that created the project
+     */
+    "appVersion"?: string;
+
+    /** Creates a new RepoLocalConfig instance. */
+    constructor($$source: Partial<RepoLocalConfig> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RepoLocalConfig instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RepoLocalConfig {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RepoLocalConfig($$parsedSource as Partial<RepoLocalConfig>);
+    }
+}
+
+/**
+ * RepoNameCheckResult represents the result of checking if a repo name exists
+ */
+export class RepoNameCheckResult {
+    "exists": boolean;
+    "error"?: string;
+
+    /** Creates a new RepoNameCheckResult instance. */
+    constructor($$source: Partial<RepoNameCheckResult> = {}) {
+        if (!("exists" in $$source)) {
+            this["exists"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RepoNameCheckResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RepoNameCheckResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RepoNameCheckResult($$parsedSource as Partial<RepoNameCheckResult>);
+    }
+}
+
+/**
+ * RepoPersonalConfig holds personal/machine-specific configuration stored in
+ * .controlzebra/local.json. This file is added to .gitignore and NOT committed.
+ */
+export class RepoPersonalConfig {
+    /**
+     * Skip remote sync
+     */
+    "localOnlyMode"?: boolean;
+
+    /** Creates a new RepoPersonalConfig instance. */
+    constructor($$source: Partial<RepoPersonalConfig> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RepoPersonalConfig instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RepoPersonalConfig {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RepoPersonalConfig($$parsedSource as Partial<RepoPersonalConfig>);
+    }
+}
+
+/**
  * RepoStatus contains the current state of a repository
  */
 export class RepoStatus {
@@ -2602,6 +2687,11 @@ export class RepositorySettings {
     "lfsSettings": LFSSettings;
     "maintenanceSettings": MaintenanceSettings;
     "protectedBranches": ProtectedBranchSettings;
+
+    /**
+     * Mode flags
+     */
+    "localOnlyMode"?: boolean;
 
     /**
      * Metadata
