@@ -12,7 +12,7 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
-import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../welcome';
+import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../../pages/welcome';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
