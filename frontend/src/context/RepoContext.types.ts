@@ -407,6 +407,44 @@ export interface StartMergeResult {
 }
 
 // ============================================================================
+// Project Creation Types
+// ============================================================================
+
+/**
+ * Options for the createProject orchestration method.
+ * Combines repo init + optional GitHub publish into a single flow.
+ */
+export interface CreateProjectOptions {
+  /** Absolute path to the folder to initialise. */
+  path: string;
+  /** Remote configuration. */
+  remote: {
+    /** If true, skip GitHub publishing (local-only project). */
+    skip: boolean;
+    /** GitHub owner (username or org login). Empty string = personal account. */
+    owner?: string;
+    /** Repository name on GitHub. */
+    repoName?: string;
+    /** Whether the GitHub repo should be private. Defaults to true. */
+    isPrivate?: boolean;
+  };
+  /**
+   * Called each time the orchestrator advances to a new step.
+   * Step index is zero-based and maps to the stepper's `steps` array.
+   */
+  onStepChange?: (step: number) => void;
+}
+
+/**
+ * Result returned by createProject.
+ */
+export interface CreateProjectResult {
+  success: boolean;
+  /** If the local init succeeded but publish failed, this will contain the publish error. */
+  error?: string;
+}
+
+// ============================================================================
 // Context Value Type
 // ============================================================================
 
@@ -543,6 +581,14 @@ export interface RepoContextValue {
   cloneGitHubRepo: (repo: string, destPath: string) => Promise<GitHubCloneResult>;
   publishToGitHub: (name: string, description: string, isPrivate: boolean, owner?: string) => Promise<GitHubRepoCreateResult>;
   loadUserOrganizations: () => Promise<GitHubOrganizationsResult>;
+
+  // ===== Project Creation (Welcome Screen) =====
+
+  /**
+   * Orchestrate full project creation: init → commit → (optional) publish.
+   * Calls `onStepChange` as each phase begins so the UI stepper can advance.
+   */
+  createProject: (options: CreateProjectOptions) => Promise<CreateProjectResult>;
 }
 
 // ============================================================================

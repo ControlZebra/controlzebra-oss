@@ -1,6 +1,8 @@
 
 ## Implementation Plan: Welcome Screen Redesign
 
+**Status (2026-02-09):** Phases 1–9 are complete ✅
+
 ### Architecture Overview
 
 The welcome screen replaces the current `NoDirectoryScreen` with a **4-category sidebar + main area** pattern (mirroring the existing Settings pattern). It activates whenever `!repoPath` and `activeView === VIEWS.EXPLORER`.
@@ -26,7 +28,7 @@ The welcome screen replaces the current `NoDirectoryScreen` with a **4-category 
 
 ---
 
-### Phase 1 — Constants & State Foundation
+### Phase 1 — Constants & State Foundation ✅ Complete
 
 #### 1.1 Add `WELCOME_CATEGORIES` to constants/index.ts
 
@@ -52,7 +54,7 @@ Follow the exact pattern of `selectedSettingsCategory` / `setSelectedSettingsCat
 
 ---
 
-### Phase 2 — Sidebar: WelcomeView
+### Phase 2 — Sidebar: WelcomeView ✅ Complete
 
 #### 2.1 Create `WelcomeView.tsx`
 
@@ -93,7 +95,7 @@ In ExplorerView.tsx, the `panelState.type === 'noFolder'` branch currently rende
 
 ---
 
-### Phase 3 — Main Area: Conditional Welcome Pages
+### Phase 3 — Main Area: Conditional Welcome Pages ✅ Complete
 
 #### 3.1 Modify ExplorerPage routing
 
@@ -119,7 +121,7 @@ Read `selectedWelcomeCategory` from `useLayout()`.
 
 ---
 
-### Phase 4 — Recent Projects Page
+### Phase 4 — Recent Projects Page ✅ Complete
 
 #### 4.1 Create `RecentProjectsPage.tsx`
 
@@ -154,7 +156,7 @@ Read `selectedWelcomeCategory` from `useLayout()`.
 
 ---
 
-### Phase 5 — New Project Page (Core Form)
+### Phase 5 — New Project Page (Core Form) ✅ Complete
 
 #### 5.1 Create `NewProjectPage.tsx`
 
@@ -250,7 +252,7 @@ When detection finds an existing repo:
 
 ---
 
-### Phase 6 — Backend: New Methods
+### Phase 6 — Backend: New Methods ✅ Complete
 
 #### 6.1 `CheckRepoNameExists` in github_service.go
 
@@ -300,7 +302,7 @@ Also add `.controlzebra/` to the auto-generated .gitignore? **No** — this shou
 
 ---
 
-### Phase 7 — Clone Project Page
+### Phase 7 — Clone Project Page ✅ Complete
 
 #### 7.1 Create `CloneProjectPage.tsx`
 
@@ -327,7 +329,7 @@ Also add `.controlzebra/` to the auto-generated .gitignore? **No** — this shou
 
 ---
 
-### Phase 8 — Open Folder Page
+### Phase 8 — Open Folder Page ✅ Complete
 
 #### 8.1 Create `OpenFolderPage.tsx`
 
@@ -344,7 +346,7 @@ Also add `.controlzebra/` to the auto-generated .gitignore? **No** — this shou
 
 ---
 
-### Phase 9 — Progress Stepper
+### Phase 9 — Progress Stepper ✅ Complete
 
 #### 9.1 Create `ProjectCreationStepper.tsx`
 
@@ -473,6 +475,77 @@ Expose `createProject` from `useRepo()`.
 
 ---
 
+### Phase 12 — Unified Project Setup UX (Remove 4-Step Sidebar Flow)
+
+**Goal:** Remove the old 4-step creation process from the sidebar while preserving start tracking and GitHub publishing as clear, unified actions.
+
+#### 12.1 Define explicit project states + user-facing copy
+
+Create a single source of truth for project state (derived from `DetectRepo`, `Status`, and `GetRemotes`):
+
+1. **Empty Folder, Not Tracked** — “This folder is empty and not tracked. Start a new project?”
+2. **Has Files, Not Tracked** — “Files found but not tracked by Git. Enable version control?”
+3. **Tracked, No Remote** — “Version control enabled. Publish to GitHub for backup?”
+4. **Tracked + Remote** — “Project is synced with GitHub.”
+5. **Created via Welcome Flow** — “Project created successfully.” (Shown immediately after create)
+
+This messaging replaces step-based language and focuses on the current state only.
+
+#### 12.2 Create a “Project Setup” panel component (main area)
+
+- Renders a **status banner** + **single action row** with context-aware CTAs.
+- Eliminates any sidebar stepper/step list UI.
+- Actions:
+  - **Not tracked** → “Enable Version Control” (uses `createProject` with local-only toggle).
+  - **Tracked, no remote** → “Publish to GitHub” (uses `publishToGitHub`).
+  - **Tracked + remote** → “Sync Now” or “Manage Remote”.
+
+#### 12.3 Inline “Setup Options” instead of steps
+
+When user clicks “Enable Version Control,” reveal a lightweight inline section (no navigation):
+- Project name (auto-suggested)
+- Local-only toggle (skip remote)
+- GitHub account + visibility (only if remote enabled)
+
+#### 12.4 Unify entry points (New Project + Open Folder)
+
+- Opening a folder (via menu or welcome page) lands in the same **Project Setup** panel if not tracked.
+- Creating a project should simply open the folder and land in **Project Setup** with the success banner.
+
+#### 12.5 Remove old 4-step sidebar artifacts
+
+- Delete or hide the sidebar step list UI.
+- Update any help text or analytics events that refer to “Step 1/4”.
+
+---
+
+### Phase 13 — UX Consistency & Telemetry
+
+#### 13.1 Status indicators in explorer/status bar
+
+- Always show “Tracked / Not tracked / Remote connected” in status bar.
+- If untracked, show a soft nudge link: “Enable version control”.
+
+#### 13.2 Analytics + messaging alignment
+
+- Replace step-based tracking with state-based tracking:
+  - `project_setup_started` (state)
+  - `project_setup_completed`
+  - `project_publish_attempted`
+  - `project_publish_failed`
+
+---
+
+### Phase 14 — QA & Edge Cases
+
+- Empty folder → enable tracking → local-only
+- Folder with files → enable tracking → publish
+- Existing git repo without remote → publish only
+- Existing git repo with remote → no setup needed
+- Nested repo warning (should not show setup CTA)
+
+---
+
 ### File Change Summary
 
 | Action | File | Description |
@@ -501,25 +574,18 @@ Expose `createProject` from `useRepo()`.
 ### Implementation Order (Dependency Graph)
 
 ```
-Phase 1 (Constants + LayoutContext)          ← no dependencies
-    ↓
-Phase 2 (WelcomeView + Sidebar wiring)      ← depends on Phase 1
-    ↓
-Phase 3 (ExplorerPage routing)               ← depends on Phase 1
-    ↓
-Phase 4 (RecentProjectsPage)                 ← depends on Phase 3
-Phase 8 (OpenFolderPage)                     ← depends on Phase 3, simplest page
-    ↓
-Phase 6 (Backend: CheckRepoNameExists + .controlzebra/) ← independent of frontend
-    ↓
-Phase 5 (NewProjectPage)                     ← depends on Phase 3 + 6
-Phase 7 (CloneProjectPage)                   ← depends on Phase 3
-    ↓
-Phase 9 (ProjectCreationStepper)             ← depends on Phase 5 design
+Phase 1–9 (Welcome Screen Core)              ← completed ✅
+  ↓
 Phase 10 (createProject in RepoContext)      ← depends on Phase 6 + 9
-    ↓
-Phase 11 (Cleanup)                           ← last
+  ↓
+Phase 11 (Cleanup)                           ← last for v1 plan
+  ↓
+Phase 12 (Unified Project Setup UX)          ← depends on Phase 10 + Welcome pages
+  ↓
+Phase 13 (UX Consistency & Telemetry)        ← depends on Phase 12
+  ↓
+Phase 14 (QA & Edge Cases)                   ← after Phase 12–13
 ```
 
-**Estimated effort:** ~3–4 days for a senior developer. Phases 1–3 can be done in a few hours and produce a working (but stubbed) skeleton. Phase 5 (NewProjectPage) is the heaviest component.
+**Estimated effort:** ~3–5 days for a senior developer. Phase 12 is the primary UX refactor; Phase 13–14 are polish + QA.
 

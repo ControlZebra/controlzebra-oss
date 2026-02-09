@@ -14,3 +14,5 @@ export { default as SimpleFileBrowser } from './SimpleFileBrowser';
 export { default as RepoSwitcher } from './RepoSwitcher';
 export { default as GitHubDeviceFlowModal } from './GitHubDeviceFlowModal';
 export { default as UpdateChecker } from './UpdateChecker';
+export { default as ProjectCreationStepper } from './ProjectCreationStepper';
+export type { StepDefinition, StepperStatus, ProjectCreationStepperProps } from './ProjectCreationStepper';

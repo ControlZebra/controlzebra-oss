@@ -34,7 +34,8 @@ import {
 import { ICON_SIZES } from '../../../../constants';
 import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { useRepo } from '../../../../context';
-import { GitHubDeviceFlowModal } from '../../../common';
+import { GitHubDeviceFlowModal, ProjectCreationStepper } from '../../../common';
+import type { StepperStatus } from '../../../common';
 import { Button, Input, Select } from '../../../ui';
 import type { SelectOption } from '../../../ui';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
@@ -198,6 +199,8 @@ function CloneProjectPage(): JSX.Element {
   // ── Clone progress state ──────────────────────────────────────────────
   const [isCloning, setIsCloning] = useState(false);
   const [cloneError, setCloneError] = useState<string | null>(null);
+  const [stepperStep, setStepperStep] = useState(0);
+  const [stepperStatus, setStepperStatus] = useState<StepperStatus>('idle');
 
   // ── Derived ───────────────────────────────────────────────────────────
   const isLoggedIn = ghAuthStatus?.loggedIn === true;
@@ -387,12 +390,20 @@ function CloneProjectPage(): JSX.Element {
     }
   }, []);
 
+  // ── Stepper steps for clone flow ──────────────────────────────────────
+  const cloneSteps = useMemo(() => [
+    { id: 'clone', label: 'Cloning' },
+    { id: 'done', label: 'Done' },
+  ], []);
+
   // ── Clone ─────────────────────────────────────────────────────────────
 
   const handleClone = useCallback(async () => {
     if (!canClone) return;
     setIsCloning(true);
     setCloneError(null);
+    setStepperStep(0);
+    setStepperStatus('running');
 
     try {
       let repoIdentifier: string;
@@ -407,16 +418,22 @@ function CloneProjectPage(): JSX.Element {
       const result = await RepoClone(repoIdentifier, destPath);
 
       if (result.success) {
+        // Step 1: Done
+        setStepperStep(1);
+        setStepperStatus('success');
+
         // Auto-open the cloned repo
         const clonedPath = result.cloneDir;
         if (clonedPath) {
           await openRepo(clonedPath);
         }
       } else {
+        setStepperStatus('error');
         setCloneError(result.error || 'Clone failed');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      setStepperStatus('error');
       setCloneError(msg);
     } finally {
       setIsCloning(false);
@@ -648,6 +665,18 @@ function CloneProjectPage(): JSX.Element {
             A new folder with the repository name will be created here.
           </p>
         </SectionCard>
+
+        {/* ─── Progress stepper (shown during/after clone) ────────────── */}
+        {stepperStatus !== 'idle' && (
+          <div className="bg-theme-surface border border-theme-default rounded-lg p-5 mb-6">
+            <ProjectCreationStepper
+              steps={cloneSteps}
+              currentStep={stepperStep}
+              status={stepperStatus}
+              error={stepperStatus === 'error' ? cloneError ?? undefined : undefined}
+            />
+          </div>
+        )}
 
         {/* ─── Clone button ──────────────────────────────────────────── */}
         <div className="flex items-center gap-3">

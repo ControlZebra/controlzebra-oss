@@ -40,14 +40,14 @@ import { ICON_SIZES } from '../../../../constants';
 import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { suggestRepoName, getFolderNameFromPath } from '../../../../lib/pathUtils';
 import { useRepo } from '../../../../context';
-import { GitHubDeviceFlowModal } from '../../../common';
+import { GitHubDeviceFlowModal, ProjectCreationStepper } from '../../../common';
+import type { StepperStatus } from '../../../common';
 import { Button, Input, Select, Switch, ToggleGroup } from '../../../ui';
 import type { SelectOption } from '../../../ui';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import { DetectRepo, GetRemoteURL } from '../../../../../bindings/controlzebra/services/gitservice';
 import { ListDirectory } from '../../../../../bindings/controlzebra/services/filesystemservice';
 import { CheckRepoNameExists } from '../../../../../bindings/controlzebra/services/githubservice';
-import { WriteRepoLocalConfig } from '../../../../../bindings/controlzebra/services/repositorysettingsservice';
 
 // ============================================================================
 // Types
@@ -198,8 +198,7 @@ function NewProjectPage(): JSX.Element {
     isCheckingGhAuth,
     startGitHubLogin,
     loadUserOrganizations,
-    startTracking,
-    publishToGitHub,
+    createProject,
   } = useRepo();
 
   // ── Local settings state ──────────────────────────────────────────────
@@ -225,7 +224,8 @@ function NewProjectPage(): JSX.Element {
 
   // ── Creation state ────────────────────────────────────────────────────
   const [isCreating, setIsCreating] = useState(false);
-  const [creationStep, setCreationStep] = useState<string | null>(null);
+  const [stepperStep, setStepperStep] = useState(0);
+  const [stepperStatus, setStepperStatus] = useState<StepperStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
   // ── Refs ──────────────────────────────────────────────────────────────
@@ -443,76 +443,65 @@ function NewProjectPage(): JSX.Element {
     [repoName, skipRemote, checkRepoName],
   );
 
+  // ── Stepper step definitions ───────────────────────────────────────────
+  const stepperSteps = useMemo(() => {
+    const steps = [
+      { id: 'init', label: 'Initializing' },
+      { id: 'commit', label: 'Saving Changes' },
+    ];
+    if (!skipRemote) {
+      steps.push({ id: 'publish', label: 'Publishing' });
+    }
+    steps.push({ id: 'done', label: 'Done' });
+    return steps;
+  }, [skipRemote]);
+
   // ── Create project ────────────────────────────────────────────────────
 
   const handleCreateProject = useCallback(async () => {
     if (!canCreate) return;
     setIsCreating(true);
     setError(null);
+    setStepperStep(0);
+    setStepperStatus('running');
 
-    try {
-      // Step 1: Open the folder as the active repo (this runs DetectRepo, sets repoPath)
-      setCreationStep('Opening folder…');
-      const opened = await openRepo(selectedPath);
-      if (!opened) throw new Error('Failed to open the selected folder');
-
-      // Step 2: Initialize git + LFS + identity + initial commit
-      setCreationStep('Initializing version control…');
-      const tracked = await startTracking();
-      if (!tracked) throw new Error('Failed to initialize version control');
-
-      // Step 3: Write .controlzebra config
-      setCreationStep('Writing project config…');
-      try {
-        await WriteRepoLocalConfig(selectedPath, {
-          createdAt: new Date().toISOString(),
-          createdBy: ghUsername || 'unknown',
-          appVersion: '0.0.0-dev',
-        });
-      } catch (err) {
-        console.warn('Failed to write .controlzebra config:', err);
-        // Non-fatal — continue
-      }
-
-      // Step 4: Publish to GitHub (if not skipped)
-      if (!skipRemote && repoName.trim()) {
-        setCreationStep('Publishing to GitHub…');
-        const isPrivate = visibility === 'private';
-        const result = await publishToGitHub(
-          repoName.trim(),
-          '',          // description
-          isPrivate,
-          selectedOwner || undefined,
-        );
-        if (!result.success) {
-          // Non-fatal: repo is created locally, just warn about publish failure
-          setError(`Project created locally, but publishing failed: ${result.error}`);
-          setIsCreating(false);
-          setCreationStep(null);
-          return;
+    const result = await createProject({
+      path: selectedPath,
+      remote: {
+        skip: skipRemote,
+        owner: selectedOwner || undefined,
+        repoName: repoName.trim() || undefined,
+        isPrivate: visibility === 'private',
+      },
+      onStepChange: (step: number) => {
+        // Map the 4-step orchestrator (0-init,1-commit,2-publish,3-done)
+        // to the stepper's step array which may not have a "publish" entry.
+        if (skipRemote) {
+          // steps: [init, commit, done] → indices 0,1,2
+          // orchestrator step 3 (done) maps to index 2
+          setStepperStep(step <= 1 ? step : step - 1);
+        } else {
+          setStepperStep(step);
         }
-      }
+      },
+    });
 
-      // Done — repo is already open from step 1
-      setCreationStep(null);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      setCreationStep(null);
-    } finally {
-      setIsCreating(false);
+    if (result.success) {
+      setStepperStatus('success');
+    } else {
+      setStepperStatus('error');
+      setError(result.error || 'Failed to create project');
     }
+
+    setIsCreating(false);
   }, [
     canCreate,
     selectedPath,
-    openRepo,
-    startTracking,
-    ghUsername,
+    createProject,
     skipRemote,
+    selectedOwner,
     repoName,
     visibility,
-    selectedOwner,
-    publishToGitHub,
   ]);
 
   // ── Open existing project (from "Already a Project" card) ─────────────
@@ -740,6 +729,18 @@ function NewProjectPage(): JSX.Element {
               )}
             </SectionCard>
 
+            {/* ─── Progress stepper (shown during/after creation) ───── */}
+            {stepperStatus !== 'idle' && (
+              <div className="bg-theme-surface border border-theme-default rounded-lg p-5 mb-6">
+                <ProjectCreationStepper
+                  steps={stepperSteps}
+                  currentStep={stepperStep}
+                  status={stepperStatus}
+                  error={stepperStatus === 'error' ? error ?? undefined : undefined}
+                />
+              </div>
+            )}
+
             {/* ─── Create button ────────────────────────────────────── */}
             <div className="flex items-center gap-3">
               <Button
@@ -750,7 +751,7 @@ function NewProjectPage(): JSX.Element {
                 {isCreating ? (
                   <>
                     <Loader2 className="animate-spin" size={16} />
-                    <span className="ml-2">{creationStep || 'Creating…'}</span>
+                    <span className="ml-2">Creating…</span>
                   </>
                 ) : (
                   <>
@@ -760,7 +761,7 @@ function NewProjectPage(): JSX.Element {
                 )}
               </Button>
 
-              {!selectedPath && !isCreating && (
+              {!selectedPath && !isCreating && stepperStatus === 'idle' && (
                 <span className="text-theme-muted text-xs">Select a folder to get started</span>
               )}
             </div>

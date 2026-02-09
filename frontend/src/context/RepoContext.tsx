@@ -87,7 +87,7 @@ import { SyncWithProgress } from '../../bindings/controlzebra/services/progresss
 import { GetAppSettings, SaveAppSettings, EnsureIdentity } from '../../bindings/controlzebra/services/settingsservice';
 import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
-import { GetRemotes } from '../../bindings/controlzebra/services/repositorysettingsservice';
+import { GetRemotes, WriteRepoLocalConfig } from '../../bindings/controlzebra/services/repositorysettingsservice';
 import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
@@ -143,6 +143,8 @@ import type {
   GitHubCloneResult,
   GitHubRepoCreateResult,
   GitHubOrganizationsResult,
+  CreateProjectOptions,
+  CreateProjectResult,
 } from './RepoContext.types';
 
 // Polling interval for status updates (in ms)
@@ -1904,6 +1906,129 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, []);
 
+  // ===== Project Creation Orchestration (Welcome Screen) =====
+
+  /**
+   * createProject - Full project creation flow with step callbacks.
+   *
+   * Steps:
+   *  0 – Initializing (git init, LFS presets, identity)
+   *  1 – Saving Changes (initial commit)
+   *  2 – Publishing (GitHub repo creation — skipped if local-only)
+   *  3 – Done (opens the project)
+   *
+   * The `onStepChange` callback lets the UI stepper advance.
+   */
+  const createProject = useCallback(async (options: CreateProjectOptions): Promise<CreateProjectResult> => {
+    const { path, remote, onStepChange } = options;
+
+    try {
+      // ── Step 0: Initialize ──────────────────────────────────────────
+      onStepChange?.(0);
+
+      const info = await DetectRepo(path);
+      if (!info.isRepo) {
+        // Init git
+        const initResult = await InitRepo(path);
+        if (!initResult.success) {
+          return { success: false, error: initResult.error || 'Failed to initialize repository' };
+        }
+
+        // Init LFS + preset patterns
+        try {
+          await InitializeLFS(path);
+          const presetPatterns = await GetPresetPatterns();
+          for (const preset of presetPatterns) {
+            try {
+              await TrackPattern(path, preset.pattern);
+            } catch (err) {
+              console.warn(`Failed to track LFS pattern ${preset.pattern}:`, err);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to initialize LFS:', err);
+          // Non-fatal: continue without LFS
+        }
+
+        // Ensure git identity from ControlZebra account
+        try {
+          await EnsureIdentity(path, userName || '', userEmail || '');
+        } catch (err) {
+          console.warn('Failed to ensure git identity:', err);
+        }
+      }
+
+      // Write .controlzebra/ config (non-fatal if it fails)
+      try {
+        await WriteRepoLocalConfig(path, {
+          createdAt: new Date().toISOString(),
+          createdBy: userName || userEmail || 'unknown',
+          appVersion: '0.0.0-dev',
+        });
+      } catch (err) {
+        console.warn('Failed to write .controlzebra config:', err);
+      }
+
+      // ── Step 1: Commit ──────────────────────────────────────────────
+      onStepChange?.(1);
+
+      const commitResult = await CommitAll(path, 'Initial commit');
+      if (!commitResult.success) {
+        // Non-fatal: might be an empty folder with nothing to commit
+        console.warn('Initial commit may have been skipped:', commitResult.error);
+      }
+
+      // ── Step 2: Publish (if not local-only) ─────────────────────────
+      if (!remote.skip && remote.repoName) {
+        onStepChange?.(2);
+
+        const pubResult = await RepoCreateFromLocal(
+          path,
+          remote.repoName,
+          '', // description
+          remote.isPrivate ?? true,
+          remote.owner || '',
+        );
+
+        if (!pubResult.success) {
+          // Repo exists locally — return partial success with warning
+          const displayName = remote.owner
+            ? `${remote.owner}/${remote.repoName}`
+            : remote.repoName;
+          const errorMsg = `Project created locally, but publishing "${displayName}" failed: ${pubResult.error}`;
+          showMessage('warning', errorMsg, 8000);
+
+          // Still open the project so the user isn't stuck
+          onStepChange?.(3);
+          await openRepo(path);
+
+          return { success: false, error: errorMsg };
+        }
+
+        showMessage('success', `Repository published to GitHub as ${pubResult.repo?.fullName || remote.repoName}`);
+      }
+
+      // ── Step 3: Done ────────────────────────────────────────────────
+      onStepChange?.(3);
+      await openRepo(path);
+
+      trackRepoInitialized({
+        lfsEnabled: true,
+        initialCommitMade: true,
+      });
+
+      return { success: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      trackErrorShown({
+        errorContext: 'create_project',
+        actionAttempted: 'create_project',
+      });
+      showMessage('error', `Failed to create project: ${msg}`);
+      return { success: false, error: msg };
+    }
+  }, [userName, userEmail, openRepo, showMessage]);
+
   // ===== Effects =====
 
   // Check GitHub auth status on mount
@@ -2177,6 +2302,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     cloneGitHubRepo,
     publishToGitHub,
     loadUserOrganizations,
+
+    // Project creation (Welcome Screen)
+    createProject,
   }), [
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
@@ -2204,6 +2332,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     // GitHub dependencies
     ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
     checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations,
+    createProject,
   ]);
 
   return (
