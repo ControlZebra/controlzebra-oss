@@ -177,6 +177,10 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {
+    if (import.meta.hot) {
+      import.meta.hot.invalidate('AuthContext identity changed during HMR');
+      return {} as AuthContextValue;
+    }
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

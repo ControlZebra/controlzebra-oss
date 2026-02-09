@@ -2444,6 +2444,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
 export function useRepo(): RepoContextValue {
   const context = useContext(RepoContext);
   if (!context) {
+    // During React Fast Refresh (HMR), context identity can break when
+    // createContext() re-executes in the updated module. The Provider still
+    // holds the old context reference while consumers get the new one.
+    // Force a full page reload instead of crashing with a white screen.
+    if (import.meta.hot) {
+      import.meta.hot.invalidate('RepoContext identity changed during HMR');
+      return {} as RepoContextValue;
+    }
     throw new Error('useRepo must be used within a RepoProvider');
   }
   return context;

@@ -334,6 +334,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
 export function useLayout(): LayoutContextValue {
   const context = useContext(LayoutContext);
   if (!context) {
+    if (import.meta.hot) {
+      import.meta.hot.invalidate('LayoutContext identity changed during HMR');
+      return {} as LayoutContextValue;
+    }
     throw new Error('useLayout must be used within a LayoutProvider');
   }
   return context;
