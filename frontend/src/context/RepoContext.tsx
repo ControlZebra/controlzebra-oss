@@ -87,7 +87,7 @@ import { SyncWithProgress } from '../../bindings/controlzebra/services/progresss
 import { GetAppSettings, SaveAppSettings, EnsureIdentity } from '../../bindings/controlzebra/services/settingsservice';
 import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
-import { GetRemotes, WriteRepoLocalConfig, EnsureControlZebraDir } from '../../bindings/controlzebra/services/repositorysettingsservice';
+import { GetRemotes, WriteRepoLocalConfig, EnsureControlZebraDir, GetSettings, StartBackgroundTasks, StopBackgroundTasks } from '../../bindings/controlzebra/services/repositorysettingsservice';
 import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
@@ -192,6 +192,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   
+  // ===== Repository Settings State =====
+  const [repoSettings, setRepoSettings] = useState<{
+    fetchPrune: boolean;
+    fetchTags: boolean;
+  } | null>(null);
+
   // ===== Remote State =====
   const [hasRemote, setHasRemote] = useState(false);
   
@@ -296,6 +302,26 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [repoPath]);
 
+  // Refresh repository-level settings (protected branches, fetch options)
+  const refreshRepoSettings = useCallback(async (pathOverride?: string): Promise<void> => {
+    const targetPath = pathOverride || repoPath;
+    if (!targetPath) return;
+
+    try {
+      const settings = await GetSettings(targetPath);
+      setRepoSettings({
+        fetchPrune: settings.fetchSettings?.pruneStaleBranches ?? true,
+        fetchTags: settings.fetchSettings?.fetchTags ?? true,
+      });
+    } catch (err) {
+      console.warn('Failed to load repo settings, using defaults:', err);
+      setRepoSettings({
+        fetchPrune: true,
+        fetchTags: true,
+      });
+    }
+  }, [repoPath]);
+
   // ===== Repo Operations =====
 
   // Open a folder by path
@@ -377,6 +403,18 @@ export function RepoProvider({ children }: RepoProviderProps) {
         console.error('Failed to start file watcher:', err);
       }
       
+      // Load repository settings (protected branches, fetch options, etc.)
+      if (info.isRepo) {
+        await refreshRepoSettings(path);
+
+        // Start background tasks (auto-sync, LFS auto-download, auto-optimization)
+        try {
+          await StartBackgroundTasks(path);
+        } catch (err) {
+          console.warn('Failed to start background tasks:', err);
+        }
+      }
+      
       setIsLoading(false);
       return true;
     } catch (err) {
@@ -389,7 +427,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [isLoading, repoPath, userName, userEmail, showMessage]);
+  }, [isLoading, repoPath, userName, userEmail, showMessage, refreshRepoSettings]);
 
   /**
    * Start tracking a folder with version control.
@@ -528,6 +566,15 @@ export function RepoProvider({ children }: RepoProviderProps) {
       repoOpenTimeRef.current = 0;
     }
     
+    // Stop background tasks for the current repo before clearing state
+    if (repoPath) {
+      try {
+        await StopBackgroundTasks(repoPath);
+      } catch (err) {
+        console.warn('Failed to stop background tasks:', err);
+      }
+    }
+
     setRepoPath(null);
     setRepoInfo(null);
     setRepoStatus(null);
@@ -537,6 +584,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedCommit(null);
     setSelectedCommitFile(null);
     setCurrentDiff(null);
+    setRepoSettings(null);
     
     // Clear viewer cache and L5X tab states when closing repo to free memory
     clearViewerCache();
@@ -564,7 +612,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // ===== Commit & Sync Operations =====
 
   // Commit all changes with message
-  const commitChanges = useCallback(async (message: string): Promise<boolean> => {
+  // force: bypass protected branch check (used when user explicitly confirms)
+  const commitChanges = useCallback(async (message: string, force = false): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -575,10 +624,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
+    const currentBranch = repoInfo?.branch || 'unknown';
+    
     setIsCommitting(true);
     const startTime = Date.now();
     const filesChanged = repoStatus?.changedFiles?.length ?? 0;
-    const currentBranch = repoInfo?.branch || 'unknown';
     
     try {
       const result = await CommitAll(repoPath, message);
@@ -589,7 +639,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
           filesChanged,
           branchName: currentBranch,
           messageLength: message.length,
-          isProtectedBranch: currentBranch === 'main' || currentBranch === 'master',
           durationMs: Date.now() - startTime,
           errorType: 'git_error',
         });
@@ -603,7 +652,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
         filesChanged,
         branchName: currentBranch,
         messageLength: message.length,
-        isProtectedBranch: currentBranch === 'main' || currentBranch === 'master',
         durationMs: Date.now() - startTime,
       });
       
@@ -618,7 +666,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
         filesChanged,
         branchName: currentBranch,
         messageLength: message.length,
-        isProtectedBranch: currentBranch === 'main' || currentBranch === 'master',
         durationMs: Date.now() - startTime,
         errorType: 'exception',
       });
@@ -687,7 +734,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     });
     
     try {
-      const result = await SyncWithProgress(repoPath, operationId);
+      // Apply fetch settings from repo configuration (prune stale branches, fetch tags)
+      const prune = repoSettings?.fetchPrune ?? true;
+      const tags = repoSettings?.fetchTags ?? true;
+      const result = await SyncWithProgress(repoPath, operationId, prune, tags);
       
       if (!result.success) {
         return false;
@@ -705,7 +755,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Sync failed: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, repoInfo, repoStatus, showMessage, generateOperationId, closeProgressModal]);
+  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal]);
 
   // ===== Diff Operations =====
 
@@ -2299,6 +2349,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     // Remote state
     hasRemote,
     refreshRemotes,
+
+    // Repository settings (protected branches, fetch options)
+    repoSettings,
+    refreshRepoSettings,
     
     // Progress modal state
     progressModal,
@@ -2405,6 +2459,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
     hasRemote, refreshRemotes,
+    repoSettings, refreshRepoSettings,
     progressModal, handleProgressComplete,
     showMessage,
     openRepo, closeRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,

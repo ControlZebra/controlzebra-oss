@@ -2312,53 +2312,6 @@ export class PresetPattern {
 }
 
 /**
- * ProtectedBranchSettings contains settings for protected branches
- */
-export class ProtectedBranchSettings {
-    /**
-     * ProtectedBranches is a list of branch names that should be protected
-     */
-    "protectedBranches": string[];
-
-    /**
-     * WarnOnDirectCommit warns when committing directly to protected branches
-     */
-    "warnOnDirectCommit": boolean;
-
-    /**
-     * RequireConfirmation requires confirmation for operations on protected branches
-     */
-    "requireConfirmation": boolean;
-
-    /** Creates a new ProtectedBranchSettings instance. */
-    constructor($$source: Partial<ProtectedBranchSettings> = {}) {
-        if (!("protectedBranches" in $$source)) {
-            this["protectedBranches"] = [];
-        }
-        if (!("warnOnDirectCommit" in $$source)) {
-            this["warnOnDirectCommit"] = false;
-        }
-        if (!("requireConfirmation" in $$source)) {
-            this["requireConfirmation"] = false;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new ProtectedBranchSettings instance from a string or object.
-     */
-    static createFrom($$source: any = {}): ProtectedBranchSettings {
-        const $$createField0_0 = $$createType0;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("protectedBranches" in $$parsedSource) {
-            $$parsedSource["protectedBranches"] = $$createField0_0($$parsedSource["protectedBranches"]);
-        }
-        return new ProtectedBranchSettings($$parsedSource as Partial<ProtectedBranchSettings>);
-    }
-}
-
-/**
  * RawDiffResult contains raw unified diff text for react-diff-view parsing
  */
 export class RawDiffResult {
@@ -2824,7 +2777,6 @@ export class RepositorySettings {
     "fetchSettings": FetchSettings;
     "lfsSettings": LFSSettings;
     "maintenanceSettings": MaintenanceSettings;
-    "protectedBranches": ProtectedBranchSettings;
 
     /**
      * Mode flags
@@ -2863,9 +2815,6 @@ export class RepositorySettings {
         if (!("maintenanceSettings" in $$source)) {
             this["maintenanceSettings"] = (new MaintenanceSettings());
         }
-        if (!("protectedBranches" in $$source)) {
-            this["protectedBranches"] = (new ProtectedBranchSettings());
-        }
         if (!("createdAt" in $$source)) {
             this["createdAt"] = null;
         }
@@ -2886,7 +2835,6 @@ export class RepositorySettings {
         const $$createField5_0 = $$createType25;
         const $$createField6_0 = $$createType26;
         const $$createField7_0 = $$createType27;
-        const $$createField8_0 = $$createType28;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -2905,9 +2853,6 @@ export class RepositorySettings {
         }
         if ("maintenanceSettings" in $$parsedSource) {
             $$parsedSource["maintenanceSettings"] = $$createField7_0($$parsedSource["maintenanceSettings"]);
-        }
-        if ("protectedBranches" in $$parsedSource) {
-            $$parsedSource["protectedBranches"] = $$createField8_0($$parsedSource["protectedBranches"]);
         }
         return new RepositorySettings($$parsedSource as Partial<RepositorySettings>);
     }
@@ -2958,35 +2903,6 @@ export class StashEntry {
     static createFrom($$source: any = {}): StashEntry {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new StashEntry($$parsedSource as Partial<StashEntry>);
-    }
-}
-
-/**
- * TerminalResult contains the result of terminal operations
- */
-export class TerminalResult {
-    "sessionId": string;
-    "success": boolean;
-    "error"?: string;
-
-    /** Creates a new TerminalResult instance. */
-    constructor($$source: Partial<TerminalResult> = {}) {
-        if (!("sessionId" in $$source)) {
-            this["sessionId"] = "";
-        }
-        if (!("success" in $$source)) {
-            this["success"] = false;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new TerminalResult instance from a string or object.
-     */
-    static createFrom($$source: any = {}): TerminalResult {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new TerminalResult($$parsedSource as Partial<TerminalResult>);
     }
 }
 
@@ -3125,4 +3041,3 @@ const $$createType24 = BackgroundTaskConfig.createFrom;
 const $$createType25 = FetchSettings.createFrom;
 const $$createType26 = LFSSettings.createFrom;
 const $$createType27 = MaintenanceSettings.createFrom;
-const $$createType28 = ProtectedBranchSettings.createFrom;

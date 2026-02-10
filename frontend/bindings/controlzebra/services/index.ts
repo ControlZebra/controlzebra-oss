@@ -12,7 +12,6 @@ import * as LFSService from "./lfsservice.js";
 import * as ProgressService from "./progressservice.js";
 import * as RepositorySettingsService from "./repositorysettingsservice.js";
 import * as SettingsService from "./settingsservice.js";
-import * as TerminalService from "./terminalservice.js";
 import * as UpdaterService from "./updaterservice.js";
 export {
     AuthService,
@@ -26,7 +25,6 @@ export {
     ProgressService,
     RepositorySettingsService,
     SettingsService,
-    TerminalService,
     UpdaterService
 };
 
@@ -83,7 +81,6 @@ export {
     OperationResult,
     ParentBranchResult,
     PresetPattern,
-    ProtectedBranchSettings,
     RawDiffResult,
     ReadFileBase64Result,
     ReadTextFileResult,
@@ -96,7 +93,6 @@ export {
     RepoStatus,
     RepositorySettings,
     StashEntry,
-    TerminalResult,
     TrackedPattern,
     UpdateInfo,
     UserProfile

@@ -8,10 +8,9 @@ import {
   FileText,
   RefreshCw,
   RotateCcw,
-  ChevronDown,
   GitBranch,
 } from 'lucide-react';
-import { FILE_STATUS, isProtectedBranch, type FileStatusType } from '../../../../constants';
+import { FILE_STATUS, type FileStatusType } from '../../../../constants';
 import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName, shortenPath } from '../../../../lib/gitHelpers';
 import { 
   Button, 
@@ -20,14 +19,7 @@ import {
   CardContent,
   Input,
 } from '../../../ui';
-import { ButtonGroup } from '../../../ui/button-group';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../../../ui/dropdown-menu';
-import { MasterBranchNudge } from '../../../common';
+
 import { RewindConfirmModal } from '../../';
 import { GetUserProfile } from '../../../../../bindings/controlzebra/services/settingsservice';
 import type { FileStatus } from '../../../../context';
@@ -38,7 +30,7 @@ import type { FileStatus } from '../../../../context';
 
 interface CommitScreenProps {
   changedFiles: FileStatus[];
-  onCommit: (message: string) => Promise<boolean>;
+  onCommit: (message: string, force?: boolean) => Promise<boolean>;
   onBranchAndCommit: (branchName: string, message: string) => Promise<boolean>;
   onSync: () => Promise<void>;
   onRewind: () => Promise<boolean>;
@@ -145,7 +137,6 @@ function CommitScreen({
   const [showBranchInput, setShowBranchInput] = useState(false);
   const [branchName, setBranchName] = useState('');
   const [defaultBranchName, setDefaultBranchName] = useState('');
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   // Fetch user profile for default branch name
   useEffect(() => {
@@ -163,11 +154,6 @@ function CommitScreen({
     };
     fetchDefaults();
   }, [repoPath]);
-
-  // Show nudge when on a protected branch with uncommitted changes
-  const showMasterNudge = isProtectedBranch(currentBranch) && 
-                          changedFiles?.length > 0 && 
-                          !nudgeDismissed;
 
   const handleMessageChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>): void => {
     setMessage(e.target.value);
@@ -233,7 +219,6 @@ function CommitScreen({
       setBranchName('');
       setShowBranchInput(false);
       setJustCommitted(true);
-      setNudgeDismissed(false); // Reset for next time
     }
   }, [message, branchName, onBranchAndCommit]);
 
@@ -252,12 +237,7 @@ function CommitScreen({
     }
   }, [branchName, handleBranchAndSaveConfirm, handleBranchAndSaveCancel]);
 
-  const handleDismissNudge = useCallback((): void => {
-    setNudgeDismissed(true);
-  }, []);
-
   const showSyncButton = justCommitted && changedFiles.length === 0;
-  const onProtectedBranch = isProtectedBranch(currentBranch);
 
   return (
     <div className="flex-1 flex flex-col items-center p-8 overflow-auto animate-screen-enter">
@@ -267,14 +247,6 @@ function CommitScreen({
           <h1 className="text-5xl font-light text-theme-primary mb-2">Welcome!</h1>
           <p className="text-sm text-theme-muted">Recommended next step</p>
         </div>
-
-        {/* Master Branch Nudge */}
-        {showMasterNudge && (
-          <MasterBranchNudge 
-            branchName={currentBranch} 
-            onDismiss={handleDismissNudge}
-          />
-        )}
 
         {/* Prompt message */}
         <p className="text-center text-sm text-theme-muted mb-6">
@@ -341,46 +313,14 @@ function CommitScreen({
             </Button>
           ) : !showBranchInput ? (
             <>
-              {/* Split button for Branch and Save / Save on master */}
-              {onProtectedBranch ? (
-                <ButtonGroup>
-                  <Button 
-                    onClick={handleBranchAndSaveClick}
-                    disabled={!message.trim() || isCommitting} 
-                    loading={isCommitting}
-                    size="lg"
-                  >
-                    <GitBranch style={ICON_STYLES.sm as CSSProperties} />
-                    Branch and Save
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="default"
-                        size="lg"
-                        disabled={!message.trim() || isCommitting}
-                        className="px-2 border-l border-blue-500/30"
-                      >
-                        <ChevronDown style={ICON_STYLES.sm as CSSProperties} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleSave}>
-                        Save on {currentBranch}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </ButtonGroup>
-              ) : (
-                <Button 
-                  onClick={handleSave} 
-                  disabled={!message.trim()} 
-                  loading={isCommitting}
-                  size="lg"
-                >
-                  Save Snapshot
-                </Button>
-              )}
+              <Button 
+                onClick={handleSave} 
+                disabled={!message.trim()} 
+                loading={isCommitting}
+                size="lg"
+              >
+                Save Snapshot
+              </Button>
               <Button
                 variant="outline"
                 onClick={handleRewindClick}

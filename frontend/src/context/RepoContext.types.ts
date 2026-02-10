@@ -474,6 +474,13 @@ export interface RepoContextValue {
   hasRemote: boolean;
   refreshRemotes: () => Promise<boolean>;
 
+  // Repository settings (fetch options)
+  repoSettings: {
+    fetchPrune: boolean;
+    fetchTags: boolean;
+  } | null;
+  refreshRepoSettings: (pathOverride?: string) => Promise<void>;
+
   // Progress modal state
   progressModal: ProgressModalState;
   handleProgressComplete: (success: boolean, error?: string) => void;
@@ -485,7 +492,7 @@ export interface RepoContextValue {
   openRepo: (path: string) => Promise<boolean>;
   closeRepo: () => Promise<void>;
   startTracking: () => Promise<boolean>;
-  commitChanges: (message: string) => Promise<boolean>;
+  commitChanges: (message: string, force?: boolean) => Promise<boolean>;
   syncRepo: () => Promise<boolean>;
   refreshStatus: () => Promise<void>;
   refreshCommits: () => Promise<void>;

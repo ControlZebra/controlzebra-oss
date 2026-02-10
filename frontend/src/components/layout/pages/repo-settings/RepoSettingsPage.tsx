@@ -8,7 +8,6 @@ import {
   RefreshCw, 
   Play, 
   AlertTriangle, 
-  Shield, 
   Wrench, 
   HardDrive, 
   Clock, 
@@ -22,6 +21,10 @@ import {
   CheckCircle2,
   Plus,
   Check,
+  Info,
+  FolderGit2,
+  Globe,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../../constants';
@@ -44,7 +47,6 @@ import {
   UpdateFetchSettings,
   UpdateLFSSettings,
   UpdateMaintenanceSettings,
-  UpdateProtectedBranches,
   RunTaskNow,
   GetTaskStatuses,
   DiagnoseRepository,
@@ -60,6 +62,7 @@ import {
   AbortBisect,
   AbortAM,
   AbortCurrentOperation,
+  GetRemoteURL,
 } from '../../../../../bindings/controlzebra/services/gitservice';
 import {
   IsLFSInstalled,
@@ -107,12 +110,6 @@ interface LFSSettings {
   pruneKeepDays: number;
 }
 
-interface ProtectedBranchesSettings {
-  protectedBranches: string[];
-  warnOnDirectCommit: boolean;
-  requireConfirmation: boolean;
-}
-
 interface MaintenanceSettings {
   commitGraph: boolean;
   packRefs: boolean;
@@ -125,7 +122,6 @@ interface RepoSettings {
   maintenanceTask?: TaskConfig;
   fetchSettings?: FetchSettings;
   lfsSettings?: LFSSettings;
-  protectedBranches?: ProtectedBranchesSettings;
   maintenanceSettings?: MaintenanceSettings;
   [key: string]: unknown;
 }
@@ -464,44 +460,38 @@ const RemoteSyncPanel = memo(function RemoteSyncPanel({ settings, onUpdate, repo
         onToggle={handleTaskToggle}
         onIntervalChange={handleIntervalChange}
         onRunNow={handleRunNow}
-        futureScope
       />
 
       {/* Fetch options */}
-      <FutureScopeWrapper>
-        <Card className="bg-theme-surface">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Settings style={iconStyle} className="text-theme-muted" />
-              <CardTitle>Sync Options</CardTitle>
-            </div>
-            <CardDescription>Configure what gets synced from remote</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SettingRow
-              label="Sync all remotes"
-              description="Fetch from all configured remotes, not just origin"
-              checked={fetchSettings.fetchAllRemotes}
-              onChange={(val: boolean) => handleFetchSettingsChange('fetchAllRemotes', val)}
-              disabled
-            />
-            <SettingRow
-              label="Clean up deleted branches"
-              description="Remove local references to branches deleted on remote"
-              checked={fetchSettings.pruneStaleBranches}
-              onChange={(val: boolean) => handleFetchSettingsChange('pruneStaleBranches', val)}
-              disabled
-            />
-            <SettingRow
-              label="Sync tags"
-              description="Download all tags from remote"
-              checked={fetchSettings.fetchTags}
-              onChange={(val: boolean) => handleFetchSettingsChange('fetchTags', val)}
-              disabled
-            />
-          </CardContent>
-        </Card>
-      </FutureScopeWrapper>
+      <Card className="bg-theme-surface">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Settings style={iconStyle} className="text-theme-muted" />
+            <CardTitle>Sync Options</CardTitle>
+          </div>
+          <CardDescription>Configure what gets synced from remote</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SettingRow
+            label="Sync all remotes"
+            description="Fetch from all configured remotes, not just origin"
+            checked={fetchSettings.fetchAllRemotes}
+            onChange={(val: boolean) => handleFetchSettingsChange('fetchAllRemotes', val)}
+          />
+          <SettingRow
+            label="Clean up deleted branches"
+            description="Remove local references to branches deleted on remote"
+            checked={fetchSettings.pruneStaleBranches}
+            onChange={(val: boolean) => handleFetchSettingsChange('pruneStaleBranches', val)}
+          />
+          <SettingRow
+            label="Sync tags"
+            description="Download all tags from remote"
+            checked={fetchSettings.fetchTags}
+            onChange={(val: boolean) => handleFetchSettingsChange('fetchTags', val)}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 });
@@ -1114,129 +1104,94 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
 });
 
 // ============================================================================
-// Branch Protection Panel
+// About Panel
+// Shows repository information: name, branch, remote URL, local path, etc.
 // ============================================================================
-const BranchProtectionPanel = memo(function BranchProtectionPanel({ settings, onUpdate, repoPath }: PanelProps): JSX.Element {
-  const [newBranch, setNewBranch] = useState<string>('');
-  const protectedSettings: ProtectedBranchesSettings = settings.protectedBranches || { 
-    protectedBranches: ['main', 'master'], 
-    warnOnDirectCommit: true, 
-    requireConfirmation: true 
-  };
+interface AboutPanelProps {
+  repoPath: string;
+  repoInfo: { isRepo: boolean; branch: string } | null;
+}
 
-  const handleChange = async (key: keyof ProtectedBranchesSettings, value: string[] | boolean): Promise<void> => {
-    try {
-      await UpdateProtectedBranches(repoPath, {
-        ...protectedSettings,
-        [key]: value,
-      });
-      onUpdate();
-      toast.success('Branch protection updated');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      toast.error(`Failed to update: ${errorMessage}`);
-    }
-  };
+const AboutPanel = memo(function AboutPanel({ repoPath, repoInfo }: AboutPanelProps): JSX.Element {
+  const { repoStatus, hasRemote } = useRepo();
+  const [remoteUrl, setRemoteUrl] = useState<string>('');
 
-  const handleAddBranch = async (): Promise<void> => {
-    const branch = newBranch.trim();
-    if (!branch) return;
-    if (protectedSettings.protectedBranches.includes(branch)) {
-      toast.error('Branch already protected');
-      return;
-    }
-    
-    await handleChange('protectedBranches', [...protectedSettings.protectedBranches, branch]);
-    setNewBranch('');
-  };
+  const repoName = repoPath ? repoPath.split('/').pop() || repoPath : '—';
+  const currentBranch = repoInfo?.branch || repoStatus?.branch || '—';
+  const changedFilesCount = repoStatus?.changedFiles?.length || 0;
+  const ahead = repoStatus?.ahead || 0;
+  const behind = repoStatus?.behind || 0;
 
-  const handleRemoveBranch = async (branch: string): Promise<void> => {
-    await handleChange(
-      'protectedBranches', 
-      protectedSettings.protectedBranches.filter(b => b !== branch)
-    );
-  };
+  // Fetch remote URL
+  useEffect(() => {
+    const fetchRemote = async (): Promise<void> => {
+      if (!repoPath) return;
+      try {
+        const url = await GetRemoteURL(repoPath);
+        setRemoteUrl(url || '');
+      } catch {
+        setRemoteUrl('');
+      }
+    };
+    fetchRemote();
+  }, [repoPath]);
+
+  const infoRows: { icon: typeof Info; label: string; value: string }[] = [
+    { icon: FolderGit2, label: 'Repository', value: repoName },
+    { icon: GitBranch, label: 'Current Branch', value: currentBranch },
+    { icon: MapPin, label: 'Local Path', value: repoPath || '—' },
+    { icon: Globe, label: 'Remote URL', value: remoteUrl || (hasRemote ? 'Loading...' : 'No remote configured') },
+  ];
 
   return (
     <div className="space-y-4">
-      <FutureScopeWrapper>
-        <Card className="bg-theme-surface">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield style={iconStyle} className="text-theme-muted" />
-              <CardTitle>Protected Branches</CardTitle>
+      <Card className="bg-theme-surface">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Info style={iconStyle} className="text-theme-muted" />
+            <CardTitle>Repository Information</CardTitle>
+          </div>
+          <CardDescription>
+            Details about this repository.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {infoRows.map(({ icon: Icon, label, value }) => (
+            <div key={label} className="flex items-start gap-3 py-2 border-b border-theme-default last:border-0">
+              <Icon style={iconStyle} className="text-theme-muted shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-theme-muted">{label}</p>
+                <p className="text-sm text-theme-primary break-all">{value}</p>
+              </div>
             </div>
-            <CardDescription>
-              These branches require extra confirmation before making changes directly to them.
-              This helps prevent accidental commits to important branches like main or master.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {protectedSettings.protectedBranches.length > 0 ? (
-                protectedSettings.protectedBranches.map(branch => (
-                  <Badge 
-                    key={branch} 
-                    variant="outline"
-                    className="flex items-center gap-1 px-2 py-1"
-                  >
-                    <Shield style={{ width: 12, height: 12 }} />
-                    {branch}
-                    <button
-                      onClick={() => handleRemoveBranch(branch)}
-                      className="ml-1 hover:text-red-400 transition-colors"
-                    >
-                      ×
-                    </button>
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-theme-muted text-sm">No protected branches configured</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                value={newBranch}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewBranch(e.target.value)}
-                placeholder="Add branch name (e.g., production, develop)..."
-                className="flex-1 h-8"
-                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAddBranch()}
-              />
-              <Button variant="outline" size="sm" onClick={handleAddBranch}>
-                Add
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </FutureScopeWrapper>
+          ))}
+        </CardContent>
+      </Card>
 
-      <FutureScopeWrapper>
-        <Card className="bg-theme-surface">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertTriangle style={iconStyle} className="text-theme-muted" />
-              <CardTitle>Protection Behavior</CardTitle>
+      <Card className="bg-theme-surface">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Info style={iconStyle} className="text-theme-muted" />
+            <CardTitle>Status</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-light text-theme-primary">{changedFilesCount}</p>
+              <p className="text-xs text-theme-muted">Changed Files</p>
             </div>
-            <CardDescription>What happens when you try to commit to a protected branch</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SettingRow
-              label="Show warning message"
-              description="Display a warning banner when working on a protected branch"
-              checked={protectedSettings.warnOnDirectCommit}
-              onChange={(val: boolean) => handleChange('warnOnDirectCommit', val)}
-              disabled
-            />
-            <SettingRow
-              label="Require confirmation"
-              description="Ask for confirmation before saving changes to a protected branch"
-              checked={protectedSettings.requireConfirmation}
-              onChange={(val: boolean) => handleChange('requireConfirmation', val)}
-              disabled
-            />
-          </CardContent>
-        </Card>
-      </FutureScopeWrapper>
+            <div>
+              <p className="text-2xl font-light text-theme-primary">{ahead}</p>
+              <p className="text-xs text-theme-muted">Ahead</p>
+            </div>
+            <div>
+              <p className="text-2xl font-light text-theme-primary">{behind}</p>
+              <p className="text-xs text-theme-muted">Behind</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 });
@@ -1558,7 +1513,7 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }: Tr
                 </div>
               ) : (
                 <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded border border-green-500/30">
-                  <Shield style={iconStyleSm} className="text-green-400" />
+                  <CheckCircle2 style={iconStyleSm} className="text-green-400" />
                   <p className="text-green-400 text-sm">Everything looks good! No issues detected.</p>
                 </div>
               )}
@@ -1705,7 +1660,7 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }: Tr
 // ============================================================================
 function RepoSettingsPage(): JSX.Element {
   const { selectedRepoSettingsCategory } = useLayout();
-  const { repoPath, repoInfo } = useRepo();
+  const { repoPath, repoInfo, refreshRepoSettings } = useRepo();
   const [settings, setSettings] = useState<RepoSettings | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -1720,13 +1675,14 @@ function RepoSettingsPage(): JSX.Element {
     try {
       const result = await GetSettings(repoPath);
       setSettings(result as unknown as RepoSettings);
+      await refreshRepoSettings(repoPath);
     } catch (err) {
       console.error('Failed to load repo settings:', err);
       toast.error('Failed to load repository settings');
     } finally {
       setIsLoading(false);
     }
-  }, [repoPath]);
+  }, [repoPath, refreshRepoSettings]);
 
   useEffect(() => {
     loadSettings();
@@ -1773,8 +1729,8 @@ function RepoSettingsPage(): JSX.Element {
         return <RemoteSyncPanel settings={settings} onUpdate={loadSettings} repoPath={repoPath} />;
       case 'large-files':
         return <LargeFilesPanel settings={settings} onUpdate={loadSettings} repoPath={repoPath} />;
-      case 'branch-protection':
-        return <BranchProtectionPanel settings={settings} onUpdate={loadSettings} repoPath={repoPath} />;
+      case 'about':
+        return <AboutPanel repoPath={repoPath} repoInfo={repoInfo} />;
       case 'performance':
         return <PerformancePanel settings={settings} onUpdate={loadSettings} repoPath={repoPath} />;
       case 'troubleshooting':

@@ -48,7 +48,6 @@ func main() {
 
 	// Create services that need app reference
 	fileDialogService := services.NewFileDialogService()
-	terminalService := services.NewTerminalService()
 	progressService := services.NewProgressService()
 	settingsService := services.NewSettingsService()
 	repoSettingsService := services.NewRepositorySettingsService()
@@ -73,7 +72,6 @@ func main() {
 			application.NewService(settingsService),
 			application.NewService(fileSystemService),
 			application.NewService(fileDialogService),
-			application.NewService(terminalService),
 			application.NewService(progressService),
 			application.NewService(repoSettingsService),
 			application.NewService(fileWatcherService),
@@ -90,7 +88,6 @@ func main() {
 
 	// Set app reference for services that need it
 	fileDialogService.SetApp(app)
-	terminalService.SetApp(app)
 	progressService.SetApp(app)
 	settingsService.SetApp(app)
 	repoSettingsService.SetApp(app)

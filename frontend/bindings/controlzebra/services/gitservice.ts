@@ -465,16 +465,6 @@ export function GetParentBranch(repoPath: string): $CancellablePromise<$models.P
 }
 
 /**
- * GetProtectedBranches returns the list of protected branch names.
- * Reads from .control-zebra/config.json in the repo, falls back to defaults.
- */
-export function GetProtectedBranches(repoPath: string): $CancellablePromise<string[]> {
-    return $Call.ByID(975741992, repoPath).then(($result: any) => {
-        return $$createType3($result);
-    });
-}
-
-/**
  * GetRecentCommits returns recent commits from the repository
  */
 export function GetRecentCommits(repoPath: string, limit: number): $CancellablePromise<$models.CommitInfo[]> {
@@ -530,14 +520,6 @@ export function InitRepoWithLFS(path: string): $CancellablePromise<$models.Opera
  */
 export function IsDetachedHead(repoPath: string): $CancellablePromise<boolean> {
     return $Call.ByID(2286894754, repoPath);
-}
-
-/**
- * IsProtectedBranch checks if the given branch name is in the protected list.
- * Uses the configured list from settings, falling back to defaults.
- */
-export function IsProtectedBranch(repoPath: string, branchName: string): $CancellablePromise<boolean> {
-    return $Call.ByID(1223160836, repoPath, branchName);
 }
 
 /**
@@ -778,16 +760,6 @@ export function RevertCommit(repoPath: string, commitHash: string): $Cancellable
  */
 export function RevertCommitWithMessage(repoPath: string, commitHash: string, message: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(2725214252, repoPath, commitHash, message).then(($result: any) => {
-        return $$createType0($result);
-    });
-}
-
-/**
- * SetProtectedBranches updates the list of protected branches for the repo.
- * Stores in .control-zebra/config.json in the repository.
- */
-export function SetProtectedBranches(repoPath: string, branches: string[]): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2709150644, repoPath, branches).then(($result: any) => {
         return $$createType0($result);
     });
 }

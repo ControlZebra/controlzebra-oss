@@ -46,9 +46,11 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
 /**
  * SyncWithProgress performs git pull + push with progress updates
  * For branches without an upstream, it skips pull and just pushes with --set-upstream
+ * prune: if true, adds --prune to remove stale remote-tracking branches
+ * tags: if true, adds --tags to fetch all tags
  */
-export function SyncWithProgress(repoPath: string, operationID: string): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2296486007, repoPath, operationID).then(($result: any) => {
+export function SyncWithProgress(repoPath: string, operationID: string, prune: boolean, tags: boolean): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(2296486007, repoPath, operationID, prune, tags).then(($result: any) => {
         return $$createType0($result);
     });
 }

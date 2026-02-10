@@ -8,8 +8,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // Breakpoint thresholds (in pixels)
 export const BREAKPOINTS = {
-  /** Below this width, bottom panel auto-collapses */
-  BOTTOM_PANEL_COLLAPSE: 1100,
   /** Below this width, TopBar uses compact/burger menu */
   TOPBAR_COMPACT: 1280,
   /** Minimum supported width */
@@ -26,8 +24,6 @@ interface WindowSize {
 }
 
 interface UseWindowSizeReturn extends WindowSize {
-  /** True when window is narrow enough to collapse bottom panel */
-  shouldCollapseBottomPanel: boolean;
   /** True when TopBar should show burger menu instead of full buttons */
   isCompactTopBar: boolean;
   /** Check if sidebar should collapse based on its current width */
@@ -79,7 +75,6 @@ export function useWindowSize(): UseWindowSizeReturn {
 
   // Compute breakpoint flags
   const breakpointFlags = useMemo(() => ({
-    shouldCollapseBottomPanel: windowSize.width < BREAKPOINTS.BOTTOM_PANEL_COLLAPSE,
     isCompactTopBar: windowSize.width < BREAKPOINTS.TOPBAR_COMPACT,
   }), [windowSize.width]);
 
