@@ -29,6 +29,22 @@ const iconStyleSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm
 const iconStyleXs: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 // ============================================================================
+// Future Scope Banner - shown when feature is not yet wired into the app
+// ============================================================================
+const FutureScopeBanner = memo(function FutureScopeBanner(): JSX.Element {
+  return (
+    <div className="mx-6 mt-6 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+      <span className="text-xs font-medium border border-amber-500/50 text-amber-400 rounded-full px-2 py-0.5 shrink-0">
+        Coming Soon
+      </span>
+      <p className="text-amber-400/80 text-xs">
+        Custom LFS groups are saved but not yet used during repository operations. This feature will be integrated in a future update.
+      </p>
+    </div>
+  );
+});
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -540,6 +556,9 @@ function LFSGroupsSettings(): JSX.Element {
 
   return (
     <div className="bg-theme-surface rounded-lg border border-theme-default">
+      {/* Future scope banner */}
+      <FutureScopeBanner />
+
       {/* Header */}
       <div className="p-6 border-b border-theme-default">
         <div className="flex items-center justify-between mb-4">
