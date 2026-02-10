@@ -27,10 +27,10 @@ interface DiffHeaderProps {
  */
 function DiffHeader({ fileDiff }: DiffHeaderProps) {
   const statusColors: Record<string, string> = {
-    added: 'text-green-600 dark:text-green-400',
-    modified: 'text-yellow-600 dark:text-yellow-400',
-    deleted: 'text-red-600 dark:text-red-400',
-    renamed: 'text-blue-600 dark:text-blue-400',
+    added: 'text-theme-added',
+    modified: 'text-theme-modified',
+    deleted: 'text-theme-removed',
+    renamed: 'text-theme-accent',
   };
 
   return (
@@ -81,7 +81,7 @@ function DiffViewer({ fileDiff, showHeader = true }: DiffViewerProps) {
   // Error state
   if (fileDiff.hasError) {
     return (
-      <div className="flex items-center justify-center h-full text-red-600 dark:text-red-400 text-sm">
+      <div className="flex items-center justify-center h-full text-theme-error text-sm">
         {fileDiff.error || 'Failed to load diff'}
       </div>
     );

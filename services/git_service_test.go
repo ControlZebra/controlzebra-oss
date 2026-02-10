@@ -2252,3 +2252,180 @@ func TestCheckBranchConflicts_NonExistentBranch(t *testing.T) {
 
 // NOTE: TestCheckBranchConflicts_RealRepo was removed - it was used for manual testing
 // with the actual control-zebra repository. The unit tests above cover the functionality.
+
+// ============================================================================
+// ReadFileAtRevision Tests
+// ============================================================================
+
+func TestReadFileAtRevision_Success(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit with a file
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("initial content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "First commit")
+
+	// Read the file at HEAD
+	result := svc.ReadFileAtRevision(repoPath, "test.txt", "HEAD")
+
+	if result.HasError {
+		t.Fatalf("Expected no error, got: %s", result.Error)
+	}
+	if result.Content != "initial content" {
+		t.Errorf("Expected 'initial content', got: '%s'", result.Content)
+	}
+}
+
+func TestReadFileAtRevision_MultipleRevisions(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create first commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	os.WriteFile(testFile, []byte("version 1"), 0644)
+	svc.CommitAll(repoPath, "Commit 1")
+
+	commits1, _ := svc.GetRecentCommits(repoPath, 1)
+	hash1 := commits1[0].Hash
+
+	// Create second commit with modified file
+	os.WriteFile(testFile, []byte("version 2"), 0644)
+	svc.CommitAll(repoPath, "Commit 2")
+
+	// Read at old revision should return old content
+	resultOld := svc.ReadFileAtRevision(repoPath, "test.txt", hash1)
+	if resultOld.HasError {
+		t.Fatalf("Expected no error for old revision, got: %s", resultOld.Error)
+	}
+	if resultOld.Content != "version 1" {
+		t.Errorf("Expected 'version 1' at old revision, got: '%s'", resultOld.Content)
+	}
+
+	// Read at HEAD should return new content
+	resultNew := svc.ReadFileAtRevision(repoPath, "test.txt", "HEAD")
+	if resultNew.HasError {
+		t.Fatalf("Expected no error for HEAD, got: %s", resultNew.Error)
+	}
+	if resultNew.Content != "version 2" {
+		t.Errorf("Expected 'version 2' at HEAD, got: '%s'", resultNew.Content)
+	}
+}
+
+func TestReadFileAtRevision_FileDoesNotExist(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create a commit so HEAD exists
+	testFile := filepath.Join(repoPath, "other.txt")
+	os.WriteFile(testFile, []byte("content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Try to read a file that doesn't exist at this revision
+	result := svc.ReadFileAtRevision(repoPath, "nonexistent.txt", "HEAD")
+
+	if !result.HasError {
+		t.Error("Expected error for non-existent file")
+	}
+	if !strings.Contains(result.Error, "does not exist") {
+		t.Errorf("Expected 'does not exist' error, got: %s", result.Error)
+	}
+}
+
+func TestReadFileAtRevision_InvalidRevision(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create a commit so the repo has history
+	testFile := filepath.Join(repoPath, "test.txt")
+	os.WriteFile(testFile, []byte("content"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	result := svc.ReadFileAtRevision(repoPath, "test.txt", "invalid-hash-abc123")
+
+	if !result.HasError {
+		t.Error("Expected error for invalid revision")
+	}
+}
+
+func TestReadFileAtRevision_EmptyParams(t *testing.T) {
+	svc := NewGitService()
+
+	// Empty repoPath
+	result := svc.ReadFileAtRevision("", "test.txt", "HEAD")
+	if !result.HasError {
+		t.Error("Expected error for empty repoPath")
+	}
+
+	// Empty filePath
+	result = svc.ReadFileAtRevision("/tmp", "", "HEAD")
+	if !result.HasError {
+		t.Error("Expected error for empty filePath")
+	}
+
+	// Empty revision
+	result = svc.ReadFileAtRevision("/tmp", "test.txt", "")
+	if !result.HasError {
+		t.Error("Expected error for empty revision")
+	}
+}
+
+func TestReadFileAtRevision_SubdirectoryFile(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create a file in a subdirectory
+	subDir := filepath.Join(repoPath, "src", "config")
+	os.MkdirAll(subDir, 0755)
+	testFile := filepath.Join(subDir, "settings.l5x")
+	os.WriteFile(testFile, []byte("<RSLogix5000Content>test</RSLogix5000Content>"), 0644)
+	svc.CommitAll(repoPath, "Add L5X file")
+
+	// Read the file using absolute path to validate repo-relative conversion
+	result := svc.ReadFileAtRevision(repoPath, testFile, "HEAD")
+
+	if result.HasError {
+		t.Fatalf("Expected no error, got: %s", result.Error)
+	}
+	if result.Content != "<RSLogix5000Content>test</RSLogix5000Content>" {
+		t.Errorf("Unexpected content: '%s'", result.Content)
+	}
+}
+
+func TestReadFileAtRevision_HeadTildeNotation(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create first commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	os.WriteFile(testFile, []byte("first"), 0644)
+	svc.CommitAll(repoPath, "First commit")
+
+	// Create second commit
+	os.WriteFile(testFile, []byte("second"), 0644)
+	svc.CommitAll(repoPath, "Second commit")
+
+	// HEAD~1 should give us the first version
+	result := svc.ReadFileAtRevision(repoPath, "test.txt", "HEAD~1")
+
+	if result.HasError {
+		t.Fatalf("Expected no error, got: %s", result.Error)
+	}
+	if result.Content != "first" {
+		t.Errorf("Expected 'first' at HEAD~1, got: '%s'", result.Content)
+	}
+}

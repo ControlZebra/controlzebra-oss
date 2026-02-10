@@ -917,6 +917,35 @@ export class FetchSettings {
 }
 
 /**
+ * FileContentResult contains the content of a file at a specific git revision
+ */
+export class FileContentResult {
+    "content": string;
+    "hasError": boolean;
+    "error"?: string;
+
+    /** Creates a new FileContentResult instance. */
+    constructor($$source: Partial<FileContentResult> = {}) {
+        if (!("content" in $$source)) {
+            this["content"] = "";
+        }
+        if (!("hasError" in $$source)) {
+            this["hasError"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FileContentResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): FileContentResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FileContentResult($$parsedSource as Partial<FileContentResult>);
+    }
+}
+
+/**
  * FileEntry represents a file or directory in the file system
  */
 export class FileEntry {

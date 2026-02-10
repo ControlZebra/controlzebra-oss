@@ -3,6 +3,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1509,6 +1510,113 @@ func (g *GitService) createRawAddedFileDiff(filePath string, content string) str
 	}
 
 	return sb.String()
+}
+
+// ============================================================================
+// File Content at Revision
+// ============================================================================
+
+// FileContentResult contains the content of a file at a specific git revision
+type FileContentResult struct {
+	Content  string `json:"content"`
+	HasError bool   `json:"hasError"`
+	Error    string `json:"error,omitempty"`
+}
+
+func (g *GitService) readFileAtRevisionWithTimeout(repoPath string, filePath string, revision string, timeout time.Duration) FileContentResult {
+	if repoPath == "" {
+		return FileContentResult{HasError: true, Error: "Repository path is required"}
+	}
+	if filePath == "" {
+		return FileContentResult{HasError: true, Error: "File path is required"}
+	}
+	if revision == "" {
+		return FileContentResult{HasError: true, Error: "Revision is required"}
+	}
+
+	relPath, err := toRepoRelativePath(repoPath, filePath)
+	if err != nil {
+		return FileContentResult{HasError: true, Error: err.Error()}
+	}
+
+	showArg := revision + ":" + relPath
+
+	var result CommandResult
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		result = g.runner.RunWithContext(ctx, repoPath, GitPath(), "show", showArg)
+	} else {
+		result = g.runner.RunGit(repoPath, "show", showArg)
+	}
+
+	if !result.Success {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Error
+		}
+		return buildFileContentError(errMsg, filePath, revision)
+	}
+
+	return FileContentResult{Content: result.Stdout}
+}
+
+func toRepoRelativePath(repoPath string, filePath string) (string, error) {
+	cleaned := filepath.Clean(filePath)
+	if cleaned == "." {
+		return "", fmt.Errorf("File path must point to a file")
+	}
+
+	if filepath.IsAbs(cleaned) {
+		rel, err := filepath.Rel(repoPath, cleaned)
+		if err != nil {
+			return "", fmt.Errorf("Failed to resolve file path: %w", err)
+		}
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return "", fmt.Errorf("File path must be within the repository")
+		}
+		return filepath.ToSlash(rel), nil
+	}
+
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("File path must be within the repository")
+	}
+
+	return filepath.ToSlash(cleaned), nil
+}
+
+func buildFileContentError(errMsg string, filePath string, revision string) FileContentResult {
+	if strings.Contains(errMsg, "does not exist") || strings.Contains(errMsg, "not exist in") {
+		return FileContentResult{
+			HasError: true,
+			Error:    fmt.Sprintf("File '%s' does not exist at revision '%s'", filePath, revision),
+		}
+	}
+	if strings.Contains(errMsg, "bad revision") || strings.Contains(errMsg, "unknown revision") {
+		return FileContentResult{
+			HasError: true,
+			Error:    fmt.Sprintf("Invalid revision: '%s'", revision),
+		}
+	}
+	return FileContentResult{
+		HasError: true,
+		Error:    fmt.Sprintf("Failed to read file at revision: %s", errMsg),
+	}
+}
+
+// ReadFileAtRevision returns the content of a file at a specific git revision.
+// Uses `git show <revision>:<path>` to retrieve the content.
+// The revision can be a commit hash, branch name, tag, HEAD~N, etc.
+// For working tree content, use os.ReadFile directly instead.
+func (g *GitService) ReadFileAtRevision(repoPath string, filePath string, revision string) FileContentResult {
+	return g.readFileAtRevisionWithTimeout(repoPath, filePath, revision, 0)
+}
+
+// ReadFileAtRevisionLarge is the same as ReadFileAtRevision but with a longer
+// timeout for large files (e.g. L5X files that can be several megabytes).
+// Uses a 2-minute timeout instead of the default 30 seconds.
+func (g *GitService) ReadFileAtRevisionLarge(repoPath string, filePath string, revision string) FileContentResult {
+	return g.readFileAtRevisionWithTimeout(repoPath, filePath, revision, 2*time.Minute)
 }
 
 // Branches returns all branches in the repository

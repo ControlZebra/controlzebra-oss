@@ -50,6 +50,7 @@ export {
     DirectoryContents,
     ExportLFSGroupsResult,
     FetchSettings,
+    FileContentResult,
     FileEntry,
     FileStatus,
     GitHubAuthResult,

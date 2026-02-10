@@ -579,6 +579,29 @@ export function Push(repoPath: string): $CancellablePromise<$models.OperationRes
 }
 
 /**
+ * ReadFileAtRevision returns the content of a file at a specific git revision.
+ * Uses `git show <revision>:<path>` to retrieve the content.
+ * The revision can be a commit hash, branch name, tag, HEAD~N, etc.
+ * For working tree content, use os.ReadFile directly instead.
+ */
+export function ReadFileAtRevision(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
+    return $Call.ByID(2435261556, repoPath, filePath, revision).then(($result: any) => {
+        return $$createType18($result);
+    });
+}
+
+/**
+ * ReadFileAtRevisionLarge is the same as ReadFileAtRevision but with a longer
+ * timeout for large files (e.g. L5X files that can be several megabytes).
+ * Uses a 2-minute timeout instead of the default 30 seconds.
+ */
+export function ReadFileAtRevisionLarge(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
+    return $Call.ByID(2397397827, repoPath, filePath, revision).then(($result: any) => {
+        return $$createType18($result);
+    });
+}
+
+/**
  * RemoveAllStaleLocks removes all stale lock files from the .git directory.
  * This is a convenience method that removes all known lock files at once.
  */
@@ -775,7 +798,7 @@ export function SetProtectedBranches(repoPath: string, branches: string[]): $Can
  */
 export function ShowCommit(repoPath: string, hash: string): $CancellablePromise<$models.CommitDetail> {
     return $Call.ByID(137660310, repoPath, hash).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -881,7 +904,7 @@ export function StashDrop(repoPath: string, index: number, confirm: boolean): $C
  */
 export function StashList(repoPath: string): $CancellablePromise<$models.StashEntry[]> {
     return $Call.ByID(2553569151, repoPath).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType21($result);
     });
 }
 
@@ -910,7 +933,7 @@ export function StashPush(repoPath: string, message: string): $CancellablePromis
  */
 export function Status(repoPath: string): $CancellablePromise<$models.RepoStatus> {
     return $Call.ByID(2928711956, repoPath).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType22($result);
     });
 }
 
@@ -969,7 +992,8 @@ const $$createType14 = $models.MergeState.createFrom;
 const $$createType15 = $models.ParentBranchResult.createFrom;
 const $$createType16 = $models.CommitInfo.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = $models.CommitDetail.createFrom;
-const $$createType19 = $models.StashEntry.createFrom;
-const $$createType20 = $Create.Array($$createType19);
-const $$createType21 = $models.RepoStatus.createFrom;
+const $$createType18 = $models.FileContentResult.createFrom;
+const $$createType19 = $models.CommitDetail.createFrom;
+const $$createType20 = $models.StashEntry.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = $models.RepoStatus.createFrom;

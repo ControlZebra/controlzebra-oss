@@ -2,7 +2,7 @@
  * HistoryPage - Main area content for Commit History view.
  * Shows commit details + file list, or file diff when viewing a specific file.
  */
-import { memo, useCallback, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useMemo, useState, lazy, Suspense, type CSSProperties } from 'react';
 import { 
   FileText, 
   User, 
@@ -12,10 +12,23 @@ import {
   Hash,
   ChevronLeft,
   RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { VIEWS, ICON_SIZES } from '../../../constants';
 import { useRepo, type CommitDetail } from '../../../context';
 import { DiffViewer, EmptyState, LoadingState } from '../../common';
+
+// Lazy-load the L5X diff viewer for code splitting (it pulls in ladder-visualizer)
+const L5XDiffViewer = lazy(() => import('../../viewers/l5x-diff/L5XDiffViewer'));
+
+/** Extensions that trigger the domain-aware L5X diff viewer. */
+const L5X_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
+
+/** Check if a file path has an L5X extension. */
+function isL5XFile(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return L5X_DIFF_EXTENSIONS.has(ext);
+}
 import { 
   Button,
   AlertDialog,
@@ -178,6 +191,7 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: Com
 
 function HistoryPage(): JSX.Element {
   const { 
+    repoPath,
     selectedCommit,
     selectedCommitFile,
     currentDiff,
@@ -186,6 +200,18 @@ function HistoryPage(): JSX.Element {
     selectCommit,
     revertCommit,
   } = useRepo();
+
+  // Determine if the currently selected file is an L5X file
+  const isL5XDiff = useMemo(
+    () => selectedCommitFile ? isL5XFile(selectedCommitFile) : false,
+    [selectedCommitFile],
+  );
+
+  // Find the file info for the selected file (needed for oldPath on renames)
+  const selectedFileInfo = useMemo(
+    () => selectedCommit?.files?.find(f => f.path === selectedCommitFile),
+    [selectedCommit, selectedCommitFile],
+  );
 
   // State for restore confirmation modal
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
@@ -250,7 +276,7 @@ function HistoryPage(): JSX.Element {
   );
 
   // Viewing a file diff from a commit
-  if (selectedCommit && selectedCommitFile && currentDiff) {
+  if (selectedCommit && selectedCommitFile && (currentDiff || isL5XDiff)) {
     return (
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
@@ -260,7 +286,27 @@ function HistoryPage(): JSX.Element {
           isRestoring={isRestoring}
         />
         <div className="flex-1 overflow-hidden min-h-0">
-          <DiffViewer fileDiff={currentDiff} showHeader={true} />
+          {isL5XDiff && repoPath ? (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
+                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
+                  <span className="text-sm">Loading L5X diff viewer…</span>
+                </div>
+              }
+            >
+              <L5XDiffViewer
+                repoPath={repoPath}
+                commitHash={selectedCommit.hash}
+                parentHash={selectedCommit.parentHashes?.[0]}
+                filePath={selectedCommitFile}
+                oldPath={selectedFileInfo?.oldPath}
+                fileStatus={selectedFileInfo?.status ?? 'modified'}
+              />
+            </Suspense>
+          ) : (
+            <DiffViewer fileDiff={currentDiff} showHeader={true} />
+          )}
         </div>
         {restoreConfirmModal}
       </div>
