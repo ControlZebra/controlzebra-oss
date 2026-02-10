@@ -174,6 +174,8 @@ interface BackgroundTaskCardProps {
   onToggle: (taskType: BackgroundTaskType, enabled: boolean) => void;
   onIntervalChange: (taskType: BackgroundTaskType, interval: number) => void;
   onRunNow: (taskType: BackgroundTaskType) => void;
+  /** When true, auto-scheduling toggle+interval are disabled with 'Coming Soon' badge. Run Now still works. */
+  futureScope?: boolean;
 }
 
 interface PanelProps {
@@ -255,6 +257,27 @@ const IntervalInput = memo(function IntervalInput({
 });
 
 // ============================================================================
+// Future Scope Wrapper - Greys out non-functional settings
+// ============================================================================
+const FutureScopeWrapper = memo(function FutureScopeWrapper({ 
+  children, 
+  label = 'Coming Soon' 
+}: { children: React.ReactNode; label?: string }): JSX.Element {
+  return (
+    <div className="relative">
+      <div className="opacity-40 pointer-events-none select-none">
+        {children}
+      </div>
+      <div className="absolute top-3 right-3 z-10">
+        <Badge variant="outline" className="text-xs bg-theme-surface border-amber-500/50 text-amber-400 pointer-events-auto">
+          {label}
+        </Badge>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
 // Background Task Card - Reusable component for scheduled tasks
 // ============================================================================
 const BackgroundTaskCard = memo(function BackgroundTaskCard({
@@ -270,6 +293,7 @@ const BackgroundTaskCard = memo(function BackgroundTaskCard({
   onToggle,
   onIntervalChange,
   onRunNow,
+  futureScope = false,
 }: BackgroundTaskCardProps): JSX.Element {
   const config = settings[taskKey] as TaskConfig | undefined || { enabled: false, intervalMinutes: defaultInterval };
   const status = taskStatuses[taskType];
@@ -281,6 +305,9 @@ const BackgroundTaskCard = memo(function BackgroundTaskCard({
           <div className="flex items-center gap-2">
             <Icon style={iconStyleSm} className="text-theme-muted" />
             <CardTitle className="text-sm">{label}</CardTitle>
+            {futureScope && (
+              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-400">Coming Soon</Badge>
+            )}
             {status?.isRunning && (
               <Badge variant="outline" className="text-xs">Running</Badge>
             )}
@@ -288,20 +315,23 @@ const BackgroundTaskCard = memo(function BackgroundTaskCard({
           <Switch 
             checked={config.enabled}
             onCheckedChange={(enabled: boolean) => onToggle(taskType, enabled)}
+            disabled={futureScope}
           />
         </div>
         <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between gap-4">
-          <IntervalInput
-            label="Run every"
-            value={config.intervalMinutes}
-            onChange={(val: number) => onIntervalChange(taskType, val)}
-            disabled={!config.enabled}
-            min={1}
-            max={120}
-          />
+          <div className={futureScope ? 'opacity-40 pointer-events-none' : ''}>
+            <IntervalInput
+              label="Run every"
+              value={config.intervalMinutes}
+              onChange={(val: number) => onIntervalChange(taskType, val)}
+              disabled={!config.enabled || futureScope}
+              min={1}
+              max={120}
+            />
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -434,38 +464,44 @@ const RemoteSyncPanel = memo(function RemoteSyncPanel({ settings, onUpdate, repo
         onToggle={handleTaskToggle}
         onIntervalChange={handleIntervalChange}
         onRunNow={handleRunNow}
+        futureScope
       />
 
       {/* Fetch options */}
-      <Card className="bg-theme-surface">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Settings style={iconStyle} className="text-theme-muted" />
-            <CardTitle>Sync Options</CardTitle>
-          </div>
-          <CardDescription>Configure what gets synced from remote</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SettingRow
-            label="Sync all remotes"
-            description="Fetch from all configured remotes, not just origin"
-            checked={fetchSettings.fetchAllRemotes}
-            onChange={(val: boolean) => handleFetchSettingsChange('fetchAllRemotes', val)}
-          />
-          <SettingRow
-            label="Clean up deleted branches"
-            description="Remove local references to branches deleted on remote"
-            checked={fetchSettings.pruneStaleBranches}
-            onChange={(val: boolean) => handleFetchSettingsChange('pruneStaleBranches', val)}
-          />
-          <SettingRow
-            label="Sync tags"
-            description="Download all tags from remote"
-            checked={fetchSettings.fetchTags}
-            onChange={(val: boolean) => handleFetchSettingsChange('fetchTags', val)}
-          />
-        </CardContent>
-      </Card>
+      <FutureScopeWrapper>
+        <Card className="bg-theme-surface">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Settings style={iconStyle} className="text-theme-muted" />
+              <CardTitle>Sync Options</CardTitle>
+            </div>
+            <CardDescription>Configure what gets synced from remote</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SettingRow
+              label="Sync all remotes"
+              description="Fetch from all configured remotes, not just origin"
+              checked={fetchSettings.fetchAllRemotes}
+              onChange={(val: boolean) => handleFetchSettingsChange('fetchAllRemotes', val)}
+              disabled
+            />
+            <SettingRow
+              label="Clean up deleted branches"
+              description="Remove local references to branches deleted on remote"
+              checked={fetchSettings.pruneStaleBranches}
+              onChange={(val: boolean) => handleFetchSettingsChange('pruneStaleBranches', val)}
+              disabled
+            />
+            <SettingRow
+              label="Sync tags"
+              description="Download all tags from remote"
+              checked={fetchSettings.fetchTags}
+              onChange={(val: boolean) => handleFetchSettingsChange('fetchTags', val)}
+              disabled
+            />
+          </CardContent>
+        </Card>
+      </FutureScopeWrapper>
     </div>
   );
 });
@@ -1013,59 +1049,66 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
         onToggle={handleTaskToggle}
         onIntervalChange={handleIntervalChange}
         onRunNow={handleRunNow}
+        futureScope
       />
 
       {/* LFS download options */}
-      <Card className="bg-theme-surface">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Clock style={iconStyle} className="text-theme-muted" />
-            <CardTitle>Download Settings</CardTitle>
-          </div>
-          <CardDescription>Configure which large files to download</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <IntervalInput
-            label="Download files from last"
-            value={lfsSettings.fetchRecentDays}
-            onChange={(val: number) => handleLFSSettingsChange('fetchRecentDays', val)}
-            unit="days"
-            min={1}
-            max={90}
-          />
-          <p className="text-theme-muted text-xs mt-1">
-            Only download large files that were modified within this time period
-          </p>
-        </CardContent>
-      </Card>
+      <FutureScopeWrapper>
+        <Card className="bg-theme-surface">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Clock style={iconStyle} className="text-theme-muted" />
+              <CardTitle>Download Settings</CardTitle>
+            </div>
+            <CardDescription>Configure which large files to download</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <IntervalInput
+              label="Download files from last"
+              value={lfsSettings.fetchRecentDays}
+              onChange={(val: number) => handleLFSSettingsChange('fetchRecentDays', val)}
+              unit="days"
+              min={1}
+              max={90}
+              disabled
+            />
+            <p className="text-theme-muted text-xs mt-1">
+              Only download large files that were modified within this time period
+            </p>
+          </CardContent>
+        </Card>
+      </FutureScopeWrapper>
 
       {/* Storage management */}
-      <Card className="bg-theme-surface">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Trash2 style={iconStyle} className="text-theme-muted" />
-            <CardTitle>Storage Management</CardTitle>
-          </div>
-          <CardDescription>Automatically clean up old large files to save disk space</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <SettingRow
-            label="Auto-clean old files"
-            description="Automatically remove large files you haven't used recently"
-            checked={lfsSettings.autoPrune}
-            onChange={(val: boolean) => handleLFSSettingsChange('autoPrune', val)}
-          />
-          <IntervalInput
-            label="Keep files for at least"
-            value={lfsSettings.pruneKeepDays}
-            onChange={(val: number) => handleLFSSettingsChange('pruneKeepDays', val)}
-            unit="days"
-            min={7}
-            max={365}
-            disabled={!lfsSettings.autoPrune}
-          />
-        </CardContent>
-      </Card>
+      <FutureScopeWrapper>
+        <Card className="bg-theme-surface">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Trash2 style={iconStyle} className="text-theme-muted" />
+              <CardTitle>Storage Management</CardTitle>
+            </div>
+            <CardDescription>Automatically clean up old large files to save disk space</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <SettingRow
+              label="Auto-clean old files"
+              description="Automatically remove large files you haven't used recently"
+              checked={lfsSettings.autoPrune}
+              onChange={(val: boolean) => handleLFSSettingsChange('autoPrune', val)}
+              disabled
+            />
+            <IntervalInput
+              label="Keep files for at least"
+              value={lfsSettings.pruneKeepDays}
+              onChange={(val: number) => handleLFSSettingsChange('pruneKeepDays', val)}
+              unit="days"
+              min={7}
+              max={365}
+              disabled
+            />
+          </CardContent>
+        </Card>
+      </FutureScopeWrapper>
     </div>
   );
 });
@@ -1116,78 +1159,84 @@ const BranchProtectionPanel = memo(function BranchProtectionPanel({ settings, on
 
   return (
     <div className="space-y-4">
-      <Card className="bg-theme-surface">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Shield style={iconStyle} className="text-theme-muted" />
-            <CardTitle>Protected Branches</CardTitle>
-          </div>
-          <CardDescription>
-            These branches require extra confirmation before making changes directly to them.
-            This helps prevent accidental commits to important branches like main or master.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {protectedSettings.protectedBranches.length > 0 ? (
-              protectedSettings.protectedBranches.map(branch => (
-                <Badge 
-                  key={branch} 
-                  variant="outline"
-                  className="flex items-center gap-1 px-2 py-1"
-                >
-                  <Shield style={{ width: 12, height: 12 }} />
-                  {branch}
-                  <button
-                    onClick={() => handleRemoveBranch(branch)}
-                    className="ml-1 hover:text-red-400 transition-colors"
+      <FutureScopeWrapper>
+        <Card className="bg-theme-surface">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Shield style={iconStyle} className="text-theme-muted" />
+              <CardTitle>Protected Branches</CardTitle>
+            </div>
+            <CardDescription>
+              These branches require extra confirmation before making changes directly to them.
+              This helps prevent accidental commits to important branches like main or master.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {protectedSettings.protectedBranches.length > 0 ? (
+                protectedSettings.protectedBranches.map(branch => (
+                  <Badge 
+                    key={branch} 
+                    variant="outline"
+                    className="flex items-center gap-1 px-2 py-1"
                   >
-                    ×
-                  </button>
-                </Badge>
-              ))
-            ) : (
-              <p className="text-theme-muted text-sm">No protected branches configured</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              value={newBranch}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setNewBranch(e.target.value)}
-              placeholder="Add branch name (e.g., production, develop)..."
-              className="flex-1 h-8"
-              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAddBranch()}
-            />
-            <Button variant="outline" size="sm" onClick={handleAddBranch}>
-              Add
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+                    <Shield style={{ width: 12, height: 12 }} />
+                    {branch}
+                    <button
+                      onClick={() => handleRemoveBranch(branch)}
+                      className="ml-1 hover:text-red-400 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-theme-muted text-sm">No protected branches configured</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={newBranch}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewBranch(e.target.value)}
+                placeholder="Add branch name (e.g., production, develop)..."
+                className="flex-1 h-8"
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAddBranch()}
+              />
+              <Button variant="outline" size="sm" onClick={handleAddBranch}>
+                Add
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </FutureScopeWrapper>
 
-      <Card className="bg-theme-surface">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <AlertTriangle style={iconStyle} className="text-theme-muted" />
-            <CardTitle>Protection Behavior</CardTitle>
-          </div>
-          <CardDescription>What happens when you try to commit to a protected branch</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SettingRow
-            label="Show warning message"
-            description="Display a warning banner when working on a protected branch"
-            checked={protectedSettings.warnOnDirectCommit}
-            onChange={(val: boolean) => handleChange('warnOnDirectCommit', val)}
-          />
-          <SettingRow
-            label="Require confirmation"
-            description="Ask for confirmation before saving changes to a protected branch"
-            checked={protectedSettings.requireConfirmation}
-            onChange={(val: boolean) => handleChange('requireConfirmation', val)}
-          />
-        </CardContent>
-      </Card>
+      <FutureScopeWrapper>
+        <Card className="bg-theme-surface">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle style={iconStyle} className="text-theme-muted" />
+              <CardTitle>Protection Behavior</CardTitle>
+            </div>
+            <CardDescription>What happens when you try to commit to a protected branch</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SettingRow
+              label="Show warning message"
+              description="Display a warning banner when working on a protected branch"
+              checked={protectedSettings.warnOnDirectCommit}
+              onChange={(val: boolean) => handleChange('warnOnDirectCommit', val)}
+              disabled
+            />
+            <SettingRow
+              label="Require confirmation"
+              description="Ask for confirmation before saving changes to a protected branch"
+              checked={protectedSettings.requireConfirmation}
+              onChange={(val: boolean) => handleChange('requireConfirmation', val)}
+              disabled
+            />
+          </CardContent>
+        </Card>
+      </FutureScopeWrapper>
     </div>
   );
 });
@@ -1298,6 +1347,7 @@ const PerformancePanel = memo(function PerformancePanel({ settings, onUpdate, re
         onToggle={handleTaskToggle}
         onIntervalChange={handleIntervalChange}
         onRunNow={handleRunNow}
+        futureScope
       />
 
       {/* Optimization tasks selection */}
