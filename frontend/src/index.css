@@ -50,6 +50,42 @@
   --color-warning-border: theme(colors.amber.400/30);
   --color-warning-border-strong: theme(colors.amber.500);
   
+  /* Diff Status: Added / Green */
+  --color-added: theme(colors.green.700);
+  --color-added-muted: theme(colors.green.600);
+  --color-added-subtle: theme(colors.green.700/60);
+  --color-added-bg: theme(colors.green.500/10);
+  --color-added-border: theme(colors.green.500/30);
+  --color-added-border-strong: theme(colors.green.600);
+
+  /* Diff Status: Removed / Red */
+  --color-removed: theme(colors.red.700);
+  --color-removed-muted: theme(colors.red.600);
+  --color-removed-subtle: theme(colors.red.700/60);
+  --color-removed-bg: theme(colors.red.500/10);
+  --color-removed-border: theme(colors.red.500/30);
+  --color-removed-border-strong: theme(colors.red.600);
+
+  /* Diff Status: Modified / Yellow-Amber */
+  --color-modified: theme(colors.yellow.700);
+  --color-modified-muted: theme(colors.yellow.600);
+  --color-modified-subtle: theme(colors.yellow.700/60);
+  --color-modified-bg: theme(colors.yellow.500/10);
+  --color-modified-border: theme(colors.yellow.500/30);
+  --color-modified-border-strong: theme(colors.yellow.600);
+
+  /* Error / Destructive Red */
+  --color-error: theme(colors.red.600);
+  --color-error-muted: theme(colors.red.500);
+  --color-error-bg: theme(colors.red.500/10);
+  --color-error-border: theme(colors.red.500/30);
+
+  /* Success / Green */
+  --color-success: theme(colors.green.600);
+  --color-success-muted: theme(colors.green.500);
+  --color-success-bg: theme(colors.green.500/10);
+  --color-success-border: theme(colors.green.500/30);
+
   /* File Browser - (light mode) */
   --color-fb-base: theme(colors.white);
   --color-fb-surface: theme(colors.neutral.50);
@@ -101,6 +137,42 @@
   --color-warning-border: theme(colors.orange.500/30);
   --color-warning-border-strong: theme(colors.orange.500);
   
+  /* Diff Status: Added / Green */
+  --color-added: theme(colors.green.400);
+  --color-added-muted: theme(colors.green.400);
+  --color-added-subtle: theme(colors.green.400/60);
+  --color-added-bg: theme(colors.green.500/10);
+  --color-added-border: theme(colors.green.500/30);
+  --color-added-border-strong: theme(colors.green.500);
+
+  /* Diff Status: Removed / Red */
+  --color-removed: theme(colors.red.400);
+  --color-removed-muted: theme(colors.red.400);
+  --color-removed-subtle: theme(colors.red.400/60);
+  --color-removed-bg: theme(colors.red.500/10);
+  --color-removed-border: theme(colors.red.500/30);
+  --color-removed-border-strong: theme(colors.red.500);
+
+  /* Diff Status: Modified / Yellow */
+  --color-modified: theme(colors.yellow.400);
+  --color-modified-muted: theme(colors.yellow.400);
+  --color-modified-subtle: theme(colors.yellow.400/60);
+  --color-modified-bg: theme(colors.yellow.500/10);
+  --color-modified-border: theme(colors.yellow.500/30);
+  --color-modified-border-strong: theme(colors.yellow.500);
+
+  /* Error / Destructive Red */
+  --color-error: theme(colors.red.400);
+  --color-error-muted: theme(colors.red.400);
+  --color-error-bg: theme(colors.red.500/10);
+  --color-error-border: theme(colors.red.500/30);
+
+  /* Success / Green */
+  --color-success: theme(colors.green.400);
+  --color-success-muted: theme(colors.green.400);
+  --color-success-bg: theme(colors.green.500/10);
+  --color-success-border: theme(colors.green.500/30);
+
   /* File Browser - (dark mode) */
   --color-fb-base: theme(colors.neutral.900);
   --color-fb-surface: theme(colors.neutral.800);
@@ -323,6 +395,115 @@
 
 @utility border-theme-warning-strong {
   border-color: var(--color-warning-border-strong);
+}
+
+/* Diff Status: Added (green) utilities */
+@utility text-theme-added {
+  color: var(--color-added);
+}
+
+@utility text-theme-added-muted {
+  color: var(--color-added-muted);
+}
+
+@utility text-theme-added-subtle {
+  color: var(--color-added-subtle);
+}
+
+@utility bg-theme-added {
+  background-color: var(--color-added-bg);
+}
+
+@utility border-theme-added {
+  border-color: var(--color-added-border);
+}
+
+@utility border-theme-added-strong {
+  border-color: var(--color-added-border-strong);
+}
+
+/* Diff Status: Removed (red) utilities */
+@utility text-theme-removed {
+  color: var(--color-removed);
+}
+
+@utility text-theme-removed-muted {
+  color: var(--color-removed-muted);
+}
+
+@utility text-theme-removed-subtle {
+  color: var(--color-removed-subtle);
+}
+
+@utility bg-theme-removed {
+  background-color: var(--color-removed-bg);
+}
+
+@utility border-theme-removed {
+  border-color: var(--color-removed-border);
+}
+
+@utility border-theme-removed-strong {
+  border-color: var(--color-removed-border-strong);
+}
+
+/* Diff Status: Modified (yellow) utilities */
+@utility text-theme-modified {
+  color: var(--color-modified);
+}
+
+@utility text-theme-modified-muted {
+  color: var(--color-modified-muted);
+}
+
+@utility text-theme-modified-subtle {
+  color: var(--color-modified-subtle);
+}
+
+@utility bg-theme-modified {
+  background-color: var(--color-modified-bg);
+}
+
+@utility border-theme-modified {
+  border-color: var(--color-modified-border);
+}
+
+@utility border-theme-modified-strong {
+  border-color: var(--color-modified-border-strong);
+}
+
+/* Error utilities */
+@utility text-theme-error {
+  color: var(--color-error);
+}
+
+@utility text-theme-error-muted {
+  color: var(--color-error-muted);
+}
+
+@utility bg-theme-error {
+  background-color: var(--color-error-bg);
+}
+
+@utility border-theme-error {
+  border-color: var(--color-error-border);
+}
+
+/* Success utilities */
+@utility text-theme-success {
+  color: var(--color-success);
+}
+
+@utility text-theme-success-muted {
+  color: var(--color-success-muted);
+}
+
+@utility bg-theme-success {
+  background-color: var(--color-success-bg);
+}
+
+@utility border-theme-success {
+  border-color: var(--color-success-border);
 }
 
 /* File Browser specific utilities */

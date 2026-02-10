@@ -1,6 +1,7 @@
 /**
  * SidebarCommitPanel - Compact commit form for sidebar.
  * Shows commit message input, action buttons, and changed files list.
+ * Clicking on an L5X file opens a domain-aware diff viewer.
  */
 import { memo, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
 import {
@@ -9,8 +10,9 @@ import {
   ChevronDown,
   GitBranchPlus,
 } from 'lucide-react';
-import { FILE_STATUS, isProtectedBranch, type FileStatusType } from '../../../constants';
+import { FILE_STATUS, isProtectedBranch, type FileStatusType, type ExplorerTab } from '../../../constants';
 import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName } from '../../../lib/gitHelpers';
+import { useLayout } from '../../../context';
 import { Button, Textarea } from '../../ui';
 import { ButtonGroup } from '../../ui/button-group';
 import {
@@ -41,10 +43,27 @@ interface SidebarCommitPanelProps {
 
 interface ChangedFileItemProps {
   file: FileStatus;
+  repoPath?: string;
+  onOpenDiff?: (file: FileStatus) => void;
 }
 
 interface ChangedFilesListProps {
   files: FileStatus[];
+  repoPath?: string;
+  onOpenDiff?: (file: FileStatus) => void;
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/** Extensions that support domain-aware diff viewing. */
+const DOMAIN_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
+
+/** Check if a file supports domain-aware diff viewing. */
+function supportsDomainDiff(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return DOMAIN_DIFF_EXTENSIONS.has(ext);
 }
 
 // ============================================================================
@@ -54,26 +73,44 @@ interface ChangedFilesListProps {
 /**
  * ChangedFileItem - Single file in the changed files list.
  * Uses shortLabel for compact display.
+ * Clicking on L5X files opens the domain-aware diff viewer.
  */
-const ChangedFileItem = memo(function ChangedFileItem({ file }: ChangedFileItemProps): JSX.Element {
+const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff }: ChangedFileItemProps): JSX.Element {
   const statusConfig = STATUS_CONFIG[file.status as FileStatusType] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
   const StatusIcon = statusConfig.Icon;
+  const hasDomainDiff = supportsDomainDiff(file.path);
+  
+  const handleClick = useCallback(() => {
+    if (hasDomainDiff && onOpenDiff) {
+      onOpenDiff(file);
+    }
+  }, [file, hasDomainDiff, onOpenDiff]);
   
   return (
-    <div className="flex items-center gap-2 px-2 py-1 hover-bg-theme-interactive rounded text-sm">
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={!hasDomainDiff}
+      className={`w-full flex items-center gap-2 px-2 py-1 rounded text-sm text-left transition-colors
+        ${hasDomainDiff 
+          ? 'hover-bg-theme-interactive cursor-pointer' 
+          : 'cursor-default opacity-70'
+        }`}
+      title={hasDomainDiff ? `View changes: ${file.path}` : file.path}
+    >
       <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
       <FileText style={ICON_STYLES.xs as CSSProperties} className="text-theme-muted shrink-0" />
-      <span className="text-theme-primary truncate flex-1" title={file.path}>
+      <span className="text-theme-primary truncate flex-1">
         {file.name}
       </span>
-    </div>
+    </button>
   );
 });
 
 /**
  * ChangedFilesList - Vertical list of changed files.
  */
-const ChangedFilesList = memo(function ChangedFilesList({ files }: ChangedFilesListProps): JSX.Element | null {
+const ChangedFilesList = memo(function ChangedFilesList({ files, repoPath, onOpenDiff }: ChangedFilesListProps): JSX.Element | null {
   if (!files || files.length === 0) return null;
 
   return (
@@ -83,7 +120,12 @@ const ChangedFilesList = memo(function ChangedFilesList({ files }: ChangedFilesL
       </div>
       <div className="max-h-48 overflow-y-auto px-1">
         {files.map((file, index) => (
-          <ChangedFileItem key={`${file.path}-${index}`} file={file} />
+          <ChangedFileItem 
+            key={`${file.path}-${index}`} 
+            file={file} 
+            repoPath={repoPath}
+            onOpenDiff={onOpenDiff}
+          />
         ))}
       </div>
     </div>
@@ -100,6 +142,7 @@ function SidebarCommitPanel({
   isCommitting,
   isRewinding,
 }: SidebarCommitPanelProps): JSX.Element {
+  const { openExplorerTab } = useLayout();
   const [message, setMessage] = useState('');
   const [showRewindModal, setShowRewindModal] = useState(false);
   const [showBranchModal, setShowBranchModal] = useState(false);
@@ -154,6 +197,32 @@ function SidebarCommitPanel({
       setShowRewindModal(false);
     }
   }, [onRewind]);
+
+  /**
+   * Open a domain-aware diff viewer for supported file types (L5X, L5K).
+   * Creates an explorer tab showing working tree changes (HEAD vs current).
+   */
+  const handleOpenDiff = useCallback((file: FileStatus): void => {
+    if (!repoPath) return;
+    
+    const absolutePath = repoPath + '/' + file.path;
+    const fileName = file.path.split('/').pop() || file.path;
+    
+    const tab: ExplorerTab = {
+      id: `diff-working-${file.path}`,
+      title: `${fileName} (Working Changes)`,
+      filePath: absolutePath,
+      type: 'diff',
+      diffContext: {
+        type: 'working',
+        relativePath: file.path,
+        absolutePath,
+        status: file.status,
+      },
+    };
+    
+    openExplorerTab(tab);
+  }, [repoPath, openExplorerTab]);
 
   return (
     <div className="flex flex-col h-full">
@@ -236,7 +305,11 @@ function SidebarCommitPanel({
       </div>
 
       {/* Changed files list */}
-      <ChangedFilesList files={changedFiles} />
+      <ChangedFilesList 
+        files={changedFiles} 
+        repoPath={repoPath}
+        onOpenDiff={handleOpenDiff}
+      />
 
       {/* Modals */}
       <RewindConfirmModal

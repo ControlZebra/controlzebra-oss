@@ -5,19 +5,33 @@
  * - Tabs bar at the top with file browser as pinned tab
  * - File browser shows when that tab is active
  * - File content shows when file tabs are active (using multi-viewer architecture)
+ * - Diff tabs for L5X files show the domain-aware diff viewer
  * - When no folder is open: Shows welcome pages based on selected category
  * - Non-git / no-remote folders: Shows ProjectSetupBanner with state-aware CTA
  * - All open tabs are kept mounted (but hidden) to preserve viewer state/cache
  */
-import { memo, useState, useCallback, useMemo } from 'react';
+import { memo, useState, useCallback, useMemo, lazy, Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../welcome';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
-import { PROJECT_STATES, type ProjectState } from '../../../../constants';
+import { PROJECT_STATES, ICON_SIZES, type ProjectState, type ExplorerTab } from '../../../../constants';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
+
+// Lazy-load L5X diff viewers for code splitting
+const L5XWorkingDiffViewer = lazy(() => import('../../../viewers/l5x-diff/L5XWorkingDiffViewer'));
+
+/** Extensions that trigger the domain-aware L5X diff viewer. */
+const L5X_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
+
+/** Check if a file path has an L5X extension. */
+function isL5XFile(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return L5X_DIFF_EXTENSIONS.has(ext);
+}
 
 function ExplorerPage(): JSX.Element {
   const {
@@ -98,6 +112,12 @@ function ExplorerPage(): JSX.Element {
     [explorerTabs]
   );
 
+  // Memoize diff tabs
+  const diffTabs = useMemo(() =>
+    explorerTabs.filter(tab => tab.type === 'diff' && tab.diffContext),
+    [explorerTabs]
+  );
+
   // Check if file browser is active
   const isFileBrowserActive = activeExplorerTab === 'file-browser';
 
@@ -125,6 +145,50 @@ function ExplorerPage(): JSX.Element {
       );
     }).filter(Boolean) as JSX.Element[];
   }, [fileTabs, activeExplorerTab]);
+
+  // Memoize rendered diff tabs
+  const renderedDiffTabs = useMemo(() => {
+    return diffTabs.map((tab: ExplorerTab) => {
+      if (!tab.diffContext || !repoPath) return null;
+      
+      const isActive = tab.id === activeExplorerTab;
+      const { diffContext } = tab;
+      const filePath = diffContext.relativePath || tab.filePath || '';
+      const isL5X = isL5XFile(filePath);
+
+      return (
+        <div
+          key={tab.id}
+          className="h-full"
+          style={{ display: isActive ? 'block' : 'none' }}
+        >
+          {diffContext.type === 'working' && isL5X && diffContext.absolutePath ? (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
+                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
+                  <span className="text-sm">Loading L5X diff viewer…</span>
+                </div>
+              }
+            >
+              <L5XWorkingDiffViewer
+                repoPath={repoPath}
+                filePath={filePath}
+                absoluteFilePath={diffContext.absolutePath}
+                fileStatus={diffContext.status ?? 'modified'}
+              />
+            </Suspense>
+          ) : (
+            // Fallback to standard text diff viewer for non-L5X files
+            // This requires loading the diff data - for now show placeholder
+            <div className="flex items-center justify-center h-full text-theme-muted text-sm">
+              Diff view for {filePath}
+            </div>
+          )}
+        </div>
+      );
+    }).filter(Boolean) as JSX.Element[];
+  }, [diffTabs, activeExplorerTab, repoPath]);
 
   // No folder open - show welcome page based on selected category
   if (!repoPath) {
@@ -177,6 +241,9 @@ function ExplorerPage(): JSX.Element {
         
         {/* All file tabs - mounted but hidden when not active */}
         {renderedFileTabs}
+        
+        {/* All diff tabs - mounted but hidden when not active */}
+        {renderedDiffTabs}
       </div>
     </div>
   );

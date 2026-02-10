@@ -243,11 +243,27 @@ export function isTextFile(fileName: string): boolean {
 export interface ExplorerTab {
   id: string;
   title: string;
-  type: 'file-browser' | 'file';
+  type: 'file-browser' | 'file' | 'diff';
   filePath?: string;
   isPinned?: boolean;
   /** Explicit viewer ID for file tabs. If not provided, auto-detected from filename. */
   viewerId?: string;
+  /** For diff tabs: the diff context (working tree or commit) */
+  diffContext?: {
+    type: 'working' | 'commit';
+    /** For working: path relative to repo root */
+    relativePath?: string;
+    /** For working: absolute path on disk */
+    absolutePath?: string;
+    /** For working: file status */
+    status?: string;
+    /** For commit: commit hash */
+    commitHash?: string;
+    /** For commit: parent commit hash */
+    parentHash?: string;
+    /** For commit: old path if renamed */
+    oldPath?: string;
+  };
 }
 
 export const FILE_BROWSER_TAB: ExplorerTab = {
