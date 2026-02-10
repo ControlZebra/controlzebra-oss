@@ -55,6 +55,7 @@
   --color-added-muted: theme(colors.green.600);
   --color-added-subtle: theme(colors.green.700/60);
   --color-added-bg: theme(colors.green.500/10);
+  --color-added-bg-subtle: theme(colors.green.500/5);
   --color-added-border: theme(colors.green.500/30);
   --color-added-border-strong: theme(colors.green.600);
 
@@ -63,6 +64,7 @@
   --color-removed-muted: theme(colors.red.600);
   --color-removed-subtle: theme(colors.red.700/60);
   --color-removed-bg: theme(colors.red.500/10);
+  --color-removed-bg-subtle: theme(colors.red.500/5);
   --color-removed-border: theme(colors.red.500/30);
   --color-removed-border-strong: theme(colors.red.600);
 
@@ -142,6 +144,7 @@
   --color-added-muted: theme(colors.green.400);
   --color-added-subtle: theme(colors.green.400/60);
   --color-added-bg: theme(colors.green.500/10);
+  --color-added-bg-subtle: theme(colors.green.500/5);
   --color-added-border: theme(colors.green.500/30);
   --color-added-border-strong: theme(colors.green.500);
 
@@ -150,6 +153,7 @@
   --color-removed-muted: theme(colors.red.400);
   --color-removed-subtle: theme(colors.red.400/60);
   --color-removed-bg: theme(colors.red.500/10);
+  --color-removed-bg-subtle: theme(colors.red.500/5);
   --color-removed-border: theme(colors.red.500/30);
   --color-removed-border-strong: theme(colors.red.500);
 
@@ -414,6 +418,10 @@
   background-color: var(--color-added-bg);
 }
 
+@utility bg-theme-added-subtle {
+  background-color: var(--color-added-bg-subtle);
+}
+
 @utility border-theme-added {
   border-color: var(--color-added-border);
 }
@@ -437,6 +445,10 @@
 
 @utility bg-theme-removed {
   background-color: var(--color-removed-bg);
+}
+
+@utility bg-theme-removed-subtle {
+  background-color: var(--color-removed-bg-subtle);
 }
 
 @utility border-theme-removed {

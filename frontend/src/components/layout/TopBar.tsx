@@ -26,6 +26,7 @@ import { useWindowSize, BREAKPOINTS } from '../../hooks';
 import { UndoLastSaveDialog } from '../ui';
 import BranchModal from './BranchModal';
 import RewindConfirmModal from './RewindConfirmModal';
+import SwitchProjectModal from './SwitchProjectModal';
 import { OpenFolderDialog } from '../../../bindings/controlzebra/services/filedialogservice';
 import {
   DropdownMenu,
@@ -44,6 +45,7 @@ function TopBar(): JSX.Element {
     repoInfo, 
     repoStatus,
     openRepo,
+    closeRepo,
     syncRepo, 
     isSyncing,
     commits,
@@ -59,6 +61,7 @@ function TopBar(): JSX.Element {
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [switchProjectModalOpen, setSwitchProjectModalOpen] = useState(false);
   const [isRewinding, setIsRewinding] = useState(false);
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
@@ -75,6 +78,10 @@ function TopBar(): JSX.Element {
       setIsOpeningFolder(false);
     }
   }, [openRepo]);
+
+  const handleSwitchProject = useCallback(async (): Promise<void> => {
+    await closeRepo();
+  }, [closeRepo]);
 
   const handleSync = useCallback(async (): Promise<void> => {
     await syncRepo();
@@ -118,12 +125,11 @@ function TopBar(): JSX.Element {
             <div className={`flex items-center gap-2 transition-opacity ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               {repoPath && isGitRepo && !isCompactTopBar && !sidebarCollapsed && (
                 <>
-                  {/* Open Folder */}
+                  {/* Switch Project */}
                   <button 
-                    onClick={handleOpenFolder}
-                    disabled={isOpeningFolder}
-                    title="Open Folder"
-                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+                    onClick={() => setSwitchProjectModalOpen(true)}
+                    title="Switch Project"
+                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
                   >
                     <FolderOpen style={iconStyle} className="currentColor" />
                   </button>
@@ -257,6 +263,13 @@ function TopBar(): JSX.Element {
         onClose={() => setDiscardDialogOpen(false)}
         onConfirm={handleDiscard}
         isLoading={isRewinding}
+      />
+
+      {/* Switch Project Confirmation */}
+      <SwitchProjectModal
+        open={switchProjectModalOpen}
+        onClose={() => setSwitchProjectModalOpen(false)}
+        onConfirm={handleSwitchProject}
       />
     </>
   );
