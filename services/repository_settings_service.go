@@ -73,16 +73,6 @@ type MaintenanceSettings struct {
 	LooseObjects bool `json:"looseObjects"`
 }
 
-// ProtectedBranchSettings contains settings for protected branches
-type ProtectedBranchSettings struct {
-	// ProtectedBranches is a list of branch names that should be protected
-	ProtectedBranches []string `json:"protectedBranches"`
-	// WarnOnDirectCommit warns when committing directly to protected branches
-	WarnOnDirectCommit bool `json:"warnOnDirectCommit"`
-	// RequireConfirmation requires confirmation for operations on protected branches
-	RequireConfirmation bool `json:"requireConfirmation"`
-}
-
 // RepositorySettings contains all repository-level settings
 type RepositorySettings struct {
 	// RepoPath is the absolute path to the repository
@@ -99,7 +89,6 @@ type RepositorySettings struct {
 	FetchSettings       FetchSettings           `json:"fetchSettings"`
 	LFSSettings         LFSSettings             `json:"lfsSettings"`
 	MaintenanceSettings MaintenanceSettings     `json:"maintenanceSettings"`
-	ProtectedBranches   ProtectedBranchSettings `json:"protectedBranches"`
 
 	// Mode flags
 	LocalOnlyMode bool `json:"localOnlyMode,omitempty"`
@@ -231,13 +220,6 @@ func (r *RepositorySettingsService) GetDefaultSettings(repoPath string) Reposito
 			PackRefs:     false, // Can be slow, disabled by default
 			LooseObjects: false, // Can be slow, disabled by default
 		},
-
-		// Protected branches
-		ProtectedBranches: ProtectedBranchSettings{
-			ProtectedBranches:   []string{"main", "master"},
-			WarnOnDirectCommit:  true,
-			RequireConfirmation: true,
-		},
 	}
 }
 
@@ -343,17 +325,6 @@ func (r *RepositorySettingsService) UpdateMaintenanceSettings(repoPath string, m
 	}
 
 	settings.MaintenanceSettings = maintenanceSettings
-	return r.SaveSettings(settings)
-}
-
-// UpdateProtectedBranches updates protected branch settings
-func (r *RepositorySettingsService) UpdateProtectedBranches(repoPath string, protectedBranches ProtectedBranchSettings) OperationResult {
-	settings, err := r.GetSettings(repoPath)
-	if err != nil {
-		return failedOp(err.Error())
-	}
-
-	settings.ProtectedBranches = protectedBranches
 	return r.SaveSettings(settings)
 }
 

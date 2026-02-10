@@ -117,7 +117,9 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 
 // SyncWithProgress performs git pull + push with progress updates
 // For branches without an upstream, it skips pull and just pushes with --set-upstream
-func (p *ProgressService) SyncWithProgress(repoPath, operationID string) OperationResult {
+// prune: if true, adds --prune to remove stale remote-tracking branches
+// tags: if true, adds --tags to fetch all tags
+func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune bool, tags bool) OperationResult {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -134,8 +136,17 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string) Operati
 
 	// Only pull if we have an upstream branch
 	if hasUpstream {
+		// Build pull args with optional fetch flags
+		pullArgs := []string{"pull", "--no-rebase", "--progress"}
+		if prune {
+			pullArgs = append(pullArgs, "--prune")
+		}
+		if tags {
+			pullArgs = append(pullArgs, "--tags")
+		}
+
 		// Run pull with progress (using merge, not rebase, for safer conflict resolution)
-		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
+		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", pullArgs)
 		if !pullResult.Success {
 			errMsg := pullResult.Error
 			p.emitProgress(ProgressUpdate{

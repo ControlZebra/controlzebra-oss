@@ -5,8 +5,6 @@
  */
 import { memo, useCallback, useMemo, type CSSProperties } from 'react';
 import {
-  GitBranch,
-  Terminal,
   CheckCircle,
   RefreshCw,
   CloudDownload,
@@ -19,19 +17,13 @@ import {
   AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
-import { BOTTOM_PANELS, ICON_SIZES, PROJECT_STATES, type BottomPanelType, type ProjectState } from '../../constants';
-import { useLayout, useRepo } from '../../context';
+import { ICON_SIZES, PROJECT_STATES, type ProjectState } from '../../constants';
+import { useRepo } from '../../context';
 import { trackProjectSetupStarted } from '../../lib/analytics';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface PanelTab {
-  id: BottomPanelType;
-  Icon: LucideIcon;
-  label: string;
-}
 
 interface SyncStatusResult {
   Icon: LucideIcon;
@@ -46,12 +38,6 @@ interface SyncStatusResult {
 
 // Icon style for consistent sizing
 const iconStyle: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
-
-// Panel tab configuration
-const PANEL_TABS: PanelTab[] = [
-  { id: BOTTOM_PANELS.REPOSITORY, Icon: GitBranch, label: 'Repository' },
-  { id: BOTTOM_PANELS.TERMINAL, Icon: Terminal, label: 'Terminal' },
-];
 
 // ============================================================================
 // Helpers
@@ -136,24 +122,7 @@ function getProjectStateIndicator(state: ProjectState | null): ProjectStateIndic
 // ============================================================================
 
 function StatusBar(): JSX.Element {
-  const { 
-    activeBottomPanel, 
-    setActiveBottomPanel, 
-    bottomPanelCollapsed, 
-    setBottomPanelCollapsed 
-  } = useLayout();
-  
   const { repoPath, repoInfo, repoStatus, isSyncing, hasRemote, startTracking } = useRepo();
-
-  // Toggle panel: clicking active collapses, clicking inactive opens
-  const handleTabClick = useCallback((panelId: BottomPanelType): void => {
-    if (activeBottomPanel === panelId && !bottomPanelCollapsed) {
-      setBottomPanelCollapsed(true);
-    } else {
-      setActiveBottomPanel(panelId);
-      setBottomPanelCollapsed(false);
-    }
-  }, [activeBottomPanel, bottomPanelCollapsed, setActiveBottomPanel, setBottomPanelCollapsed]);
 
   // Derive status info from repo state
   const branchName = repoInfo?.branch || 'main';
@@ -202,34 +171,8 @@ function StatusBar(): JSX.Element {
   }, [startTracking, projectState]);
 
   return (
-    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">
-      {/* Left: Panel tabs */}
-      <div className="flex items-center gap-0.5 shrink-0">
-        {PANEL_TABS.map(tab => {
-          const { Icon, label, id } = tab;
-          const isActive = activeBottomPanel === id && !bottomPanelCollapsed;
-          
-          return (
-            <button
-              key={id}
-              onClick={() => handleTabClick(id)}
-              title={label}
-              className={`
-                flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors
-                ${isActive 
-                  ? 'text-theme-primary bg-theme-muted' 
-                  : 'text-theme-secondary hover:text-theme-primary hover-bg-theme-interactive'
-                }
-              `}
-            >
-              <Icon style={iconStyle} />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Right: Status indicators */}
+    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-end px-2 select-none shrink-0 min-w-0">
+      {/* Status indicators */}
       <div className="flex items-center gap-3 text-xs min-w-0">
         {repoPath ? (
           <>

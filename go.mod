@@ -3,7 +3,6 @@ module controlzebra
 go 1.25
 
 require (
-	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/n7olkachev/imgdiff v1.0.2
 	github.com/wailsapp/wails/v3 v3.0.0-alpha.69

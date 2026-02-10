@@ -3,25 +3,15 @@
  * Shows commit message input, action buttons, and changed files list.
  * Clicking on files with visual diff support (L5X, images) opens the diff viewer.
  */
-import { memo, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
+import { memo, useState, useCallback, useEffect, type CSSProperties } from 'react';
 import {
   FileText,
   Trash2,
-  ChevronDown,
-  GitBranchPlus,
 } from 'lucide-react';
-import { FILE_STATUS, isProtectedBranch, type FileStatusType, type ExplorerTab } from '../../../constants';
+import { FILE_STATUS, type FileStatusType, type ExplorerTab } from '../../../constants';
 import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName } from '../../../lib/gitHelpers';
 import { useLayout } from '../../../context';
 import { Button, Textarea } from '../../ui';
-import { ButtonGroup } from '../../ui/button-group';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../../ui/dropdown-menu';
-import { MasterBranchNudge } from '../../common';
 import { RewindConfirmModal, BranchNameModal } from '../';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import { supportsVisualDiff } from '../../../lib/file-utils';
@@ -33,7 +23,7 @@ import type { FileStatus } from '../../../context';
 
 interface SidebarCommitPanelProps {
   changedFiles: FileStatus[];
-  onCommit: (message: string) => Promise<boolean>;
+  onCommit: (message: string, force?: boolean) => Promise<boolean>;
   onBranchAndCommit: (branchName: string, message: string) => Promise<boolean>;
   onRewind: () => Promise<boolean>;
   currentBranch: string;
@@ -135,7 +125,6 @@ function SidebarCommitPanel({
   const [showRewindModal, setShowRewindModal] = useState(false);
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [defaultBranchName, setDefaultBranchName] = useState('');
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   // Fetch user profile for default branch name
   useEffect(() => {
@@ -150,17 +139,6 @@ function SidebarCommitPanel({
     };
     fetchDefaults();
   }, [repoPath]);
-
-  // Memoize computed values to prevent unnecessary re-renders
-  const onProtectedBranch = useMemo(
-    () => isProtectedBranch(currentBranch),
-    [currentBranch]
-  );
-
-  const showMasterNudge = useMemo(
-    () => onProtectedBranch && changedFiles?.length > 0 && !nudgeDismissed,
-    [onProtectedBranch, changedFiles?.length, nudgeDismissed]
-  );
 
   const handleSave = useCallback(async (): Promise<void> => {
     if (!message.trim()) return;
@@ -216,15 +194,6 @@ function SidebarCommitPanel({
     <div className="flex flex-col h-full">
       {/* Header section */}
       <div className="p-3 space-y-3">
-        {/* Nudge */}
-        {showMasterNudge && (
-          <MasterBranchNudge 
-            branchName={currentBranch} 
-            onDismiss={() => setNudgeDismissed(true)}
-            compact
-          />
-        )}
-
         {/* Commit message */}
         <Textarea
           value={message}
@@ -237,49 +206,16 @@ function SidebarCommitPanel({
 
         {/* Action buttons */}
         <div className="flex gap-2">
-          {onProtectedBranch ? (
-            <ButtonGroup className="flex-1">
-              <Button 
-                onClick={() => setShowBranchModal(true)}
-                disabled={!message.trim() || isCommitting} 
-                loading={isCommitting}
-                size="sm"
-                variant="default"
-                className="flex-1"
-              >
-                <GitBranchPlus style={ICON_STYLES.xs as CSSProperties} />
-                Branch & Save
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="default"
-                    size="sm"
-                    disabled={!message.trim() || isCommitting}
-                    className="px-1.5 border-l border-blue-500/30"
-                  >
-                    <ChevronDown style={ICON_STYLES.xs as CSSProperties} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleSave}>
-                    Save on {currentBranch}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </ButtonGroup>
-          ) : (
-            <Button 
-              onClick={handleSave} 
-              disabled={!message.trim()} 
-              loading={isCommitting}
-              size="sm"
-              variant="default"
-              className="flex-1"
-            >
-              Save
-            </Button>
-          )}
+          <Button 
+            onClick={handleSave} 
+            disabled={!message.trim()} 
+            loading={isCommitting}
+            size="sm"
+            variant="default"
+            className="flex-1"
+          >
+            Save
+          </Button>
           <Button
             variant="outline"
             onClick={() => setShowRewindModal(true)}

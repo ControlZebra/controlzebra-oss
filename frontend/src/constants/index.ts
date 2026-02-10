@@ -48,17 +48,6 @@ export const VIEWS = {
 export type ViewType = typeof VIEWS[keyof typeof VIEWS];
 
 // ============================================================================
-// BOTTOM PANEL TYPES
-// Identifiers for bottom panel tabs.
-// ============================================================================
-export const BOTTOM_PANELS = {
-  REPOSITORY: 'repository',
-  TERMINAL: 'terminal',
-} as const;
-
-export type BottomPanelType = typeof BOTTOM_PANELS[keyof typeof BOTTOM_PANELS];
-
-// ============================================================================
 // FILE STATUS
 // Git file status types mapped from GitService.
 // Each status has an associated color class for visual distinction.
@@ -171,9 +160,9 @@ export const PROJECT_STATE_CONFIGS: Record<ProjectState, ProjectStateConfig> = {
 // Organized from user's perspective.
 // ============================================================================
 export const REPO_SETTINGS_CATEGORIES: SettingsCategory[] = [
+  { id: 'about', name: 'About', description: 'Repository information and details' },
   { id: 'remote-sync', name: 'Remote Sync', description: 'How and when to sync with remote' },
   { id: 'large-files', name: 'Large Files (LFS)', description: 'Storage and download settings for large files' },
-  { id: 'branch-protection', name: 'Branch Protection', description: 'Prevent accidental commits to important branches' },
   { id: 'performance', name: 'Performance', description: 'Optimization and maintenance tasks' },
   { id: 'troubleshooting', name: 'Troubleshooting', description: 'Diagnose and fix repository issues' },
 ];
@@ -278,21 +267,8 @@ export const FILE_BROWSER_TAB: ExplorerTab = {
 // Default protected branch names. These branches trigger nudges/warnings.
 // Can be overridden by repository settings.
 // ============================================================================
-export const DEFAULT_PROTECTED_BRANCHES: string[] = ['main', 'master', 'develop', 'production'];
-
-// Main branches (subset of protected) where merge requests aren't suggested
+// Main branches where merge requests aren't suggested
 export const MAIN_BRANCHES: string[] = ['main', 'master'];
-
-/**
- * Check if a branch name is in the protected list.
- * @param branchName - The branch name to check
- * @param protectedList - Optional custom list of protected branches
- * @returns boolean
- */
-export function isProtectedBranch(branchName: string, protectedList: string[] = DEFAULT_PROTECTED_BRANCHES): boolean {
-  if (!branchName) return false;
-  return protectedList.includes(branchName.toLowerCase());
-}
 
 // ============================================================================
 // FILE EXTENSION COLORS

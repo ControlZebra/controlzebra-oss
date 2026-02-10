@@ -353,15 +353,6 @@ export function UpdateMaintenanceSettings(repoPath: string, maintenanceSettings:
 }
 
 /**
- * UpdateProtectedBranches updates protected branch settings
- */
-export function UpdateProtectedBranches(repoPath: string, protectedBranches: $models.ProtectedBranchSettings): $CancellablePromise<$models.OperationResult> {
-    return $Call.ByID(2757747210, repoPath, protectedBranches).then(($result: any) => {
-        return $$createType0($result);
-    });
-}
-
-/**
  * WriteRepoLocalConfig writes the shared config (.controlzebra/config.json) to
  * the repository. Creates the .controlzebra/ directory if it does not exist.
  */
