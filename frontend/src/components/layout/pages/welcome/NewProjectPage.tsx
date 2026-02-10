@@ -605,16 +605,6 @@ function NewProjectPage(): JSX.Element {
 
               {!skipRemote && (
                 <div className="space-y-4">
-                  {/* Already-configured remote info banner */}
-                  {validation.type === 'already-repo' && validation.remoteUrl && (
-                    <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                      <Info size={14} className="text-blue-400 shrink-0" />
-                      <span className="text-blue-400 text-xs">
-                        Remote already configured: {validation.remoteUrl}
-                      </span>
-                    </div>
-                  )}
-
                   {/* GitHub account */}
                   <div>
                     <label className="block text-xs text-theme-secondary mb-1.5 font-medium">

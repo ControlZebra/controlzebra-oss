@@ -9,7 +9,7 @@
  * - Viewer-specific icons for file tabs
  */
 import { memo, useCallback, useMemo } from 'react';
-import { X, FolderOpen, FileText, Pin, type LucideIcon } from 'lucide-react';
+import { X, FolderOpen, FileText, Pin, Eye, FileDiff, type LucideIcon } from 'lucide-react';
 import { useLayout } from '../../context';
 import { ICON_SIZES, type ExplorerTab } from '../../constants';
 import { getViewerById, getViewerForFile } from '../../lib/viewers';
@@ -65,6 +65,18 @@ const TabItem = memo(function TabItem({
       `}
       title={tab.filePath || tab.title}
     >
+      {tab.type === 'file' && (
+        <Eye
+          size={ICON_SIZES.xs}
+          className={isActive ? 'text-blue-400 shrink-0' : 'text-theme-muted shrink-0'}
+        />
+      )}
+      {tab.type === 'diff' && (
+        <FileDiff
+          size={ICON_SIZES.xs}
+          className={isActive ? 'text-orange-400 shrink-0' : 'text-theme-muted shrink-0'}
+        />
+      )}
       <Icon 
         size={ICON_SIZES.sm} 
         className={isActive ? 'text-blue-500 shrink-0' : 'text-theme-secondary shrink-0'} 

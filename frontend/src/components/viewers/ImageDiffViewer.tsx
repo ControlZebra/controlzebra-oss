@@ -1,0 +1,785 @@
+/**
+ * ImageDiffViewer — Visual comparison of image files across git revisions.
+ *
+ * Three view modes:
+ *  1. **Side-by-side** — Old and new images shown next to each other.
+ *  2. **Diff highlight** — imgdiff-generated overlay showing changed pixels in red.
+ *  3. **Overlay / swipe** — Drag a slider to reveal old vs new (onion skin).
+ *
+ * Uses `react-photo-view` for fullscreen zoom/pan/rotate (same library as
+ * ImageViewer.tsx). Images are transported as base64 from the Go backend
+ * because Wails webviews cannot access file:// URLs.
+ *
+ * Backend methods:
+ *  - `ImageDiffCommit(repoPath, filePath, commitHash)` — history diffs
+ *  - `ImageDiffWorking(repoPath, filePath)`             — working tree diffs
+ */
+import {
+  memo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from 'react';
+import { PhotoProvider, PhotoView } from 'react-photo-view';
+import {
+  AlertCircle,
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Minimize,
+  Columns2,
+  Layers,
+  SlidersHorizontal,
+  Plus,
+  Minus,
+  AlertTriangle,
+  Equal,
+} from 'lucide-react';
+import { Events } from '@wailsio/runtime';
+
+import { ICON_SIZES } from '../../constants';
+import {
+  ImageDiffCommit,
+  ImageDiffWorking,
+} from '../../../bindings/controlzebra/services/imagediffservice';
+import type { ImageDiffResult } from '../../../bindings/controlzebra/services/models';
+import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from './image-utils';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type DiffMode = 'side-by-side' | 'diff' | 'overlay';
+
+export interface ImageDiffViewerProps {
+  /** Absolute path to the git repository root. */
+  repoPath: string;
+  /** Path to the image file (repo-relative or absolute). */
+  filePath: string;
+  /** For commit diffs: the commit hash. Omit / null for working tree diffs. */
+  commitHash?: string | null;
+  /** True when comparing the working tree against HEAD. */
+  isWorkingTree?: boolean;
+}
+
+// ============================================================================
+// Cache — avoid re-fetching when switching tabs or modes
+// ============================================================================
+
+const imageDiffCache = new Map<string, ImageDiffResult>();
+
+function cacheKey(
+  repoPath: string,
+  filePath: string,
+  commitHash?: string | null,
+): string {
+  return `${repoPath}::${filePath}::${commitHash || 'working'}`;
+}
+
+/**
+ * Invalidate all working-tree diff caches.
+ * Called when files change on disk to ensure fresh diffs are loaded.
+ */
+export function invalidateWorkingTreeImageDiffCache(): void {
+  // Remove all entries with 'working' suffix (working tree diffs)
+  for (const key of imageDiffCache.keys()) {
+    if (key.endsWith('::working')) {
+      imageDiffCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Invalidate a specific file's image diff cache entry.
+ * @param repoPath - Repository path
+ * @param filePath - File path
+ */
+export function invalidateImageDiffCacheForFile(repoPath: string, filePath: string): void {
+  const key = cacheKey(repoPath, filePath, null);
+  imageDiffCache.delete(key);
+}
+
+// ============================================================================
+// Sub-components
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// PhotoView toolbar (shared by side-by-side and diff-highlight modes)
+// ---------------------------------------------------------------------------
+
+function photoToolbar({
+  scale,
+  onScale,
+  rotate,
+  onRotate,
+}: {
+  scale: number;
+  onScale: (v: number) => void;
+  rotate: number;
+  onRotate: (v: number) => void;
+}) {
+  return (
+    <>
+      <ToolbarIcon onClick={() => onScale(scale + 0.5)} title="Zoom in">
+        <ZoomIn size={18} />
+      </ToolbarIcon>
+      <ToolbarIcon onClick={() => onScale(scale - 0.5)} title="Zoom out">
+        <ZoomOut size={18} />
+      </ToolbarIcon>
+      <ToolbarIcon onClick={() => onScale(1)} title="Actual size">
+        <Minimize size={18} />
+      </ToolbarIcon>
+      <ToolbarIcon onClick={() => onRotate(rotate + 90)} title="Rotate 90°">
+        <RotateCw size={18} />
+      </ToolbarIcon>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Side-by-side view
+// ---------------------------------------------------------------------------
+
+interface SideBySideProps {
+  oldUrl: string | null;
+  newUrl: string | null;
+  result: ImageDiffResult;
+}
+
+const SideBySideView = memo(function SideBySideView({
+  oldUrl,
+  newUrl,
+  result,
+}: SideBySideProps) {
+  return (
+    <div className="flex-1 flex gap-4 p-4 overflow-auto min-h-0">
+      {/* Old image */}
+      <div className="flex-1 flex flex-col items-center gap-2 min-w-0">
+        <span className="text-xs font-medium text-theme-muted uppercase tracking-wider">
+          Before
+        </span>
+        {oldUrl ? (
+          <PhotoProvider toolbarRender={photoToolbar} maskOpacity={0.92}>
+            <PhotoView src={oldUrl}>
+              <div
+                className="relative cursor-zoom-in rounded-md overflow-hidden border border-theme-default shadow-md"
+                style={CHECKERBOARD_STYLE}
+              >
+                <img
+                  src={oldUrl}
+                  alt="Before"
+                  className="max-w-full max-h-[calc(100vh-320px)] object-contain block"
+                  draggable={false}
+                />
+              </div>
+            </PhotoView>
+          </PhotoProvider>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-theme-muted text-sm italic">
+            No previous version
+          </div>
+        )}
+        {result.oldWidth > 0 && (
+          <span className="text-xs text-theme-muted">
+            {result.oldWidth} × {result.oldHeight}
+            {result.oldSize > 0 && ` · ${formatFileSize(result.oldSize)}`}
+          </span>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="w-px bg-theme-default shrink-0" />
+
+      {/* New image */}
+      <div className="flex-1 flex flex-col items-center gap-2 min-w-0">
+        <span className="text-xs font-medium text-theme-muted uppercase tracking-wider">
+          After
+        </span>
+        {newUrl ? (
+          <PhotoProvider toolbarRender={photoToolbar} maskOpacity={0.92}>
+            <PhotoView src={newUrl}>
+              <div
+                className="relative cursor-zoom-in rounded-md overflow-hidden border border-theme-default shadow-md"
+                style={CHECKERBOARD_STYLE}
+              >
+                <img
+                  src={newUrl}
+                  alt="After"
+                  className="max-w-full max-h-[calc(100vh-320px)] object-contain block"
+                  draggable={false}
+                />
+              </div>
+            </PhotoView>
+          </PhotoProvider>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-theme-muted text-sm italic">
+            File deleted
+          </div>
+        )}
+        {result.newWidth > 0 && (
+          <span className="text-xs text-theme-muted">
+            {result.newWidth} × {result.newHeight}
+            {result.newSize > 0 && ` · ${formatFileSize(result.newSize)}`}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Diff highlight view
+// ---------------------------------------------------------------------------
+
+interface DiffHighlightProps {
+  diffUrl: string | null;
+  result: ImageDiffResult;
+}
+
+const DiffHighlightView = memo(function DiffHighlightView({
+  diffUrl,
+  result,
+}: DiffHighlightProps) {
+  if (!diffUrl) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-theme-muted text-sm">
+        {result.isEqual
+          ? 'Images are identical — no diff to display.'
+          : 'Diff image not available (file was added or deleted).'}
+      </div>
+    );
+  }
+
+  const pct =
+    result.totalPixels > 0
+      ? ((result.diffPixelCount / result.totalPixels) * 100).toFixed(2)
+      : '0';
+
+  return (
+    <div className="flex-1 flex flex-col items-center gap-3 p-4 overflow-auto min-h-0">
+      <span className="text-xs text-theme-muted">
+        Changed pixels are highlighted in{' '}
+        <span className="text-red-400 font-medium">red</span> on a faded copy
+        of the original.
+      </span>
+
+      <PhotoProvider toolbarRender={photoToolbar} maskOpacity={0.92}>
+        <PhotoView src={diffUrl}>
+          <div
+            className="relative cursor-zoom-in rounded-md overflow-hidden border border-theme-default shadow-md"
+            style={CHECKERBOARD_STYLE}
+          >
+            <img
+              src={diffUrl}
+              alt="Diff highlight"
+              className="max-w-full max-h-[calc(100vh-320px)] object-contain block"
+              draggable={false}
+            />
+          </div>
+        </PhotoView>
+      </PhotoProvider>
+
+      <span className="text-xs text-theme-muted">
+        {result.diffPixelCount.toLocaleString()} pixel
+        {result.diffPixelCount !== 1 ? 's' : ''} changed ({pct}%)
+      </span>
+    </div>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Overlay / swipe view
+// ---------------------------------------------------------------------------
+
+interface OverlayProps {
+  oldUrl: string | null;
+  newUrl: string | null;
+}
+
+const OverlayView = memo(function OverlayView({ oldUrl, newUrl }: OverlayProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sliderX, setSliderX] = useState(0.5); // 0..1 from left
+  const dragging = useRef(false);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      dragging.current = true;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      setSliderX(x);
+    },
+    [],
+  );
+
+  const handlePointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  if (!oldUrl || !newUrl) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-theme-muted text-sm">
+        Overlay mode requires both old and new images.
+      </div>
+    );
+  }
+
+  const clipRight = `${(1 - sliderX) * 100}%`;
+
+  return (
+    <div className="flex-1 flex flex-col items-center gap-3 p-4 overflow-auto min-h-0">
+      <span className="text-xs text-theme-muted">
+        Drag the slider to compare — <span className="text-blue-400">Before</span>{' '}
+        (left) vs <span className="text-green-400">After</span> (right).
+      </span>
+
+      <div
+        ref={containerRef}
+        className="relative inline-block rounded-md overflow-hidden border border-theme-default shadow-md select-none"
+        style={CHECKERBOARD_STYLE}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        {/* Bottom layer: OLD image (fully visible) */}
+        <img
+          src={oldUrl}
+          alt="Before"
+          className="block max-w-full max-h-[calc(100vh-320px)] object-contain"
+          draggable={false}
+        />
+
+        {/* Top layer: NEW image (clipped by slider) */}
+        <img
+          src={newUrl}
+          alt="After"
+          className="absolute inset-0 block max-w-full max-h-[calc(100vh-320px)] object-contain"
+          style={{ clipPath: `inset(0 ${clipRight} 0 0)` }}
+          draggable={false}
+        />
+
+        {/* Slider handle */}
+        <div
+          className="absolute top-0 bottom-0 w-[3px] bg-white/80 cursor-col-resize z-10"
+          style={{ left: `${sliderX * 100}%`, transform: 'translateX(-50%)' }}
+          onPointerDown={handlePointerDown}
+        >
+          {/* Knob */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white shadow-md border border-gray-300 flex items-center justify-center">
+            <SlidersHorizontal size={12} className="text-gray-600" />
+          </div>
+        </div>
+
+        {/* Side labels */}
+        <span className="absolute top-2 left-2 text-[10px] font-semibold uppercase tracking-wider bg-blue-500/80 text-white px-1.5 py-0.5 rounded">
+          Before
+        </span>
+        <span className="absolute top-2 right-2 text-[10px] font-semibold uppercase tracking-wider bg-green-500/80 text-white px-1.5 py-0.5 rounded">
+          After
+        </span>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// Mode Tabs
+// ============================================================================
+
+interface ModeTabsProps {
+  mode: DiffMode;
+  onModeChange: (m: DiffMode) => void;
+  /** Disable diff & overlay when only one side is available */
+  hasBothSides: boolean;
+  /** Disable diff highlight when no diff image exists */
+  hasDiffImage: boolean;
+}
+
+const MODE_CONFIG: {
+  id: DiffMode;
+  label: string;
+  icon: typeof Columns2;
+  shortcut: string;
+}[] = [
+  { id: 'side-by-side', label: 'Side by Side', icon: Columns2, shortcut: '1' },
+  { id: 'diff', label: 'Diff Highlight', icon: Layers, shortcut: '2' },
+  { id: 'overlay', label: 'Overlay', icon: SlidersHorizontal, shortcut: '3' },
+];
+
+const ModeTabs = memo(function ModeTabs({
+  mode,
+  onModeChange,
+  hasBothSides,
+  hasDiffImage,
+}: ModeTabsProps) {
+  return (
+    <div className="flex items-center gap-1 px-4 py-1.5 bg-theme-surface border-b border-theme-default shrink-0">
+      {MODE_CONFIG.map(({ id, label, icon: Icon, shortcut }) => {
+        const disabled =
+          (id === 'diff' && !hasDiffImage) ||
+          (id === 'overlay' && !hasBothSides);
+        const active = mode === id;
+
+        return (
+          <button
+            key={id}
+            onClick={() => !disabled && onModeChange(id)}
+            disabled={disabled}
+            className={`
+              flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors
+              ${active ? 'bg-theme-accent/15 text-theme-accent' : 'text-theme-muted hover:text-theme-primary hover:bg-theme-surface-hover'}
+              ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+            `}
+            title={`${label} (${shortcut})`}
+          >
+            <Icon size={ICON_SIZES.xs} />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+
+// ============================================================================
+// Stats Bar
+// ============================================================================
+
+interface StatsBarProps {
+  result: ImageDiffResult;
+}
+
+const StatsBar = memo(function StatsBar({ result }: StatsBarProps) {
+  const parts: string[] = [];
+
+  // Diff pixel count
+  if (result.status === 'modified') {
+    parts.push(
+      `${result.diffPixelCount.toLocaleString()} pixel${result.diffPixelCount !== 1 ? 's' : ''} changed`,
+    );
+
+    if (result.totalPixels > 0) {
+      const pct = ((result.diffPixelCount / result.totalPixels) * 100).toFixed(2);
+      parts.push(`${pct}% of image`);
+    }
+  }
+
+  // Dimensions
+  const dimChanged =
+    result.oldWidth !== result.newWidth || result.oldHeight !== result.newHeight;
+  if (result.oldWidth > 0 && result.newWidth > 0) {
+    if (dimChanged) {
+      parts.push(
+        `${result.oldWidth}×${result.oldHeight} → ${result.newWidth}×${result.newHeight}`,
+      );
+    } else {
+      parts.push(`${result.newWidth}×${result.newHeight}`);
+    }
+  } else if (result.newWidth > 0) {
+    parts.push(`${result.newWidth}×${result.newHeight}`);
+  } else if (result.oldWidth > 0) {
+    parts.push(`${result.oldWidth}×${result.oldHeight}`);
+  }
+
+  // File sizes
+  if (result.oldSize > 0 && result.newSize > 0) {
+    const delta = result.newSize - result.oldSize;
+    const pct =
+      result.oldSize > 0
+        ? ((delta / result.oldSize) * 100).toFixed(0)
+        : '0';
+    const sign = delta >= 0 ? '+' : '';
+    parts.push(
+      `${formatFileSize(result.oldSize)} → ${formatFileSize(result.newSize)} (${sign}${pct}%)`,
+    );
+  } else if (result.newSize > 0) {
+    parts.push(formatFileSize(result.newSize));
+  } else if (result.oldSize > 0) {
+    parts.push(formatFileSize(result.oldSize));
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-1 bg-theme-surface border-b border-theme-default text-xs text-theme-muted shrink-0 flex-wrap">
+      {/* Status badge */}
+      {result.status === 'added' && (
+        <span className="flex items-center gap-1 text-green-400 font-medium">
+          <Plus size={ICON_SIZES.xs} /> Added
+        </span>
+      )}
+      {result.status === 'deleted' && (
+        <span className="flex items-center gap-1 text-red-400 font-medium">
+          <Minus size={ICON_SIZES.xs} /> Deleted
+        </span>
+      )}
+      {result.status === 'modified' && result.isEqual && (
+        <span className="flex items-center gap-1 text-blue-400 font-medium">
+          <Equal size={ICON_SIZES.xs} /> Identical
+        </span>
+      )}
+
+      {/* Dimension change warning */}
+      {dimChanged && result.oldWidth > 0 && result.newWidth > 0 && (
+        <span className="flex items-center gap-1 text-yellow-400">
+          <AlertTriangle size={ICON_SIZES.xs} /> Dimensions changed
+        </span>
+      )}
+
+      {/* Stats */}
+      {parts.length > 0 && (
+        <span>{parts.join('  •  ')}</span>
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
+function ImageDiffViewer({
+  repoPath,
+  filePath,
+  commitHash,
+  isWorkingTree,
+}: ImageDiffViewerProps): JSX.Element {
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+
+  const key = useMemo(
+    () => cacheKey(repoPath, filePath, commitHash),
+    [repoPath, filePath, commitHash],
+  );
+  const cached = imageDiffCache.get(key);
+
+  const [result, setResult] = useState<ImageDiffResult | null>(cached ?? null);
+  const [isLoading, setIsLoading] = useState(!cached);
+  const [error, setError] = useState<string | null>(null);
+  // Counter to force re-fetch when files change on disk (for working tree diffs)
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  // Persist mode preference
+  const [mode, setMode] = useState<DiffMode>(
+    () => (localStorage.getItem('image-diff-mode') as DiffMode) || 'side-by-side',
+  );
+
+  const mountedRef = useRef(true);
+
+  const fileName = useMemo(
+    () => filePath.split('/').pop() ?? filePath,
+    [filePath],
+  );
+
+  // ---------------------------------------------------------------------------
+  // File change subscription (for working tree diffs)
+  // When files change on disk, invalidate cache and trigger re-fetch.
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    // Only subscribe for working tree diffs
+    if (!isWorkingTree && commitHash) return;
+
+    const handleFilesChanged = () => {
+      // Invalidate this file's cache entry and bump counter to trigger re-fetch
+      imageDiffCache.delete(key);
+      setRefreshCounter((c) => c + 1);
+    };
+
+    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [key, isWorkingTree, commitHash]);
+
+  // ---------------------------------------------------------------------------
+  // Mode change handler — persist to localStorage
+  // ---------------------------------------------------------------------------
+
+  const handleModeChange = useCallback((m: DiffMode) => {
+    setMode(m);
+    localStorage.setItem('image-diff-mode', m);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Keyboard shortcuts: 1/2/3 to switch modes
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Don't capture when focus is in an input/textarea
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
+      if (e.key === '1') handleModeChange('side-by-side');
+      else if (e.key === '2') handleModeChange('diff');
+      else if (e.key === '3') handleModeChange('overlay');
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleModeChange]);
+
+  // ---------------------------------------------------------------------------
+  // Fetch data from backend
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // Use cache when available
+    if (imageDiffCache.has(key)) {
+      const c = imageDiffCache.get(key)!;
+      setResult(c);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+
+    const promise = isWorkingTree || !commitHash
+      ? ImageDiffWorking(repoPath, filePath)
+      : ImageDiffCommit(repoPath, filePath, commitHash);
+
+    promise
+      .then((res) => {
+        if (!mountedRef.current) return;
+        if (!res.success) {
+          setError(res.error || 'Image diff failed');
+          setIsLoading(false);
+          return;
+        }
+
+        // Cache for tab-switch performance
+        imageDiffCache.set(key, res);
+        setResult(res);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        if (!mountedRef.current) return;
+        setError(`Failed to compute image diff: ${err?.message || err}`);
+        setIsLoading(false);
+      });
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [key, repoPath, filePath, commitHash, isWorkingTree, refreshCounter]);
+
+  // ---------------------------------------------------------------------------
+  // Derived data URLs
+  // ---------------------------------------------------------------------------
+
+  const oldUrl = useMemo(
+    () =>
+      result?.oldImage
+        ? `data:${result.mimeType};base64,${result.oldImage}`
+        : null,
+    [result],
+  );
+
+  const newUrl = useMemo(
+    () =>
+      result?.newImage
+        ? `data:${result.mimeType};base64,${result.newImage}`
+        : null,
+    [result],
+  );
+
+  // Diff image is always PNG regardless of source format
+  const diffUrl = useMemo(
+    () =>
+      result?.diffImage
+        ? `data:image/png;base64,${result.diffImage}`
+        : null,
+    [result],
+  );
+
+  const hasBothSides = Boolean(oldUrl && newUrl);
+  const hasDiffImage = Boolean(diffUrl);
+
+  // ---------------------------------------------------------------------------
+  // Error state
+  // ---------------------------------------------------------------------------
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-3">
+        <AlertCircle size={ICON_SIZES.lg} className="text-red-400" />
+        <div className="text-center max-w-md">
+          <p className="text-theme-primary font-medium mb-1">
+            Cannot display image diff
+          </p>
+          <p className="text-sm">{error}</p>
+          <p className="text-xs text-theme-muted mt-2">{fileName}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Loading state
+  // ---------------------------------------------------------------------------
+
+  if (isLoading || !result) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <Loader2
+          size={ICON_SIZES.lg}
+          className="animate-spin text-theme-secondary"
+        />
+        <span className="text-sm text-theme-muted">
+          Computing image diff for {fileName}…
+        </span>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Mode selector tabs */}
+      <ModeTabs
+        mode={mode}
+        onModeChange={handleModeChange}
+        hasBothSides={hasBothSides}
+        hasDiffImage={hasDiffImage}
+      />
+
+      {/* Stats bar */}
+      <StatsBar result={result} />
+
+      {/* Active mode view */}
+      {mode === 'side-by-side' && (
+        <SideBySideView oldUrl={oldUrl} newUrl={newUrl} result={result} />
+      )}
+      {mode === 'diff' && (
+        <DiffHighlightView diffUrl={diffUrl} result={result} />
+      )}
+      {mode === 'overlay' && (
+        <OverlayView oldUrl={oldUrl} newUrl={newUrl} />
+      )}
+    </div>
+  );
+}
+
+export default memo(ImageDiffViewer);

@@ -77,6 +77,34 @@ func (r *CommandRunner) RunGit(repoPath string, args ...string) CommandResult {
 	return r.Run(repoPath, GitPath(), args...)
 }
 
+// RunGitRaw executes a git command and returns raw stdout bytes.
+// Use for binary content (images, etc.) where string conversion corrupts data.
+// Returns the raw bytes and any error encountered.
+func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.Timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, GitPath(), args...)
+	cmd.Dir = repoPath
+	cmd.SysProcAttr = hideWindowAttr()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		errMsg := stderr.String()
+		if errMsg == "" {
+			errMsg = err.Error()
+		}
+		return nil, fmt.Errorf("git %v failed: %s", args, errMsg)
+	}
+
+	return stdout.Bytes(), nil
+}
+
 // RunGh is a convenience method for running gh CLI commands.
 // Uses the bundled gh binary when available, otherwise falls back to PATH.
 func (r *CommandRunner) RunGh(workDir string, args ...string) CommandResult {

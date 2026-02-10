@@ -3,10 +3,14 @@
  * Displays unified (single column) diff view.
  * Parses raw unified diff text from git.
  */
-import { memo, useMemo } from 'react';
+import { memo, useMemo, lazy, Suspense } from 'react';
 import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../lib/utils';
+import { isImageFile } from '../../lib/file-utils';
+
+// Lazy-load ImageDiffViewer only when needed (binary image files)
+const ImageDiffViewer = lazy(() => import('../viewers/ImageDiffViewer'));
 
 interface FileDiff {
   path: string;
@@ -52,12 +56,16 @@ function DiffHeader({ fileDiff }: DiffHeaderProps) {
 interface DiffViewerProps {
   fileDiff?: FileDiff | null;
   showHeader?: boolean;
+  /** Repo path — needed when rendering ImageDiffViewer for binary image files. */
+  repoPath?: string;
+  /** Commit hash — passed to ImageDiffViewer for history diffs. */
+  commitHash?: string;
 }
 
 /**
  * DiffViewer - Main component for viewing file diffs.
  */
-function DiffViewer({ fileDiff, showHeader = true }: DiffViewerProps) {
+function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffViewerProps) {
   // Parse the raw diff text using react-diff-view
   const files = useMemo(() => {
     if (!fileDiff?.rawDiff) return [];
@@ -87,8 +95,31 @@ function DiffViewer({ fileDiff, showHeader = true }: DiffViewerProps) {
     );
   }
 
-  // Binary file
+  // Binary file — render ImageDiffViewer for image files, fallback message for others
   if (fileDiff.binary) {
+    if (repoPath && isImageFile(fileDiff.path)) {
+      return (
+        <div className="flex flex-col h-full">
+          {showHeader && <DiffHeader fileDiff={fileDiff} />}
+          <div className="flex-1 min-h-0">
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full text-theme-secondary text-sm">
+                  Loading image diff viewer…
+                </div>
+              }
+            >
+              <ImageDiffViewer
+                repoPath={repoPath}
+                filePath={fileDiff.path}
+                commitHash={commitHash}
+                isWorkingTree={!commitHash}
+              />
+            </Suspense>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col h-full">
         {showHeader && <DiffHeader fileDiff={fileDiff} />}

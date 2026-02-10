@@ -1,7 +1,7 @@
 /**
  * SidebarCommitPanel - Compact commit form for sidebar.
  * Shows commit message input, action buttons, and changed files list.
- * Clicking on an L5X file opens a domain-aware diff viewer.
+ * Clicking on files with visual diff support (L5X, images) opens the diff viewer.
  */
 import { memo, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react';
 import {
@@ -24,6 +24,7 @@ import {
 import { MasterBranchNudge } from '../../common';
 import { RewindConfirmModal, BranchNameModal } from '../';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
+import { supportsVisualDiff } from '../../../lib/file-utils';
 import type { FileStatus } from '../../../context';
 
 // ============================================================================
@@ -54,49 +55,36 @@ interface ChangedFilesListProps {
 }
 
 // ============================================================================
-// Helpers
-// ============================================================================
-
-/** Extensions that support domain-aware diff viewing. */
-const DOMAIN_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
-
-/** Check if a file supports domain-aware diff viewing. */
-function supportsDomainDiff(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return DOMAIN_DIFF_EXTENSIONS.has(ext);
-}
-
-// ============================================================================
 // Components
 // ============================================================================
 
 /**
  * ChangedFileItem - Single file in the changed files list.
  * Uses shortLabel for compact display.
- * Clicking on L5X files opens the domain-aware diff viewer.
+ * Clicking on files with visual diff support (L5X, images) opens the diff viewer.
  */
 const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff }: ChangedFileItemProps): JSX.Element {
   const statusConfig = STATUS_CONFIG[file.status as FileStatusType] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
   const StatusIcon = statusConfig.Icon;
-  const hasDomainDiff = supportsDomainDiff(file.path);
+  const hasVisualDiff = supportsVisualDiff(file.path);
   
   const handleClick = useCallback(() => {
-    if (hasDomainDiff && onOpenDiff) {
+    if (hasVisualDiff && onOpenDiff) {
       onOpenDiff(file);
     }
-  }, [file, hasDomainDiff, onOpenDiff]);
+  }, [file, hasVisualDiff, onOpenDiff]);
   
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={!hasDomainDiff}
+      disabled={!hasVisualDiff}
       className={`w-full flex items-center gap-2 px-2 py-1 rounded text-sm text-left transition-colors
-        ${hasDomainDiff 
+        ${hasVisualDiff 
           ? 'hover-bg-theme-interactive cursor-pointer' 
           : 'cursor-default opacity-70'
         }`}
-      title={hasDomainDiff ? `View changes: ${file.path}` : file.path}
+      title={hasVisualDiff ? `View changes: ${file.path}` : file.path}
     >
       <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
       <FileText style={ICON_STYLES.xs as CSSProperties} className="text-theme-muted shrink-0" />
@@ -199,7 +187,7 @@ function SidebarCommitPanel({
   }, [onRewind]);
 
   /**
-   * Open a domain-aware diff viewer for supported file types (L5X, L5K).
+   * Open a visual diff viewer for supported file types (L5X, L5K, images).
    * Creates an explorer tab showing working tree changes (HEAD vs current).
    */
   const handleOpenDiff = useCallback((file: FileStatus): void => {
