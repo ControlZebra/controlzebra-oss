@@ -6,7 +6,7 @@
  * Merges frontend localStorage + backend settings for comprehensive history.
  */
 import { memo, useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent } from 'react';
-import { Clock, GitBranch, HardDrive, Folder, X, Trash2 } from 'lucide-react';
+import { Clock, GitBranch, HardDrive, Folder, X, Trash2, RotateCcw } from 'lucide-react';
 import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { getRecentFolders, removeRecentFolder, clearRecentFolders, getFolderName } from '../../../../lib/recentFolders';
 import { GetRecentFolders, ClearRecentFolders } from '../../../../../bindings/controlzebra/services/settingsservice';
@@ -233,6 +233,35 @@ function RecentProjectsPage({ onOpenPath }: RecentProjectsPageProps): JSX.Elemen
             <p className="text-theme-muted text-xs">
               Start by creating a new project or opening a folder.
             </p>
+          </div>
+        )}
+
+        {/* Last Opened project card */}
+        {projects.length > 0 && (
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <RotateCcw style={ICON_STYLES.xs as CSSProperties} className="text-blue-400" />
+              <span className="text-xs font-medium uppercase tracking-wide text-blue-400">Last Opened</span>
+            </div>
+            <button
+              onClick={() => handleOpen(projects[0].path)}
+              className="w-full flex items-center gap-4 p-4 bg-blue-500/10 border border-blue-500/25 rounded-lg hover:bg-blue-500/20 transition-colors cursor-pointer group text-left"
+            >
+              <div className="p-2.5 rounded-lg bg-blue-500/20 shrink-0">
+                <StatusIcon status={projects[0].status} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-theme-primary text-sm font-semibold truncate">
+                  {projects[0].name}
+                </p>
+                <p className="text-theme-muted text-xs truncate mt-0.5">
+                  {projects[0].path}
+                </p>
+              </div>
+              <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                Open →
+              </span>
+            </button>
           </div>
         )}
 

@@ -58,10 +58,17 @@ interface RungPanelProps {
   rung: NormalizedRung;
   label: string;
   accentColor: string;     // Tailwind border color class
-  bgTint: string;          // Tailwind bg tint class
+  /** Inline rgba background tint (avoids Tailwind opacity issues). */
+  bgTint: string;
   theme?: LadderDiagramTheme;
   isDarkMode?: boolean;
 }
+
+/** Inline tint colors — explicit rgba avoids Tailwind theme() opacity bugs. */
+const PANEL_TINTS = {
+  added:   'rgba(34, 197, 94, 0.2)',   // green-500 at 6%
+  removed: 'rgba(239, 68, 68, 0.2)',   // red-500 at 6%
+} as const;
 
 /** Renders a single rung inside a colored panel. */
 const RungPanel = memo(function RungPanel({
@@ -82,7 +89,10 @@ const RungPanel = memo(function RungPanel({
   }), [theme]);
 
   return (
-    <div className={`relative ${bgTint} rounded border-2 ${accentColor}`}>
+    <div
+      className={`relative rounded border ${accentColor}`}
+      style={{ backgroundColor: bgTint }}
+    >
       {/* Side label */}
       <div className="absolute top-1 left-2 z-10 text-[10px] font-semibold uppercase tracking-wider text-theme-muted">
         {label}
@@ -149,7 +159,7 @@ function RungChangeCard({ rungDiff, theme, isDarkMode }: RungChangeCardProps): J
             rung={oldRung}
             label="Old"
             accentColor="border-theme-removed"
-            bgTint="bg-theme-removed"
+            bgTint={PANEL_TINTS.removed}
             theme={theme}
             isDarkMode={isDarkMode}
           />
@@ -161,7 +171,7 @@ function RungChangeCard({ rungDiff, theme, isDarkMode }: RungChangeCardProps): J
             rung={newRung}
             label="New"
             accentColor="border-theme-added"
-            bgTint="bg-theme-added"
+            bgTint={PANEL_TINTS.added}
             theme={theme}
             isDarkMode={isDarkMode}
           />
