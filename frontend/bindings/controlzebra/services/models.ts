@@ -1621,6 +1621,115 @@ export class GraphCommit {
 }
 
 /**
+ * ImageDiffResult contains the result of comparing two image versions.
+ */
+export class ImageDiffResult {
+    "success": boolean;
+    "error"?: string;
+
+    /**
+     * Base64-encoded images (data only, no data: URL prefix)
+     * Image at old revision
+     */
+    "oldImage"?: string;
+
+    /**
+     * Image at new revision (or working tree)
+     */
+    "newImage"?: string;
+
+    /**
+     * imgdiff output highlighting pixel changes
+     */
+    "diffImage"?: string;
+
+    /**
+     * MIME type for the original images (based on file extension)
+     */
+    "mimeType": string;
+
+    /**
+     * Metadata
+     */
+    "oldWidth": number;
+    "oldHeight": number;
+    "newWidth": number;
+    "newHeight": number;
+
+    /**
+     * Bytes of raw image data
+     */
+    "oldSize": number;
+
+    /**
+     * Bytes of raw image data
+     */
+    "newSize": number;
+
+    /**
+     * Diff statistics from imgdiff
+     */
+    "diffPixelCount": number;
+    "totalPixels": number;
+    "isEqual": boolean;
+
+    /**
+     * Status: "added", "modified", "deleted"
+     */
+    "status": string;
+
+    /** Creates a new ImageDiffResult instance. */
+    constructor($$source: Partial<ImageDiffResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("mimeType" in $$source)) {
+            this["mimeType"] = "";
+        }
+        if (!("oldWidth" in $$source)) {
+            this["oldWidth"] = 0;
+        }
+        if (!("oldHeight" in $$source)) {
+            this["oldHeight"] = 0;
+        }
+        if (!("newWidth" in $$source)) {
+            this["newWidth"] = 0;
+        }
+        if (!("newHeight" in $$source)) {
+            this["newHeight"] = 0;
+        }
+        if (!("oldSize" in $$source)) {
+            this["oldSize"] = 0;
+        }
+        if (!("newSize" in $$source)) {
+            this["newSize"] = 0;
+        }
+        if (!("diffPixelCount" in $$source)) {
+            this["diffPixelCount"] = 0;
+        }
+        if (!("totalPixels" in $$source)) {
+            this["totalPixels"] = 0;
+        }
+        if (!("isEqual" in $$source)) {
+            this["isEqual"] = false;
+        }
+        if (!("status" in $$source)) {
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ImageDiffResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ImageDiffResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ImageDiffResult($$parsedSource as Partial<ImageDiffResult>);
+    }
+}
+
+/**
  * ImportLFSGroupsResult contains the result of an import operation
  */
 export class ImportLFSGroupsResult {

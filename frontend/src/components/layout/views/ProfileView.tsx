@@ -14,7 +14,8 @@ const avatarStyle: CSSProperties = { width: avatarSize, height: avatarSize };
 function ProfileView(): JSX.Element {
   const { isAuthenticated, userName, userEmail, logout } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const plan = 'Super Contributor'; // 'Free' | 'Pro' | 'Super Contributor' | 'Team'
+  type Plan = 'Free' | 'Pro' | 'Super Contributor' | 'Team';
+  const plan: Plan = isAuthenticated ? 'Super Contributor' : 'Free';
 
   const handleSignOut = async () => {
     setIsSigningOut(true);

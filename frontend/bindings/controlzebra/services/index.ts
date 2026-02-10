@@ -7,6 +7,7 @@ import * as FileSystemService from "./filesystemservice.js";
 import * as FileWatcherService from "./filewatcherservice.js";
 import * as GitHubService from "./githubservice.js";
 import * as GitService from "./gitservice.js";
+import * as ImageDiffService from "./imagediffservice.js";
 import * as LFSService from "./lfsservice.js";
 import * as ProgressService from "./progressservice.js";
 import * as RepositorySettingsService from "./repositorysettingsservice.js";
@@ -20,6 +21,7 @@ export {
     FileWatcherService,
     GitHubService,
     GitService,
+    ImageDiffService,
     LFSService,
     ProgressService,
     RepositorySettingsService,
@@ -66,6 +68,7 @@ export {
     GitRemoteInfo,
     GitVersion,
     GraphCommit,
+    ImageDiffResult,
     ImportLFSGroupsResult,
     LFSFileStatus,
     LFSInfo,

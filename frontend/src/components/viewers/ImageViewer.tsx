@@ -16,6 +16,7 @@
  * - Displays image dimensions and file size
  * - Loading and error states
  * - Caches loaded data URLs to avoid redundant backend calls
+ * - Auto-refreshes when files change on disk (via files-changed event)
  */
 import { memo, useState, useMemo, useEffect, useRef } from 'react';
 import { PhotoProvider, PhotoView } from 'react-photo-view';
@@ -27,9 +28,11 @@ import {
   RotateCw,
   Minimize,
 } from 'lucide-react';
+import { Events } from '@wailsio/runtime';
 import { ICON_SIZES } from '../../constants';
 import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../lib/viewers';
+import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from './image-utils';
 
 // ---------------------------------------------------------------------------
 // Cache – avoids re-fetching base64 when switching tabs
@@ -44,36 +47,19 @@ interface CachedImage {
 
 const imageCache = new Map<string, CachedImage>();
 
-/** Simple human-readable file size */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/**
+ * Invalidate a specific file's image cache entry.
+ * @param filePath - Absolute file path
+ */
+export function invalidateImageCacheForFile(filePath: string): void {
+  imageCache.delete(filePath);
 }
 
-// ---------------------------------------------------------------------------
-// Toolbar Icons (used inside react-photo-view toolbar)
-// ---------------------------------------------------------------------------
-
-function ToolbarIcon({
-  children,
-  onClick,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title?: string;
-}) {
-  return (
-    <div
-      className="PhotoView-Slider__toolbarIcon"
-      onClick={onClick}
-      title={title}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      {children}
-    </div>
-  );
+/**
+ * Clear all image cache entries.
+ */
+export function clearImageCache(): void {
+  imageCache.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -90,9 +76,31 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
   const [fileSize, setFileSize] = useState<number | null>(cached?.fileSize ?? null);
   const [isLoading, setIsLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
+  // Counter to force re-fetch when files change on disk
+  const [refreshCounter, setRefreshCounter] = useState(0);
   const mountedRef = useRef(true);
 
   const fileName = useMemo(() => filePath.split('/').pop() || filePath, [filePath]);
+
+  // -----------------------------------------------------------------------
+  // File change subscription – refresh when file changes on disk
+  // -----------------------------------------------------------------------
+
+  useEffect(() => {
+    const handleFilesChanged = () => {
+      // Invalidate this file's cache entry and bump counter to trigger re-fetch
+      imageCache.delete(filePath);
+      setRefreshCounter((c) => c + 1);
+    };
+
+    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [filePath]);
 
   // -----------------------------------------------------------------------
   // Load image from backend
@@ -161,7 +169,7 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
     return () => {
       mountedRef.current = false;
     };
-  }, [filePath]);
+  }, [filePath, refreshCounter]);
 
   // -----------------------------------------------------------------------
   // Error state
@@ -236,13 +244,7 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
             {/* Inline clickable preview */}
             <div
               className="relative cursor-zoom-in rounded-md overflow-hidden border border-theme-default shadow-lg"
-              style={{
-                // Checkerboard transparency pattern
-                backgroundImage:
-                  'linear-gradient(45deg, #404040 25%, transparent 25%), linear-gradient(-45deg, #404040 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #404040 75%), linear-gradient(-45deg, transparent 75%, #404040 75%)',
-                backgroundSize: '16px 16px',
-                backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px',
-              }}
+              style={CHECKERBOARD_STYLE}
             >
               <img
                 src={dataUrl}

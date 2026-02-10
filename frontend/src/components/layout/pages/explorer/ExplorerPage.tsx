@@ -20,18 +20,11 @@ import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
 import { PROJECT_STATES, ICON_SIZES, type ProjectState, type ExplorerTab } from '../../../../constants';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
+import { isL5XFile, isImageFile } from '../../../../lib/file-utils';
 
-// Lazy-load L5X diff viewers for code splitting
+// Lazy-load heavy diff viewers for code splitting
 const L5XWorkingDiffViewer = lazy(() => import('../../../viewers/l5x-diff/L5XWorkingDiffViewer'));
-
-/** Extensions that trigger the domain-aware L5X diff viewer. */
-const L5X_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
-
-/** Check if a file path has an L5X extension. */
-function isL5XFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return L5X_DIFF_EXTENSIONS.has(ext);
-}
+const ImageDiffViewer = lazy(() => import('../../../viewers/ImageDiffViewer'));
 
 function ExplorerPage(): JSX.Element {
   const {
@@ -155,6 +148,7 @@ function ExplorerPage(): JSX.Element {
       const { diffContext } = tab;
       const filePath = diffContext.relativePath || tab.filePath || '';
       const isL5X = isL5XFile(filePath);
+      const isImage = isImageFile(filePath);
 
       return (
         <div
@@ -178,8 +172,23 @@ function ExplorerPage(): JSX.Element {
                 fileStatus={diffContext.status ?? 'modified'}
               />
             </Suspense>
+          ) : diffContext.type === 'working' && isImage ? (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
+                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
+                  <span className="text-sm">Loading image diff viewer…</span>
+                </div>
+              }
+            >
+              <ImageDiffViewer
+                repoPath={repoPath}
+                filePath={filePath}
+                isWorkingTree
+              />
+            </Suspense>
           ) : (
-            // Fallback to standard text diff viewer for non-L5X files
+            // Fallback to standard text diff viewer for non-L5X/non-image files
             // This requires loading the diff data - for now show placeholder
             <div className="flex items-center justify-center h-full text-theme-muted text-sm">
               Diff view for {filePath}

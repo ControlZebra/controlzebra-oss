@@ -17,18 +17,11 @@ import {
 import { VIEWS, ICON_SIZES } from '../../../constants';
 import { useRepo, type CommitDetail } from '../../../context';
 import { DiffViewer, EmptyState, LoadingState } from '../../common';
+import { isL5XFile, isImageFile } from '../../../lib/file-utils';
 
-// Lazy-load the L5X diff viewer for code splitting (it pulls in ladder-visualizer)
+// Lazy-load heavy diff viewers for code splitting
 const L5XDiffViewer = lazy(() => import('../../viewers/l5x-diff/L5XDiffViewer'));
-
-/** Extensions that trigger the domain-aware L5X diff viewer. */
-const L5X_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
-
-/** Check if a file path has an L5X extension. */
-function isL5XFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return L5X_DIFF_EXTENSIONS.has(ext);
-}
+const ImageDiffViewer = lazy(() => import('../../viewers/ImageDiffViewer'));
 import { 
   Button,
   AlertDialog,
@@ -201,9 +194,14 @@ function HistoryPage(): JSX.Element {
     revertCommit,
   } = useRepo();
 
-  // Determine if the currently selected file is an L5X file
+  // Determine if the currently selected file is an L5X file or image file
   const isL5XDiff = useMemo(
     () => selectedCommitFile ? isL5XFile(selectedCommitFile) : false,
+    [selectedCommitFile],
+  );
+
+  const isImageDiff = useMemo(
+    () => selectedCommitFile ? isImageFile(selectedCommitFile) : false,
     [selectedCommitFile],
   );
 
@@ -276,7 +274,7 @@ function HistoryPage(): JSX.Element {
   );
 
   // Viewing a file diff from a commit
-  if (selectedCommit && selectedCommitFile && (currentDiff || isL5XDiff)) {
+  if (selectedCommit && selectedCommitFile && (currentDiff || isL5XDiff || isImageDiff)) {
     return (
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
@@ -304,8 +302,23 @@ function HistoryPage(): JSX.Element {
                 fileStatus={selectedFileInfo?.status ?? 'modified'}
               />
             </Suspense>
+          ) : isImageDiff && repoPath ? (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
+                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
+                  <span className="text-sm">Loading image diff viewer…</span>
+                </div>
+              }
+            >
+              <ImageDiffViewer
+                repoPath={repoPath}
+                filePath={selectedCommitFile}
+                commitHash={selectedCommit.hash}
+              />
+            </Suspense>
           ) : (
-            <DiffViewer fileDiff={currentDiff} showHeader={true} />
+            <DiffViewer fileDiff={currentDiff} showHeader={true} repoPath={repoPath ?? undefined} commitHash={selectedCommit.hash} />
           )}
         </div>
         {restoreConfirmModal}

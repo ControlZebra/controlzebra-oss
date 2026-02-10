@@ -69,6 +69,7 @@ func main() {
 			application.NewService(services.NewGitService()),
 			application.NewService(services.NewLFSService()),
 			application.NewService(services.NewGitHubService()),
+			application.NewService(services.NewImageDiffService()),
 			application.NewService(settingsService),
 			application.NewService(fileSystemService),
 			application.NewService(fileDialogService),
