@@ -40,6 +40,7 @@ import {
   Copy,
   Info,
   Cloud,
+  Box,
   type LucideIcon,
 } from 'lucide-react';
 import { 
@@ -49,6 +50,7 @@ import {
   CopyToClipboard,
 } from '../../../bindings/controlzebra/services/filesystemservice';
 import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
+import { LFSLsFiles } from '../../../bindings/controlzebra/services/lfsservice';
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
@@ -556,9 +558,11 @@ function FileItemGrid({ file, gitStatus, onDoubleClick }: FileItemGridProps) {
 interface FileItemListProps {
   file: FileEntry;
   gitStatus?: string;
+  isLfs?: boolean;
   onDoubleClick: () => void;
   isSelected?: boolean;
   onSelect?: () => void;
+  onPreview?: () => void;
   onContextAction?: (action: FileContextAction, file: FileEntry) => void;
 }
 
@@ -591,7 +595,7 @@ const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string 
 /**
  * File item component for table view (used in virtualized list)
  */
-const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick, isSelected, onSelect, onContextAction }: FileItemListProps) {
+const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, onDoubleClick, isSelected, onSelect, onPreview, onContextAction }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
@@ -599,6 +603,18 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
     e.stopPropagation();
     onContextAction?.('share', file);
   }, [file, onContextAction]);
+
+  const handlePreviewClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onPreview?.();
+  }, [onPreview]);
+  
+  // Check if this file has a viewer available (for preview button)
+  const hasViewer = useMemo(() => {
+    if (file.isDirectory) return false;
+    const viewer = getViewerForFile(file.name);
+    return viewer && viewer.id !== 'unsupported';
+  }, [file.name, file.isDirectory]);
   
   return (
     <ContextMenu>
@@ -617,6 +633,13 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
           <div className="w-6 shrink-0 flex items-center justify-center" role="cell">
             <GitStatusIcon status={!file.isDirectory ? gitStatus : undefined} />
           </div>
+
+          {/* LFS Column */}
+          <div className="w-6 shrink-0 flex items-center justify-center" role="cell" title={isLfs ? 'LFS tracked' : undefined}>
+            {isLfs && (
+              <Box className="w-3.5 h-3.5 text-blue-400" />
+            )}
+          </div>
           
           {/* Type Icon Column */}
           <div className="w-8 shrink-0 flex items-center justify-center" role="cell">
@@ -628,10 +651,21 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, onDoubleClick
             <span className={`text-sm truncate flex-1 ${statusColor || 'text-theme-primary'}`}>
               {file.name}
             </span>
-            {/* Share button - visible on hover, positioned at right end */}
+            {/* Preview button - primary style, visible on hover */}
+            {hasViewer && (
+              <button
+                onClick={handlePreviewClick}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 bg-blue-600 hover:bg-blue-500 text-white transition-all shrink-0 text-xs font-medium"
+                title="Preview"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Preview</span>
+              </button>
+            )}
+            {/* Share button - visible on hover */}
             <button
               onClick={handleShareClick}
-              className="flex items-center gap-1 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-fb-hover text-theme-muted hover:text-theme-primary transition-all shrink-0 text-xs"
+              className="flex items-center gap-1 px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-fb-hover text-theme-muted hover:text-theme-primary transition-all shrink-0 text-xs ml-1"
               title="Share"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -709,6 +743,9 @@ const FileTableHeader = memo(function FileTableHeader() {
     >
       {/* Git Status Column - no header text */}
       <div className="w-6 shrink-0" role="columnheader" aria-label="Git status" />
+
+      {/* LFS Column - no header text */}
+      <div className="w-6 shrink-0" role="columnheader" aria-label="LFS" />
       
       {/* Type Icon Column - no header text */}
       <div className="w-8 shrink-0" role="columnheader" aria-label="Type" />
@@ -762,16 +799,26 @@ function LoadingStateInternal() {
 interface FileDetailsSidebarProps {
   file: FileEntry | null;
   gitStatus?: string;
+  isLfs?: boolean;
   onClose: () => void;
+  onPreview?: (file: FileEntry) => void;
+  onOpenInApp?: (file: FileEntry) => void;
 }
 
 /**
  * Right sidebar showing file details and actions
  */
-const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, onClose }: FileDetailsSidebarProps) {
+const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, isLfs, onClose, onPreview, onOpenInApp }: FileDetailsSidebarProps) {
   const Icon = file ? getFileIcon(file.name, file.isDirectory) : File;
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   const statusLabel = gitStatus ? GIT_STATUS_LABELS[gitStatus] : '';
+
+  // Check if this file has a viewer available
+  const hasViewer = useMemo(() => {
+    if (!file || file.isDirectory) return false;
+    const viewer = getViewerForFile(file.name);
+    return viewer && viewer.id !== 'unsupported';
+  }, [file]);
 
   const handleRevealInFileManager = useCallback(async () => {
     if (!file) return;
@@ -782,6 +829,16 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
     if (!file) return;
     await copyTextToClipboard(file.path, 'Path copied to clipboard');
   }, [file]);
+
+  const handlePreview = useCallback(() => {
+    if (!file) return;
+    onPreview?.(file);
+  }, [file, onPreview]);
+
+  const handleOpenInApp = useCallback(() => {
+    if (!file) return;
+    onOpenInApp?.(file);
+  }, [file, onOpenInApp]);
 
   if (!file) return null;
 
@@ -814,6 +871,11 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
               {statusLabel} - {gitStatus.charAt(0).toUpperCase() + gitStatus.slice(1)}
             </span>
           )}
+          {isLfs && (
+            <span className="flex items-center gap-1 text-xs mt-1 text-blue-400">
+              <Box className="w-3 h-3" /> LFS Tracked
+            </span>
+          )}
         </div>
 
         {/* File Properties */}
@@ -842,6 +904,26 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, o
         <div className="mt-6 pt-4 border-t border-theme-muted">
           <h5 className="text-xs font-medium text-theme-muted mb-3 uppercase tracking-wider">Actions</h5>
           <div className="space-y-1">
+            {/* Preview - primary style */}
+            {hasViewer && (
+              <button
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors"
+                onClick={handlePreview}
+              >
+                <Eye className="w-4 h-4" />
+                <span>Preview</span>
+              </button>
+            )}
+            {/* Open in Default App */}
+            {!file.isDirectory && (
+              <button
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
+                onClick={handleOpenInApp}
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Open in Default App</span>
+              </button>
+            )}
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
               onClick={handleRevealInFileManager}
@@ -887,18 +969,22 @@ interface SimpleFileBrowserProps {
 interface VirtualizedFileTableProps {
   files: FileEntry[];
   gitStatusMap: Record<string, string>;
+  lfsFilesSet: Set<string>;
   selectedPath: string | null;
   onSelect: (path: string) => void;
   onDoubleClick: (file: FileEntry) => void;
+  onPreview: (file: FileEntry) => void;
   onContextAction: (action: FileContextAction, file: FileEntry) => void;
 }
 
 function VirtualizedFileTable({ 
   files, 
   gitStatusMap, 
+  lfsFilesSet,
   selectedPath, 
   onSelect, 
   onDoubleClick,
+  onPreview,
   onContextAction,
 }: VirtualizedFileTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -943,9 +1029,11 @@ function VirtualizedFileTable({
               <FileTableRow
                 file={file}
                 gitStatus={gitStatusMap[file.name]}
+                isLfs={lfsFilesSet.has(file.name)}
                 isSelected={selectedPath === file.path}
                 onSelect={() => onSelect(file.path)}
                 onDoubleClick={() => onDoubleClick(file)}
+                onPreview={() => onPreview(file)}
                 onContextAction={onContextAction}
               />
             </div>
@@ -967,6 +1055,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [lfsFiles, setLfsFiles] = useState<Set<string>>(new Set());
   
   const { repoStatus } = useRepo();
   const { openExplorerTab } = useLayout();
@@ -1016,6 +1105,42 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     () => buildGitStatusMap(repoStatus, currentPath, repoPath),
     [repoStatus, currentPath, repoPath]
   );
+
+  // Load LFS tracked files list
+  useEffect(() => {
+    if (!repoPath) {
+      setLfsFiles(new Set());
+      return;
+    }
+
+    let aborted = false;
+    (async () => {
+      try {
+        const fileList = await LFSLsFiles(repoPath);
+        if (aborted) return;
+        // LFSLsFiles returns paths relative to repo root
+        // Extract just the file names for files in the current directory
+        const lfsSet = new Set<string>();
+        const relCurrentPath = currentPath?.startsWith(repoPath)
+          ? currentPath.slice(repoPath.length + 1)
+          : '';
+        for (const filePath of fileList) {
+          const dir = filePath.includes('/')
+            ? filePath.substring(0, filePath.lastIndexOf('/'))
+            : '';
+          if (dir === relCurrentPath) {
+            const name = filePath.split('/').pop();
+            if (name) lfsSet.add(name);
+          }
+        }
+        setLfsFiles(lfsSet);
+      } catch {
+        // LFS not available or error — silently ignore
+        if (!aborted) setLfsFiles(new Set());
+      }
+    })();
+    return () => { aborted = true; };
+  }, [repoPath, currentPath]);
 
   // Track the last successfully loaded path so we can distinguish
   // "navigating to a new directory" from "in-place refresh of the same directory".
@@ -1105,6 +1230,19 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
       toast.info('Preview not available for this file type');
     }
   }, [openExplorerTab]);
+
+  // Handle open in default app (from sidebar)
+  const handleOpenInApp = useCallback(async (file: FileEntry) => {
+    if (file.isDirectory) return;
+    try {
+      const result = await OpenFile(file.path);
+      if (!result.success) {
+        toast.error(`Failed to open file: ${result.error}`);
+      }
+    } catch {
+      toast.error('Failed to open file');
+    }
+  }, []);
 
   // Handle file/folder double-click - opens in default application
   const handleItemDoubleClick = useCallback(async (file: FileEntry) => {
@@ -1250,9 +1388,11 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
             <VirtualizedFileTable
               files={files}
               gitStatusMap={gitStatusMap}
+              lfsFilesSet={lfsFiles}
               selectedPath={selectedPath}
               onSelect={handleSelect}
               onDoubleClick={handleItemDoubleClick}
+              onPreview={handlePreview}
               onContextAction={handleContextAction}
             />
           )}
@@ -1263,7 +1403,10 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
           <FileDetailsSidebar
             file={selectedFile}
             gitStatus={selectedFile ? gitStatusMap[selectedFile.name] : undefined}
+            isLfs={selectedFile ? lfsFiles.has(selectedFile.name) : false}
             onClose={handleCloseSidebar}
+            onPreview={handlePreview}
+            onOpenInApp={handleOpenInApp}
           />
         )}
       </div>
