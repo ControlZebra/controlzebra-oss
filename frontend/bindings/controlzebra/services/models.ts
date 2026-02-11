@@ -2976,6 +2976,49 @@ export class TrackedPattern {
 }
 
 /**
+ * UntrackedLargeFile describes a single untracked file that exceeds a size threshold.
+ */
+export class UntrackedLargeFile {
+    /**
+     * Relative to repo root
+     */
+    "path": string;
+
+    /**
+     * Size in bytes
+     */
+    "size": number;
+
+    /**
+     * True if content detected as non-text
+     */
+    "isBinary": boolean;
+
+    /** Creates a new UntrackedLargeFile instance. */
+    constructor($$source: Partial<UntrackedLargeFile> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("size" in $$source)) {
+            this["size"] = 0;
+        }
+        if (!("isBinary" in $$source)) {
+            this["isBinary"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UntrackedLargeFile instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UntrackedLargeFile {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UntrackedLargeFile($$parsedSource as Partial<UntrackedLargeFile>);
+    }
+}
+
+/**
  * UpdateInfo describes an available update. Returned by CheckForUpdate when a
  * newer version exists on the update server.
  */

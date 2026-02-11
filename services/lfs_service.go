@@ -5,6 +5,7 @@ package services
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -661,4 +662,102 @@ func (l *LFSService) GetOwnLocks(repoPath string) ([]LFSLock, error) {
 // This is a composite operation for convenience - use GetOwnLocks() directly for more control.
 func (l *LFSService) CheckLocksBeforeBranchSwitch(repoPath string) ([]LFSLock, error) {
 	return l.GetOwnLocks(repoPath)
+}
+
+// ============================================================================
+// Untracked Large File Detection
+// ============================================================================
+
+// UntrackedLargeFile describes a single untracked file that exceeds a size threshold.
+type UntrackedLargeFile struct {
+	Path     string `json:"path"`     // Relative to repo root
+	Size     int64  `json:"size"`     // Size in bytes
+	IsBinary bool   `json:"isBinary"` // True if content detected as non-text
+}
+
+// GetUntrackedLargeFiles returns untracked files whose size exceeds thresholdMB.
+//
+// It shells out to `git status --porcelain --untracked-files=all`, filters for
+// ?? entries (untracked), stats each file, and returns those above the threshold.
+// Paths in the result are relative to the repository root.
+func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) ([]UntrackedLargeFile, error) {
+	// Validate that repoPath is actually a git repository by checking for .git
+	result := l.runner.RunGit(repoPath, "rev-parse", "--show-toplevel")
+	if !result.Success {
+		return nil, fmt.Errorf("not a git repository: %s", getErrorMessage(result))
+	}
+	repoRoot := strings.TrimSpace(result.Stdout)
+
+	// Get untracked files via porcelain status
+	result = l.runner.RunGit(repoPath, "status", "--porcelain", "--untracked-files=all")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to get git status: %s", getErrorMessage(result))
+	}
+
+	thresholdBytes := thresholdMB * 1024 * 1024
+
+	var largeFiles []UntrackedLargeFile
+
+	scanner := bufio.NewScanner(strings.NewReader(result.Stdout))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Untracked files start with "?? "
+		if !strings.HasPrefix(line, "?? ") {
+			continue
+		}
+
+		// Extract path (everything after "?? "), trimming any trailing quotes
+		relPath := strings.TrimPrefix(line, "?? ")
+		relPath = strings.Trim(relPath, "\"") // git quotes paths with special chars
+
+		absPath := filepath.Join(repoRoot, relPath)
+
+		info, err := os.Stat(absPath)
+		if err != nil {
+			// File may have been deleted between status and stat — skip it
+			continue
+		}
+		// Skip directories (git status may list them for empty untracked dirs)
+		if info.IsDir() {
+			continue
+		}
+
+		if info.Size() < thresholdBytes {
+			continue
+		}
+
+		isBinary := detectBinary(absPath)
+
+		largeFiles = append(largeFiles, UntrackedLargeFile{
+			Path:     relPath,
+			Size:     info.Size(),
+			IsBinary: isBinary,
+		})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to parse git status output: %w", err)
+	}
+
+	return largeFiles, nil
+}
+
+// detectBinary reads the first 512 bytes of a file and uses http.DetectContentType
+// to determine whether the content is binary (i.e. not text/*).
+func detectBinary(filePath string) bool {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false // assume text if unreadable — caller already validated existence
+	}
+	defer f.Close()
+
+	buf := make([]byte, 512)
+	n, _ := f.Read(buf)
+	if n == 0 {
+		return false // empty file is text
+	}
+
+	mime := http.DetectContentType(buf[:n])
+	return !strings.HasPrefix(mime, "text/")
 }

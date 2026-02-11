@@ -80,12 +80,25 @@ export function GetTrackedPatterns(repoPath: string): $CancellablePromise<$model
 }
 
 /**
+ * GetUntrackedLargeFiles returns untracked files whose size exceeds thresholdMB.
+ * 
+ * It shells out to `git status --porcelain --untracked-files=all`, filters for
+ * ?? entries (untracked), stats each file, and returns those above the threshold.
+ * Paths in the result are relative to the repository root.
+ */
+export function GetUntrackedLargeFiles(repoPath: string, thresholdMB: number): $CancellablePromise<$models.UntrackedLargeFile[]> {
+    return $Call.ByID(1125462664, repoPath, thresholdMB).then(($result: any) => {
+        return $$createType7($result);
+    });
+}
+
+/**
  * InitializeLFS initializes Git LFS for a repository
  * This runs `git lfs install` in the repo context
  */
 export function InitializeLFS(repoPath: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(1550991098, repoPath).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -94,7 +107,7 @@ export function InitializeLFS(repoPath: string): $CancellablePromise<$models.Ope
  */
 export function IsLFSEnabled(repoPath: string): $CancellablePromise<$models.LFSInfo> {
     return $Call.ByID(212658745, repoPath).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType9($result);
     });
 }
 
@@ -120,7 +133,7 @@ export function LFSEnv(repoPath: string): $CancellablePromise<string> {
  */
 export function LFSFetch(repoPath: string, remote: string, ...refs: string[]): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(2653944688, repoPath, remote, refs).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -130,7 +143,7 @@ export function LFSFetch(repoPath: string, remote: string, ...refs: string[]): $
  */
 export function LFSFetchAll(repoPath: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(3441729315, repoPath).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -139,7 +152,7 @@ export function LFSFetchAll(repoPath: string): $CancellablePromise<$models.Opera
  */
 export function LFSLock(repoPath: string, filePath: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(1094142239, repoPath, filePath).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -158,7 +171,7 @@ export function LFSLocks(repoPath: string): $CancellablePromise<$models.LFSLock[
  */
 export function LFSLsFiles(repoPath: string): $CancellablePromise<string[]> {
     return $Call.ByID(3535379240, repoPath).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType10($result);
     });
 }
 
@@ -184,7 +197,7 @@ export function LFSPointer(repoPath: string, filePath: string): $CancellableProm
  */
 export function LFSPrune(repoPath: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(1209197576, repoPath).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -202,7 +215,7 @@ export function LFSPruneDryRun(repoPath: string): $CancellablePromise<string> {
  */
 export function LFSPull(repoPath: string, remote: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(2864524871, repoPath, remote).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -212,7 +225,7 @@ export function LFSPull(repoPath: string, remote: string): $CancellablePromise<$
  */
 export function LFSPush(repoPath: string, remote: string, ref: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(2899507132, repoPath, remote, ref).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -222,7 +235,7 @@ export function LFSPush(repoPath: string, remote: string, ref: string): $Cancell
  */
 export function LFSPushAll(repoPath: string, remote: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(1010659303, repoPath, remote).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -231,7 +244,7 @@ export function LFSPushAll(repoPath: string, remote: string): $CancellablePromis
  */
 export function LFSStatus(repoPath: string): $CancellablePromise<$models.LFSFileStatus[]> {
     return $Call.ByID(900216298, repoPath).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType12($result);
     });
 }
 
@@ -240,7 +253,7 @@ export function LFSStatus(repoPath: string): $CancellablePromise<$models.LFSFile
  */
 export function LFSUnlock(repoPath: string, filePath: string, force: boolean): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(1158361252, repoPath, filePath, force).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -250,7 +263,7 @@ export function LFSUnlock(repoPath: string, filePath: string, force: boolean): $
  */
 export function TrackPattern(repoPath: string, pattern: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(982177290, repoPath, pattern).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -260,7 +273,7 @@ export function TrackPattern(repoPath: string, pattern: string): $CancellablePro
  */
 export function UntrackPattern(repoPath: string, pattern: string): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(439691505, repoPath, pattern).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType8($result);
     });
 }
 
@@ -271,8 +284,10 @@ const $$createType2 = $models.PresetPattern.createFrom;
 const $$createType3 = $Create.Array($$createType2);
 const $$createType4 = $models.TrackedPattern.createFrom;
 const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $models.OperationResult.createFrom;
-const $$createType7 = $models.LFSInfo.createFrom;
-const $$createType8 = $Create.Array($Create.Any);
-const $$createType9 = $models.LFSFileStatus.createFrom;
-const $$createType10 = $Create.Array($$createType9);
+const $$createType6 = $models.UntrackedLargeFile.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $models.OperationResult.createFrom;
+const $$createType9 = $models.LFSInfo.createFrom;
+const $$createType10 = $Create.Array($Create.Any);
+const $$createType11 = $models.LFSFileStatus.createFrom;
+const $$createType12 = $Create.Array($$createType11);

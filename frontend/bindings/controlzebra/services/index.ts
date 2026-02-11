@@ -95,6 +95,7 @@ export {
     RepositorySettings,
     StashEntry,
     TrackedPattern,
+    UntrackedLargeFile,
     UpdateInfo,
     UserProfile
 } from "./models.js";

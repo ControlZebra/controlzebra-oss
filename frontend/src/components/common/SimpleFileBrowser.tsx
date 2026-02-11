@@ -637,7 +637,7 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, onDoub
           {/* LFS Column */}
           <div className="w-6 shrink-0 flex items-center justify-center" role="cell" title={isLfs ? 'LFS tracked' : undefined}>
             {isLfs && (
-              <Box className="w-3.5 h-3.5 text-blue-400" />
+              <Box className="w-3.5 h-3.5 text-theme-muted" />
             )}
           </div>
           
