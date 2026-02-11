@@ -3,7 +3,9 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1617,6 +1619,89 @@ func (g *GitService) ReadFileAtRevision(repoPath string, filePath string, revisi
 // Uses a 2-minute timeout instead of the default 30 seconds.
 func (g *GitService) ReadFileAtRevisionLarge(repoPath string, filePath string, revision string) FileContentResult {
 	return g.readFileAtRevisionWithTimeout(repoPath, filePath, revision, 2*time.Minute)
+}
+
+// FileBase64Result contains the result of reading a binary file from a git revision as base64.
+type FileBase64Result struct {
+	Success  bool   `json:"success"`
+	Data     string `json:"data,omitempty"`     // Base64-encoded file content
+	MimeType string `json:"mimeType,omitempty"` // MIME type based on extension
+	Size     int64  `json:"size,omitempty"`     // Raw file size in bytes
+	Error    string `json:"error,omitempty"`
+}
+
+// GetFileAtRevisionBase64 reads a binary file from a git revision and returns it as base64.
+// Uses `git show <revision>:<path>` with raw byte capture so binary content (PDFs, etc.)
+// is not corrupted by string conversion. The revision can be a commit hash, branch, tag,
+// HEAD, HEAD~N, etc.
+func (g *GitService) GetFileAtRevisionBase64(repoPath string, filePath string, revision string) FileBase64Result {
+	if repoPath == "" {
+		return FileBase64Result{Success: false, Error: "Repository path is required"}
+	}
+	if filePath == "" {
+		return FileBase64Result{Success: false, Error: "File path is required"}
+	}
+	if revision == "" {
+		return FileBase64Result{Success: false, Error: "Revision is required"}
+	}
+
+	relPath, err := toRepoRelativePath(repoPath, filePath)
+	if err != nil {
+		return FileBase64Result{Success: false, Error: err.Error()}
+	}
+
+	objectRef := revision + ":" + relPath
+
+	// Use `git cat-file --filters` to apply smudge filters (including Git LFS).
+	// This ensures LFS-tracked files return actual content, not LFS pointers.
+	// Falls back to `git show` if cat-file fails (older git versions).
+	data, err := g.runner.RunGitRaw(repoPath, "cat-file", "--filters", objectRef)
+	if err != nil {
+		// Fallback: try `git show` for compatibility with older git versions
+		data, err = g.runner.RunGitRaw(repoPath, "show", objectRef)
+		if err != nil {
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "does not exist") || strings.Contains(errMsg, "not exist in") {
+				return FileBase64Result{Success: false, Error: fmt.Sprintf("File '%s' does not exist at revision '%s'", filePath, revision)}
+			}
+			if strings.Contains(errMsg, "bad revision") || strings.Contains(errMsg, "unknown revision") {
+				return FileBase64Result{Success: false, Error: fmt.Sprintf("Invalid revision: '%s'", revision)}
+			}
+			return FileBase64Result{Success: false, Error: fmt.Sprintf("Failed to read file at revision: %s", errMsg)}
+		}
+	}
+
+	if len(data) == 0 {
+		return FileBase64Result{Success: false, Error: fmt.Sprintf("Empty content at %s:%s", revision, relPath)}
+	}
+
+	// Safety check: detect Git LFS pointer that wasn't resolved by filters.
+	// This can happen if git-lfs is not installed or LFS objects aren't available.
+	if isLFSPointer(data) {
+		return FileBase64Result{
+			Success: false,
+			Error:   fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved. Ensure git-lfs is installed and run 'git lfs pull'.", relPath),
+		}
+	}
+
+	ext := filepath.Ext(relPath)
+	mimeType := mimeTypeFromExt(ext)
+
+	return FileBase64Result{
+		Success:  true,
+		Data:     base64.StdEncoding.EncodeToString(data),
+		MimeType: mimeType,
+		Size:     int64(len(data)),
+	}
+}
+
+// isLFSPointer checks if raw file content is a Git LFS pointer (not actual file data).
+// LFS pointers start with "version https://git-lfs" and are small text files.
+func isLFSPointer(data []byte) bool {
+	if len(data) > 1024 {
+		return false // LFS pointers are always small (<200 bytes)
+	}
+	return bytes.HasPrefix(data, []byte("version https://git-lfs"))
 }
 
 // Branches returns all branches in the repository

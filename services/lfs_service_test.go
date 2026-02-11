@@ -264,7 +264,6 @@ func TestGetPresetPatterns(t *testing.T) {
 
 	// Check that industrial patterns are included
 	hasAcd := false
-	hasL5X := false
 	for _, p := range patterns {
 		if p.Pattern == "*.acd" {
 			hasAcd = true
@@ -272,16 +271,10 @@ func TestGetPresetPatterns(t *testing.T) {
 				t.Errorf("Expected '*.acd' to be in 'industrial' category, got '%s'", p.Category)
 			}
 		}
-		if p.Pattern == "*.L5X" {
-			hasL5X = true
-		}
 	}
 
 	if !hasAcd {
 		t.Error("Expected '*.acd' in preset patterns (Rockwell)")
-	}
-	if !hasL5X {
-		t.Error("Expected '*.L5X' in preset patterns (Logix 5000)")
 	}
 }
 

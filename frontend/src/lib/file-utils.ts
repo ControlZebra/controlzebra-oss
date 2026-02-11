@@ -44,13 +44,31 @@ export function isL5XFile(filePath: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// PDF Files
+// ---------------------------------------------------------------------------
+
+const PDF_EXTENSIONS = new Set(['pdf']);
+
+/**
+ * Check if a file path is a PDF file suitable for visual page diffing.
+ *
+ * @example
+ *   isPdfFile('report.pdf')    // true
+ *   isPdfFile('readme.txt')    // false
+ */
+export function isPdfFile(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return PDF_EXTENSIONS.has(ext);
+}
+
+// ---------------------------------------------------------------------------
 // Aggregate helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Returns true if the file type supports any kind of rich visual diff
- * (image diff, L5X domain diff, etc.) — as opposed to plain text diff.
+ * (image diff, L5X domain diff, PDF visual diff, etc.) — as opposed to plain text diff.
  */
 export function supportsVisualDiff(filePath: string): boolean {
-  return isImageFile(filePath) || isL5XFile(filePath);
+  return isImageFile(filePath) || isL5XFile(filePath) || isPdfFile(filePath);
 }

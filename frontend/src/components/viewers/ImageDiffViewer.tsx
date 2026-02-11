@@ -37,6 +37,7 @@ import {
   Minus,
   AlertTriangle,
   Equal,
+  FileText,
 } from 'lucide-react';
 import { Events } from '@wailsio/runtime';
 
@@ -77,6 +78,38 @@ function cacheKey(
   commitHash?: string | null,
 ): string {
   return `${repoPath}::${filePath}::${commitHash || 'working'}`;
+}
+
+// ============================================================================
+// Toolbar Button (for mode toggle)
+// ============================================================================
+
+interface ToolbarBtnProps {
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}
+
+function ToolbarBtn({ active, disabled, onClick, title, children }: ToolbarBtnProps) {
+  return (
+    <button
+      type="button"
+      onClick={!disabled ? onClick : undefined}
+      disabled={disabled}
+      title={title}
+      className={`p-1.5 rounded transition-colors ${
+        active
+          ? 'bg-theme-accent/20 text-theme-accent'
+          : 'text-theme-muted hover:text-theme-primary hover:bg-theme-elevated'
+      } ${
+        disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 /**
@@ -392,64 +425,6 @@ const OverlayView = memo(function OverlayView({ oldUrl, newUrl }: OverlayProps) 
 });
 
 // ============================================================================
-// Mode Tabs
-// ============================================================================
-
-interface ModeTabsProps {
-  mode: DiffMode;
-  onModeChange: (m: DiffMode) => void;
-  /** Disable diff & overlay when only one side is available */
-  hasBothSides: boolean;
-  /** Disable diff highlight when no diff image exists */
-  hasDiffImage: boolean;
-}
-
-const MODE_CONFIG: {
-  id: DiffMode;
-  label: string;
-  icon: typeof Columns2;
-  shortcut: string;
-}[] = [
-  { id: 'side-by-side', label: 'Side by Side', icon: Columns2, shortcut: '1' },
-  { id: 'diff', label: 'Diff Highlight', icon: Layers, shortcut: '2' },
-  { id: 'overlay', label: 'Overlay', icon: SlidersHorizontal, shortcut: '3' },
-];
-
-const ModeTabs = memo(function ModeTabs({
-  mode,
-  onModeChange,
-  hasBothSides,
-  hasDiffImage,
-}: ModeTabsProps) {
-  return (
-    <div className="flex items-center gap-1 px-4 py-1.5 bg-theme-surface border-b border-theme-default shrink-0">
-      {MODE_CONFIG.map(({ id, label, icon: Icon, shortcut }) => {
-        const disabled =
-          (id === 'diff' && !hasDiffImage) ||
-          (id === 'overlay' && !hasBothSides);
-        const active = mode === id;
-
-        return (
-          <button
-            key={id}
-            onClick={() => !disabled && onModeChange(id)}
-            disabled={disabled}
-            className={`
-              flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors
-              ${active ? 'bg-theme-accent/15 text-theme-accent' : 'text-theme-muted hover:text-theme-primary hover:bg-theme-surface-hover'}
-              ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-            `}
-            title={`${label} (${shortcut})`}
-          >
-            <Icon size={ICON_SIZES.xs} />
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-});
-
 // ============================================================================
 // Stats Bar
 // ============================================================================
@@ -757,13 +732,48 @@ function ImageDiffViewer({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Mode selector tabs */}
-      <ModeTabs
-        mode={mode}
-        onModeChange={handleModeChange}
-        hasBothSides={hasBothSides}
-        hasDiffImage={hasDiffImage}
-      />
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-theme-default bg-theme-surface shrink-0">
+        <div className="flex items-center gap-3">
+          <FileText size={ICON_SIZES.sm} className="text-theme-secondary" />
+          <span className="text-sm text-theme-primary font-medium truncate max-w-[300px]">{fileName}</span>
+          <span className={`text-xs font-medium uppercase ${
+            result.status === 'added' ? 'text-theme-added' :
+            result.status === 'deleted' ? 'text-theme-removed' : 'text-theme-modified'
+          }`}>
+            {result.status}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Mode toggle */}
+          <div className="flex items-center gap-0.5 border border-theme-default rounded-md p-0.5">
+            <ToolbarBtn
+              active={mode === 'side-by-side'}
+              onClick={() => handleModeChange('side-by-side')}
+              title="Side by side (1)"
+            >
+              <Columns2 size={14} />
+            </ToolbarBtn>
+            <ToolbarBtn
+              active={mode === 'diff'}
+              disabled={!hasDiffImage}
+              onClick={() => handleModeChange('diff')}
+              title="Diff highlight (2)"
+            >
+              <Layers size={14} />
+            </ToolbarBtn>
+            <ToolbarBtn
+              active={mode === 'overlay'}
+              disabled={!hasBothSides}
+              onClick={() => handleModeChange('overlay')}
+              title="Overlay slider (3)"
+            >
+              <SlidersHorizontal size={14} />
+            </ToolbarBtn>
+          </div>
+        </div>
+      </div>
 
       {/* Stats bar */}
       <StatsBar result={result} />

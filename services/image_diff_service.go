@@ -296,14 +296,20 @@ func (s *ImageDiffService) computeDiff(oldImg, newImg image.Image) diffComputeRe
 	return result
 }
 
-// readImageAtRevision extracts raw image bytes from a git revision using `git show`.
-// Returns the raw bytes so they can be both decoded (for diffing) and base64-encoded
-// (for transport to frontend) without re-encoding.
+// readImageAtRevision extracts raw image bytes from a git revision.
+// Uses `git cat-file --filters` to apply smudge filters (including Git LFS),
+// falling back to `git show` for older git versions.
 func (s *ImageDiffService) readImageAtRevision(repoPath, relPath, revision string) ([]byte, error) {
-	showArg := revision + ":" + relPath
-	data, err := s.runner.RunGitRaw(repoPath, "show", showArg)
+	objectRef := revision + ":" + relPath
+
+	// Prefer cat-file --filters to resolve LFS pointers
+	data, err := s.runner.RunGitRaw(repoPath, "cat-file", "--filters", objectRef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read image at %s: %w", revision, err)
+		// Fallback to git show for compatibility
+		data, err = s.runner.RunGitRaw(repoPath, "show", objectRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read image at %s: %w", revision, err)
+		}
 	}
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty content at %s:%s", revision, relPath)

@@ -222,6 +222,8 @@ func mimeTypeFromExt(ext string) string {
 		return "image/tiff"
 	case ".avif":
 		return "image/avif"
+	case ".pdf":
+		return "application/pdf"
 	default:
 		return "application/octet-stream"
 	}
@@ -390,11 +392,12 @@ func (f *FileSystemService) OpenInTerminal(path string) OpenFileResult {
 		terminals := []string{"gnome-terminal", "xterm", "konsole", "xfce4-terminal"}
 		for _, term := range terminals {
 			if _, err := exec.LookPath(term); err == nil {
-				if term == "gnome-terminal" {
+				switch term {
+				case "gnome-terminal":
 					cmd = exec.Command(term, "--working-directory="+targetDir)
-				} else if term == "xterm" {
+				case "xterm":
 					cmd = exec.Command(term, "-e", "cd "+targetDir+" && $SHELL")
-				} else {
+				default:
 					cmd = exec.Command(term, "--workdir", targetDir)
 				}
 				break

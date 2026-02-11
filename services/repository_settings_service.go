@@ -86,9 +86,9 @@ type RepositorySettings struct {
 	MaintenanceTask BackgroundTaskConfig `json:"maintenanceTask"`
 
 	// Detailed settings
-	FetchSettings       FetchSettings           `json:"fetchSettings"`
-	LFSSettings         LFSSettings             `json:"lfsSettings"`
-	MaintenanceSettings MaintenanceSettings     `json:"maintenanceSettings"`
+	FetchSettings       FetchSettings       `json:"fetchSettings"`
+	LFSSettings         LFSSettings         `json:"lfsSettings"`
+	MaintenanceSettings MaintenanceSettings `json:"maintenanceSettings"`
 
 	// Mode flags
 	LocalOnlyMode bool `json:"localOnlyMode,omitempty"`
