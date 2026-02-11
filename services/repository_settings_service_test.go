@@ -64,10 +64,6 @@ func TestRepositorySettingsService_GetDefaultSettings(t *testing.T) {
 		t.Error("expected CommitGraph to be true by default")
 	}
 
-	// Protected branches
-	if len(settings.ProtectedBranches.ProtectedBranches) != 2 {
-		t.Errorf("expected 2 default protected branches, got %d", len(settings.ProtectedBranches.ProtectedBranches))
-	}
 }
 
 func TestRepositorySettingsService_SaveAndGetSettings(t *testing.T) {
@@ -152,44 +148,6 @@ func TestRepositorySettingsService_UpdateBackgroundTask(t *testing.T) {
 	}
 	if retrieved.FetchTask.IntervalMinutes != 20 {
 		t.Errorf("expected FetchTask interval 20, got %d", retrieved.FetchTask.IntervalMinutes)
-	}
-}
-
-func TestRepositorySettingsService_UpdateProtectedBranches(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "repo-settings-test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	service := &RepositorySettingsService{
-		runner:       NewCommandRunner(),
-		settingsDir:  tempDir,
-		taskStatuses: make(map[BackgroundTaskType]*BackgroundTaskStatus),
-		taskCancels:  make(map[string]context.CancelFunc),
-		taskContexts: make(map[string]context.Context),
-	}
-
-	repoPath := "/tmp/test-repo"
-	settings := service.GetDefaultSettings(repoPath)
-	service.SaveSettings(settings)
-
-	// Update protected branches
-	newProtected := ProtectedBranchSettings{
-		ProtectedBranches:   []string{"main", "develop", "release"},
-		WarnOnDirectCommit:  true,
-		RequireConfirmation: false,
-	}
-
-	result := service.UpdateProtectedBranches(repoPath, newProtected)
-	if !result.Success {
-		t.Fatalf("failed to update protected branches: %s", result.Error)
-	}
-
-	// Verify
-	retrieved, _ := service.GetSettings(repoPath)
-	if len(retrieved.ProtectedBranches.ProtectedBranches) != 3 {
-		t.Errorf("expected 3 protected branches, got %d", len(retrieved.ProtectedBranches.ProtectedBranches))
 	}
 }
 

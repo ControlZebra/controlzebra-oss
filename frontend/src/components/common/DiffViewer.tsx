@@ -7,10 +7,12 @@ import { memo, useMemo, lazy, Suspense } from 'react';
 import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../lib/utils';
-import { isImageFile } from '../../lib/file-utils';
+import { isImageFile, isPdfFile } from '../../lib/file-utils';
 
 // Lazy-load ImageDiffViewer only when needed (binary image files)
 const ImageDiffViewer = lazy(() => import('../viewers/ImageDiffViewer'));
+// Lazy-load PDFDiffViewer only when needed (binary PDF files)
+const PDFDiffViewer = lazy(() => import('../viewers/PDFDiffViewer'));
 
 interface FileDiff {
   path: string;
@@ -95,7 +97,7 @@ function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffV
     );
   }
 
-  // Binary file — render ImageDiffViewer for image files, fallback message for others
+  // Binary file — render ImageDiffViewer for image files, PDFDiffViewer for PDFs, fallback message for others
   if (fileDiff.binary) {
     if (repoPath && isImageFile(fileDiff.path)) {
       return (
@@ -110,6 +112,29 @@ function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffV
               }
             >
               <ImageDiffViewer
+                repoPath={repoPath}
+                filePath={fileDiff.path}
+                commitHash={commitHash}
+                isWorkingTree={!commitHash}
+              />
+            </Suspense>
+          </div>
+        </div>
+      );
+    }
+    if (repoPath && isPdfFile(fileDiff.path)) {
+      return (
+        <div className="flex flex-col h-full">
+          {showHeader && <DiffHeader fileDiff={fileDiff} />}
+          <div className="flex-1 min-h-0">
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full text-theme-secondary text-sm">
+                  Loading PDF diff viewer…
+                </div>
+              }
+            >
+              <PDFDiffViewer
                 repoPath={repoPath}
                 filePath={fileDiff.path}
                 commitHash={commitHash}

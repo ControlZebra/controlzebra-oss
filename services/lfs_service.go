@@ -208,8 +208,6 @@ type PresetPattern struct {
 var presetPatterns = []PresetPattern{
 	// Rockwell / Allen-Bradley
 	{Pattern: "*.acd", Description: "Studio 5000 Logix Designer project", Category: "industrial"},
-	{Pattern: "*.L5X", Description: "Logix 5000 XML export", Category: "industrial"},
-	{Pattern: "*.L5K", Description: "Logix 5000 text export", Category: "industrial"},
 	{Pattern: "*.mer", Description: "FactoryTalk View ME runtime", Category: "industrial"},
 	{Pattern: "*.apa", Description: "FactoryTalk View SE application", Category: "industrial"},
 

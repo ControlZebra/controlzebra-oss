@@ -917,6 +917,46 @@ export class FetchSettings {
 }
 
 /**
+ * FileBase64Result contains the result of reading a binary file from a git revision as base64.
+ */
+export class FileBase64Result {
+    "success": boolean;
+
+    /**
+     * Base64-encoded file content
+     */
+    "data"?: string;
+
+    /**
+     * MIME type based on extension
+     */
+    "mimeType"?: string;
+
+    /**
+     * Raw file size in bytes
+     */
+    "size"?: number;
+    "error"?: string;
+
+    /** Creates a new FileBase64Result instance. */
+    constructor($$source: Partial<FileBase64Result> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FileBase64Result instance from a string or object.
+     */
+    static createFrom($$source: any = {}): FileBase64Result {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FileBase64Result($$parsedSource as Partial<FileBase64Result>);
+    }
+}
+
+/**
  * FileContentResult contains the content of a file at a specific git revision
  */
 export class FileContentResult {

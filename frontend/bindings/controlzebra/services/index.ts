@@ -50,6 +50,7 @@ export {
     DirectoryContents,
     ExportLFSGroupsResult,
     FetchSettings,
+    FileBase64Result,
     FileContentResult,
     FileEntry,
     FileStatus,
