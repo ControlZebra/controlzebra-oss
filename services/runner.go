@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -39,6 +40,9 @@ func (r *CommandRunner) Run(workDir string, name string, args ...string) Command
 
 // RunWithContext executes a command with a custom context
 func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name string, args ...string) CommandResult {
+	logger := GetDebugLogger()
+	start := time.Now()
+
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workDir
 	cmd.SysProcAttr = hideWindowAttr()
@@ -68,6 +72,28 @@ func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name
 		}
 	}
 
+	// Debug logging
+	if logger.IsEnabled() {
+		duration := time.Since(start).Milliseconds()
+		level := LogLevelInfo
+		if !result.Success {
+			level = LogLevelError
+		}
+		logger.Log(level, LogCategoryCommand, "CommandRunner.Run",
+			fmt.Sprintf("%s %s → exit %d (%dms)", name, strings.Join(args, " "), result.ExitCode, duration),
+			LogDetails{
+				Command:  name,
+				Args:     args,
+				WorkDir:  workDir,
+				ExitCode: result.ExitCode,
+				Stdout:   truncate(result.Stdout, maxFieldLen),
+				Stderr:   truncate(result.Stderr, maxFieldLen),
+				Error:    result.Error,
+			},
+			duration,
+		)
+	}
+
 	return result
 }
 
@@ -81,6 +107,9 @@ func (r *CommandRunner) RunGit(repoPath string, args ...string) CommandResult {
 // Use for binary content (images, etc.) where string conversion corrupts data.
 // Returns the raw bytes and any error encountered.
 func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, error) {
+	logger := GetDebugLogger()
+	start := time.Now()
+
 	ctx, cancel := context.WithTimeout(context.Background(), r.Timeout)
 	defer cancel()
 
@@ -94,6 +123,33 @@ func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, erro
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+
+	// Debug logging
+	if logger.IsEnabled() {
+		duration := time.Since(start).Milliseconds()
+		level := LogLevelInfo
+		exitCode := 0
+		errStr := ""
+		if err != nil {
+			level = LogLevelError
+			exitCode = -1
+			errStr = err.Error()
+		}
+		logger.Log(level, LogCategoryCommand, "CommandRunner.RunGitRaw",
+			fmt.Sprintf("git %s → exit %d (%dms)", strings.Join(args, " "), exitCode, duration),
+			LogDetails{
+				Command:  "git",
+				Args:     args,
+				WorkDir:  repoPath,
+				ExitCode: exitCode,
+				Stdout:   fmt.Sprintf("[%d bytes raw]", stdout.Len()),
+				Stderr:   truncate(stderr.String(), maxFieldLen),
+				Error:    errStr,
+			},
+			duration,
+		)
+	}
+
 	if err != nil {
 		errMsg := stderr.String()
 		if errMsg == "" {
@@ -147,6 +203,9 @@ func (r *CommandRunner) RunWithStdin(workDir string, stdinInput string, name str
 
 // RunWithContextAndStdin executes a command with a custom context and stdin input
 func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir string, stdinInput string, name string, args ...string) CommandResult {
+	logger := GetDebugLogger()
+	start := time.Now()
+
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workDir
 	cmd.SysProcAttr = hideWindowAttr()
@@ -175,6 +234,28 @@ func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir stri
 		} else {
 			result.ExitCode = -1
 		}
+	}
+
+	// Debug logging
+	if logger.IsEnabled() {
+		duration := time.Since(start).Milliseconds()
+		level := LogLevelInfo
+		if !result.Success {
+			level = LogLevelError
+		}
+		logger.Log(level, LogCategoryCommand, "CommandRunner.RunWithStdin",
+			fmt.Sprintf("%s %s → exit %d (%dms)", name, strings.Join(args, " "), result.ExitCode, duration),
+			LogDetails{
+				Command:  name,
+				Args:     args,
+				WorkDir:  workDir,
+				ExitCode: result.ExitCode,
+				Stdout:   truncate(result.Stdout, maxFieldLen),
+				Stderr:   truncate(result.Stderr, maxFieldLen),
+				Error:    result.Error,
+			},
+			duration,
+		)
 	}
 
 	return result

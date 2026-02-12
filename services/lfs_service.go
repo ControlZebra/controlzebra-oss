@@ -96,6 +96,9 @@ func (l *LFSService) IsLFSEnabled(repoPath string) LFSInfo {
 // InitializeLFS initializes Git LFS for a repository
 // This runs `git lfs install` in the repo context
 func (l *LFSService) InitializeLFS(repoPath string) OperationResult {
+	done := LogMethod("LFSService.InitializeLFS", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed. Please install git-lfs first.")
 	}
@@ -117,6 +120,9 @@ type TrackedPattern struct {
 // GetTrackedPatterns returns the list of file patterns tracked by Git LFS
 // Parses .gitattributes for entries with filter=lfs
 func (l *LFSService) GetTrackedPatterns(repoPath string) ([]TrackedPattern, error) {
+	done := LogMethod("LFSService.GetTrackedPatterns", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	patterns := []TrackedPattern{}
 
 	gitattributes := filepath.Join(repoPath, ".gitattributes")
@@ -162,6 +168,9 @@ func (l *LFSService) GetTrackedPatterns(repoPath string) ([]TrackedPattern, erro
 // TrackPattern adds a file pattern to be tracked by Git LFS
 // Runs: git lfs track "<pattern>"
 func (l *LFSService) TrackPattern(repoPath string, pattern string) OperationResult {
+	done := LogMethod("LFSService.TrackPattern", map[string]interface{}{"repoPath": repoPath, "pattern": pattern})
+	defer func() { done(nil, nil) }()
+
 	if pattern == "" {
 		return failedOp("Pattern is required")
 	}
@@ -181,6 +190,9 @@ func (l *LFSService) TrackPattern(repoPath string, pattern string) OperationResu
 // UntrackPattern removes a file pattern from Git LFS tracking
 // Runs: git lfs untrack "<pattern>"
 func (l *LFSService) UntrackPattern(repoPath string, pattern string) OperationResult {
+	done := LogMethod("LFSService.UntrackPattern", map[string]interface{}{"repoPath": repoPath, "pattern": pattern})
+	defer func() { done(nil, nil) }()
+
 	if pattern == "" {
 		return failedOp("Pattern is required")
 	}
@@ -272,6 +284,9 @@ type LFSFileStatus struct {
 
 // LFSStatus returns the status of LFS-tracked files in the working directory
 func (l *LFSService) LFSStatus(repoPath string) ([]LFSFileStatus, error) {
+	done := LogMethod("LFSService.LFSStatus", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return nil, fmt.Errorf("Git LFS is not installed")
 	}
@@ -312,6 +327,9 @@ func (l *LFSService) LFSStatus(repoPath string) ([]LFSFileStatus, error) {
 // LFSFetch downloads LFS objects for the current ref or specified refs.
 // Equivalent to: git lfs fetch [remote] [refs...]
 func (l *LFSService) LFSFetch(repoPath string, remote string, refs ...string) OperationResult {
+	done := LogMethod("LFSService.LFSFetch", map[string]interface{}{"repoPath": repoPath, "remote": remote})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed")
 	}
@@ -333,6 +351,9 @@ func (l *LFSService) LFSFetch(repoPath string, remote string, refs ...string) Op
 // LFSFetchAll fetches LFS objects for all refs.
 // Equivalent to: git lfs fetch --all
 func (l *LFSService) LFSFetchAll(repoPath string) OperationResult {
+	done := LogMethod("LFSService.LFSFetchAll", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed")
 	}
@@ -348,6 +369,9 @@ func (l *LFSService) LFSFetchAll(repoPath string) OperationResult {
 // LFSPull downloads LFS objects and checks them out into the working tree.
 // Equivalent to: git lfs pull [remote]
 func (l *LFSService) LFSPull(repoPath string, remote string) OperationResult {
+	done := LogMethod("LFSService.LFSPull", map[string]interface{}{"repoPath": repoPath, "remote": remote})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed")
 	}
@@ -368,6 +392,9 @@ func (l *LFSService) LFSPull(repoPath string, remote string) OperationResult {
 // LFSPush uploads LFS objects to the remote.
 // Equivalent to: git lfs push [remote] [ref]
 func (l *LFSService) LFSPush(repoPath string, remote string, ref string) OperationResult {
+	done := LogMethod("LFSService.LFSPush", map[string]interface{}{"repoPath": repoPath, "remote": remote, "ref": ref})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed")
 	}
@@ -393,6 +420,9 @@ func (l *LFSService) LFSPush(repoPath string, remote string, ref string) Operati
 // LFSPushAll uploads all LFS objects for all refs.
 // Equivalent to: git lfs push --all [remote]
 func (l *LFSService) LFSPushAll(repoPath string, remote string) OperationResult {
+	done := LogMethod("LFSService.LFSPushAll", map[string]interface{}{"repoPath": repoPath, "remote": remote})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed")
 	}
@@ -412,6 +442,9 @@ func (l *LFSService) LFSPushAll(repoPath string, remote string) OperationResult 
 // LFSPrune removes old LFS files from the local cache.
 // Equivalent to: git lfs prune
 func (l *LFSService) LFSPrune(repoPath string) OperationResult {
+	done := LogMethod("LFSService.LFSPrune", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return failedOp("Git LFS is not installed")
 	}
@@ -427,6 +460,9 @@ func (l *LFSService) LFSPrune(repoPath string) OperationResult {
 // LFSPruneDryRun shows what would be removed by prune without actually removing.
 // Equivalent to: git lfs prune --dry-run
 func (l *LFSService) LFSPruneDryRun(repoPath string) (string, error) {
+	done := LogMethod("LFSService.LFSPruneDryRun", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return "", fmt.Errorf("Git LFS is not installed")
 	}
@@ -442,6 +478,9 @@ func (l *LFSService) LFSPruneDryRun(repoPath string) (string, error) {
 // LFSEnv returns LFS environment and configuration information.
 // Equivalent to: git lfs env
 func (l *LFSService) LFSEnv(repoPath string) (string, error) {
+	done := LogMethod("LFSService.LFSEnv", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return "", fmt.Errorf("Git LFS is not installed")
 	}
@@ -457,6 +496,9 @@ func (l *LFSService) LFSEnv(repoPath string) (string, error) {
 // LFSLsFiles lists LFS-tracked files in the repository.
 // Equivalent to: git lfs ls-files
 func (l *LFSService) LFSLsFiles(repoPath string) ([]string, error) {
+	done := LogMethod("LFSService.LFSLsFiles", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return nil, fmt.Errorf("Git LFS is not installed")
 	}
@@ -481,6 +523,9 @@ func (l *LFSService) LFSLsFiles(repoPath string) ([]string, error) {
 // LFSPointer shows pointer information for a file.
 // Equivalent to: git lfs pointer --file=<path>
 func (l *LFSService) LFSPointer(repoPath string, filePath string) (string, error) {
+	done := LogMethod("LFSService.LFSPointer", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return "", fmt.Errorf("Git LFS is not installed")
 	}
@@ -500,6 +545,9 @@ func (l *LFSService) LFSPointer(repoPath string, filePath string) (string, error
 // LFSMigrateInfo shows migration info without making changes.
 // Equivalent to: git lfs migrate info
 func (l *LFSService) LFSMigrateInfo(repoPath string) (string, error) {
+	done := LogMethod("LFSService.LFSMigrateInfo", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return "", fmt.Errorf("Git LFS is not installed")
 	}
@@ -522,6 +570,9 @@ type LFSLock struct {
 
 // LFSLocks returns the list of locked files in the repository
 func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
+	done := LogMethod("LFSService.LFSLocks", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	if !l.IsLFSInstalled() {
 		return nil, fmt.Errorf("Git LFS is not installed")
 	}
@@ -567,6 +618,9 @@ func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
 
 // LFSLock locks a file to prevent others from modifying it
 func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
+	done := LogMethod("LFSService.LFSLock", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
+
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
@@ -589,6 +643,9 @@ func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
 
 // LFSUnlock unlocks a file. If force is true, can unlock files locked by others.
 func (l *LFSService) LFSUnlock(repoPath string, filePath string, force bool) OperationResult {
+	done := LogMethod("LFSService.LFSUnlock", map[string]interface{}{"repoPath": repoPath, "filePath": filePath, "force": force})
+	defer func() { done(nil, nil) }()
+
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
@@ -681,6 +738,9 @@ type UntrackedLargeFile struct {
 // ?? entries (untracked), stats each file, and returns those above the threshold.
 // Paths in the result are relative to the repository root.
 func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) ([]UntrackedLargeFile, error) {
+	done := LogMethod("LFSService.GetUntrackedLargeFiles", map[string]interface{}{"repoPath": repoPath, "thresholdMB": thresholdMB})
+	defer func() { done(nil, nil) }()
+
 	// Validate that repoPath is actually a git repository by checking for .git
 	result := l.runner.RunGit(repoPath, "rev-parse", "--show-toplevel")
 	if !result.Success {

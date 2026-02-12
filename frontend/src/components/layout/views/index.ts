@@ -5,3 +5,4 @@ export { default as RepoSettingsView } from './RepoSettingsView';
 export { default as SettingsView } from './SettingsView';
 export { default as ProfileView } from './ProfileView';
 export { default as WelcomeView } from './WelcomeView';
+export { default as DebugView } from './DebugView';

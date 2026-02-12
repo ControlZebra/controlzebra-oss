@@ -43,6 +43,7 @@ export const VIEWS = {
   REPO_SETTINGS: 'repo-settings',
   SETTINGS: 'settings',
   PROFILE: 'profile',
+  DEBUG: 'debug',
 } as const;
 
 export type ViewType = typeof VIEWS[keyof typeof VIEWS];

@@ -758,6 +758,54 @@ export class CustomLFSGroupsData {
 }
 
 /**
+ * DebugStats summarises the current state of the logger.
+ */
+export class DebugStats {
+    "enabled": boolean;
+    "totalEntries": number;
+    "totalCommands": number;
+    "totalMethods": number;
+    "totalErrors": number;
+
+    /**
+     * percentage 0-100
+     */
+    "bufferUsage": number;
+
+    /** Creates a new DebugStats instance. */
+    constructor($$source: Partial<DebugStats> = {}) {
+        if (!("enabled" in $$source)) {
+            this["enabled"] = false;
+        }
+        if (!("totalEntries" in $$source)) {
+            this["totalEntries"] = 0;
+        }
+        if (!("totalCommands" in $$source)) {
+            this["totalCommands"] = 0;
+        }
+        if (!("totalMethods" in $$source)) {
+            this["totalMethods"] = 0;
+        }
+        if (!("totalErrors" in $$source)) {
+            this["totalErrors"] = 0;
+        }
+        if (!("bufferUsage" in $$source)) {
+            this["bufferUsage"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DebugStats instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DebugStats {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DebugStats($$parsedSource as Partial<DebugStats>);
+    }
+}
+
+/**
  * DetectedIdentity contains the resolved git identity and where each field came from.
  * Used by EnsureIdentity to report what was found and whether it had to auto-set anything.
  */
@@ -1997,6 +2045,236 @@ export class LockFileInfo {
 }
 
 /**
+ * LogCategory groups log entries by their origin.
+ */
+export enum LogCategory {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * CLI command execution
+     */
+    LogCategoryCommand = "command",
+
+    /**
+     * Service method call
+     */
+    LogCategoryMethod = "method",
+
+    /**
+     * Wails event emission
+     */
+    LogCategoryEvent = "event",
+
+    /**
+     * Caught error
+     */
+    LogCategoryError = "error",
+
+    /**
+     * App start/stop, service init
+     */
+    LogCategoryLifecycle = "lifecycle",
+};
+
+/**
+ * LogDetails holds structured context depending on the LogCategory.
+ */
+export class LogDetails {
+    /**
+     * Command logs
+     */
+    "command"?: string;
+    "args"?: string[];
+    "workDir"?: string;
+    "exitCode"?: number;
+
+    /**
+     * Truncated to maxFieldLen
+     */
+    "stdout"?: string;
+
+    /**
+     * Truncated to maxFieldLen
+     */
+    "stderr"?: string;
+
+    /**
+     * Method logs
+     */
+    "method"?: string;
+    "input"?: any;
+    "output"?: any;
+
+    /**
+     * Error logs
+     */
+    "error"?: string;
+    "stack"?: string;
+
+    /** Creates a new LogDetails instance. */
+    constructor($$source: Partial<LogDetails> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LogDetails instance from a string or object.
+     */
+    static createFrom($$source: any = {}): LogDetails {
+        const $$createField1_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("args" in $$parsedSource) {
+            $$parsedSource["args"] = $$createField1_0($$parsedSource["args"]);
+        }
+        return new LogDetails($$parsedSource as Partial<LogDetails>);
+    }
+}
+
+/**
+ * LogEntry is one record in the debug log ring buffer.
+ */
+export class LogEntry {
+    "id": number;
+    "timestamp": time$0.Time;
+    "level": LogLevel;
+    "category": LogCategory;
+
+    /**
+     * e.g. "GitService.Commit"
+     */
+    "source": string;
+
+    /**
+     * Human-readable summary
+     */
+    "message": string;
+
+    /**
+     * Structured data
+     */
+    "details": LogDetails;
+
+    /**
+     * Milliseconds, -1 if N/A
+     */
+    "duration": number;
+
+    /** Creates a new LogEntry instance. */
+    constructor($$source: Partial<LogEntry> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = 0;
+        }
+        if (!("timestamp" in $$source)) {
+            this["timestamp"] = null;
+        }
+        if (!("level" in $$source)) {
+            this["level"] = LogLevel.$zero;
+        }
+        if (!("category" in $$source)) {
+            this["category"] = LogCategory.$zero;
+        }
+        if (!("source" in $$source)) {
+            this["source"] = "";
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+        if (!("details" in $$source)) {
+            this["details"] = (new LogDetails());
+        }
+        if (!("duration" in $$source)) {
+            this["duration"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LogEntry instance from a string or object.
+     */
+    static createFrom($$source: any = {}): LogEntry {
+        const $$createField6_0 = $$createType22;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("details" in $$parsedSource) {
+            $$parsedSource["details"] = $$createField6_0($$parsedSource["details"]);
+        }
+        return new LogEntry($$parsedSource as Partial<LogEntry>);
+    }
+}
+
+/**
+ * LogFilter is passed to GetEntries to narrow results.
+ */
+export class LogFilter {
+    /**
+     * Filter by level
+     */
+    "level"?: string;
+
+    /**
+     * Filter by category
+     */
+    "category"?: string;
+
+    /**
+     * Partial match on source
+     */
+    "source"?: string;
+
+    /**
+     * Full-text search in message
+     */
+    "search"?: string;
+
+    /**
+     * Max entries to return (default 200)
+     */
+    "limit"?: number;
+
+    /**
+     * Pagination offset
+     */
+    "offset"?: number;
+
+    /**
+     * Unix ms — entries after this
+     */
+    "since"?: number;
+
+    /** Creates a new LogFilter instance. */
+    constructor($$source: Partial<LogFilter> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LogFilter instance from a string or object.
+     */
+    static createFrom($$source: any = {}): LogFilter {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LogFilter($$parsedSource as Partial<LogFilter>);
+    }
+}
+
+/**
+ * LogLevel represents the severity of a log entry.
+ */
+export enum LogLevel {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    LogLevelInfo = "info",
+    LogLevelWarn = "warn",
+    LogLevelError = "error",
+    LogLevelDebug = "debug",
+};
+
+/**
  * MaintenanceSettings contains settings for git maintenance operations
  */
 export class MaintenanceSettings {
@@ -2781,7 +3059,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType23;
+        const $$createField3_0 = $$createType24;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -2869,12 +3147,12 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType24;
-        const $$createField3_0 = $$createType24;
-        const $$createField4_0 = $$createType24;
-        const $$createField5_0 = $$createType25;
-        const $$createField6_0 = $$createType26;
-        const $$createField7_0 = $$createType27;
+        const $$createField2_0 = $$createType25;
+        const $$createField3_0 = $$createType25;
+        const $$createField4_0 = $$createType25;
+        const $$createField5_0 = $$createType26;
+        const $$createField6_0 = $$createType27;
+        const $$createField7_0 = $$createType28;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -3118,9 +3396,10 @@ const $$createType18 = GitHubOrganization.createFrom;
 const $$createType19 = $Create.Array($$createType18);
 const $$createType20 = GitHubRepo.createFrom;
 const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = FileStatus.createFrom;
-const $$createType23 = $Create.Array($$createType22);
-const $$createType24 = BackgroundTaskConfig.createFrom;
-const $$createType25 = FetchSettings.createFrom;
-const $$createType26 = LFSSettings.createFrom;
-const $$createType27 = MaintenanceSettings.createFrom;
+const $$createType22 = LogDetails.createFrom;
+const $$createType23 = FileStatus.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = BackgroundTaskConfig.createFrom;
+const $$createType26 = FetchSettings.createFrom;
+const $$createType27 = LFSSettings.createFrom;
+const $$createType28 = MaintenanceSettings.createFrom;

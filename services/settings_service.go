@@ -77,6 +77,9 @@ type CustomLFSGroupsData struct {
 
 // GetCustomLFSGroups returns all custom LFS groups
 func (s *SettingsService) GetCustomLFSGroups() CustomLFSGroupsData {
+	done := LogMethod("SettingsService.GetCustomLFSGroups", nil)
+	defer func() { done(nil, nil) }()
+
 	data := CustomLFSGroupsData{
 		Groups: []CustomLFSGroup{},
 	}
@@ -93,6 +96,9 @@ func (s *SettingsService) GetCustomLFSGroups() CustomLFSGroupsData {
 
 // SaveCustomLFSGroups saves all custom LFS groups
 func (s *SettingsService) SaveCustomLFSGroups(data CustomLFSGroupsData) error {
+	done := LogMethod("SettingsService.SaveCustomLFSGroups", nil)
+	defer func() { done(nil, nil) }()
+
 	// Ensure settings directory exists
 	if err := os.MkdirAll(s.settingsDir, 0755); err != nil {
 		return err
@@ -129,6 +135,9 @@ func validateCustomLFSGroup(group CustomLFSGroup) error {
 
 // AddCustomLFSGroup adds a new custom LFS group
 func (s *SettingsService) AddCustomLFSGroup(group CustomLFSGroup) OperationResult {
+	done := LogMethod("SettingsService.AddCustomLFSGroup", map[string]interface{}{"groupID": group.ID})
+	defer func() { done(nil, nil) }()
+
 	// Validate input
 	if err := validateCustomLFSGroup(group); err != nil {
 		return OperationResult{
@@ -165,6 +174,9 @@ func (s *SettingsService) AddCustomLFSGroup(group CustomLFSGroup) OperationResul
 
 // UpdateCustomLFSGroup updates an existing custom LFS group
 func (s *SettingsService) UpdateCustomLFSGroup(group CustomLFSGroup) OperationResult {
+	done := LogMethod("SettingsService.UpdateCustomLFSGroup", map[string]interface{}{"groupID": group.ID})
+	defer func() { done(nil, nil) }()
+
 	// Validate input
 	if err := validateCustomLFSGroup(group); err != nil {
 		return OperationResult{
@@ -206,6 +218,9 @@ func (s *SettingsService) UpdateCustomLFSGroup(group CustomLFSGroup) OperationRe
 
 // DeleteCustomLFSGroup deletes a custom LFS group by ID
 func (s *SettingsService) DeleteCustomLFSGroup(groupID string) OperationResult {
+	done := LogMethod("SettingsService.DeleteCustomLFSGroup", map[string]interface{}{"groupID": groupID})
+	defer func() { done(nil, nil) }()
+
 	data := s.GetCustomLFSGroups()
 
 	found := false
@@ -248,6 +263,9 @@ type ExportLFSGroupsResult struct {
 
 // ExportCustomLFSGroups exports custom LFS groups to a JSON file
 func (s *SettingsService) ExportCustomLFSGroups() ExportLFSGroupsResult {
+	done := LogMethod("SettingsService.ExportCustomLFSGroups", nil)
+	defer func() { done(nil, nil) }()
+
 	if s.app == nil {
 		return ExportLFSGroupsResult{
 			Success: false,
@@ -301,6 +319,9 @@ type ImportLFSGroupsResult struct {
 
 // ImportCustomLFSGroups imports custom LFS groups from a JSON file
 func (s *SettingsService) ImportCustomLFSGroups(merge bool) ImportLFSGroupsResult {
+	done := LogMethod("SettingsService.ImportCustomLFSGroups", map[string]interface{}{"merge": merge})
+	defer func() { done(nil, nil) }()
+
 	if s.app == nil {
 		return ImportLFSGroupsResult{
 			Success: false,
@@ -385,6 +406,9 @@ func (s *SettingsService) ImportCustomLFSGroups(merge bool) ImportLFSGroupsResul
 
 // GetAppSettings returns the current app settings
 func (s *SettingsService) GetAppSettings() AppSettings {
+	done := LogMethod("SettingsService.GetAppSettings", nil)
+	defer func() { done(nil, nil) }()
+
 	settings := AppSettings{
 		Theme: "dark", // default
 	}
@@ -401,6 +425,9 @@ func (s *SettingsService) GetAppSettings() AppSettings {
 
 // SaveAppSettings saves the app settings
 func (s *SettingsService) SaveAppSettings(settings AppSettings) error {
+	done := LogMethod("SettingsService.SaveAppSettings", nil)
+	defer func() { done(nil, nil) }()
+
 	// Ensure settings directory exists
 	if err := os.MkdirAll(s.settingsDir, 0755); err != nil {
 		return err
@@ -512,6 +539,9 @@ func (s *SettingsService) GetUserProfile(repoPath string) UserProfile {
 
 // SetUserProfile sets the git user config
 func (s *SettingsService) SetUserProfile(repoPath string, profile UserProfile, global bool) OperationResult {
+	done := LogMethod("SettingsService.SetUserProfile", map[string]interface{}{"repoPath": repoPath, "global": global})
+	defer func() { done(nil, nil) }()
+
 	workDir := "."
 	if repoPath != "" {
 		workDir = repoPath
@@ -565,6 +595,9 @@ func (s *SettingsService) SetUserProfile(repoPath string, profile UserProfile, g
 // This should be called whenever a repo is opened. The fallbackName and fallbackEmail
 // come from the authenticated ControlZebra user (Supabase session).
 func (s *SettingsService) EnsureIdentity(repoPath string, fallbackName string, fallbackEmail string) DetectedIdentity {
+	done := LogMethod("SettingsService.EnsureIdentity", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
+
 	identity := DetectedIdentity{}
 
 	if repoPath == "" {

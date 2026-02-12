@@ -1,7 +1,7 @@
 import { memo, useMemo, useCallback, useRef, type MouseEvent, type ComponentType } from 'react';
 import { VIEWS, type ViewType } from '../../constants';
 import { useLayout, useRepo } from '../../context';
-import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView, WelcomeView } from './views';
+import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView, WelcomeView, DebugView } from './views';
 import { RepoSwitcher } from '../common';
 
 // ============================================================================
@@ -24,6 +24,7 @@ const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
   [VIEWS.PROFILE]: { title: 'Profile', Component: ProfileView },
+  [VIEWS.DEBUG]: { title: 'Debug Logs', Component: DebugView },
 };
 
 const MIN_WIDTH = 150;

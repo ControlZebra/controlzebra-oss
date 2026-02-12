@@ -35,6 +35,9 @@ func NewAuthService() *AuthService {
 // SaveSession stores the serialised Supabase session JSON in the OS keychain.
 // It overwrites any previously stored session.
 func (a *AuthService) SaveSession(sessionJSON string) error {
+	done := LogMethod("AuthService.SaveSession", nil)
+	defer func() { done(nil, nil) }()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -54,6 +57,9 @@ func (a *AuthService) SaveSession(sessionJSON string) error {
 // Returns an empty string (no error) if no session has been stored yet, so the
 // frontend can treat empty-string as "not authenticated".
 func (a *AuthService) LoadSession() (string, error) {
+	done := LogMethod("AuthService.LoadSession", nil)
+	defer func() { done(nil, nil) }()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -73,6 +79,9 @@ func (a *AuthService) LoadSession() (string, error) {
 // ClearSession removes the stored session from the OS keychain.
 // It is a no-op (no error) if no session exists.
 func (a *AuthService) ClearSession() error {
+	done := LogMethod("AuthService.ClearSession", nil)
+	defer func() { done(nil, nil) }()
+
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

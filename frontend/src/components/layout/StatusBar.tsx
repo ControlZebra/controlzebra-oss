@@ -3,7 +3,7 @@
  * Shows commit/terminal tabs, branch info, sync status, change count,
  * and project state indicators (tracked/untracked/remote).
  */
-import { memo, useCallback, useMemo, type CSSProperties } from 'react';
+import { memo, useCallback, useMemo, useState, useEffect, type CSSProperties } from 'react';
 import {
   CheckCircle,
   RefreshCw,
@@ -15,11 +15,14 @@ import {
   HardDrive,
   Cloud,
   AlertTriangle,
+  Bug,
   type LucideIcon,
 } from 'lucide-react';
-import { ICON_SIZES, PROJECT_STATES, type ProjectState } from '../../constants';
-import { useRepo } from '../../context';
+import { Events } from '@wailsio/runtime';
+import { ICON_SIZES, VIEWS, PROJECT_STATES, type ProjectState } from '../../constants';
+import { useRepo, useLayout } from '../../context';
 import { trackProjectSetupStarted } from '../../lib/analytics';
+import { IsEnabled, SetEnabled } from '../../../bindings/controlzebra/services/debugservice';
 
 // ============================================================================
 // Types
@@ -123,6 +126,38 @@ function getProjectStateIndicator(state: ProjectState | null): ProjectStateIndic
 
 function StatusBar(): JSX.Element {
   const { repoPath, repoInfo, repoStatus, isSyncing, hasRemote, startTracking } = useRepo();
+  const { setActiveView, setSidebarCollapsed } = useLayout();
+
+  // ---------------------------------------------------------------------------
+  // Debug logging indicator state
+  // ---------------------------------------------------------------------------
+  const [debugEnabled, setDebugEnabled] = useState(false);
+
+  // Fetch initial state and listen for changes
+  useEffect(() => {
+    let cancelled = false;
+    IsEnabled().then((v) => { if (!cancelled) setDebugEnabled(v); }).catch(() => {});
+
+    const unsub = Events.On('debug:state-changed', (event: any) => {
+      const data = event?.data?.[0] ?? event;
+      setDebugEnabled(data as boolean);
+    });
+    return () => { cancelled = true; unsub(); };
+  }, []);
+
+  // Toggle debug logging directly from StatusBar
+  const handleDebugClick = useCallback(() => {
+    setActiveView(VIEWS.DEBUG);
+    setSidebarCollapsed(false);
+  }, [setActiveView, setSidebarCollapsed]);
+
+  const handleDebugToggle = useCallback(async () => {
+    const next = !debugEnabled;
+    try {
+      await SetEnabled(next);
+      setDebugEnabled(next);
+    } catch { /* ignore */ }
+  }, [debugEnabled]);
 
   // Derive status info from repo state
   const branchName = repoInfo?.branch || 'main';
@@ -171,8 +206,30 @@ function StatusBar(): JSX.Element {
   }, [startTracking, projectState]);
 
   return (
-    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-end px-2 select-none shrink-0 min-w-0">
-      {/* Status indicators */}
+    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">
+      {/* Left: Debug indicator */}
+      <div className="flex items-center gap-1.5 text-xs shrink-0">
+        <button
+          onClick={handleDebugClick}
+          onContextMenu={(e) => { e.preventDefault(); handleDebugToggle(); }}
+          className={`flex items-center gap-1 px-1 rounded transition-colors
+            ${debugEnabled
+              ? 'text-green-400 hover:text-green-300'
+              : 'text-theme-muted hover:text-theme-secondary'
+            }`}
+          title={debugEnabled ? 'Debug: ON — Click to view, right-click to toggle' : 'Debug: OFF — Click to view, right-click to toggle'}
+        >
+          <Bug style={iconStyle} />
+          <span className="hidden sm:inline text-[11px]">
+            {debugEnabled ? 'Debug' : 'Debug'}
+          </span>
+          <span
+            className={`inline-block w-1.5 h-1.5 rounded-full ${debugEnabled ? 'bg-green-400' : 'bg-gray-600'}`}
+          />
+        </button>
+      </div>
+
+      {/* Right: Status indicators */}
       <div className="flex items-center gap-3 text-xs min-w-0">
         {repoPath ? (
           <>
