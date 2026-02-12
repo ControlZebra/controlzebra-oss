@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { VIEWS, ICON_SIZES } from '../../../constants';
 import { useRepo, type CommitDetail } from '../../../context';
-import { DiffViewer, EmptyState, LoadingState } from '../../common';
+import { EmptyState, LoadingState } from '../../common';
+import TextDiffViewer from '../../viewers/TextDiffViewer';
 import { isL5XFile, isImageFile, isPdfFile } from '../../../lib/file-utils';
 
 // Lazy-load heavy diff viewers for code splitting
@@ -339,7 +340,15 @@ function HistoryPage(): JSX.Element {
               />
             </Suspense>
           ) : (
-            <DiffViewer fileDiff={currentDiff} showHeader={true} repoPath={repoPath ?? undefined} commitHash={selectedCommit.hash} />
+            <TextDiffViewer
+              repoPath={repoPath ?? ''}
+              filePath={selectedCommitFile}
+              commitHash={selectedCommit.hash}
+              fileDiff={currentDiff as any}
+              fileStatus={selectedFileInfo?.status}
+              oldPath={selectedFileInfo?.oldPath}
+              showHeader
+            />
           )}
         </div>
         {restoreConfirmModal}

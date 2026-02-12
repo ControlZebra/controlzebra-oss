@@ -72,3 +72,13 @@ export function isPdfFile(filePath: string): boolean {
 export function supportsVisualDiff(filePath: string): boolean {
   return isImageFile(filePath) || isL5XFile(filePath) || isPdfFile(filePath);
 }
+
+/**
+ * Returns true if the file can be opened in a diff tab.
+ *
+ * Note: Text diffs are supported for virtually any file (Git will provide a
+ * unified diff for text; binary files will show a friendly fallback message).
+ */
+export function supportsDiff(filePath: string): boolean {
+  return !!filePath;
+}
