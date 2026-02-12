@@ -48,6 +48,7 @@ import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/
 import { DetectRepo, GetRemoteURL } from '../../../../../bindings/controlzebra/services/gitservice';
 import { ListDirectory } from '../../../../../bindings/controlzebra/services/filesystemservice';
 import { CheckRepoNameExists } from '../../../../../bindings/controlzebra/services/githubservice';
+import { GetGitignoreTemplates } from '../../../../../bindings/controlzebra/services/repositorysettingsservice';
 
 // ============================================================================
 // Types
@@ -73,6 +74,13 @@ interface DeviceFlowState {
   verificationUrl: string;
 }
 
+interface GitignoreTemplateOption {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -83,6 +91,7 @@ const VISIBILITY_OPTIONS = [
 ];
 
 const DEBOUNCE_MS = 400;
+const NO_GITIGNORE_TEMPLATE = '__none__';
 
 // ============================================================================
 // Sub-components
@@ -96,14 +105,14 @@ function FolderValidationBanner({ validation }: { validation: FolderValidation }
       return null;
     case 'empty-folder':
       return (
-        <div className="flex items-center gap-2 text-green-400 text-xs mt-2">
+        <div className="flex items-center gap-2 text-theme-secondary text-xs mt-2">
           <CheckCircle size={14} />
           <span>Empty folder — ready for a new project</span>
         </div>
       );
     case 'has-files':
       return (
-        <div className="flex items-center gap-2 text-blue-400 text-xs mt-2">
+        <div className="flex items-center gap-2 text-theme-secondary text-xs mt-2">
           <FileText size={14} />
           <span>{validation.count} file{validation.count !== 1 ? 's' : ''} found — will be included in initial commit</span>
         </div>
@@ -113,7 +122,7 @@ function FolderValidationBanner({ validation }: { validation: FolderValidation }
       return null;
     case 'nested-repo':
       return (
-        <div className="flex items-center gap-2 text-orange-400 text-xs mt-2">
+        <div className="flex items-center gap-2 text-yellow-400 text-xs mt-2">
           <AlertTriangle size={14} />
           <span>This folder is inside another git repository. This may cause issues.</span>
         </div>
@@ -154,8 +163,8 @@ function AlreadyAProjectCard({
   return (
     <div className="border border-theme-default rounded-lg p-6 bg-theme-surface">
       <div className="flex items-start gap-4">
-        <div className="p-3 rounded-lg bg-green-500/10">
-          <GitBranch style={ICON_STYLES.lg as CSSProperties} className="text-green-400" />
+        <div className="p-3 rounded-lg bg-theme-hover border border-theme-default">
+          <GitBranch style={ICON_STYLES.lg as CSSProperties} className="text-theme-muted" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-semibold text-theme-primary mb-1">{folderName}</h3>
@@ -211,6 +220,8 @@ function NewProjectPage(): JSX.Element {
   const [repoName, setRepoName] = useState('');
   const [selectedOwner, setSelectedOwner] = useState('');  // '' = personal account
   const [visibility, setVisibility] = useState('private');
+  const [selectedGitignoreTemplate, setSelectedGitignoreTemplate] = useState(NO_GITIGNORE_TEMPLATE);
+  const [gitignoreTemplates, setGitignoreTemplates] = useState<GitignoreTemplateOption[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([]);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
   const [nameCheckStatus, setNameCheckStatus] = useState<NameCheckStatus>('idle');
@@ -392,6 +403,30 @@ function NewProjectPage(): JSX.Element {
     }
   }, [isLoggedIn]);
 
+  // ── Load .gitignore templates ────────────────────────────────────────
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const templates = await GetGitignoreTemplates();
+        setGitignoreTemplates(templates as GitignoreTemplateOption[]);
+      } catch {
+        setGitignoreTemplates([]);
+      }
+    })();
+  }, []);
+
+  const gitignoreOptions = useMemo((): SelectOption[] => {
+    return [
+      { value: NO_GITIGNORE_TEMPLATE, label: 'None' },
+      ...gitignoreTemplates.map((template) => ({
+        value: template.id,
+        label: `${template.name} · ${template.category}`,
+        description: template.description,
+      })),
+    ];
+  }, [gitignoreTemplates]);
+
   // ── Repo name availability check (debounced) ─────────────────────────
 
   const checkRepoName = useCallback(
@@ -456,6 +491,11 @@ function NewProjectPage(): JSX.Element {
     return steps;
   }, [skipRemote]);
 
+  const selectedTemplate = useMemo(() => {
+    if (selectedGitignoreTemplate === NO_GITIGNORE_TEMPLATE) return null;
+    return gitignoreTemplates.find((template) => template.id === selectedGitignoreTemplate) ?? null;
+  }, [selectedGitignoreTemplate, gitignoreTemplates]);
+
   // ── Create project ────────────────────────────────────────────────────
 
   const handleCreateProject = useCallback(async () => {
@@ -467,6 +507,9 @@ function NewProjectPage(): JSX.Element {
 
     const result = await createProject({
       path: selectedPath,
+      gitignoreTemplateId: selectedGitignoreTemplate !== NO_GITIGNORE_TEMPLATE
+        ? selectedGitignoreTemplate
+        : undefined,
       remote: {
         skip: skipRemote,
         owner: selectedOwner || undefined,
@@ -502,6 +545,7 @@ function NewProjectPage(): JSX.Element {
     selectedOwner,
     repoName,
     visibility,
+    selectedGitignoreTemplate,
   ]);
 
   // ── Open existing project (from "Already a Project" card) ─────────────
@@ -514,15 +558,15 @@ function NewProjectPage(): JSX.Element {
 
   return (
     <div className="flex-1 overflow-auto animate-screen-enter">
-      <div className="max-w-2xl mx-auto p-8">
+      <div className="max-w-6xl mx-auto p-6 lg:p-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <FolderPlus style={ICON_STYLES.md as CSSProperties} className="text-theme-muted" />
             <h2 className="text-xl text-theme-primary font-medium">New Project</h2>
           </div>
           <p className="text-theme-muted text-sm">
-            Initialize a new repository with version control
+            Pick a folder, choose your backup settings, then create the project.
           </p>
         </div>
 
@@ -565,59 +609,76 @@ function NewProjectPage(): JSX.Element {
         {/* ── Normal form mode ───────────────────────────────────────── */}
         {!isAlreadyRepo && (
           <>
-            {/* ─── Section: Local Settings ─────────────────────────── */}
-            <SectionCard title="Local Settings" className="mb-6">
-              <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
-                Project File Path
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  readOnly
-                  value={selectedPath}
-                  placeholder="Select a folder…"
-                  className="flex-1 text-xs cursor-pointer"
-                  onClick={handleBrowse}
-                />
-                <Button variant="secondary" onClick={handleBrowse} disabled={isBrowsing || isCreating}>
-                  {isBrowsing ? <Loader2 className="animate-spin" size={14} /> : <FolderOpen style={ICON_STYLES.sm as CSSProperties} />}
-                  <span className="ml-1.5">Browse</span>
-                </Button>
-              </div>
-              {validation.type === 'loading' && (
-                <div className="flex items-center gap-2 text-theme-muted text-xs mt-2">
-                  <Loader2 className="animate-spin" size={12} />
-                  <span>Checking folder…</span>
+            <div className="max-w-3xl mx-auto">
+              <SectionCard title="Project Folder" className="mb-6">
+                <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
+                  Project File Path
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={selectedPath}
+                    placeholder="Select a folder…"
+                    className="flex-1 text-xs cursor-pointer"
+                    onClick={handleBrowse}
+                  />
+                  <Button variant="secondary" onClick={handleBrowse} disabled={isBrowsing || isCreating}>
+                    {isBrowsing ? <Loader2 className="animate-spin" size={14} /> : <FolderOpen style={ICON_STYLES.sm as CSSProperties} />}
+                    <span className="ml-1.5">Browse</span>
+                  </Button>
                 </div>
-              )}
-              <FolderValidationBanner validation={validation} />
-            </SectionCard>
+                {validation.type === 'loading' && (
+                  <div className="flex items-center gap-2 text-theme-muted text-xs mt-2">
+                    <Loader2 className="animate-spin" size={12} />
+                    <span>Checking folder…</span>
+                  </div>
+                )}
+                <FolderValidationBanner validation={validation} />
 
-            {/* ─── Section: Remote Settings ─────────────────────────── */}
-            <SectionCard title="Remote Settings" className="mb-8">
+                <div className="mt-5 pt-4 border-t border-theme-default">
+                  <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
+                    .gitignore Template
+                  </label>
+                  <Select
+                    value={selectedGitignoreTemplate}
+                    onValueChange={setSelectedGitignoreTemplate}
+                    options={gitignoreOptions}
+                    placeholder="Select template"
+                    disabled={isCreating}
+                  />
+                  <p className="text-theme-muted text-xs mt-1.5">
+                    {selectedTemplate
+                      ? selectedTemplate.description
+                      : 'Optional. Pick one if your project uses PLC or CAD/3D tooling.'}
+                  </p>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Cloud Backup (GitHub)" className="mb-8">
               {/* Skip remote toggle */}
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <p className="text-sm text-theme-primary">Local only</p>
-                  <p className="text-xs text-theme-muted">Skip cloud backup — you can publish later</p>
+                  <p className="text-xs text-theme-muted">Skip cloud backup for now. You can publish later.</p>
                 </div>
                 <Switch checked={skipRemote} onCheckedChange={setSkipRemote} disabled={isCreating} />
               </div>
 
               {!skipRemote && (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* GitHub account */}
-                  <div>
+                  <div className="lg:col-span-2">
                     <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
                       GitHub Account
                     </label>
                     {!ghInstalled ? (
                       <div className="flex items-center gap-2 text-yellow-400 text-xs p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
                         <AlertTriangle size={14} />
-                        <span>GitHub CLI not installed. <a href="https://cli.github.com" target="_blank" rel="noreferrer" className="underline">Install it</a> to enable remote publishing.</span>
+                        <span>GitHub CLI not installed. <a href="https://cli.github.com" target="_blank" rel="noreferrer" className="underline">Install it</a> to enable cloud backup.</span>
                       </div>
                     ) : isLoggedIn ? (
-                      <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded px-3 py-2">
-                        <Check size={14} className="text-green-400" />
+                      <div className="flex items-center gap-2 bg-theme-hover border border-theme-default rounded px-3 py-2">
+                        <Check size={14} className="text-theme-muted" />
                         <Github size={14} className="text-theme-secondary" />
                         <span className="text-sm text-theme-primary">@{ghUsername}</span>
                       </div>
@@ -665,22 +726,20 @@ function NewProjectPage(): JSX.Element {
                         disabled={!isLoggedIn || isCreating}
                         className="pr-8"
                       />
-                      {/* Inline status indicator */}
                       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
                         {nameCheckStatus === 'checking' && (
                           <Loader2 className="animate-spin text-theme-muted" size={14} />
                         )}
                         {nameCheckStatus === 'available' && (
-                          <CheckCircle size={14} className="text-green-400" />
+                          <CheckCircle size={14} className="text-theme-muted" />
                         )}
                         {nameCheckStatus === 'taken' && (
                           <AlertCircle size={14} className="text-red-400" />
                         )}
                       </div>
                     </div>
-                    {/* Name availability message */}
                     {nameCheckStatus === 'available' && (
-                      <p className="text-green-400 text-xs mt-1">Name available</p>
+                      <p className="text-theme-muted text-xs mt-1">Name available</p>
                     )}
                     {nameCheckStatus === 'taken' && (
                       <p className="text-red-400 text-xs mt-1">Repository already exists</p>
@@ -691,7 +750,7 @@ function NewProjectPage(): JSX.Element {
                   </div>
 
                   {/* Visibility */}
-                  <div>
+                  <div className="lg:col-span-2">
                     <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
                       Visibility
                     </label>
@@ -703,9 +762,9 @@ function NewProjectPage(): JSX.Element {
                     />
                     <p className="text-theme-muted text-xs mt-1.5">
                       {visibility === 'private' ? (
-                        <span className="flex items-center gap-1"><Eye size={11} /> Only you and collaborators can see this repository</span>
+                        <span className="flex items-center gap-1"><Eye size={11} /> Only you and collaborators can view this repository</span>
                       ) : (
-                        <span className="flex items-center gap-1"><Globe size={11} /> Anyone on the internet can see this repository</span>
+                        <span className="flex items-center gap-1"><Globe size={11} /> Anyone on the internet can view this repository</span>
                       )}
                     </p>
                   </div>
@@ -714,14 +773,15 @@ function NewProjectPage(): JSX.Element {
 
               {skipRemote && (
                 <p className="text-theme-muted text-xs italic">
-                  You can publish to GitHub later from the project's settings.
+                  You can publish to GitHub later from repository settings.
                 </p>
               )}
-            </SectionCard>
+              </SectionCard>
+            </div>
 
             {/* ─── Progress stepper (shown during/after creation) ───── */}
             {stepperStatus !== 'idle' && (
-              <div className="bg-theme-surface border border-theme-default rounded-lg p-5 mb-6">
+              <div className="max-w-3xl mx-auto bg-theme-surface border border-theme-default rounded-lg p-5 mb-6">
                 <ProjectCreationStepper
                   steps={stepperSteps}
                   currentStep={stepperStep}
@@ -732,7 +792,7 @@ function NewProjectPage(): JSX.Element {
             )}
 
             {/* ─── Create button ────────────────────────────────────── */}
-            <div className="flex items-center gap-3">
+            <div className="max-w-3xl mx-auto flex items-center justify-end gap-3">
               <Button
                 size="lg"
                 onClick={handleCreateProject}
@@ -750,10 +810,6 @@ function NewProjectPage(): JSX.Element {
                   </>
                 )}
               </Button>
-
-              {!selectedPath && !isCreating && stepperStatus === 'idle' && (
-                <span className="text-theme-muted text-xs">Select a folder to get started</span>
-              )}
             </div>
           </>
         )}

@@ -69,6 +69,7 @@ export {
     GitHubRepoListResult,
     GitRemoteInfo,
     GitVersion,
+    GitignoreTemplateOption,
     GraphCommit,
     ImageDiffResult,
     ImportLFSGroupsResult,
