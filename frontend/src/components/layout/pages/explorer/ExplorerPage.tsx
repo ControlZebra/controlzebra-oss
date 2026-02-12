@@ -19,7 +19,7 @@ import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
 import { PROJECT_STATES, ICON_SIZES, type ProjectState, type ExplorerTab } from '../../../../constants';
-import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
+import { ViewerRenderer, TextDiffViewer, getViewerForFile, getViewerById } from '../../../viewers';
 import { isL5XFile, isImageFile, isPdfFile } from '../../../../lib/file-utils';
 
 // Lazy-load heavy diff viewers for code splitting
@@ -152,6 +152,10 @@ function ExplorerPage(): JSX.Element {
       const isImage = isImageFile(filePath);
       const isPdf = isPdfFile(filePath);
 
+      const commitHash = diffContext.type === 'commit' ? (diffContext.commitHash ?? null) : null;
+      const statusOverride = diffContext.status;
+      const oldPath = diffContext.type === 'commit' ? diffContext.oldPath : undefined;
+
       return (
         <div
           key={tab.id}
@@ -205,11 +209,15 @@ function ExplorerPage(): JSX.Element {
               />
             </Suspense>
           ) : (
-            // Fallback to standard text diff viewer for non-L5X/non-image/non-PDF files
-            // This requires loading the diff data - for now show placeholder
-            <div className="flex items-center justify-center h-full text-theme-muted text-sm">
-              Diff view for {filePath}
-            </div>
+            <TextDiffViewer
+              repoPath={repoPath}
+              filePath={filePath}
+              commitHash={commitHash}
+              isWorkingTree={diffContext.type === 'working'}
+              fileStatus={statusOverride}
+              oldPath={oldPath}
+              showHeader
+            />
           )}
         </div>
       );

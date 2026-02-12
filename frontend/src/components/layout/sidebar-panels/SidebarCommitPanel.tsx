@@ -1,7 +1,7 @@
 /**
  * SidebarCommitPanel - Compact commit form for sidebar.
  * Shows commit message input, action buttons, and changed files list.
- * Clicking on files with visual diff support (L5X, images) opens the diff viewer.
+ * Clicking on changed files opens a diff tab.
  */
 import { memo, useState, useCallback, useEffect, type CSSProperties } from 'react';
 import {
@@ -14,7 +14,7 @@ import { useLayout } from '../../../context';
 import { Button, Textarea } from '../../ui';
 import { RewindConfirmModal, BranchNameModal } from '../';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
-import { supportsVisualDiff } from '../../../lib/file-utils';
+import { supportsDiff } from '../../../lib/file-utils';
 import type { FileStatus } from '../../../context';
 
 // ============================================================================
@@ -51,30 +51,30 @@ interface ChangedFilesListProps {
 /**
  * ChangedFileItem - Single file in the changed files list.
  * Uses shortLabel for compact display.
- * Clicking on files with visual diff support (L5X, images) opens the diff viewer.
+ * Clicking opens a diff tab (text diff or specialized visual diff).
  */
 const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff }: ChangedFileItemProps): JSX.Element {
   const statusConfig = STATUS_CONFIG[file.status as FileStatusType] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
   const StatusIcon = statusConfig.Icon;
-  const hasVisualDiff = supportsVisualDiff(file.path);
+  const canOpenDiff = supportsDiff(file.path);
   
   const handleClick = useCallback(() => {
-    if (hasVisualDiff && onOpenDiff) {
+    if (canOpenDiff && onOpenDiff) {
       onOpenDiff(file);
     }
-  }, [file, hasVisualDiff, onOpenDiff]);
+  }, [file, canOpenDiff, onOpenDiff]);
   
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={!hasVisualDiff}
+      disabled={!canOpenDiff}
       className={`w-full flex items-center gap-2 px-2 py-1 rounded text-sm text-left transition-colors
-        ${hasVisualDiff 
+        ${canOpenDiff 
           ? 'hover-bg-theme-interactive cursor-pointer' 
           : 'cursor-default opacity-70'
         }`}
-      title={hasVisualDiff ? `View changes: ${file.path}` : file.path}
+      title={canOpenDiff ? `View changes: ${file.path}` : file.path}
     >
       <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
       <FileText style={ICON_STYLES.xs as CSSProperties} className="text-theme-muted shrink-0" />
@@ -165,7 +165,7 @@ function SidebarCommitPanel({
   }, [onRewind]);
 
   /**
-   * Open a visual diff viewer for supported file types (L5X, L5K, images).
+    * Open a diff tab for a changed file (text diff or specialized visual diff).
    * Creates an explorer tab showing working tree changes (HEAD vs current).
    */
   const handleOpenDiff = useCallback((file: FileStatus): void => {
