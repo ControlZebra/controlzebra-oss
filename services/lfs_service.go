@@ -568,6 +568,36 @@ type LFSLock struct {
 	Locked string `json:"locked"` // Timestamp
 }
 
+// normalizeLFSFilePath converts an incoming path to a repo-relative path suitable
+// for git/lfs commands.
+//
+// Frontend code often deals in absolute paths, while `git lfs lock/unlock` is
+// most reliable with repo-relative paths (and expects POSIX separators).
+func normalizeLFSFilePath(repoPath string, filePath string) (string, error) {
+	if repoPath == "" {
+		return "", fmt.Errorf("repo path is required")
+	}
+	if filePath == "" {
+		return "", fmt.Errorf("file path is required")
+	}
+
+	// If an absolute path was passed, ensure it's within the repo and convert to relative.
+	if filepath.IsAbs(filePath) {
+		rel, err := filepath.Rel(repoPath, filePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to normalize file path: %w", err)
+		}
+		// Reject paths that escape the repo.
+		if rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+			return "", fmt.Errorf("file path must be within repository")
+		}
+		filePath = rel
+	}
+
+	// Git expects forward slashes even on Windows.
+	return filepath.ToSlash(filePath), nil
+}
+
 // LFSLocks returns the list of locked files in the repository
 func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
 	done := LogMethod("LFSService.LFSLocks", map[string]interface{}{"repoPath": repoPath})
@@ -629,7 +659,12 @@ func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
 		return failedOp("Git LFS is not installed")
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "lock", filePath)
+	normalizedPath, err := normalizeLFSFilePath(repoPath, filePath)
+	if err != nil {
+		return failedOp(err.Error())
+	}
+
+	result := l.runner.RunGit(repoPath, "lfs", "lock", normalizedPath)
 	if !result.Success {
 		errMsg := getErrorMessage(result)
 		if strings.Contains(errMsg, "already locked") {
@@ -638,7 +673,7 @@ func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
 		return failedOp("Failed to lock file: " + errMsg)
 	}
 
-	return successOp(fmt.Sprintf("Locked '%s'", filePath))
+	return successOp(fmt.Sprintf("Locked '%s'", normalizedPath))
 }
 
 // LFSUnlock unlocks a file. If force is true, can unlock files locked by others.
@@ -654,7 +689,12 @@ func (l *LFSService) LFSUnlock(repoPath string, filePath string, force bool) Ope
 		return failedOp("Git LFS is not installed")
 	}
 
-	args := []string{"lfs", "unlock", filePath}
+	normalizedPath, err := normalizeLFSFilePath(repoPath, filePath)
+	if err != nil {
+		return failedOp(err.Error())
+	}
+
+	args := []string{"lfs", "unlock", normalizedPath}
 	if force {
 		args = append(args, "--force")
 	}
@@ -668,7 +708,7 @@ func (l *LFSService) LFSUnlock(repoPath string, filePath string, force bool) Ope
 		return failedOp("Failed to unlock file: " + errMsg)
 	}
 
-	return successOp(fmt.Sprintf("Unlocked '%s'", filePath))
+	return successOp(fmt.Sprintf("Unlocked '%s'", normalizedPath))
 }
 
 // GetGitUser returns the configured git user name for the repository.
