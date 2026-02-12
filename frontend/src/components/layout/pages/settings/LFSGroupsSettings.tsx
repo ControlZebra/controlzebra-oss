@@ -29,22 +29,6 @@ const iconStyleSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm
 const iconStyleXs: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs };
 
 // ============================================================================
-// Future Scope Banner - shown when feature is not yet wired into the app
-// ============================================================================
-const FutureScopeBanner = memo(function FutureScopeBanner(): JSX.Element {
-  return (
-    <div className="mx-6 mt-6 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
-      <span className="text-xs font-medium border border-amber-500/50 text-amber-400 rounded-full px-2 py-0.5 shrink-0">
-        Coming Soon
-      </span>
-      <p className="text-amber-400/80 text-xs">
-        Custom LFS groups are saved but not yet used during repository operations. This feature will be integrated in a future update.
-      </p>
-    </div>
-  );
-});
-
-// ============================================================================
 // Types
 // ============================================================================
 
@@ -316,7 +300,7 @@ const GroupFormModal = memo(function GroupFormModal({
                       variant="info"
                       className={`flex items-center gap-1 pr-1 ${selectedColorOption.bg} ${selectedColorOption.class}`}
                     >
-                      <span>{ext}</span>
+                      <span className="font-mono">{ext}</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveExtension(index)}
@@ -418,7 +402,7 @@ const GroupCard = memo(function GroupCard({ group, onEdit, onDelete }: GroupCard
         {group.extensions.slice(0, 8).map((ext) => (
           <span
             key={ext}
-            className={`px-2 py-0.5 text-xs rounded ${colorOption.bg} ${colorOption.class}`}
+            className={`px-2 py-0.5 text-xs rounded font-mono ${colorOption.bg} ${colorOption.class}`}
           >
             {ext}
           </span>
@@ -556,9 +540,6 @@ function LFSGroupsSettings(): JSX.Element {
 
   return (
     <div className="bg-theme-surface rounded-lg border border-theme-default">
-      {/* Future scope banner */}
-      <FutureScopeBanner />
-
       {/* Header */}
       <div className="p-6 border-b border-theme-default">
         <div className="flex items-center justify-between mb-4">

@@ -141,7 +141,7 @@ function TopBar(): JSX.Element {
                     title="Undo Last Save"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
-                    <Undo2 style={iconStyle} className="currentColor" />
+                    <Trash2 style={iconStyle} className="currentColor" />
                   </button>
 
                   {/* Discard Changes */}
@@ -151,7 +151,7 @@ function TopBar(): JSX.Element {
                     title="Discard All Changes"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
-                    <Trash2 style={iconStyle} className="currentColor" />
+                    <Undo2 style={iconStyle} className="currentColor" />
                   </button>
                 </>
               )}

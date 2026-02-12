@@ -6,7 +6,7 @@
 import { memo, useState, useCallback, useEffect, type CSSProperties } from 'react';
 import {
   FileText,
-  Trash2,
+  Undo2,
 } from 'lucide-react';
 import { FILE_STATUS, type FileStatusType, type ExplorerTab } from '../../../constants';
 import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName } from '../../../lib/gitHelpers';
@@ -93,7 +93,7 @@ const ChangedFilesList = memo(function ChangedFilesList({ files, repoPath, onOpe
 
   return (
     <div className="border-t border-theme-default">
-      <div className="px-3 py-2 text-xs text-theme-muted uppercase tracking-wide">
+      <div className="px-3 py-2 text-xs text-yellow-500 uppercase tracking-wide">
         Changed Files ({files.length})
       </div>
       <div className="max-h-48 overflow-y-auto px-1">
@@ -223,7 +223,7 @@ function SidebarCommitPanel({
             size="sm"
             title="Discard all changes"
           >
-            <Trash2 style={ICON_STYLES.xs as CSSProperties} />
+            <Undo2 style={ICON_STYLES.xs as CSSProperties} />
           </Button>
         </div>
       </div>
