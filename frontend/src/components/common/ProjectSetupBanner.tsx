@@ -12,17 +12,12 @@
  * 4. Tracked + Remote — no banner (fully set up)
  * 5. Just Created — success banner (auto-dismisses)
  */
-import { memo, useState, useCallback, useEffect, useMemo } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import {
   FolderOpen,
   GitBranch,
   CloudUpload,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Github,
-  Lock,
-  Globe,
   AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
@@ -32,9 +27,10 @@ import {
   ICON_SIZES,
   type ProjectState,
 } from '../../constants';
-import { Button, Input, Label, Select, type SelectOption } from '../ui';
+import { Button } from '../ui';
 import { cn } from '../../lib/utils';
-import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../context/RepoContext.types';
+import type { GitHubAuthStatus, GitHubOrganizationsResult } from '../../context/RepoContext.types';
+import PublishToCloudModal from './PublishToCloudModal.tsx';
 
 // ============================================================================
 // Types
@@ -95,7 +91,7 @@ const STATE_VISUALS: Record<ProjectState, StateVisual> = {
     Icon: CloudUpload,
     iconBg: 'bg-blue-500/10',
     iconColor: 'text-blue-400',
-    borderColor: 'border-blue-500/30',
+    borderColor: 'border-transparent',
   },
   [PROJECT_STATES.TRACKED_WITH_REMOTE]: {
     Icon: CheckCircle2,
@@ -134,17 +130,8 @@ function ProjectSetupBanner({
   ghAuthStatus,
   repoPath,
 }: ProjectSetupBannerProps): JSX.Element | null {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-
-  // Publish form state
-  const defaultRepoName = repoPath?.split('/').pop() || 'my-repo';
-  const [repoName, setRepoName] = useState(defaultRepoName);
-  const [isPrivate, setIsPrivate] = useState(true);
-  const [selectedOwner, setSelectedOwner] = useState('');
-  const [username, setUsername] = useState('');
-  const [organizations, setOrganizations] = useState<GitHubOrganization[]>([]);
-  const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
 
   // Auto-dismiss "just created" banner after 8 seconds
   useEffect(() => {
@@ -155,61 +142,14 @@ function ProjectSetupBanner({
     setDismissed(false);
   }, [projectState]);
 
-  // Reset repo name when repoPath changes
-  useEffect(() => {
-    setRepoName(repoPath?.split('/').pop() || 'my-repo');
-  }, [repoPath]);
-
-  // Load orgs when authenticated and in publish state
-  useEffect(() => {
-    const loadOrgs = async () => {
-      if (
-        projectState === PROJECT_STATES.TRACKED_NO_REMOTE &&
-        ghAuthStatus?.loggedIn &&
-        onLoadOrganizations
-      ) {
-        setIsLoadingOrgs(true);
-        try {
-          const result = await onLoadOrganizations();
-          if (result.success) {
-            setUsername(result.username);
-            setOrganizations(result.organizations);
-            setSelectedOwner((prev) => prev || result.username);
-          }
-        } finally {
-          setIsLoadingOrgs(false);
-        }
-      }
-    };
-    loadOrgs();
-  }, [projectState, ghAuthStatus?.loggedIn, onLoadOrganizations]);
-
   const handleEnableVC = useCallback(async () => {
     if (onEnableVersionControl) {
       const success = await onEnableVersionControl();
       if (success) {
-        setIsExpanded(false);
+        setIsPublishModalOpen(false);
       }
     }
   }, [onEnableVersionControl]);
-
-  const handlePublish = useCallback(async () => {
-    if (onPublishToGitHub && repoName) {
-      const owner = selectedOwner === username ? '' : selectedOwner;
-      await onPublishToGitHub(repoName, isPrivate, owner);
-    }
-  }, [onPublishToGitHub, repoName, isPrivate, selectedOwner, username]);
-
-  const ownerOptions = useMemo((): SelectOption[] => {
-    const options: SelectOption[] = [];
-    if (username) {
-      options.push({ value: username, label: `${username} (personal)` });
-    }
-    organizations.forEach((org) => {
-      options.push({ value: org.login, label: org.name || org.login });
-    });
-    return options;
-  }, [username, organizations]);
 
   // Don't render for fully set up projects, nested repos, or dismissed banners
   if (projectState === PROJECT_STATES.TRACKED_WITH_REMOTE || projectState === PROJECT_STATES.NESTED_REPO || dismissed) {
@@ -231,6 +171,7 @@ function ProjectSetupBanner({
     projectState === PROJECT_STATES.HAS_FILES_UNTRACKED;
 
   const isPublishState = projectState === PROJECT_STATES.TRACKED_NO_REMOTE;
+  const showSubtitle = !isPublishState;
 
   return (
     <div
@@ -240,13 +181,13 @@ function ProjectSetupBanner({
       )}
     >
       {/* Banner header row */}
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className={cn('flex items-center gap-3 px-4', isPublishState ? 'py-2' : 'py-3')}>
         <div className={cn('flex items-center justify-center w-8 h-8 rounded-full shrink-0', iconBg)}>
           <Icon size={ICON_SIZES.sm} className={iconColor} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-theme-primary text-sm font-medium">{config.title}</p>
-          <p className="text-theme-muted text-xs truncate">{subtitle}</p>
+          {showSubtitle && <p className="text-theme-muted text-xs truncate">{subtitle}</p>}
         </div>
 
         {/* Primary CTA (compact, in the header row) */}
@@ -261,12 +202,11 @@ function ProjectSetupBanner({
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              onClick={() => setIsExpanded((v) => !v)}
+              onClick={() => setIsPublishModalOpen(true)}
               variant="secondary"
             >
               <CloudUpload size={ICON_SIZES.xs} />
-              {config.actionLabel}
-              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              Publish to Cloud
             </Button>
           </div>
         )}
@@ -281,91 +221,18 @@ function ProjectSetupBanner({
         )}
       </div>
 
-      {/* Expandable publish form (Phase 12.3 — inline options instead of steps) */}
-      {isPublishState && isExpanded && (
-        <div className="px-4 pb-4 border-t border-theme-default pt-3 space-y-3">
-          {!ghAuthStatus?.loggedIn ? (
-            // Not authenticated — show Connect GitHub button
-            <div className="text-center py-2">
-              <p className="text-theme-muted text-xs mb-3">
-                Connect your GitHub account to publish this project.
-              </p>
-              <Button
-                size="sm"
-                onClick={onConnectGitHub}
-                disabled={!ghInstalled}
-              >
-                <Github size={ICON_SIZES.xs} />
-                Connect GitHub
-              </Button>
-              {!ghInstalled && (
-                <p className="text-yellow-400 text-xs mt-2">GitHub CLI not installed</p>
-              )}
-            </div>
-          ) : (
-            // Authenticated — show inline publish form
-            <>
-              <div>
-                <Label htmlFor="setup-repo-name" className="text-left">
-                  Repository Name
-                </Label>
-                <Input
-                  id="setup-repo-name"
-                  type="text"
-                  value={repoName}
-                  onChange={(e) => setRepoName(e.target.value)}
-                  placeholder="my-repo"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <Label className="text-left">Visibility</Label>
-                  <button
-                    type="button"
-                    onClick={() => setIsPrivate((v) => !v)}
-                    className={cn(
-                      'flex h-9 w-full items-center gap-2 rounded border border-theme-default bg-theme-surface px-3 text-sm transition-colors',
-                      'hover:border-theme-hover'
-                    )}
-                  >
-                    {isPrivate ? (
-                      <>
-                        <Lock size={14} className="text-theme-muted" /> Private
-                      </>
-                    ) : (
-                      <>
-                        <Globe size={14} className="text-theme-muted" /> Public
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="flex-1">
-                  <Label className="text-left">Owner</Label>
-                  <Select
-                    value={selectedOwner}
-                    onValueChange={setSelectedOwner}
-                    options={ownerOptions}
-                    placeholder={isLoadingOrgs ? 'Loading...' : 'Select owner'}
-                    disabled={isLoadingOrgs}
-                  />
-                </div>
-              </div>
-
-              <Button
-                size="sm"
-                onClick={handlePublish}
-                loading={isPublishing}
-                disabled={!repoName.trim() || !selectedOwner}
-                className="w-full"
-              >
-                <Github size={ICON_SIZES.xs} />
-                Publish to GitHub
-              </Button>
-            </>
-          )}
-        </div>
+      {isPublishState && (
+        <PublishToCloudModal
+          isOpen={isPublishModalOpen}
+          onClose={() => setIsPublishModalOpen(false)}
+          onPublishToGitHub={onPublishToGitHub}
+          onConnectGitHub={onConnectGitHub}
+          onLoadOrganizations={onLoadOrganizations}
+          isPublishing={isPublishing}
+          ghInstalled={ghInstalled}
+          ghAuthStatus={ghAuthStatus}
+          repoPath={repoPath}
+        />
       )}
     </div>
   );
