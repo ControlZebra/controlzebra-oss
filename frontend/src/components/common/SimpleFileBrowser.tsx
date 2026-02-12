@@ -41,6 +41,7 @@ import {
   Info,
   Cloud,
   Box,
+  Lock,
   type LucideIcon,
 } from 'lucide-react';
 import { 
@@ -50,13 +51,23 @@ import {
   CopyToClipboard,
 } from '../../../bindings/controlzebra/services/filesystemservice';
 import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
-import { LFSLsFiles } from '../../../bindings/controlzebra/services/lfsservice';
+import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../bindings/controlzebra/services/lfsservice';
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
 import { type ExplorerTab } from '../../constants';
 import { getViewerForFile } from '../../lib/viewers';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -520,38 +531,134 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
 interface FileItemGridProps {
   file: FileEntry;
   gitStatus?: string;
+  isLfs?: boolean;
+  lockOwner?: string;
+  isOwnLock?: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
   onDoubleClick: () => void;
+  onPreview?: () => void;
+  onContextAction?: (action: FileContextAction, file: FileEntry) => void;
 }
 
 /**
  * File item component for grid view
  */
-function FileItemGrid({ file, gitStatus, onDoubleClick }: FileItemGridProps) {
+function FileItemGrid({ file, gitStatus, isLfs, lockOwner, isOwnLock, isSelected, onSelect, onDoubleClick, onPreview, onContextAction }: FileItemGridProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   // Only apply git status color to files, not folders
   const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
+
+  const hasViewer = useMemo(() => {
+    if (file.isDirectory) return false;
+    const viewer = getViewerForFile(file.name);
+    return viewer && viewer.id !== 'unsupported';
+  }, [file.name, file.isDirectory]);
+
+  const isLocked = !!lockOwner;
+
+  const lockDisabled = file.isDirectory || !isLfs || isLocked;
+  const unlockDisabled = file.isDirectory || !isLfs || !isLocked || !isOwnLock;
+  const forceUnlockDisabled = file.isDirectory || !isLfs || !isLocked || !!isOwnLock;
   
   return (
-    <button
-      onDoubleClick={onDoubleClick}
-      className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-fb-hover transition-colors group w-full"
-      title={file.name}
-    >
-      <div className={`relative ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
-        <Icon className="w-10 h-10" />
-        {gitStatus && (
-          <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
-            gitStatus === 'added' ? 'bg-green-500' :
-            gitStatus === 'modified' ? 'bg-yellow-500' :
-            gitStatus === 'deleted' ? 'bg-red-500' :
-            'bg-gray-500'
-          }`} />
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          onClick={onSelect}
+          onDoubleClick={onDoubleClick}
+          className={`flex flex-col items-center gap-2 p-3 rounded-lg transition-colors group w-full border border-transparent ${
+            isSelected ? 'bg-fb-selected border-fb-selected' : 'hover:bg-fb-hover'
+          }`}
+          title={file.name}
+        >
+          <div className={`relative ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
+            <Icon className="w-10 h-10" />
+            {gitStatus && (
+              <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
+                gitStatus === 'added' ? 'bg-green-500' :
+                gitStatus === 'modified' ? 'bg-yellow-500' :
+                gitStatus === 'deleted' ? 'bg-red-500' :
+                'bg-gray-500'
+              }`} />
+            )}
+            {isLfs && !file.isDirectory && (
+              <div className="absolute -bottom-1 -right-1 bg-fb-surface rounded-full p-0.5" title="LFS tracked">
+                <Box className="w-3 h-3 text-theme-muted" />
+              </div>
+            )}
+          </div>
+          <span
+            className={`text-xs text-center truncate w-full flex items-center justify-center gap-1 ${statusColor || 'text-theme-primary'}`}
+            title={isLocked ? `Locked by ${lockOwner}` : file.name}
+          >
+            <span className="truncate">{file.name}</span>
+            {isLocked && !file.isDirectory && (
+              <Lock className={`w-3 h-3 shrink-0 ${isOwnLock ? 'text-blue-400' : 'text-amber-400'}`} />
+            )}
+          </span>
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        <ContextMenuItem onClick={() => onContextAction?.('open', file)}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          <span>Open</span>
+          <ContextMenuShortcut>⏎</ContextMenuShortcut>
+        </ContextMenuItem>
+        {!file.isDirectory && hasViewer && (
+          <ContextMenuItem onClick={() => onPreview?.()}>
+            <Eye className="mr-2 h-4 w-4" />
+            <span>Preview</span>
+            <ContextMenuShortcut>␣</ContextMenuShortcut>
+          </ContextMenuItem>
         )}
-      </div>
-      <span className={`text-xs text-center truncate w-full ${statusColor || 'text-theme-primary'}`}>
-        {file.name}
-      </span>
-    </button>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          disabled={lockDisabled}
+          onClick={() => onContextAction?.('lfs-lock', file)}
+        >
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Lock File (LFS)</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={unlockDisabled}
+          onClick={() => onContextAction?.('lfs-unlock', file)}
+        >
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Unlock File (LFS)</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={forceUnlockDisabled}
+          onClick={() => onContextAction?.('lfs-unlock-force', file)}
+        >
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Force Unlock (LFS)</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('reveal-in-finder', file)}>
+          <FolderOpen className="mr-2 h-4 w-4" />
+          <span>{IS_MAC_OS ? 'Reveal in Finder' : 'Reveal in Explorer'}</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('copy-path', file)}>
+          <Clipboard className="mr-2 h-4 w-4" />
+          <span>Copy Path</span>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('copy-name', file)}>
+          <Copy className="mr-2 h-4 w-4" />
+          <span>Copy Name</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onContextAction?.('share', file)}>
+          <Share2 className="mr-2 h-4 w-4" />
+          <span>Share...</span>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('get-info', file)}>
+          <Info className="mr-2 h-4 w-4" />
+          <span>Get Info</span>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -559,6 +666,8 @@ interface FileItemListProps {
   file: FileEntry;
   gitStatus?: string;
   isLfs?: boolean;
+  lockOwner?: string;
+  isOwnLock?: boolean;
   onDoubleClick: () => void;
   isSelected?: boolean;
   onSelect?: () => void;
@@ -570,6 +679,9 @@ interface FileItemListProps {
 type FileContextAction = 
   | 'open'
   | 'preview'
+  | 'lfs-lock'
+  | 'lfs-unlock'
+  | 'lfs-unlock-force'
   | 'reveal-in-finder'
   | 'copy-path'
   | 'copy-name'
@@ -595,7 +707,7 @@ const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string 
 /**
  * File item component for table view (used in virtualized list)
  */
-const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, onDoubleClick, isSelected, onSelect, onPreview, onContextAction }: FileItemListProps) {
+const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOwner, isOwnLock, onDoubleClick, isSelected, onSelect, onPreview, onContextAction }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
@@ -615,6 +727,12 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, onDoub
     const viewer = getViewerForFile(file.name);
     return viewer && viewer.id !== 'unsupported';
   }, [file.name, file.isDirectory]);
+
+  const isLocked = !!lockOwner;
+
+  const lockDisabled = file.isDirectory || !isLfs || isLocked;
+  const unlockDisabled = file.isDirectory || !isLfs || !isLocked || !isOwnLock;
+  const forceUnlockDisabled = file.isDirectory || !isLfs || !isLocked || !!isOwnLock;
   
   return (
     <ContextMenu>
@@ -651,6 +769,14 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, onDoub
             <span className={`text-sm truncate flex-1 ${statusColor || 'text-theme-primary'}`}>
               {file.name}
             </span>
+            {isLocked && !file.isDirectory && (
+              <span
+                className={`ml-2 flex items-center gap-1 text-xs ${isOwnLock ? 'text-blue-400' : 'text-amber-400'}`}
+                title={`Locked by ${lockOwner}`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </span>
+            )}
             {/* Preview button - primary style, visible on hover */}
             {hasViewer && (
               <button
@@ -704,6 +830,28 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, onDoub
             <ContextMenuShortcut>␣</ContextMenuShortcut>
           </ContextMenuItem>
         )}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          disabled={lockDisabled}
+          onClick={() => onContextAction?.('lfs-lock', file)}
+        >
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Lock File (LFS)</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={unlockDisabled}
+          onClick={() => onContextAction?.('lfs-unlock', file)}
+        >
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Unlock File (LFS)</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={forceUnlockDisabled}
+          onClick={() => onContextAction?.('lfs-unlock-force', file)}
+        >
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Force Unlock (LFS)</span>
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => onContextAction?.('reveal-in-finder', file)}>
           <FolderOpen className="mr-2 h-4 w-4" />
@@ -800,15 +948,19 @@ interface FileDetailsSidebarProps {
   file: FileEntry | null;
   gitStatus?: string;
   isLfs?: boolean;
+  lockOwner?: string;
+  isOwnLock?: boolean;
   onClose: () => void;
   onPreview?: (file: FileEntry) => void;
   onOpenInApp?: (file: FileEntry) => void;
+  onLockLfs?: (file: FileEntry) => void;
+  onUnlockLfs?: (file: FileEntry, force: boolean) => void;
 }
 
 /**
  * Right sidebar showing file details and actions
  */
-const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, isLfs, onClose, onPreview, onOpenInApp }: FileDetailsSidebarProps) {
+const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, isLfs, lockOwner, isOwnLock, onClose, onPreview, onOpenInApp, onLockLfs, onUnlockLfs }: FileDetailsSidebarProps) {
   const Icon = file ? getFileIcon(file.name, file.isDirectory) : File;
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   const statusLabel = gitStatus ? GIT_STATUS_LABELS[gitStatus] : '';
@@ -839,6 +991,20 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, i
     if (!file) return;
     onOpenInApp?.(file);
   }, [file, onOpenInApp]);
+
+  const isLocked = !!lockOwner;
+  const lockDisabled = !isLfs || !!file?.isDirectory || isLocked;
+  const unlockDisabled = !isLfs || !!file?.isDirectory || !isLocked || !isOwnLock;
+  const forceUnlockDisabled = !isLfs || !!file?.isDirectory || !isLocked || !!isOwnLock;
+  const handleLockLfs = useCallback(() => {
+    if (!file) return;
+    onLockLfs?.(file);
+  }, [file, onLockLfs]);
+
+  const handleUnlock = useCallback((force: boolean) => {
+    if (!file) return;
+    onUnlockLfs?.(file, force);
+  }, [file, onUnlockLfs]);
 
   if (!file) return null;
 
@@ -874,6 +1040,11 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, i
           {isLfs && (
             <span className="flex items-center gap-1 text-xs mt-1 text-blue-400">
               <Box className="w-3 h-3" /> LFS Tracked
+            </span>
+          )}
+          {isLocked && (
+            <span className={`flex items-center gap-1 text-xs mt-1 ${isOwnLock ? 'text-blue-400' : 'text-amber-400'}`}>
+              <Lock className="w-3 h-3" /> Locked by {lockOwner}
             </span>
           )}
         </div>
@@ -938,6 +1109,52 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, i
               <Clipboard className="w-4 h-4" />
               <span>Copy Path</span>
             </button>
+            {/* Git LFS Lock */}
+            {!file.isDirectory && (
+              <button
+                disabled={lockDisabled}
+                title={lockDisabled ? 'Only available for Git LFS tracked files' : 'Lock this file with Git LFS'}
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded transition-colors ${
+                  lockDisabled
+                    ? 'text-theme-muted opacity-50 cursor-not-allowed'
+                    : 'text-theme-primary hover:bg-fb-hover'
+                }`}
+                onClick={handleLockLfs}
+              >
+                <Lock className="w-4 h-4" />
+                <span>Lock File (LFS)</span>
+              </button>
+            )}
+            {!file.isDirectory && (
+              <button
+                disabled={unlockDisabled}
+                title={unlockDisabled ? 'Only available for files locked by you' : 'Unlock this file'}
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded transition-colors ${
+                  unlockDisabled
+                    ? 'text-theme-muted opacity-50 cursor-not-allowed'
+                    : 'text-theme-primary hover:bg-fb-hover'
+                }`}
+                onClick={() => handleUnlock(false)}
+              >
+                <Lock className="w-4 h-4" />
+                <span>Unlock File (LFS)</span>
+              </button>
+            )}
+            {!file.isDirectory && (
+              <button
+                disabled={forceUnlockDisabled}
+                title={forceUnlockDisabled ? 'Only available for files locked by someone else' : 'Force unlock this file'}
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded transition-colors ${
+                  forceUnlockDisabled
+                    ? 'text-theme-muted opacity-50 cursor-not-allowed'
+                    : 'text-red-400 hover:bg-red-500/10'
+                }`}
+                onClick={() => handleUnlock(true)}
+              >
+                <Lock className="w-4 h-4" />
+                <span>Force Unlock (LFS)</span>
+              </button>
+            )}
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-theme-primary hover:bg-fb-hover rounded transition-colors"
               onClick={() => toast.info('Download coming soon')}
@@ -970,6 +1187,8 @@ interface VirtualizedFileTableProps {
   files: FileEntry[];
   gitStatusMap: Record<string, string>;
   lfsFilesSet: Set<string>;
+  lockOwnerByName: Record<string, string>;
+  isOwnLockByName: Record<string, boolean>;
   selectedPath: string | null;
   onSelect: (path: string) => void;
   onDoubleClick: (file: FileEntry) => void;
@@ -981,6 +1200,8 @@ function VirtualizedFileTable({
   files, 
   gitStatusMap, 
   lfsFilesSet,
+  lockOwnerByName,
+  isOwnLockByName,
   selectedPath, 
   onSelect, 
   onDoubleClick,
@@ -1030,6 +1251,8 @@ function VirtualizedFileTable({
                 file={file}
                 gitStatus={gitStatusMap[file.name]}
                 isLfs={lfsFilesSet.has(file.name)}
+                lockOwner={lockOwnerByName[file.name]}
+                isOwnLock={isOwnLockByName[file.name]}
                 isSelected={selectedPath === file.path}
                 onSelect={() => onSelect(file.path)}
                 onDoubleClick={() => onDoubleClick(file)}
@@ -1056,14 +1279,59 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [lfsFiles, setLfsFiles] = useState<Set<string>>(new Set());
+
+  const [gitUser, setGitUser] = useState<string>('');
+  const [lockOwnerByName, setLockOwnerByName] = useState<Record<string, string>>({});
+  const [lockRefreshKey, setLockRefreshKey] = useState(0);
+
+  const [lockedOpenModal, setLockedOpenModal] = useState<{ open: boolean; file: FileEntry | null; owner: string }>({
+    open: false,
+    file: null,
+    owner: '',
+  });
+
+  const [forceUnlockModal, setForceUnlockModal] = useState<{ open: boolean; file: FileEntry | null; owner: string }>({
+    open: false,
+    file: null,
+    owner: '',
+  });
   
   const { repoStatus } = useRepo();
   const { openExplorerTab } = useLayout();
+
+  const isOwnLockByName = useMemo(() => {
+    const out: Record<string, boolean> = {};
+    if (!gitUser) return out;
+    for (const [name, owner] of Object.entries(lockOwnerByName)) {
+      out[name] = owner === gitUser;
+    }
+    return out;
+  }, [gitUser, lockOwnerByName]);
 
   // Reset current path when repo changes
   useEffect(() => {
     setCurrentPath(repoPath);
     setSelectedPath(null);
+  }, [repoPath]);
+
+  // Load git user for lock ownership comparisons
+  useEffect(() => {
+    if (!repoPath) {
+      setGitUser('');
+      return;
+    }
+
+    let aborted = false;
+    (async () => {
+      try {
+        const user = await GetGitUser(repoPath);
+        if (!aborted) setGitUser(user);
+      } catch {
+        if (!aborted) setGitUser('');
+      }
+    })();
+
+    return () => { aborted = true; };
   }, [repoPath]);
 
   // Clear selection when navigating to a new directory
@@ -1141,6 +1409,50 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     })();
     return () => { aborted = true; };
   }, [repoPath, currentPath]);
+
+  // Load LFS locks for the current directory (repo-wide locks filtered to current folder)
+  useEffect(() => {
+    if (!repoPath) {
+      setLockOwnerByName({});
+      return;
+    }
+
+    let aborted = false;
+    (async () => {
+      try {
+        const locks = await LFSLocks(repoPath);
+        if (aborted) return;
+
+        const relCurrentPath = currentPath?.startsWith(repoPath)
+          ? currentPath.slice(repoPath.length + 1)
+          : '';
+
+        const map: Record<string, string> = {};
+        for (const lock of locks) {
+          const p = lock.path || '';
+          if (!p) continue;
+          const dir = p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '';
+          if (dir !== relCurrentPath) continue;
+          const name = p.split('/').pop();
+          if (!name) continue;
+          map[name] = lock.owner || '';
+        }
+
+        setLockOwnerByName(map);
+      } catch {
+        if (!aborted) setLockOwnerByName({});
+      }
+    })();
+
+    return () => { aborted = true; };
+  }, [repoPath, currentPath, lockRefreshKey]);
+
+  const getRepoRelativePath = useCallback((absPath: string): string => {
+    if (!repoPath) return absPath;
+    return absPath.startsWith(repoPath)
+      ? absPath.slice(repoPath.length + 1)
+      : absPath;
+  }, [repoPath]);
 
   // Track the last successfully loaded path so we can distinguish
   // "navigating to a new directory" from "in-place refresh of the same directory".
@@ -1244,22 +1556,33 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     }
   }, []);
 
+  const attemptOpenWithLockWarning = useCallback(async (file: FileEntry) => {
+    if (file.isDirectory) return;
+    if (!repoPath) {
+      toast.error('No repository open');
+      return;
+    }
+
+    const isLfs = lfsFiles.has(file.name);
+    const lockOwner = lockOwnerByName[file.name];
+
+    // Only warn if file is LFS + locked by someone else.
+    if (isLfs && lockOwner && lockOwner !== gitUser) {
+      setLockedOpenModal({ open: true, file, owner: lockOwner });
+      return;
+    }
+
+    await handleOpenInApp(file);
+  }, [gitUser, handleOpenInApp, lfsFiles, lockOwnerByName, repoPath]);
+
   // Handle file/folder double-click - opens in default application
   const handleItemDoubleClick = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) {
       setCurrentPath(file.path);
     } else {
-      // Open file with default application
-      try {
-        const result = await OpenFile(file.path);
-        if (!result.success) {
-          toast.error(`Failed to open file: ${result.error}`);
-        }
-      } catch {
-        toast.error('Failed to open file');
-      }
+      await attemptOpenWithLockWarning(file);
     }
-  }, []);
+  }, [attemptOpenWithLockWarning]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -1321,6 +1644,66 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
       case 'preview':
         handlePreview(file);
         break;
+      case 'lfs-lock':
+        if (!repoPath) {
+          toast.error('No repository open');
+          break;
+        }
+        if (file.isDirectory) {
+          toast.error('Cannot lock folders');
+          break;
+        }
+
+        try {
+          const relPath = file.path.startsWith(repoPath)
+            ? file.path.slice(repoPath.length + 1)
+            : file.name;
+
+          const result = await LFSLock(repoPath, relPath);
+          if (result.success) {
+            toast.success(result.message || `Locked '${file.name}'`);
+            setLockRefreshKey(k => k + 1);
+          } else {
+            toast.error(result.error || result.message || 'Failed to lock file');
+          }
+        } catch (err) {
+          console.error('LFSLock error:', err);
+          toast.error('Failed to lock file');
+        }
+        break;
+      case 'lfs-unlock':
+        if (!repoPath) {
+          toast.error('No repository open');
+          break;
+        }
+        if (file.isDirectory) {
+          toast.error('Cannot unlock folders');
+          break;
+        }
+
+        try {
+          const relPath = getRepoRelativePath(file.path);
+          const result = await LFSUnlock(repoPath, relPath, false);
+          if (result.success) {
+            toast.success(result.message || `Unlocked '${file.name}'`);
+            setLockRefreshKey(k => k + 1);
+          } else {
+            toast.error(result.error || result.message || 'Failed to unlock file');
+          }
+        } catch (err) {
+          console.error('LFSUnlock error:', err);
+          toast.error('Failed to unlock file');
+        }
+        break;
+      case 'lfs-unlock-force': {
+        if (!repoPath) {
+          toast.error('No repository open');
+          break;
+        }
+        const owner = lockOwnerByName[file.name] || '';
+        setForceUnlockModal({ open: true, file, owner });
+        break;
+      }
       case 'reveal-in-finder':
         await revealInFileManager(file.path);
         break;
@@ -1338,9 +1721,51 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         setSelectedPath(file.path);
         break;
     }
-  }, [handleItemDoubleClick, handlePreview]);
+  }, [getRepoRelativePath, handleItemDoubleClick, handlePreview, lockOwnerByName, repoPath]);
+
+  const selectedLockOwner = selectedFile ? lockOwnerByName[selectedFile.name] : undefined;
+  const selectedIsOwnLock = selectedFile ? isOwnLockByName[selectedFile.name] : undefined;
+
+  const handleConfirmForceUnlock = useCallback(async () => {
+    if (!repoPath || !forceUnlockModal.file) return;
+    const file = forceUnlockModal.file;
+    try {
+      const relPath = getRepoRelativePath(file.path);
+      const result = await LFSUnlock(repoPath, relPath, true);
+      if (result.success) {
+        toast.success(result.message || `Force unlocked '${file.name}'`);
+        setLockRefreshKey(k => k + 1);
+      } else {
+        toast.error(result.error || result.message || 'Failed to force unlock file');
+      }
+    } catch (err) {
+      console.error('LFSUnlock(force) error:', err);
+      toast.error('Failed to force unlock file');
+    } finally {
+      setForceUnlockModal({ open: false, file: null, owner: '' });
+    }
+  }, [forceUnlockModal.file, getRepoRelativePath, repoPath]);
+
+  const handleLockedOpenReadOnly = useCallback(async () => {
+    const file = lockedOpenModal.file;
+    if (!file) return;
+
+    const viewer = getViewerForFile(file.name);
+    const hasViewer = viewer && viewer.id !== 'unsupported';
+
+    setLockedOpenModal({ open: false, file: null, owner: '' });
+
+    if (hasViewer) {
+      // In-app viewer is read-only
+      handlePreview(file);
+    } else {
+      toast.info('No read-only preview available for this file type. Opening in default app.');
+      await handleOpenInApp(file);
+    }
+  }, [handleOpenInApp, handlePreview, lockedOpenModal.file]);
 
   return (
+    <>
     <div className="flex flex-col h-full bg-fb-base">
       <Breadcrumbs 
         currentPath={currentPath} 
@@ -1379,7 +1804,14 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
                     key={file.path}
                     file={file}
                     gitStatus={gitStatusMap[file.name]}
+                    isLfs={lfsFiles.has(file.name)}
+                    lockOwner={lockOwnerByName[file.name]}
+                    isOwnLock={isOwnLockByName[file.name]}
+                    isSelected={selectedPath === file.path}
+                    onSelect={() => handleSelect(file.path)}
                     onDoubleClick={() => handleItemDoubleClick(file)}
+                    onPreview={() => handlePreview(file)}
+                    onContextAction={handleContextAction}
                   />
                 ))}
               </div>
@@ -1389,6 +1821,8 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
               files={files}
               gitStatusMap={gitStatusMap}
               lfsFilesSet={lfsFiles}
+              lockOwnerByName={lockOwnerByName}
+              isOwnLockByName={isOwnLockByName}
               selectedPath={selectedPath}
               onSelect={handleSelect}
               onDoubleClick={handleItemDoubleClick}
@@ -1404,13 +1838,66 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
             file={selectedFile}
             gitStatus={selectedFile ? gitStatusMap[selectedFile.name] : undefined}
             isLfs={selectedFile ? lfsFiles.has(selectedFile.name) : false}
+            lockOwner={selectedLockOwner}
+            isOwnLock={selectedIsOwnLock}
             onClose={handleCloseSidebar}
             onPreview={handlePreview}
-            onOpenInApp={handleOpenInApp}
+            onOpenInApp={attemptOpenWithLockWarning}
+            onLockLfs={(file) => handleContextAction('lfs-lock', file)}
+            onUnlockLfs={(file, force) => handleContextAction(force ? 'lfs-unlock-force' : 'lfs-unlock', file)}
           />
         )}
       </div>
     </div>
+
+    {/* Locked-by-other warning modal */}
+    <AlertDialog
+      open={lockedOpenModal.open}
+      onOpenChange={(open) => {
+        if (!open) setLockedOpenModal({ open: false, file: null, owner: '' });
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>File is locked</AlertDialogTitle>
+          <AlertDialogDescription>
+            This file is locked by {lockedOpenModal.owner || 'another user'}. To avoid conflicts, open a read-only preview.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="default" onClick={handleLockedOpenReadOnly}>
+            Open read-only
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Force unlock confirmation */}
+    <AlertDialog
+      open={forceUnlockModal.open}
+      onOpenChange={(open) => {
+        if (!open) setForceUnlockModal({ open: false, file: null, owner: '' });
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Force unlock this file?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {forceUnlockModal.owner
+              ? `This file is locked by ${forceUnlockModal.owner}. Forcing an unlock may interrupt their work.`
+              : 'This file is locked by someone else. Forcing an unlock may interrupt their work.'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmForceUnlock}>
+            Force unlock
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 
