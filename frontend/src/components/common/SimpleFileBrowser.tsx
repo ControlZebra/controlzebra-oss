@@ -1750,19 +1750,12 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     const file = lockedOpenModal.file;
     if (!file) return;
 
-    const viewer = getViewerForFile(file.name);
-    const hasViewer = viewer && viewer.id !== 'unsupported';
-
+    // We intentionally do NOT open an in-app viewer here.
+    // "Read-only" is guidance to the user; we still open the default app.
     setLockedOpenModal({ open: false, file: null, owner: '' });
-
-    if (hasViewer) {
-      // In-app viewer is read-only
-      handlePreview(file);
-    } else {
-      toast.info('No read-only preview available for this file type. Opening in default app.');
-      await handleOpenInApp(file);
-    }
-  }, [handleOpenInApp, handlePreview, lockedOpenModal.file]);
+    toast.info('Opening in default app (treat as read-only)');
+    await handleOpenInApp(file);
+  }, [handleOpenInApp, lockedOpenModal.file]);
 
   return (
     <>
