@@ -130,7 +130,7 @@ function RepoSwitcher(): JSX.Element {
     isLoadingGhRepos,
     loadGitHubRepos,
     cloneGitHubRepo,
-    openRepo,
+    openFolder,
   } = useRepo();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -246,13 +246,13 @@ function RepoSwitcher(): JSX.Element {
     try {
       const result = await OpenFolderDialog();
       if (result.selected && result.path) {
-        await openRepo(result.path);
+        await openFolder(result.path);
         setIsOpen(false);
       }
     } catch (error) {
       console.error('Failed to open folder:', error);
     }
-  }, [openRepo]);
+  }, [openFolder]);
 
   // Refresh repos
   const handleRefresh = useCallback(() => {

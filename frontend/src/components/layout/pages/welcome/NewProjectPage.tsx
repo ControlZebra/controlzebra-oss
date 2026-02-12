@@ -199,7 +199,12 @@ function AlreadyAProjectCard({
 // Main component
 // ============================================================================
 
-function NewProjectPage(): JSX.Element {
+interface NewProjectPageProps {
+  prefillPath?: string;
+  onPrefillApplied?: () => void;
+}
+
+function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPageProps): JSX.Element {
   const {
     openRepo,
     ghInstalled,
@@ -360,11 +365,7 @@ function NewProjectPage(): JSX.Element {
     }
   }, [startGitHubLogin]);
 
-  const handleDeviceFlowComplete = useCallback(() => {
-    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
-  }, []);
-
-  const handleDeviceFlowCancel = useCallback(() => {
+  const handleCloseDeviceFlow = useCallback(() => {
     setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
   }, []);
 
@@ -416,6 +417,19 @@ function NewProjectPage(): JSX.Element {
     })();
   }, []);
 
+  // Apply externally provided path (e.g., from non-git folder prompt)
+  useEffect(() => {
+    if (!prefillPath) return;
+
+    setSelectedPath(prefillPath);
+    setRepoName(suggestRepoName(prefillPath));
+    setNameCheckStatus('idle');
+    setError(null);
+
+    void validateFolder(prefillPath);
+    onPrefillApplied?.();
+  }, [prefillPath, validateFolder, onPrefillApplied]);
+
   const gitignoreOptions = useMemo((): SelectOption[] => {
     return [
       { value: NO_GITIGNORE_TEMPLATE, label: 'None' },
@@ -456,6 +470,15 @@ function NewProjectPage(): JSX.Element {
     },
     [isLoggedIn, ghUsername],
   );
+
+  // Cleanup pending debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (nameCheckTimer.current) {
+        clearTimeout(nameCheckTimer.current);
+      }
+    };
+  }, []);
 
   const handleRepoNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -819,8 +842,8 @@ function NewProjectPage(): JSX.Element {
           isOpen={deviceFlow.isOpen}
           userCode={deviceFlow.userCode}
           verificationUrl={deviceFlow.verificationUrl}
-          onComplete={handleDeviceFlowComplete}
-          onCancel={handleDeviceFlowCancel}
+          onComplete={handleCloseDeviceFlow}
+          onCancel={handleCloseDeviceFlow}
         />
       </div>
     </div>

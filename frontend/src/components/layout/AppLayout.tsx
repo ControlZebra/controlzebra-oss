@@ -7,6 +7,7 @@ import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import MainArea from './MainArea';
 import StatusBar from './StatusBar';
+import NonGitFolderPromptModal from './NonGitFolderPromptModal';
 
 /**
  * AppLayoutInner - Inner component that has access to RepoContext
@@ -28,6 +29,8 @@ function AppLayoutInner(): JSX.Element {
           title={progressModal.title}
           onComplete={handleProgressComplete}
         />
+
+        <NonGitFolderPromptModal />
         
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left side: Activity bar + Sidebar (full height) */}
