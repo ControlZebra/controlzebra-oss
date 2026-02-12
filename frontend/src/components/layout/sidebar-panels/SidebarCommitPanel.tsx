@@ -8,14 +8,17 @@ import {
   FileText,
   Undo2,
 } from 'lucide-react';
-import { FILE_STATUS, type FileStatusType, type ExplorerTab } from '../../../constants';
-import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName } from '../../../lib/gitHelpers';
-import { useLayout } from '../../../context';
+import { FILE_STATUS, MAIN_BRANCHES, type FileStatusType, type ExplorerTab } from '../../../constants';
+import { ICON_STYLES, STATUS_CONFIG } from '../../../lib/gitHelpers';
+import { useLayout, useRepo } from '../../../context';
 import { Button, Textarea } from '../../ui';
-import { RewindConfirmModal, BranchNameModal } from '../';
+import { RewindConfirmModal } from '../';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import { supportsDiff } from '../../../lib/file-utils';
 import type { FileStatus } from '../../../context';
+import MainBranchSaveChoiceModal, { type MainBranchSaveChoice } from './MainBranchSaveChoiceModal';
+
+let rememberedMainBranchSaveChoice: MainBranchSaveChoice | null = null;
 
 // ============================================================================
 // Types
@@ -26,6 +29,7 @@ interface SidebarCommitPanelProps {
   onCommit: (message: string, force?: boolean) => Promise<boolean>;
   onBranchAndCommit: (branchName: string, message: string) => Promise<boolean>;
   onRewind: () => Promise<boolean>;
+  onDiscardFile: (filePath: string) => Promise<boolean>;
   currentBranch: string;
   repoPath?: string;
   isCommitting: boolean;
@@ -34,14 +38,18 @@ interface SidebarCommitPanelProps {
 
 interface ChangedFileItemProps {
   file: FileStatus;
-  repoPath?: string;
   onOpenDiff?: (file: FileStatus) => void;
+  onDiscardFile?: (file: FileStatus) => Promise<void>;
+  isDiscarding?: boolean;
 }
 
 interface ChangedFilesListProps {
   files: FileStatus[];
-  repoPath?: string;
   onOpenDiff?: (file: FileStatus) => void;
+  onDiscardFile?: (file: FileStatus) => Promise<void>;
+  onRewind?: () => void;
+  isRewinding?: boolean;
+  isDiscardingFile?: boolean;
 }
 
 // ============================================================================
@@ -53,7 +61,7 @@ interface ChangedFilesListProps {
  * Uses shortLabel for compact display.
  * Clicking opens a diff tab (text diff or specialized visual diff).
  */
-const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff }: ChangedFileItemProps): JSX.Element {
+const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff, onDiscardFile, isDiscarding = false }: ChangedFileItemProps): JSX.Element {
   const statusConfig = STATUS_CONFIG[file.status as FileStatusType] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
   const StatusIcon = statusConfig.Icon;
   const canOpenDiff = supportsDiff(file.path);
@@ -64,45 +72,74 @@ const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff }: Chan
     }
   }, [file, canOpenDiff, onOpenDiff]);
   
+  const handleDiscardClick = useCallback(async (): Promise<void> => {
+    if (!onDiscardFile || isDiscarding) return;
+    await onDiscardFile(file);
+  }, [file, isDiscarding, onDiscardFile]);
+
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={!canOpenDiff}
-      className={`w-full flex items-center gap-2 px-2 py-1 rounded text-sm text-left transition-colors
-        ${canOpenDiff 
-          ? 'hover-bg-theme-interactive cursor-pointer' 
-          : 'cursor-default opacity-70'
-        }`}
-      title={canOpenDiff ? `View changes: ${file.path}` : file.path}
-    >
-      <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
-      <FileText style={ICON_STYLES.xs as CSSProperties} className="text-theme-muted shrink-0" />
-      <span className="text-theme-primary truncate flex-1">
-        {file.name}
-      </span>
-    </button>
+    <div className="group w-full flex items-center gap-1 px-1">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!canOpenDiff}
+        className={`flex-1 flex items-center gap-2 px-2 py-1 rounded text-sm text-left transition-colors
+          ${canOpenDiff
+            ? 'hover-bg-theme-interactive cursor-pointer'
+            : 'cursor-default opacity-70'
+          }`}
+        title={canOpenDiff ? `View changes: ${file.path}` : file.path}
+      >
+        <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
+        <FileText style={ICON_STYLES.xs as CSSProperties} className="text-yellow-500 shrink-0" />
+        <span className="text-yellow-500 truncate flex-1">
+          {file.name}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={handleDiscardClick}
+        disabled={isDiscarding}
+        className="opacity-0 group-hover:opacity-100 p-1 rounded text-yellow-500 hover:bg-red-500/10 hover:text-red-400 transition-all disabled:opacity-40"
+        title={`Discard changes: ${file.path}`}
+      >
+        <Undo2 style={ICON_STYLES.xs as CSSProperties} />
+      </button>
+    </div>
   );
 });
 
 /**
  * ChangedFilesList - Vertical list of changed files.
  */
-const ChangedFilesList = memo(function ChangedFilesList({ files, repoPath, onOpenDiff }: ChangedFilesListProps): JSX.Element | null {
+const ChangedFilesList = memo(function ChangedFilesList({ files, onOpenDiff, onDiscardFile, onRewind, isRewinding = false, isDiscardingFile = false }: ChangedFilesListProps): JSX.Element | null {
   if (!files || files.length === 0) return null;
 
   return (
     <div className="border-t border-theme-default">
-      <div className="px-3 py-2 text-xs text-yellow-500 uppercase tracking-wide">
-        Changed Files ({files.length})
+      <div className="px-3 py-2 flex items-center justify-between gap-2">
+        <div className="text-xs text-yellow-500 uppercase tracking-wide">
+          Changed Files ({files.length})
+        </div>
+        <button
+          type="button"
+          onClick={onRewind}
+          disabled={isRewinding || isDiscardingFile}
+          className="p-1 rounded text-yellow-500 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+          title="Discard all changes"
+        >
+          <Undo2 style={ICON_STYLES.xs as CSSProperties} />
+        </button>
       </div>
       <div className="max-h-48 overflow-y-auto px-1">
         {files.map((file, index) => (
           <ChangedFileItem 
             key={`${file.path}-${index}`} 
             file={file} 
-            repoPath={repoPath}
             onOpenDiff={onOpenDiff}
+            onDiscardFile={onDiscardFile}
+            isDiscarding={isDiscardingFile}
           />
         ))}
       </div>
@@ -115,15 +152,20 @@ function SidebarCommitPanel({
   onCommit,
   onBranchAndCommit,
   onRewind,
+  onDiscardFile,
   currentBranch,
   repoPath,
   isCommitting,
   isRewinding,
 }: SidebarCommitPanelProps): JSX.Element {
   const { openExplorerTab } = useLayout();
+  const { ghAuthStatus } = useRepo();
   const [message, setMessage] = useState('');
   const [showRewindModal, setShowRewindModal] = useState(false);
-  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [showMainBranchChoiceModal, setShowMainBranchChoiceModal] = useState(false);
+  const [mainBranchChoice, setMainBranchChoice] = useState<MainBranchSaveChoice>('branch-and-save');
+  const [rememberChoiceForSession, setRememberChoiceForSession] = useState(false);
+  const [isDiscardingFile, setIsDiscardingFile] = useState(false);
   const [defaultBranchName, setDefaultBranchName] = useState('');
 
   // Fetch user profile for default branch name
@@ -131,31 +173,76 @@ function SidebarCommitPanel({
     const fetchDefaults = async (): Promise<void> => {
       try {
         const profile = await GetUserProfile(repoPath || '');
-        const defaultName = generateDefaultBranchName(profile?.email || profile?.name);
+        const usernameSource = ghAuthStatus?.username || profile?.email || profile?.name || 'user';
+        const sanitizedUsername = usernameSource
+          .toLowerCase()
+          .replace(/@.*/, '')
+          .replace(/[^a-z0-9._-]/g, '-');
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const defaultName = `@${sanitizedUsername}-${yyyy}${mm}${dd}-${hh}${ss}`;
         setDefaultBranchName(defaultName);
       } catch {
-        setDefaultBranchName('feature/changes');
+        setDefaultBranchName(`@user-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-00-00`);
       }
     };
     fetchDefaults();
-  }, [repoPath]);
+  }, [repoPath, ghAuthStatus?.username]);
+
+  const executeSaveChoice = useCallback(async (choice: MainBranchSaveChoice): Promise<boolean> => {
+    if (!message.trim()) return false;
+
+    if (choice === 'branch-and-save') {
+      return onBranchAndCommit(defaultBranchName, message);
+    }
+
+    return onCommit(message);
+  }, [defaultBranchName, message, onBranchAndCommit, onCommit]);
 
   const handleSave = useCallback(async (): Promise<void> => {
     if (!message.trim()) return;
-    const success = await onCommit(message);
-    if (success) {
-      setMessage('');
-    }
-  }, [message, onCommit]);
 
-  const handleBranchAndSaveConfirm = useCallback(async (branchName: string): Promise<void> => {
-    if (!message.trim() || !branchName.trim()) return;
-    const success = await onBranchAndCommit(branchName, message);
+    const isMainBranch = MAIN_BRANCHES.includes(currentBranch.toLowerCase());
+
+    if (!isMainBranch) {
+      const success = await onCommit(message);
+      if (success) {
+        setMessage('');
+      }
+      return;
+    }
+
+    if (rememberedMainBranchSaveChoice) {
+      const success = await executeSaveChoice(rememberedMainBranchSaveChoice);
+      if (success) {
+        setMessage('');
+      }
+      return;
+    }
+
+    setMainBranchChoice('branch-and-save');
+    setRememberChoiceForSession(false);
+    setShowMainBranchChoiceModal(true);
+  }, [currentBranch, executeSaveChoice, message, onCommit]);
+
+  const handleConfirmMainBranchSaveChoice = useCallback(async (): Promise<void> => {
+    const success = await executeSaveChoice(mainBranchChoice);
+
+    if (!success) return;
+
+    if (rememberChoiceForSession) {
+      rememberedMainBranchSaveChoice = mainBranchChoice;
+    }
+
     if (success) {
       setMessage('');
-      setShowBranchModal(false);
+      setShowMainBranchChoiceModal(false);
     }
-  }, [message, onBranchAndCommit]);
+  }, [executeSaveChoice, mainBranchChoice, rememberChoiceForSession]);
 
   const handleRewindConfirm = useCallback(async (): Promise<void> => {
     const success = await onRewind();
@@ -163,6 +250,17 @@ function SidebarCommitPanel({
       setShowRewindModal(false);
     }
   }, [onRewind]);
+
+  const handleDiscardSingleFile = useCallback(async (file: FileStatus): Promise<void> => {
+    if (isDiscardingFile || isCommitting || isRewinding) return;
+
+    setIsDiscardingFile(true);
+    try {
+      await onDiscardFile(file.path);
+    } finally {
+      setIsDiscardingFile(false);
+    }
+  }, [isCommitting, isDiscardingFile, isRewinding, onDiscardFile]);
 
   /**
     * Open a diff tab for a changed file (text diff or specialized visual diff).
@@ -194,6 +292,10 @@ function SidebarCommitPanel({
     <div className="flex flex-col h-full">
       {/* Header section */}
       <div className="p-3 space-y-3">
+        <p className="text-theme-primary text-lg font-semibold">
+          Careful - You have unsaved changes!
+        </p>
+
         {/* Commit message */}
         <Textarea
           value={message}
@@ -208,7 +310,7 @@ function SidebarCommitPanel({
         <div className="flex gap-2">
           <Button 
             onClick={handleSave} 
-            disabled={!message.trim()} 
+            disabled={!message.trim() || isDiscardingFile}
             loading={isCommitting}
             size="sm"
             variant="default"
@@ -216,23 +318,17 @@ function SidebarCommitPanel({
           >
             Save
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowRewindModal(true)}
-            disabled={isCommitting}
-            size="sm"
-            title="Discard all changes"
-          >
-            <Undo2 style={ICON_STYLES.xs as CSSProperties} />
-          </Button>
         </div>
       </div>
 
       {/* Changed files list */}
       <ChangedFilesList 
         files={changedFiles} 
-        repoPath={repoPath}
         onOpenDiff={handleOpenDiff}
+        onDiscardFile={handleDiscardSingleFile}
+        onRewind={() => setShowRewindModal(true)}
+        isRewinding={isRewinding}
+        isDiscardingFile={isDiscardingFile}
       />
 
       {/* Modals */}
@@ -243,13 +339,22 @@ function SidebarCommitPanel({
         isLoading={isRewinding}
       />
 
-      <BranchNameModal
-        open={showBranchModal}
-        onClose={() => setShowBranchModal(false)}
-        onConfirm={handleBranchAndSaveConfirm}
-        defaultBranchName={defaultBranchName}
-        isLoading={isCommitting}
+      <MainBranchSaveChoiceModal
+        open={showMainBranchChoiceModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowMainBranchChoiceModal(false);
+          }
+        }}
         currentBranch={currentBranch}
+        mainBranchChoice={mainBranchChoice}
+        onChoiceChange={setMainBranchChoice}
+        defaultBranchName={defaultBranchName}
+        rememberChoiceForSession={rememberChoiceForSession}
+        onToggleRememberChoice={() => setRememberChoiceForSession((prev) => !prev)}
+        isCommitting={isCommitting}
+        canConfirm={!!message.trim()}
+        onConfirm={handleConfirmMainBranchSaveChoice}
       />
     </div>
   );

@@ -34,6 +34,7 @@ interface NavButtonProps {
   isActive: boolean;
   onClick: () => void;
   disabled: boolean;
+  showNotificationDot?: boolean;
 }
 
 // ============================================================================
@@ -64,7 +65,7 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
  * NavButton - Individual navigation button in the activity bar.
  * Handles active state styling and click events.
  */
-function NavButton({ item, isActive, onClick, disabled }: NavButtonProps): JSX.Element {
+function NavButton({ item, isActive, onClick, disabled, showNotificationDot = false }: NavButtonProps): JSX.Element {
   const { Icon, label } = item;
   
   const iconSize = ICON_SIZES.lg * 0.7;
@@ -78,7 +79,7 @@ function NavButton({ item, isActive, onClick, disabled }: NavButtonProps): JSX.E
       aria-pressed={isActive}
       disabled={disabled}
       className={`
-        w-10 h-10 flex items-center justify-center rounded transition-colors
+        w-10 h-10 flex items-center justify-center rounded transition-colors relative
         ${disabled 
           ? 'text-gray-500/60 dark:text-gray-500/60 cursor-not-allowed bg-theme-muted/20' 
           : isActive 
@@ -88,6 +89,12 @@ function NavButton({ item, isActive, onClick, disabled }: NavButtonProps): JSX.E
       `}
     >
       <Icon style={iconStyle} />
+      {showNotificationDot && (
+        <span
+          className="absolute top-1 right-1 w-2 h-2 rounded-full bg-yellow-400 animate-pulse"
+          aria-hidden="true"
+        />
+      )}
     </button>
   );
 }
@@ -97,10 +104,11 @@ function NavButton({ item, isActive, onClick, disabled }: NavButtonProps): JSX.E
  */
 function ActivityBar(): JSX.Element {
   const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed } = useLayout();
-  const { repoInfo } = useRepo();
+  const { repoInfo, repoStatus } = useRepo();
   
   // Check if we have an active git repository
   const isGitRepo = repoInfo?.isRepo ?? false;
+  const hasUncommittedChanges = isGitRepo && (repoStatus?.hasChanges ?? false);
 
   // Toggle sidebar: clicking active view collapses, clicking inactive opens
   const handleNavClick = useCallback((viewId: ViewType): void => {
@@ -123,6 +131,7 @@ function ActivityBar(): JSX.Element {
           isActive={activeView === item.id && !sidebarCollapsed}
           onClick={() => !disabled && handleNavClick(item.id)}
           disabled={disabled}
+          showNotificationDot={item.id === VIEWS.EXPLORER && hasUncommittedChanges}
         />
       );
     }), [activeView, sidebarCollapsed, handleNavClick, isGitRepo]
