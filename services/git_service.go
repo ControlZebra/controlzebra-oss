@@ -47,8 +47,10 @@ type RepoInfo struct {
 }
 
 // DetectRepo checks if the given path is a git repository
-func (g *GitService) DetectRepo(path string) RepoInfo {
-	result := RepoInfo{
+func (g *GitService) DetectRepo(path string) (ri RepoInfo) {
+	done := LogMethod("GitService.DetectRepo", map[string]interface{}{"path": path})
+	defer func() { done(ri, nil) }()
+	ri = RepoInfo{
 		Path:   path,
 		IsRepo: false,
 	}
@@ -56,45 +58,47 @@ func (g *GitService) DetectRepo(path string) RepoInfo {
 	// Check if path exists
 	info, err := os.Stat(path)
 	if err != nil {
-		result.HasError = true
-		result.Error = "Path does not exist"
-		return result
+		ri.HasError = true
+		ri.Error = "Path does not exist"
+		return
 	}
 
 	if !info.IsDir() {
-		result.HasError = true
-		result.Error = "Path is not a directory"
-		return result
+		ri.HasError = true
+		ri.Error = "Path is not a directory"
+		return
 	}
 
 	// Check if .git folder exists (quick check)
 	gitPath := filepath.Join(path, ".git")
 	if _, err := os.Stat(gitPath); os.IsNotExist(err) {
 		// .git doesn't exist - not a repo
-		return result
+		return
 	}
 
 	// Verify it's a valid git repo using git rev-parse
 	cmdResult := g.runner.RunGit(path, "rev-parse", "--is-inside-work-tree")
 	if !cmdResult.Success {
-		result.HasError = true
-		result.Error = "Not a valid git repository"
-		return result
+		ri.HasError = true
+		ri.Error = "Not a valid git repository"
+		return
 	}
 
-	result.IsRepo = true
+	ri.IsRepo = true
 
 	// Get current branch
 	branchResult := g.runner.RunGit(path, "branch", "--show-current")
 	if branchResult.Success {
-		result.Branch = trimOutput(branchResult.Stdout)
+		ri.Branch = trimOutput(branchResult.Stdout)
 	}
 
-	return result
+	return
 }
 
 // GetRemoteURL returns the URL of the origin remote, or empty string if not set
 func (g *GitService) GetRemoteURL(repoPath string) string {
+	done := LogMethod("GitService.GetRemoteURL", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
 	result := g.runner.RunGit(repoPath, "remote", "get-url", "origin")
 	if !result.Success {
 		return ""
@@ -105,29 +109,36 @@ func (g *GitService) GetRemoteURL(repoPath string) string {
 // InitRepo initializes a new Git repository at the given path.
 // Creates the directory if it doesn't exist.
 // Returns an error if the path is already a Git repository.
-func (g *GitService) InitRepo(path string) OperationResult {
+func (g *GitService) InitRepo(path string) (opResult OperationResult) {
+	done := LogMethod("GitService.InitRepo", map[string]interface{}{"path": path})
+	defer func() { done(opResult, nil) }()
 	if path == "" {
-		return failedOp("Path is required")
+		opResult = failedOp("Path is required")
+		return
 	}
 
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(path, 0755); err != nil {
-		return failedOp("Failed to create directory: " + err.Error())
+		opResult = failedOp("Failed to create directory: " + err.Error())
+		return
 	}
 
 	// Check if already a git repo
 	existing := g.DetectRepo(path)
 	if existing.IsRepo {
-		return failedOp("Directory is already a Git repository")
+		opResult = failedOp("Directory is already a Git repository")
+		return
 	}
 
 	// Run git init
 	result := g.runner.RunGit(path, "init")
 	if !result.Success {
-		return failedOp("Failed to initialize repository: " + getErrorMessage(result))
+		opResult = failedOp("Failed to initialize repository: " + getErrorMessage(result))
+		return
 	}
 
-	return successOp("Repository initialized successfully")
+	opResult = successOp("Repository initialized successfully")
+	return
 }
 
 // InitRepoWithLFS initializes a new Git repository with LFS enabled.
@@ -353,33 +364,41 @@ type OperationResult struct {
 // CommitAll stages all changes and commits with the given message.
 // This is a composite operation that combines AddAll + Commit.
 // For finer control, use AddAll() and Commit() separately.
-func (g *GitService) CommitAll(repoPath string, message string) OperationResult {
+func (g *GitService) CommitAll(repoPath string, message string) (opResult OperationResult) {
+	done := LogMethod("GitService.CommitAll", map[string]interface{}{"repoPath": repoPath, "message": message})
+	defer func() { done(opResult, nil) }()
 	if message == "" {
-		return failedOp("Commit message is required")
+		opResult = failedOp("Commit message is required")
+		return
 	}
 
 	// Check if there are any changes to commit
 	hasChanges, err := g.HasChanges(repoPath)
 	if err != nil {
-		return failedOp("Failed to check status: " + err.Error())
+		opResult = failedOp("Failed to check status: " + err.Error())
+		return
 	}
 	if !hasChanges {
-		return failedOp("No changes to commit")
+		opResult = failedOp("No changes to commit")
+		return
 	}
 
 	// Stage all changes using primitive
 	addResult := g.AddAll(repoPath)
 	if !addResult.Success {
-		return addResult
+		opResult = addResult
+		return
 	}
 
 	// Commit using primitive
 	commitResult := g.Commit(repoPath, message)
 	if !commitResult.Success {
-		return commitResult
+		opResult = commitResult
+		return
 	}
 
-	return successOp("Changes saved successfully")
+	opResult = successOp("Changes saved successfully")
+	return
 }
 
 // getErrorMessage extracts the most informative error message from a command result.
@@ -602,24 +621,32 @@ func (g *GitService) CleanDryRun(repoPath string) ([]string, error) {
 // Commit creates a commit with staged changes.
 // Does NOT auto-stage anything - use Add/AddAll first.
 // Equivalent to: git commit -m <message>
-func (g *GitService) Commit(repoPath string, message string) OperationResult {
+func (g *GitService) Commit(repoPath string, message string) (opResult OperationResult) {
+	done := LogMethod("GitService.Commit", map[string]interface{}{"repoPath": repoPath, "message": message})
+	defer func() { done(opResult, nil) }()
 	if message == "" {
-		return failedOp("Commit message is required")
+		opResult = failedOp("Commit message is required")
+		return
 	}
 	result := g.runner.RunGit(repoPath, "commit", "-m", message)
 	if !result.Success {
 		errMsg := getErrorMessage(result)
 		if strings.Contains(errMsg, "nothing to commit") {
-			return failedOp("Nothing staged to commit")
+			opResult = failedOp("Nothing staged to commit")
+			return
 		}
-		return failedOp("Failed to commit: " + errMsg)
+		opResult = failedOp("Failed to commit: " + errMsg)
+		return
 	}
-	return successOp("Changes committed")
+	opResult = successOp("Changes committed")
+	return
 }
 
 // Fetch downloads objects and refs from the remote without merging.
 // Equivalent to: git fetch [remote] [branch]
 func (g *GitService) Fetch(repoPath string, remote string, branch string) OperationResult {
+	done := LogMethod("GitService.Fetch", map[string]interface{}{"repoPath": repoPath, "remote": remote, "branch": branch})
+	defer func() { done(nil, nil) }()
 	args := []string{"fetch"}
 	if remote != "" {
 		args = append(args, remote)
@@ -648,6 +675,8 @@ func (g *GitService) FetchAll(repoPath string) OperationResult {
 // For safer operations with checks, use CheckoutBranch.
 // Equivalent to: git checkout <ref>
 func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
+	done := LogMethod("GitService.Checkout", map[string]interface{}{"repoPath": repoPath, "ref": ref})
+	defer func() { done(nil, nil) }()
 	if ref == "" {
 		return failedOp("Reference is required")
 	}
@@ -662,6 +691,8 @@ func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
 // For safer operations with checks, use CreateBranchAndCheckout.
 // Equivalent to: git checkout -b <branch>
 func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) OperationResult {
+	done := LogMethod("GitService.CheckoutNewBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
+	defer func() { done(nil, nil) }()
 	if branchName == "" {
 		return failedOp("Branch name is required")
 	}
@@ -780,13 +811,16 @@ func (g *GitService) MoveFile(repoPath string, source string, destination string
 // ============================================================================
 
 // Pull fetches and merges changes from the remote
-func (g *GitService) Pull(repoPath string) OperationResult {
+func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
+	done := LogMethod("GitService.Pull", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(opResult, nil) }()
 	result := g.runner.RunGit(repoPath, "pull")
 	if !result.Success {
-		return OperationResult{
+		opResult = OperationResult{
 			Success: false,
 			Error:   "Failed to sync: " + getErrorMessage(result),
 		}
+		return
 	}
 
 	message := trimOutput(result.Stdout)
@@ -794,14 +828,17 @@ func (g *GitService) Pull(repoPath string) OperationResult {
 		message = "Already up to date"
 	}
 
-	return OperationResult{
+	opResult = OperationResult{
 		Success: true,
 		Message: message,
 	}
+	return
 }
 
 // Push pushes local commits to the remote
-func (g *GitService) Push(repoPath string) OperationResult {
+func (g *GitService) Push(repoPath string) (opResult OperationResult) {
+	done := LogMethod("GitService.Push", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(opResult, nil) }()
 	// First, try a regular push
 	result := g.runner.RunGit(repoPath, "push")
 	if !result.Success {
@@ -814,17 +851,19 @@ func (g *GitService) Push(repoPath string) OperationResult {
 			// Get the current branch name
 			branchResult := g.runner.RunGit(repoPath, "branch", "--show-current")
 			if !branchResult.Success {
-				return OperationResult{
+				opResult = OperationResult{
 					Success: false,
 					Error:   "Failed to determine current branch",
 				}
+				return
 			}
 			branchName := trimOutput(branchResult.Stdout)
 			if branchName == "" {
-				return OperationResult{
+				opResult = OperationResult{
 					Success: false,
 					Error:   "Cannot push: detached HEAD state",
 				}
+				return
 			}
 
 			// Try pushing with --set-upstream to automatically configure tracking
@@ -835,35 +874,42 @@ func (g *GitService) Push(repoPath string) OperationResult {
 				if strings.Contains(pushErr, "does not appear to be a git repository") ||
 					strings.Contains(pushErr, "No configured push destination") ||
 					strings.Contains(pushErr, "fatal: 'origin' does not appear") {
-					return OperationResult{
+					opResult = OperationResult{
 						Success: false,
 						Error:   "No remote repository configured. Add a remote first.",
 					}
+					return
 				}
-				return OperationResult{
+				opResult = OperationResult{
 					Success: false,
 					Error:   "Failed to share: " + pushErr,
 				}
+				return
 			}
-			return OperationResult{
+			opResult = OperationResult{
 				Success: true,
 				Message: "Branch published and changes shared successfully",
 			}
+			return
 		}
-		return OperationResult{
+		opResult = OperationResult{
 			Success: false,
 			Error:   "Failed to share: " + errMsg,
 		}
+		return
 	}
 
-	return OperationResult{
+	opResult = OperationResult{
 		Success: true,
 		Message: "Changes shared successfully",
 	}
+	return
 }
 
 // Sync performs a git pull (merge) followed by git push
 func (g *GitService) Sync(repoPath string) OperationResult {
+	done := LogMethod("GitService.Sync", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
 	// First, pull with merge (not rebase)
 	pullResult := g.runner.RunGit(repoPath, "pull", "--no-rebase")
 	if !pullResult.Success {
@@ -934,6 +980,8 @@ type CommitInfo struct {
 
 // GetRecentCommits returns recent commits from the repository
 func (g *GitService) GetRecentCommits(repoPath string, limit int) ([]CommitInfo, error) {
+	done := LogMethod("GitService.GetRecentCommits", map[string]interface{}{"repoPath": repoPath, "limit": limit})
+	defer func() { done(nil, nil) }()
 	if limit <= 0 {
 		limit = 20
 	}
@@ -1195,6 +1243,8 @@ func (g *GitService) SupportsRestore() bool {
 // ShowCommit returns detailed information about a specific commit
 // Uses concurrent goroutines to fetch metadata, numstat, and name-status in parallel
 func (g *GitService) ShowCommit(repoPath string, hash string) CommitDetail {
+	done := LogMethod("GitService.ShowCommit", map[string]interface{}{"repoPath": repoPath, "hash": hash})
+	defer func() { done(nil, nil) }()
 	result := CommitDetail{}
 
 	if hash == "" {
@@ -1401,6 +1451,8 @@ type RawDiffResult struct {
 // DiffWorkingRaw returns the raw unified diff text of a file in the working tree vs HEAD
 // This is designed to be consumed by react-diff-view's parseDiff function
 func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffResult {
+	done := LogMethod("GitService.DiffWorkingRaw", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
 	result := RawDiffResult{
 		Path:   filePath,
 		Status: "modified",
@@ -1707,6 +1759,8 @@ func isLFSPointer(data []byte) bool {
 // Branches returns all branches in the repository
 // Uses concurrent goroutines to fetch current, local, and remote branches in parallel
 func (g *GitService) Branches(repoPath string) BranchList {
+	done := LogMethod("GitService.Branches", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
 	result := BranchList{
 		Local:  []BranchInfo{},
 		Remote: []BranchInfo{},
@@ -1808,6 +1862,8 @@ func (g *GitService) Branches(repoPath string) BranchList {
 // CheckoutBranch switches to an existing branch.
 // Fails if there are uncommitted changes to prevent accidental loss.
 func (g *GitService) CheckoutBranch(repoPath string, branchName string) OperationResult {
+	done := LogMethod("GitService.CheckoutBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
+	defer func() { done(nil, nil) }()
 	if branchName == "" {
 		return failedOp("Branch name is required")
 	}
@@ -1831,6 +1887,8 @@ func (g *GitService) CheckoutBranch(repoPath string, branchName string) Operatio
 // CreateBranchAndCheckout creates a new branch and switches to it.
 // Fails if there are uncommitted changes or if the branch name is invalid.
 func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string) OperationResult {
+	done := LogMethod("GitService.CreateBranchAndCheckout", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
+	defer func() { done(nil, nil) }()
 	if branchName == "" {
 		return failedOp("Branch name is required")
 	}
@@ -1862,6 +1920,8 @@ func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string)
 // This is a composite operation that combines ResetHard("HEAD") + Clean().
 // For finer control, use ResetHard() and Clean() separately.
 func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResult {
+	done := LogMethod("GitService.ResetHardHead", map[string]interface{}{"repoPath": repoPath, "confirm": confirm})
+	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
@@ -1891,6 +1951,8 @@ func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResul
 // Requires confirm=true as a safety measure for destructive operations.
 // This is a wrapper around ResetSoft() with validation.
 func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) OperationResult {
+	done := LogMethod("GitService.ResetSoftHead", map[string]interface{}{"repoPath": repoPath, "n": n, "confirm": confirm})
+	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
@@ -1921,6 +1983,8 @@ func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) Operati
 // This is a composite operation that combines UnstageAll() + RestoreAll() + Clean().
 // For finer control, use those methods separately.
 func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
+	done := LogMethod("GitService.DiscardAll", map[string]interface{}{"repoPath": repoPath, "confirm": confirm})
+	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
@@ -1954,6 +2018,8 @@ func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
 // This is a composite operation that combines Unstage() + Restore() or file deletion.
 // For finer control, use those methods separately.
 func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool) OperationResult {
+	done := LogMethod("GitService.DiscardFile", map[string]interface{}{"repoPath": repoPath, "filePath": filePath, "confirm": confirm})
+	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
@@ -2003,6 +2069,8 @@ type StashEntry struct {
 // StashPush creates a new stash with an optional message.
 // Stashes all tracked changes (staged and unstaged).
 func (g *GitService) StashPush(repoPath string, message string) OperationResult {
+	done := LogMethod("GitService.StashPush", map[string]interface{}{"repoPath": repoPath, "message": message})
+	defer func() { done(nil, nil) }()
 	status := g.Status(repoPath)
 	if !status.HasChanges {
 		return failedOp("No changes to stash")
@@ -2023,6 +2091,8 @@ func (g *GitService) StashPush(repoPath string, message string) OperationResult 
 
 // StashPop applies the most recent stash and removes it from the stash list.
 func (g *GitService) StashPop(repoPath string) OperationResult {
+	done := LogMethod("GitService.StashPop", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
 	result := g.runner.RunGit(repoPath, "stash", "pop")
 	if !result.Success {
 		errMsg := getErrorMessage(result)
@@ -2097,6 +2167,8 @@ func (g *GitService) StashList(repoPath string) ([]StashEntry, error) {
 // StashDrop removes a specific stash entry by index.
 // Requires confirm=true as a safety measure.
 func (g *GitService) StashDrop(repoPath string, index int, confirm bool) OperationResult {
+	done := LogMethod("GitService.StashDrop", map[string]interface{}{"repoPath": repoPath, "index": index, "confirm": confirm})
+	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
 		return failedOp(err.Error())
 	}
@@ -2118,6 +2190,8 @@ func (g *GitService) StashDrop(repoPath string, index int, confirm bool) Operati
 // Flow: stash push → checkout (or checkout -b if createNew) → stash pop
 // If the stash pop fails due to conflicts, the stash is preserved.
 func (g *GitService) StashAndSwitchBranch(repoPath string, targetBranch string, createNew bool) OperationResult {
+	done := LogMethod("GitService.StashAndSwitchBranch", map[string]interface{}{"repoPath": repoPath, "targetBranch": targetBranch, "createNew": createNew})
+	defer func() { done(nil, nil) }()
 	if targetBranch == "" {
 		return failedOp("Branch name is required")
 	}
@@ -2222,6 +2296,8 @@ type ConflictedFile struct {
 // GetMergeState detects if the repository is in any stuck/interrupted state.
 // Checks for: merge, rebase, cherry-pick, revert, bisect, AM, detached HEAD, and stale locks.
 func (g *GitService) GetMergeState(repoPath string) MergeState {
+	done := LogMethod("GitService.GetMergeState", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
 	state := MergeState{}
 	gitDir := filepath.Join(repoPath, ".git")
 
@@ -2413,6 +2489,8 @@ func (g *GitService) GetConflictedFiles(repoPath string) ([]ConflictedFile, erro
 // ResolveConflictKeepOurs resolves a conflict by keeping our version.
 // Runs: git checkout --ours <path> && git add <path>
 func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) OperationResult {
+	done := LogMethod("GitService.ResolveConflictKeepOurs", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
@@ -2442,6 +2520,8 @@ func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) O
 // ResolveConflictKeepTheirs resolves a conflict by keeping their version.
 // Runs: git checkout --theirs <path> && git add <path>
 func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string) OperationResult {
+	done := LogMethod("GitService.ResolveConflictKeepTheirs", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
@@ -2472,6 +2552,8 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 // The local (mine) version is saved with a timestamp suffix to avoid collisions.
 // For example: file.txt becomes incoming version, file_COPY_20260115_143052.txt is local version.
 func (g *GitService) ResolveConflictKeepBoth(repoPath string, filePath string) OperationResult {
+	done := LogMethod("GitService.ResolveConflictKeepBoth", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
@@ -2516,6 +2598,8 @@ func (g *GitService) ResolveConflictKeepBoth(repoPath string, filePath string) O
 // MarkResolved marks a file as resolved after manual editing.
 // Runs: git add <path>
 func (g *GitService) MarkResolved(repoPath string, filePath string) OperationResult {
+	done := LogMethod("GitService.MarkResolved", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
+	defer func() { done(nil, nil) }()
 	if filePath == "" {
 		return failedOp("File path is required")
 	}
@@ -2545,6 +2629,8 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 //   - targetBranch: The branch to merge INTO (e.g., "main") - required
 //   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
 func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBranch ...string) OperationResult {
+	done := LogMethod("GitService.StartMerge", map[string]interface{}{"repoPath": repoPath, "targetBranch": targetBranch})
+	defer func() { done(nil, nil) }()
 	if targetBranch == "" {
 		return failedOp("Target branch is required")
 	}
@@ -2888,6 +2974,8 @@ func (g *GitService) CompleteSquashMerge(repoPath string, message string) Operat
 // Returns the repository to the state before the merge started.
 // Handles both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) AbortMerge(repoPath string) OperationResult {
+	done := LogMethod("GitService.AbortMerge", map[string]interface{}{"repoPath": repoPath})
+	defer func() { done(nil, nil) }()
 	state := g.GetMergeState(repoPath)
 	if !state.InMerge && !state.InSquashMerge {
 		return failedOp("No merge in progress")
@@ -3006,6 +3094,8 @@ func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
 // Use AbortRevert() to cancel or ContinueRevert() after resolving conflicts.
 // Runs: git revert --no-edit <commitHash>
 func (g *GitService) RevertCommit(repoPath string, commitHash string) OperationResult {
+	done := LogMethod("GitService.RevertCommit", map[string]interface{}{"repoPath": repoPath, "commitHash": commitHash})
+	defer func() { done(nil, nil) }()
 	if commitHash == "" {
 		return failedOp("Commit hash is required")
 	}

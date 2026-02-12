@@ -163,6 +163,9 @@ func (g *GitHubService) GetGHVersion() string {
 // This runs the gh auth login command and waits for completion.
 // The flow shows a code that the user must enter in their browser.
 func (g *GitHubService) AuthLogin() GitHubAuthResult {
+	done := LogMethod("GitHubService.AuthLogin", nil)
+	defer func() { done(nil, nil) }()
+
 	// Use device flow (no --web flag) to get the verification code
 	// We need a longer timeout for auth since user interaction is involved
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -201,6 +204,9 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 // After calling this, call AuthLoginComplete to wait for the auth to finish.
 // The gh CLI process will continue running in the background until the user completes auth.
 func (g *GitHubService) AuthLoginStart() GitHubDeviceFlowResult {
+	done := LogMethod("GitHubService.AuthLoginStart", nil)
+	defer func() { done(nil, nil) }()
+
 	// Cancel any existing auth process first (hold lock briefly)
 	g.authMu.Lock()
 	if g.authCancel != nil {
@@ -323,6 +329,9 @@ func (g *GitHubService) AuthLoginStart() GitHubDeviceFlowResult {
 // This should be called after AuthLoginStart and after the user has entered the code.
 // It polls the auth status to detect successful authentication.
 func (g *GitHubService) AuthLoginComplete() GitHubAuthResult {
+	done := LogMethod("GitHubService.AuthLoginComplete", nil)
+	defer func() { done(nil, nil) }()
+
 	// Give the gh process a moment to complete the token exchange
 	// after the user authenticates in the browser
 	const maxAttempts = 5
@@ -362,6 +371,9 @@ func (g *GitHubService) AuthLoginComplete() GitHubAuthResult {
 
 // AuthLoginCancel cancels an in-progress device flow authentication
 func (g *GitHubService) AuthLoginCancel() GitHubAuthResult {
+	done := LogMethod("GitHubService.AuthLoginCancel", nil)
+	defer func() { done(nil, nil) }()
+
 	g.authMu.Lock()
 	// Save references before clearing
 	cancelFn := g.authCancel
@@ -414,6 +426,9 @@ func getErrorFromOutput(output string, err error) string {
 
 // AuthLogout logs out of GitHub CLI
 func (g *GitHubService) AuthLogout() GitHubAuthResult {
+	done := LogMethod("GitHubService.AuthLogout", nil)
+	defer func() { done(nil, nil) }()
+
 	// The gh CLI requires confirmation when logging out
 	// We pipe "y\n" to stdin to confirm the logout
 	result := g.runner.RunWithStdin("", "y\n", GhPath(), "auth", "logout", "--hostname", "github.com")
@@ -439,6 +454,9 @@ func (g *GitHubService) AuthLogout() GitHubAuthResult {
 
 // AuthStatus checks the current authentication status
 func (g *GitHubService) AuthStatus() GitHubAuthStatus {
+	done := LogMethod("GitHubService.AuthStatus", nil)
+	defer func() { done(nil, nil) }()
+
 	result := g.runner.Run("", GhPath(), "auth", "status")
 
 	status := GitHubAuthStatus{
@@ -505,6 +523,9 @@ func (g *GitHubService) AuthStatus() GitHubAuthStatus {
 // ListUserOrganizations returns the authenticated user's username and their organizations
 // This is used for the "publish to GitHub" form to allow users to choose the repo owner
 func (g *GitHubService) ListUserOrganizations() GitHubOrganizationsResult {
+	done := LogMethod("GitHubService.ListUserOrganizations", nil)
+	defer func() { done(nil, nil) }()
+
 	// First get the authenticated username
 	authStatus := g.AuthStatus()
 	if !authStatus.LoggedIn {
@@ -557,6 +578,9 @@ type RepoNameCheckResult struct {
 // owner: GitHub username or organization login
 // name: repository name to check
 func (g *GitHubService) CheckRepoNameExists(owner string, name string) RepoNameCheckResult {
+	done := LogMethod("GitHubService.CheckRepoNameExists", map[string]interface{}{"owner": owner, "name": name})
+	defer func() { done(nil, nil) }()
+
 	if name == "" {
 		return RepoNameCheckResult{
 			Exists: false,
@@ -614,6 +638,9 @@ func (g *GitHubService) CheckRepoNameExists(owner string, name string) RepoNameC
 // limit: maximum number of repos to return (default 30, max 100)
 // visibility: "public", "private", or empty for all
 func (g *GitHubService) RepoList(limit int, visibility string) GitHubRepoListResult {
+	done := LogMethod("GitHubService.RepoList", map[string]interface{}{"limit": limit, "visibility": visibility})
+	defer func() { done(nil, nil) }()
+
 	if limit <= 0 {
 		limit = 30
 	}
@@ -695,6 +722,9 @@ func (g *GitHubService) RepoList(limit int, visibility string) GitHubRepoListRes
 
 // RepoListForOrg lists repositories for a specific organization
 func (g *GitHubService) RepoListForOrg(org string, limit int) GitHubRepoListResult {
+	done := LogMethod("GitHubService.RepoListForOrg", map[string]interface{}{"org": org, "limit": limit})
+	defer func() { done(nil, nil) }()
+
 	if org == "" {
 		return GitHubRepoListResult{
 			Success: false,
@@ -777,6 +807,9 @@ func (g *GitHubService) RepoListForOrg(org string, limit int) GitHubRepoListResu
 // repo: repository in "owner/repo" format or full URL
 // destPath: local directory to clone into (will be created)
 func (g *GitHubService) RepoClone(repo string, destPath string) GitHubCloneResult {
+	done := LogMethod("GitHubService.RepoClone", map[string]interface{}{"repo": repo, "destPath": destPath})
+	defer func() { done(nil, nil) }()
+
 	if repo == "" {
 		return GitHubCloneResult{
 			Success: false,
@@ -821,6 +854,9 @@ func (g *GitHubService) RepoClone(repo string, destPath string) GitHubCloneResul
 
 // RepoCreate creates a new repository on GitHub
 func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCreateResult {
+	done := LogMethod("GitHubService.RepoCreate", map[string]interface{}{"name": options.Name, "private": options.Private})
+	defer func() { done(nil, nil) }()
+
 	if options.Name == "" {
 		return GitHubRepoCreateResult{
 			Success: false,
@@ -910,6 +946,9 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 // private: whether the repository should be private
 // owner: the owner for the repository (username or organization login). If empty, defaults to authenticated user.
 func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, description string, private bool, owner string) GitHubRepoCreateResult {
+	done := LogMethod("GitHubService.RepoCreateFromLocal", map[string]interface{}{"localPath": localPath, "name": name, "owner": owner})
+	defer func() { done(nil, nil) }()
+
 	if localPath == "" {
 		return GitHubRepoCreateResult{
 			Success: false,

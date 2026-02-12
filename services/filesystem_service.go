@@ -39,6 +39,9 @@ type DirectoryContents struct {
 
 // ListDirectory lists the contents of a directory (excludes hidden files by default)
 func (f *FileSystemService) ListDirectory(path string) DirectoryContents {
+	done := LogMethod("FileSystemService.ListDirectory", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
 	return f.ListDirectoryWithOptions(path, false)
 }
 
@@ -144,6 +147,9 @@ type ReadTextFileResult struct {
 
 // ReadTextFile reads the content of a text file
 func (f *FileSystemService) ReadTextFile(path string) ReadTextFileResult {
+	done := LogMethod("FileSystemService.ReadTextFile", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
 	if path == "" {
 		return ReadTextFileResult{
 			Success: false,
@@ -234,6 +240,9 @@ func mimeTypeFromExt(ext string) string {
 // where file:// URLs are not available.
 // Limit: 50MB max file size.
 func (f *FileSystemService) ReadFileBase64(path string) ReadFileBase64Result {
+	done := LogMethod("FileSystemService.ReadFileBase64", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
 	if path == "" {
 		return ReadFileBase64Result{
 			Success: false,
@@ -301,6 +310,9 @@ func (f *FileSystemService) ReadFileBase64(path string) ReadFileBase64Result {
 
 // OpenFile opens a file with the default application
 func (f *FileSystemService) OpenFile(path string) OpenFileResult {
+	done := LogMethod("FileSystemService.OpenFile", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
 	if path == "" {
 		return OpenFileResult{
 			Success: false,
@@ -358,6 +370,9 @@ func (f *FileSystemService) GetParentDirectory(path string) string {
 
 // OpenInTerminal opens a terminal at the specified path
 func (f *FileSystemService) OpenInTerminal(path string) OpenFileResult {
+	done := LogMethod("FileSystemService.OpenInTerminal", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
 	if path == "" {
 		return OpenFileResult{
 			Success: false,
@@ -434,6 +449,9 @@ func (f *FileSystemService) OpenInTerminal(path string) OpenFileResult {
 
 // RevealInFinder opens the containing folder in the system file manager and selects the file
 func (f *FileSystemService) RevealInFinder(path string) OpenFileResult {
+	done := LogMethod("FileSystemService.RevealInFinder", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
 	if path == "" {
 		return OpenFileResult{
 			Success: false,
@@ -484,6 +502,9 @@ func (f *FileSystemService) RevealInFinder(path string) OpenFileResult {
 
 // OpenURL opens a URL in the system's default browser
 func (f *FileSystemService) OpenURL(url string) OpenFileResult {
+	done := LogMethod("FileSystemService.OpenURL", map[string]interface{}{"url": url})
+	defer func() { done(nil, nil) }()
+
 	if url == "" {
 		return OpenFileResult{
 			Success: false,
@@ -525,6 +546,9 @@ func (f *FileSystemService) OpenURL(url string) OpenFileResult {
 
 // CopyToClipboard copies the given text to the system clipboard
 func (f *FileSystemService) CopyToClipboard(text string) OpenFileResult {
+	done := LogMethod("FileSystemService.CopyToClipboard", nil)
+	defer func() { done(nil, nil) }()
+
 	if text == "" {
 		return OpenFileResult{
 			Success: false,
