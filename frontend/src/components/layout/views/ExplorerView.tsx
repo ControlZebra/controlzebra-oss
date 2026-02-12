@@ -46,6 +46,7 @@ function ExplorerView(): JSX.Element {
     startTracking,
     commitChanges,
     branchAndCommit,
+    discardFileChanges,
     syncRepo,
     rewindToLastSnapshot,
     isLoading,
@@ -167,6 +168,7 @@ function ExplorerView(): JSX.Element {
         onCommit={commitChanges}
         onBranchAndCommit={branchAndCommit}
         onRewind={handleRewind}
+        onDiscardFile={discardFileChanges}
         currentBranch={panelState.branchName}
         repoPath={repoPath || undefined}
         isCommitting={isCommitting}
