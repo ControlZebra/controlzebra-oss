@@ -32,7 +32,7 @@ function ExplorerPage(): JSX.Element {
     repoPath,
     repoInfo,
     repoStatus,
-    openRepo,
+    openFolder,
     startTracking,
     publishToGitHub,
     startGitHubLogin,
@@ -43,7 +43,13 @@ function ExplorerPage(): JSX.Element {
     ghInstalled,
     ghAuthStatus,
   } = useRepo();
-  const { activeExplorerTab, explorerTabs, selectedWelcomeCategory } = useLayout();
+  const {
+    activeExplorerTab,
+    explorerTabs,
+    selectedWelcomeCategory,
+    newProjectPrefillPath,
+    setNewProjectPrefillPath,
+  } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
@@ -52,13 +58,13 @@ function ExplorerPage(): JSX.Element {
     try {
       const result = await OpenFolderDialog();
       if (result.selected && result.path) {
-        await openRepo(result.path);
+        await openFolder(result.path);
       }
     } catch (err) {
       console.error('Failed to open folder:', err);
     }
     setIsOpeningFolder(false);
-  }, [openRepo]);
+  }, [openFolder]);
 
   // Derive project state for the setup banner (Phase 12.1, Phase 14 nested-repo check)
   const projectState = useMemo((): ProjectState | null => {
@@ -227,11 +233,17 @@ function ExplorerPage(): JSX.Element {
   // No folder open - show welcome page based on selected category
   if (!repoPath) {
     switch (selectedWelcomeCategory) {
-      case 'new-project':     return <NewProjectPage />;
+      case 'new-project':
+        return (
+          <NewProjectPage
+            prefillPath={newProjectPrefillPath}
+            onPrefillApplied={() => setNewProjectPrefillPath('')}
+          />
+        );
       case 'clone-project':   return <CloneProjectPage />;
       case 'open-folder':     return <OpenFolderPage onOpenFolder={handleOpenFolder} isLoading={isOpeningFolder} />;
       case 'recent-projects':
-      default:                return <RecentProjectsPage onOpenPath={openRepo} />;
+      default:                return <RecentProjectsPage onOpenPath={openFolder} />;
     }
   }
 

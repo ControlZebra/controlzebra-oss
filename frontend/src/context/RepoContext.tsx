@@ -191,6 +191,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
+  const [nonGitFolderPromptPath, setNonGitFolderPromptPath] = useState<string | null>(null);
   
   // ===== Repository Settings State =====
   const [repoSettings, setRepoSettings] = useState<{
@@ -428,6 +429,31 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
   }, [isLoading, repoPath, userName, userEmail, showMessage, refreshRepoSettings]);
+
+  /**
+   * Open folder entrypoint for user-driven folder selection.
+   * If the selected folder is not initialized as a git repository, show
+   * a modal prompt instead of opening it directly.
+   */
+  const openFolder = useCallback(async (path: string): Promise<boolean> => {
+    try {
+      const info = await DetectRepo(path);
+
+      if (!info.hasError && !info.isRepo) {
+        setNonGitFolderPromptPath(path);
+        return false;
+      }
+    } catch (err) {
+      console.warn('Failed preflight repo detection, falling back to openRepo:', err);
+    }
+
+    setNonGitFolderPromptPath(null);
+    return openRepo(path);
+  }, [openRepo]);
+
+  const dismissNonGitFolderPrompt = useCallback((): void => {
+    setNonGitFolderPromptPath(null);
+  }, []);
 
   /**
    * Start tracking a folder with version control.
@@ -2275,14 +2301,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
   useEffect(() => {
     const unsubscribe = Events.On('folder-selected', async (event: { data?: string }) => {
       if (event.data) {
-        await openRepo(event.data);
+        await openFolder(event.data);
       }
     });
     
     return () => {
       unsubscribe();
     };
-  }, [openRepo]);
+  }, [openFolder]);
 
   // Listen for folder-closed event from native menu
   useEffect(() => {
@@ -2375,9 +2401,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
     
     // Feedback
     showMessage,
+
+    // Non-git folder prompt state
+    nonGitFolderPromptPath,
+    dismissNonGitFolderPrompt,
     
     // Actions
     openRepo,
+    openFolder,
     closeRepo,
     startTracking,
     commitChanges,
@@ -2477,7 +2508,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     repoSettings, refreshRepoSettings,
     progressModal, handleProgressComplete,
     showMessage,
-    openRepo, closeRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    nonGitFolderPromptPath, dismissNonGitFolderPrompt,
+    openRepo, openFolder, closeRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,

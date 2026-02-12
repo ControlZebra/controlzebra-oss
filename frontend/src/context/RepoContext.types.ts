@@ -490,8 +490,13 @@ export interface RepoContextValue {
   // Feedback
   showMessage: (type: MessageType, text: string, duration?: number) => void;
 
+  // Non-git folder prompt state
+  nonGitFolderPromptPath: string | null;
+  dismissNonGitFolderPrompt: () => void;
+
   // ===== Actions =====
   openRepo: (path: string) => Promise<boolean>;
+  openFolder: (path: string) => Promise<boolean>;
   closeRepo: () => Promise<void>;
   startTracking: () => Promise<boolean>;
   commitChanges: (message: string, force?: boolean) => Promise<boolean>;

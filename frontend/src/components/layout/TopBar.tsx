@@ -27,7 +27,6 @@ import { UndoLastSaveDialog } from '../ui';
 import BranchModal from './BranchModal';
 import RewindConfirmModal from './RewindConfirmModal';
 import SwitchProjectModal from './SwitchProjectModal';
-import { OpenFolderDialog } from '../../../bindings/controlzebra/services/filedialogservice';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +43,6 @@ function TopBar(): JSX.Element {
     repoPath, 
     repoInfo, 
     repoStatus,
-    openRepo,
     closeRepo,
     syncRepo, 
     isSyncing,
@@ -63,21 +61,6 @@ function TopBar(): JSX.Element {
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [switchProjectModalOpen, setSwitchProjectModalOpen] = useState(false);
   const [isRewinding, setIsRewinding] = useState(false);
-  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
-
-  const handleOpenFolder = useCallback(async (): Promise<void> => {
-    setIsOpeningFolder(true);
-    try {
-      const result = await OpenFolderDialog();
-      if (result.selected && result.path) {
-        await openRepo(result.path);
-      }
-    } catch (err) {
-      console.error('Failed to open folder:', err);
-    } finally {
-      setIsOpeningFolder(false);
-    }
-  }, [openRepo]);
 
   const handleSwitchProject = useCallback(async (): Promise<void> => {
     await closeRepo();
@@ -141,7 +124,7 @@ function TopBar(): JSX.Element {
                     title="Undo Last Save"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
-                    <Trash2 style={iconStyle} className="currentColor" />
+                    <Undo2 style={iconStyle} className="currentColor" />
                   </button>
 
                   {/* Discard Changes */}
@@ -151,7 +134,7 @@ function TopBar(): JSX.Element {
                     title="Discard All Changes"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
-                    <Undo2 style={iconStyle} className="currentColor" />
+                    <Trash2 style={iconStyle} className="currentColor" />
                   </button>
                 </>
               )}

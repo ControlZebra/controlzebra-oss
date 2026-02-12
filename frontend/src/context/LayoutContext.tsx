@@ -54,6 +54,8 @@ interface LayoutContextValue {
   // Welcome
   selectedWelcomeCategory: string;
   setSelectedWelcomeCategory: (category: string) => void;
+  newProjectPrefillPath: string;
+  setNewProjectPrefillPath: (path: string) => void;
   
   // Explorer Tabs
   explorerTabs: ExplorerTab[];
@@ -143,6 +145,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   
   // Welcome category state (for welcome screen when no repo is open)
   const [selectedWelcomeCategory, setSelectedWelcomeCategory] = useState('recent-projects');
+  const [newProjectPrefillPath, setNewProjectPrefillPath] = useState('');
   
   // Explorer tabs state - file browser is always the first (pinned) tab
   const [explorerTabs, setExplorerTabs] = useState<ExplorerTab[]>([FILE_BROWSER_TAB]);
@@ -239,6 +242,8 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     // Welcome
     selectedWelcomeCategory,
     setSelectedWelcomeCategory,
+    newProjectPrefillPath,
+    setNewProjectPrefillPath,
     
     // Explorer Tabs
     explorerTabs,
@@ -257,6 +262,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     selectedSettingsCategory,
     selectedRepoSettingsCategory,
     selectedWelcomeCategory,
+    newProjectPrefillPath,
     explorerTabs,
     activeExplorerTab,
     openExplorerTab,
