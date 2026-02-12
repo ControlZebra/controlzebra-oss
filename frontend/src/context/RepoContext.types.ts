@@ -417,6 +417,8 @@ export interface StartMergeResult {
 export interface CreateProjectOptions {
   /** Absolute path to the folder to initialise. */
   path: string;
+  /** Optional .gitignore template ID to apply before first commit. */
+  gitignoreTemplateId?: string;
   /** Remote configuration. */
   remote: {
     /** If true, skip GitHub publishing (local-only project). */

@@ -1637,6 +1637,42 @@ export class GitVersion {
 }
 
 /**
+ * GitignoreTemplateOption describes a selectable .gitignore template preset.
+ */
+export class GitignoreTemplateOption {
+    "id": string;
+    "name": string;
+    "description": string;
+    "category": string;
+
+    /** Creates a new GitignoreTemplateOption instance. */
+    constructor($$source: Partial<GitignoreTemplateOption> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("description" in $$source)) {
+            this["description"] = "";
+        }
+        if (!("category" in $$source)) {
+            this["category"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitignoreTemplateOption instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitignoreTemplateOption {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitignoreTemplateOption($$parsedSource as Partial<GitignoreTemplateOption>);
+    }
+}
+
+/**
  * GraphCommit represents a commit with parent references for graph visualization
  */
 export class GraphCommit {

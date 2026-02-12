@@ -37,6 +37,16 @@ export function AbortMerge(repoPath: string): $CancellablePromise<$models.Operat
 }
 
 /**
+ * ApplyGitignoreTemplate appends missing lines from a preset template into the
+ * repository's .gitignore file.
+ */
+export function ApplyGitignoreTemplate(repoPath: string, templateID: string): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3196960797, repoPath, templateID).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * ClearCredentialCache clears cached credentials
  */
 export function ClearCredentialCache(repoPath: string): $CancellablePromise<$models.OperationResult> {
@@ -108,11 +118,21 @@ export function GetGitConfig(repoPath: string, key: string): $CancellablePromise
 }
 
 /**
+ * GetGitignoreTemplates returns built-in .gitignore templates tailored for
+ * industrial automation and design workflows.
+ */
+export function GetGitignoreTemplates(): $CancellablePromise<$models.GitignoreTemplateOption[]> {
+    return $Call.ByID(4112029254).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
  * GetReflog returns recent reflog entries for recovery purposes
  */
 export function GetReflog(repoPath: string, limit: number): $CancellablePromise<$models.ReflogEntry[]> {
     return $Call.ByID(2145591474, repoPath, limit).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType7($result);
     });
 }
 
@@ -121,7 +141,7 @@ export function GetReflog(repoPath: string, limit: number): $CancellablePromise<
  */
 export function GetRemotes(repoPath: string): $CancellablePromise<$models.GitRemoteInfo[]> {
     return $Call.ByID(3735676250, repoPath).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType9($result);
     });
 }
 
@@ -139,7 +159,7 @@ export function GetSettings(repoPath: string): $CancellablePromise<$models.Repos
  */
 export function GetTaskStatuses(): $CancellablePromise<{ [_ in string]?: $models.BackgroundTaskStatus | null }> {
     return $Call.ByID(4181591900).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType12($result);
     });
 }
 
@@ -150,7 +170,7 @@ export function GetTaskStatuses(): $CancellablePromise<{ [_ in string]?: $models
  */
 export function ReadRepoLocalConfig(repoPath: string): $CancellablePromise<$models.RepoLocalConfig> {
     return $Call.ByID(1032641254, repoPath).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType13($result);
     });
 }
 
@@ -161,7 +181,7 @@ export function ReadRepoLocalConfig(repoPath: string): $CancellablePromise<$mode
  */
 export function ReadRepoPersonalConfig(repoPath: string): $CancellablePromise<$models.RepoPersonalConfig> {
     return $Call.ByID(1468831583, repoPath).then(($result: any) => {
-        return $$createType12($result);
+        return $$createType14($result);
     });
 }
 
@@ -379,12 +399,14 @@ const $$createType0 = $models.OperationResult.createFrom;
 const $$createType1 = $models.RecoveryDiagnostics.createFrom;
 const $$createType2 = $Create.Map($Create.Any, $Create.Any);
 const $$createType3 = $models.RepositorySettings.createFrom;
-const $$createType4 = $models.ReflogEntry.createFrom;
+const $$createType4 = $models.GitignoreTemplateOption.createFrom;
 const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $models.GitRemoteInfo.createFrom;
+const $$createType6 = $models.ReflogEntry.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $models.BackgroundTaskStatus.createFrom;
-const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = $Create.Map($Create.Any, $$createType9);
-const $$createType11 = $models.RepoLocalConfig.createFrom;
-const $$createType12 = $models.RepoPersonalConfig.createFrom;
+const $$createType8 = $models.GitRemoteInfo.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = $models.BackgroundTaskStatus.createFrom;
+const $$createType11 = $Create.Nullable($$createType10);
+const $$createType12 = $Create.Map($Create.Any, $$createType11);
+const $$createType13 = $models.RepoLocalConfig.createFrom;
+const $$createType14 = $models.RepoPersonalConfig.createFrom;

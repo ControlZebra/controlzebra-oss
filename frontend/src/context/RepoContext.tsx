@@ -87,7 +87,7 @@ import { SyncWithProgress } from '../../bindings/controlzebra/services/progresss
 import { GetAppSettings, SaveAppSettings, EnsureIdentity } from '../../bindings/controlzebra/services/settingsservice';
 import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
-import { GetRemotes, WriteRepoLocalConfig, EnsureControlZebraDir, GetSettings, StartBackgroundTasks, StopBackgroundTasks } from '../../bindings/controlzebra/services/repositorysettingsservice';
+import { GetRemotes, WriteRepoLocalConfig, EnsureControlZebraDir, GetSettings, StartBackgroundTasks, StopBackgroundTasks, ApplyGitignoreTemplate } from '../../bindings/controlzebra/services/repositorysettingsservice';
 import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
@@ -613,7 +613,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Commit all changes with message
   // force: bypass protected branch check (used when user explicitly confirms)
-  const commitChanges = useCallback(async (message: string, force = false): Promise<boolean> => {
+  const commitChanges = useCallback(async (message: string, _force = false): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No repository open');
       return false;
@@ -639,6 +639,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
           filesChanged,
           branchName: currentBranch,
           messageLength: message.length,
+          isProtectedBranch: false,
           durationMs: Date.now() - startTime,
           errorType: 'git_error',
         });
@@ -652,6 +653,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
         filesChanged,
         branchName: currentBranch,
         messageLength: message.length,
+        isProtectedBranch: false,
         durationMs: Date.now() - startTime,
       });
       
@@ -666,6 +668,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
         filesChanged,
         branchName: currentBranch,
         messageLength: message.length,
+        isProtectedBranch: false,
         durationMs: Date.now() - startTime,
         errorType: 'exception',
       });
@@ -2027,7 +2030,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
    * The `onStepChange` callback lets the UI stepper advance.
    */
   const createProject = useCallback(async (options: CreateProjectOptions): Promise<CreateProjectResult> => {
-    const { path, remote, onStepChange } = options;
+    const { path, remote, onStepChange, gitignoreTemplateId } = options;
     const createStartTime = Date.now();
 
     // Track setup started (Phase 13.2)
@@ -2070,6 +2073,18 @@ export function RepoProvider({ children }: RepoProviderProps) {
           await EnsureIdentity(path, userName || '', userEmail || '');
         } catch (err) {
           console.warn('Failed to ensure git identity:', err);
+        }
+
+        // Apply selected .gitignore template before first commit
+        if (gitignoreTemplateId) {
+          try {
+            const templateResult = await ApplyGitignoreTemplate(path, gitignoreTemplateId);
+            if (!templateResult.success) {
+              console.warn('Failed to apply .gitignore template:', templateResult.error);
+            }
+          } catch (err) {
+            console.warn('Failed to apply .gitignore template:', err);
+          }
         }
       }
 

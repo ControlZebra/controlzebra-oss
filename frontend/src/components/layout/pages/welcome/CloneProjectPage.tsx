@@ -679,7 +679,7 @@ function CloneProjectPage(): JSX.Element {
         )}
 
         {/* ─── Clone button ──────────────────────────────────────────── */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-end gap-3">
           <Button size="lg" onClick={handleClone} disabled={!canClone}>
             {isCloning ? (
               <>
@@ -693,12 +693,6 @@ function CloneProjectPage(): JSX.Element {
               </>
             )}
           </Button>
-
-          {!destPath && !isCloning && (
-            <span className="text-theme-muted text-xs">
-              Select a repository and destination to get started
-            </span>
-          )}
         </div>
 
         {/* GitHub Device Flow Modal */}

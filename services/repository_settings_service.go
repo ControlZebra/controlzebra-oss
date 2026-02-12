@@ -1212,9 +1212,201 @@ func (r *RepositorySettingsService) SetUpstreamBranch(repoPath string, remoteBra
 // In-Repo Config: .controlzebra/ Directory
 // ============================================================================
 
+// GitignoreTemplateOption describes a selectable .gitignore template preset.
+type GitignoreTemplateOption struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+}
+
+type gitignoreTemplate struct {
+	option GitignoreTemplateOption
+	lines  []string
+}
+
+var gitignoreTemplates = []gitignoreTemplate{
+	{
+		option: GitignoreTemplateOption{
+			ID:          "automation-siemens-tia",
+			Name:        "Siemens TIA Portal",
+			Description: "Ignore generated archives, local cache, and temporary engineering files.",
+			Category:    "Automation",
+		},
+		lines: []string{
+			"*.ap17_", "*.ap16_", "*.bak", "*.tmp", "*.log", "*.wlk", "*.~*",
+			"*.db-shm", "*.db-wal", "_AutoSave/", "_Temp/", ".vs/",
+		},
+	},
+	{
+		option: GitignoreTemplateOption{
+			ID:          "automation-rockwell-studio5000",
+			Name:        "Rockwell Studio 5000",
+			Description: "Ignore Studio 5000 backups and transient local build/export files.",
+			Category:    "Automation",
+		},
+		lines: []string{
+			"*.BAK", "*.ACD.bak", "*.L5X.bak", "*.tmp", "*.log", "*.err", "*.rpt",
+			"_Archive/", "_Backup/", "_Temp/", "RSLogix5000 Cache/",
+		},
+	},
+	{
+		option: GitignoreTemplateOption{
+			ID:          "automation-schneider-ecostruxure",
+			Name:        "Schneider EcoStruxure / Unity Pro",
+			Description: "Ignore machine-local workspace, diagnostics, and exported temp artifacts.",
+			Category:    "Automation",
+		},
+		lines: []string{
+			"*.bak", "*.tmp", "*.log", "*.err", "*.dmp", "*.cache",
+			"_Workspace/", "_Temp/", "_Backup/", "*.suo", "*.user",
+		},
+	},
+	{
+		option: GitignoreTemplateOption{
+			ID:          "automation-omron-sysmac",
+			Name:        "Omron Sysmac Studio",
+			Description: "Ignore local simulation cache, lock files, and temporary output.",
+			Category:    "Automation",
+		},
+		lines: []string{
+			"*.bak", "*.tmp", "*.log", "*.cache", "*.~*", "*.lock",
+			"_SimCache/", "_Temp/", "_Backup/", ".idea/", ".vs/",
+		},
+	},
+	{
+		option: GitignoreTemplateOption{
+			ID:          "design-cad-general",
+			Name:        "CAD (General)",
+			Description: "Ignore common CAD lock, autosave, and local cache files.",
+			Category:    "Design",
+		},
+		lines: []string{
+			"*.bak", "*.tmp", "*.lock", "*.lck", "*.dwl", "*.dwl2", "*.sv$", "*.ac$",
+			"*.log", "*.err", "*.cache", "_AutoSave/", "_Temp/", "_Backup/",
+		},
+	},
+	{
+		option: GitignoreTemplateOption{
+			ID:          "design-3d-general",
+			Name:        "3D Modeling (General)",
+			Description: "Ignore rendered output, autosave snapshots, and local simulation cache.",
+			Category:    "Design",
+		},
+		lines: []string{
+			"*.bak", "*.tmp", "*.cache", "*.log", "*.autosave", "*.blend1", "*.blend2",
+			"*.fbm/", "_renders/", "_cache/", "_sim/", "_autosave/", "_temp/",
+		},
+	},
+	{
+		option: GitignoreTemplateOption{
+			ID:          "design-solidworks",
+			Name:        "SolidWorks",
+			Description: "Ignore SolidWorks backup, auto-recover, and local toolbox/cache files.",
+			Category:    "Design",
+		},
+		lines: []string{
+			"*.sldasm~", "*.sldprt~", "*.slddrw~", "*.swp", "*.swar", "*.bak",
+			"swxJRNL.swj", "SolidWorks Journal Files/", "SolidWorks Rx/", "_AutoRecover/",
+		},
+	},
+}
+
 const controlZebraDir = ".controlzebra"
 const sharedConfigFile = "config.json"
 const personalConfigFile = "local.json"
+
+// GetGitignoreTemplates returns built-in .gitignore templates tailored for
+// industrial automation and design workflows.
+func (r *RepositorySettingsService) GetGitignoreTemplates() []GitignoreTemplateOption {
+	options := make([]GitignoreTemplateOption, 0, len(gitignoreTemplates))
+	for _, template := range gitignoreTemplates {
+		options = append(options, template.option)
+	}
+	return options
+}
+
+// ApplyGitignoreTemplate appends missing lines from a preset template into the
+// repository's .gitignore file.
+func (r *RepositorySettingsService) ApplyGitignoreTemplate(repoPath string, templateID string) OperationResult {
+	if strings.TrimSpace(repoPath) == "" {
+		return failedOp("Repository path is required")
+	}
+	if strings.TrimSpace(templateID) == "" {
+		return failedOp("Template ID is required")
+	}
+
+	var selected *gitignoreTemplate
+	for i := range gitignoreTemplates {
+		if gitignoreTemplates[i].option.ID == templateID {
+			selected = &gitignoreTemplates[i]
+			break
+		}
+	}
+	if selected == nil {
+		return failedOp("Unknown .gitignore template: " + templateID)
+	}
+
+	info, err := os.Stat(repoPath)
+	if err != nil {
+		return failedOp("Repository path does not exist")
+	}
+	if !info.IsDir() {
+		return failedOp("Repository path must be a directory")
+	}
+
+	gitignorePath := filepath.Join(repoPath, ".gitignore")
+	existingContent, _ := os.ReadFile(gitignorePath)
+
+	existingLines := make(map[string]struct{})
+	for _, line := range strings.Split(string(existingContent), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		existingLines[trimmed] = struct{}{}
+	}
+
+	missing := make([]string, 0, len(selected.lines))
+	for _, line := range selected.lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := existingLines[trimmed]; exists {
+			continue
+		}
+		missing = append(missing, trimmed)
+	}
+
+	if len(missing) == 0 {
+		return successOp(".gitignore template already applied")
+	}
+
+	file, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return failedOp("Failed to open .gitignore: " + err.Error())
+	}
+	defer file.Close()
+
+	var b strings.Builder
+	if len(existingContent) > 0 && existingContent[len(existingContent)-1] != '\n' {
+		b.WriteString("\n")
+	}
+	b.WriteString("\n# ControlZebra template: ")
+	b.WriteString(selected.option.Name)
+	b.WriteString("\n")
+	for _, line := range missing {
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	if _, err := file.WriteString(b.String()); err != nil {
+		return failedOp("Failed to update .gitignore: " + err.Error())
+	}
+
+	return successOp(fmt.Sprintf("Applied %s template to .gitignore", selected.option.Name))
+}
 
 // controlZebraDirPath returns the path to the .controlzebra/ directory for a repo.
 func controlZebraDirPath(repoPath string) string {
