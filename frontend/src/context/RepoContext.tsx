@@ -158,6 +158,7 @@ const STATUS_POLL_INTERVAL = 30000;
 // Global UI events consumed by LayoutContext for explorer tab cleanup
 const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
 const CLOSE_FILE_PREVIEW_TABS_EVENT = 'cz:explorer-close-file-previews';
+const REPO_OPEN_SUCCESS_EVENT = 'cz:repo-open-success';
 
 // Create context with null default
 const RepoContext = createContext<RepoContextValue | null>(null);
@@ -225,6 +226,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const operationIdCounter = useRef(0);
   const repoOpenTimeRef = useRef<number>(0);
+  const syncStartTimeRef = useRef<number | null>(null);
 
   // ===== Core Handlers =====
 
@@ -350,17 +352,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
     
     try {
       const info = await DetectRepo(path);
+      let hasRemoteConfigured: boolean | null = info.isRepo ? null : false;
       
       setRepoPath(path);
       setRepoInfo(info as RepoInfo);
       addRecentFolder(path);
-      
-      // Track repo opened event
-      trackRepoOpened({
-        isGitRepo: info.isRepo,
-        hasRemote: false, // Remote URL checked separately if needed
-        branchName: info.branch || 'unknown',
-      });
       repoOpenTimeRef.current = Date.now();
       
       try {
@@ -374,10 +370,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
         // Check if repo has remotes configured
         try {
           const remotes = await GetRemotes(path);
-          const hasRemoteConfigured = remotes && remotes.length > 0;
+          hasRemoteConfigured = !!(remotes && remotes.length > 0);
           setHasRemote(hasRemoteConfigured);
         } catch (err) {
           console.error('Failed to check remotes:', err);
+          hasRemoteConfigured = null;
           setHasRemote(false);
         }
         
@@ -400,6 +397,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
       } else {
         setHasRemote(false);
       }
+
+      // Track repo opened event after remote detection to ensure payload correctness.
+      trackRepoOpened({
+        isGitRepo: info.isRepo,
+        hasRemote: hasRemoteConfigured,
+        branchName: info.branch || 'unknown',
+      });
       
       // Ensure git identity is configured (auto-set from Supabase login if missing)
       if (info.isRepo) {
@@ -430,6 +434,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
           console.warn('Failed to start background tasks:', err);
         }
       }
+
+      window.dispatchEvent(new CustomEvent(REPO_OPEN_SUCCESS_EVENT, {
+        detail: { path },
+      }));
       
       setIsLoading(false);
       return true;
@@ -480,7 +488,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
    * 3. Add .gitignore for .env by default
    * 4. Ensure git identity is set (auto-set from Supabase login if missing)
    */
-  const startTracking = useCallback(async (): Promise<boolean> => {
+  const startTracking = useCallback(async (source: 'status_bar_nudge' | 'setup_banner' = 'setup_banner'): Promise<boolean> => {
     if (!repoPath) {
       showMessage('error', 'No folder open');
       return false;
@@ -501,7 +509,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     // Track setup started
     trackProjectSetupStarted({
       projectState,
-      source: 'setup_banner',
+      source,
       hasFiles: fileCount > 0,
     });
     
@@ -596,7 +604,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [repoPath, repoInfo, repoStatus, userName, userEmail, showMessage]);
+  }, [repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage]);
 
   // Close the current repository
   const closeRepo = useCallback(async (): Promise<void> => {
@@ -734,13 +742,17 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Handle progress modal completion
   const handleProgressComplete = useCallback((success: boolean, error?: string) => {
+    const startedAt = syncStartTimeRef.current;
+    const durationMs = startedAt ? Math.max(1, Date.now() - startedAt) : 1;
+    syncStartTimeRef.current = null;
+
     closeProgressModal();
     setIsSyncing(false);
     
     if (success) {
       trackSyncCompleted({
         success: true,
-        durationMs: 0, // Duration tracked in sync itself
+        durationMs,
       });
       showMessage('success', 'Synced successfully');
       refreshAll();
@@ -764,6 +776,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     const currentBranch = repoInfo?.branch || 'unknown';
     const localAhead = repoStatus?.ahead ?? 0;
     const localBehind = repoStatus?.behind ?? 0;
+    syncStartTimeRef.current = Date.now();
     
     // Track sync started
     trackSyncStarted({
@@ -792,6 +805,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return true;
     } catch (err) {
       const error = err as Error;
+      syncStartTimeRef.current = null;
       trackSyncFailed({
         errorType: 'exception',
         hadConflicts: false,

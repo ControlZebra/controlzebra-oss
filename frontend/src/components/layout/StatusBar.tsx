@@ -21,7 +21,6 @@ import {
 import { Events } from '@wailsio/runtime';
 import { ICON_SIZES, VIEWS, PROJECT_STATES, type ProjectState } from '../../constants';
 import { useRepo, useLayout } from '../../context';
-import { trackProjectSetupStarted } from '../../lib/analytics';
 import { IsEnabled, SetEnabled } from '../../../bindings/controlzebra/services/debugservice';
 
 // ============================================================================
@@ -196,14 +195,8 @@ function StatusBar(): JSX.Element {
 
   // Handle "Enable version control" nudge click
   const handleNudgeClick = useCallback(async () => {
-    // Track that setup was initiated from the status bar nudge (Phase 13.2)
-    trackProjectSetupStarted({
-      projectState: projectState || 'empty-untracked',
-      source: 'status_bar_nudge',
-      hasFiles: projectState === PROJECT_STATES.HAS_FILES_UNTRACKED,
-    });
-    await startTracking();
-  }, [startTracking, projectState]);
+    await startTracking('status_bar_nudge');
+  }, [startTracking]);
 
   return (
     <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">

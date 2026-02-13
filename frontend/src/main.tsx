@@ -21,6 +21,17 @@ ReactDOM.createRoot(rootElement).render(
       options={{
         api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
         defaults: '2025-05-24',
+        autocapture: false,
+        capture_pageview: false,
+        capture_pageleave: false,
+        enable_heatmaps: false,
+        rageclick: false,
+        advanced_disable_feature_flags_on_first_load: true,
+        rate_limiting: {
+          events_per_second: 2,
+          events_burst_limit: 20,
+        },
+        disable_session_recording: true,
         capture_exceptions: true, // This enables capturing exceptions using Error Tracking
         debug: import.meta.env.MODE === 'development',
       }}
