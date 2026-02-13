@@ -356,19 +356,18 @@ func TestLFSLocks_NoRemote(t *testing.T) {
 		t.Skip("Git LFS is not installed")
 	}
 
-	// Without a remote, locks should return an error about missing protocol
+	// Without a remote, lock listing should gracefully return an empty set.
 	locks, err := svc.LFSLocks(repoPath)
 
-	// The function should either:
-	// 1. Return an error (because no remote configured)
-	// 2. Return empty slice (if locking not enabled message is detected)
-	if err == nil && locks != nil {
-		// If no error, locks must be empty (no remote = no locks)
-		if len(locks) > 0 {
-			t.Error("Expected empty locks for repo without remote")
-		}
+	if err != nil {
+		t.Fatalf("Expected no error for repo without remote, got: %v", err)
 	}
-	// If error, that's expected for repo without remote - no assertion needed
+	if locks == nil {
+		t.Fatal("Expected non-nil lock slice")
+	}
+	if len(locks) > 0 {
+		t.Error("Expected empty locks for repo without remote")
+	}
 }
 
 func TestCheckLocksBeforeBranchSwitch_NoLFS(t *testing.T) {
