@@ -872,12 +872,19 @@ func (r *RepositorySettingsService) DiagnoseRepository(repoPath string) Recovery
 		diag.HasUncommittedChanges = true
 	}
 
-	// Check for unpushed commits
-	unpushedResult := r.runner.RunGit(repoPath, "rev-list", "--count", "@{upstream}..HEAD")
-	if unpushedResult.Success {
-		count := strings.TrimSpace(unpushedResult.Stdout)
-		if n, err := strconv.Atoi(count); err == nil && n > 0 {
-			diag.UnpushedCommits = n
+	// Check for unpushed commits only when a remote exists and upstream is configured.
+	// This avoids noisy errors for local-only repositories.
+	remoteResult := r.runner.RunGit(repoPath, "remote")
+	if remoteResult.Success && strings.TrimSpace(remoteResult.Stdout) != "" {
+		upstreamResult := r.runner.RunGit(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+		if upstreamResult.Success {
+			unpushedResult := r.runner.RunGit(repoPath, "rev-list", "--count", "@{upstream}..HEAD")
+			if unpushedResult.Success {
+				count := strings.TrimSpace(unpushedResult.Stdout)
+				if n, err := strconv.Atoi(count); err == nil && n > 0 {
+					diag.UnpushedCommits = n
+				}
+			}
 		}
 	}
 
