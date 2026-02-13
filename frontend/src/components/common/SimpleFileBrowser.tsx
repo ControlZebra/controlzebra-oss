@@ -56,7 +56,7 @@ import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../b
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { toast } from 'sonner';
-import { Events } from '@wailsio/runtime';
+import { Browser, Events } from '@wailsio/runtime';
 import { type ExplorerTab } from '../../constants';
 import { getViewerForFile } from '../../lib/viewers';
 import {
@@ -381,6 +381,8 @@ interface ToolbarProps {
   showHidden: boolean;
   onShowHiddenChange: () => void;
   onRefresh: () => void;
+  onSync: () => Promise<void>;
+  isSyncing: boolean;
   currentPath: string | null;
   repoPath: string | null;
 }
@@ -388,7 +390,17 @@ interface ToolbarProps {
 /**
  * Toolbar with view toggle and actions
  */
-function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, onRefresh, currentPath, repoPath }: ToolbarProps) {
+function Toolbar({
+  viewMode,
+  onViewModeChange,
+  showHidden,
+  onShowHiddenChange,
+  onRefresh,
+  onSync,
+  isSyncing,
+  currentPath,
+  repoPath,
+}: ToolbarProps) {
   const handleOpenInFileManager = useCallback(async () => {
     if (!currentPath) return;
     await revealInFileManager(currentPath);
@@ -447,9 +459,31 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
     }
   }, [currentPath, repoPath]);
 
-  const handleViewInCloud = useCallback(() => {
-    toast.info('View in Cloud coming soon');
-  }, []);
+  const handleViewInCloud = useCallback(async () => {
+    if (!repoPath) {
+      toast.error('No repository path available');
+      return;
+    }
+
+    try {
+      const remoteUrl = await GetRemoteURL(repoPath);
+      if (!remoteUrl) {
+        toast.error('No remote repository configured');
+        return;
+      }
+
+      const webUrl = gitUrlToWebUrl(remoteUrl);
+      if (!webUrl) {
+        toast.error('Could not parse remote URL');
+        return;
+      }
+
+      Browser.OpenURL(webUrl);
+    } catch (err) {
+      console.error('Failed to open remote repository URL:', err);
+      toast.error('Failed to open remote repository URL');
+    }
+  }, [repoPath]);
 
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-fb-toolbar border-b border-theme-default">
@@ -495,9 +529,19 @@ function Toolbar({ viewMode, onViewModeChange, showHidden, onShowHiddenChange, o
           onClick={handleViewInCloud}
           className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
           title="View in Cloud"
+          disabled={!repoPath}
         >
           <Cloud className="w-4 h-4" />
           <span>View in Cloud</span>
+        </button>
+        <button
+          onClick={() => void onSync()}
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          title="Sync with Cloud"
+          disabled={!repoPath || isSyncing}
+        >
+          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>
         </button>
       </div>
       
@@ -1314,7 +1358,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     owner: '',
   });
   
-  const { repoStatus } = useRepo();
+  const { repoStatus, syncRepo, isSyncing } = useRepo();
   const { openExplorerTab } = useLayout();
 
   const isOwnLockByName = useMemo(() => {
@@ -1607,6 +1651,10 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
+  const handleSync = useCallback(async () => {
+    await syncRepo();
+  }, [syncRepo]);
+
   // Handle toggle hidden files
   const handleToggleHidden = useCallback(() => {
     setShowHidden(prev => !prev);
@@ -1814,6 +1862,8 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         showHidden={showHidden}
         onShowHiddenChange={handleToggleHidden}
         onRefresh={handleRefresh}
+        onSync={handleSync}
+        isSyncing={isSyncing}
         currentPath={currentPath}
         repoPath={repoPath}
       />

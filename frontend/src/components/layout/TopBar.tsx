@@ -10,7 +10,6 @@
  */
 import { memo, useCallback, useState, type CSSProperties } from 'react';
 import {
-  RefreshCw,
   FolderOpen,
   CodeSquare,
   ChevronDown,
@@ -20,6 +19,7 @@ import {
   Trash2,
   Menu,
 } from 'lucide-react';
+import { Browser } from '@wailsio/runtime';
 import { ICON_SIZES } from '../../constants';
 import { useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../hooks';
@@ -37,6 +37,21 @@ import {
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
+const COMMUNITY_DISCORD_URL = 'https://discord.com/channels/1470750950552633466/1470779539696390205';
+
+function DiscordIcon({ style, className = '' }: { style?: CSSProperties; className?: string }): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      style={style}
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M20.317 4.3698A19.7913 19.7913 0 0015.885 3c-.191.328-.403.775-.553 1.125a18.271 18.271 0 00-5.487 0A12.64 12.64 0 009.292 3a19.736 19.736 0 00-4.433 1.37C2.07 8.587 1.333 12.693 1.697 16.742a19.9 19.9 0 005.42 2.758 14.9 14.9 0 001.163-1.919 12.96 12.96 0 01-1.837-.885c.154-.111.305-.226.45-.345a14.16 14.16 0 0010.214 0c.146.12.297.235.45.345-.58.338-1.196.635-1.84.887.339.66.728 1.301 1.164 1.918a19.88 19.88 0 005.421-2.757c.426-4.696-.728-8.765-2.985-12.972zM8.02 14.323c-.996 0-1.812-.918-1.812-2.045 0-1.127.8-2.045 1.812-2.045 1.02 0 1.828.926 1.813 2.045 0 1.127-.801 2.045-1.813 2.045zm7.974 0c-.996 0-1.812-.918-1.812-2.045 0-1.127.8-2.045 1.812-2.045 1.02 0 1.828.926 1.813 2.045 0 1.127-.793 2.045-1.813 2.045z" />
+    </svg>
+  );
+}
 
 function TopBar(): JSX.Element {
   const { 
@@ -44,8 +59,6 @@ function TopBar(): JSX.Element {
     repoInfo, 
     repoStatus,
     closeRepo,
-    syncRepo, 
-    isSyncing,
     commits,
     undoLastCommit,
     discardAllChanges,
@@ -66,9 +79,9 @@ function TopBar(): JSX.Element {
     await closeRepo();
   }, [closeRepo]);
 
-  const handleSync = useCallback(async (): Promise<void> => {
-    await syncRepo();
-  }, [syncRepo]);
+  const handleOpenCommunity = useCallback((): void => {
+    Browser.OpenURL(COMMUNITY_DISCORD_URL);
+  }, []);
 
   const handleUndo = useCallback(async (): Promise<void> => {
     await undoLastCommit();
@@ -195,32 +208,27 @@ function TopBar(): JSX.Element {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={handleSync}
-                  disabled={isSyncing}
+                  onClick={handleOpenCommunity}
                 >
-                  <RefreshCw style={iconStyle} className="mr-2" />
-                  {isSyncing ? 'Syncing...' : 'Sync with Cloud'}
+                  <DiscordIcon style={iconStyle} className="mr-2" />
+                  Community
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
         </div>
 
-        {/* Right: Sync button (hidden on compact - moved to burger menu) */}
+        {/* Right: Community button (hidden on compact - moved to burger menu) */}
         <div className="flex items-center gap-2 justify-end shrink-0">
           {repoPath && isGitRepo && !isCompactTopBar && (
             <button 
-              onClick={handleSync}
-              disabled={isSyncing}
-              title="Sync"
-              className="flex items-center justify-center gap-2 h-8 px-2 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
+              onClick={handleOpenCommunity}
+              title="Community"
+              className="flex items-center justify-center gap-2 h-8 px-2 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
             >
-              <RefreshCw 
-                style={iconStyle} 
-                className={`${isSyncing ? 'animate-pulse' : ''}`} 
-              />
+              <DiscordIcon style={iconStyle} />
               <span className="text-sm font-medium">
-                {isSyncing ? 'Syncing...' : 'Sync'}
+                Community
               </span>
             </button>
           )}
