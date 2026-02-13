@@ -36,7 +36,7 @@ import { ICON_STYLES } from '../../../../lib/gitHelpers';
 import { useRepo } from '../../../../context';
 import { GitHubDeviceFlowModal, ProjectCreationStepper } from '../../../common';
 import type { StepperStatus } from '../../../common';
-import { Button, Input, Select } from '../../../ui';
+import { Button, Input, Select, Switch } from '../../../ui';
 import type { SelectOption } from '../../../ui';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import { RepoList, RepoListForOrg, RepoClone } from '../../../../../bindings/controlzebra/services/githubservice';
@@ -195,6 +195,7 @@ function CloneProjectPage(): JSX.Element {
   // ── Destination folder state ──────────────────────────────────────────
   const [destPath, setDestPath] = useState('');
   const [isBrowsingDest, setIsBrowsingDest] = useState(false);
+  const [isShallowClone, setIsShallowClone] = useState(true);
 
   // ── Clone progress state ──────────────────────────────────────────────
   const [isCloning, setIsCloning] = useState(false);
@@ -415,7 +416,7 @@ function CloneProjectPage(): JSX.Element {
         repoIdentifier = manualUrl.trim();
       }
 
-      const result = await RepoClone(repoIdentifier, destPath);
+      const result = await RepoClone(repoIdentifier, destPath, isShallowClone);
 
       if (result.success) {
         // Step 1: Done
@@ -438,7 +439,7 @@ function CloneProjectPage(): JSX.Element {
     } finally {
       setIsCloning(false);
     }
-  }, [canClone, inputMode, selectedRepo, manualUrl, destPath, openRepo]);
+  }, [canClone, inputMode, selectedRepo, manualUrl, destPath, isShallowClone, openRepo]);
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -664,6 +665,22 @@ function CloneProjectPage(): JSX.Element {
           <p className="text-theme-muted text-xs mt-1.5">
             A new folder with the repository name will be created here.
           </p>
+
+          <div className="mt-5 pt-4 border-t border-theme-default">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs text-theme-secondary font-medium">
+                Shallow Clone
+              </label>
+              <Switch
+                checked={isShallowClone}
+                onCheckedChange={setIsShallowClone}
+                disabled={isCloning}
+              />
+            </div>
+            <p className="text-theme-muted text-xs mt-1.5">
+              Download only the latest snapshot of the repository to clone faster.
+            </p>
+          </div>
         </SectionCard>
 
         {/* ─── Progress stepper (shown during/after clone) ────────────── */}

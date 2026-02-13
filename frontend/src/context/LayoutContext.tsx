@@ -82,6 +82,10 @@ const LayoutContext = createContext<LayoutContextValue | null>(null);
 // Default layout values
 const DEFAULT_SIDEBAR_WIDTH = 224;  // 14rem
 
+// Global UI events emitted by RepoContext to keep explorer previews in sync
+const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
+const CLOSE_FILE_PREVIEW_TABS_EVENT = 'cz:explorer-close-file-previews';
+
 export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   // Responsive window size tracking
   const { shouldCollapseSidebar } = useWindowSize();
@@ -150,6 +154,48 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   // Explorer tabs state - file browser is always the first (pinned) tab
   const [explorerTabs, setExplorerTabs] = useState<ExplorerTab[]>([FILE_BROWSER_TAB]);
   const [activeExplorerTab, setActiveExplorerTab] = useState<string>(FILE_BROWSER_TAB.id);
+
+  const normalizePath = useCallback((path: string): string => path.replace(/\\/g, '/'), []);
+
+  const tabMatchesRelativeFile = useCallback((tab: ExplorerTab, relativePath: string): boolean => {
+    const normalizedRelative = normalizePath(relativePath).replace(/^\/+/, '');
+    if (!normalizedRelative) return false;
+
+    const tabRelativePath = tab.diffContext?.relativePath ? normalizePath(tab.diffContext.relativePath) : '';
+    if (tabRelativePath && tabRelativePath === normalizedRelative) {
+      return true;
+    }
+
+    const tabFilePath = tab.filePath ? normalizePath(tab.filePath) : '';
+    if (!tabFilePath) return false;
+
+    return tabFilePath === normalizedRelative || tabFilePath.endsWith(`/${normalizedRelative}`);
+  }, [normalizePath]);
+
+  const closeAllPreviewTabs = useCallback(() => {
+    setExplorerTabs(prev => prev.filter(tab => tab.isPinned));
+    setActiveExplorerTab(FILE_BROWSER_TAB.id);
+  }, []);
+
+  const closeTabsForFile = useCallback((relativePath: string) => {
+    if (!relativePath) return;
+
+    setExplorerTabs(prev => {
+      const toRemove = prev
+        .filter(tab => !tab.isPinned && tabMatchesRelativeFile(tab, relativePath))
+        .map(tab => tab.id);
+
+      if (toRemove.length === 0) {
+        return prev;
+      }
+
+      setActiveExplorerTab(currentActive => (
+        toRemove.includes(currentActive) ? FILE_BROWSER_TAB.id : currentActive
+      ));
+
+      return prev.filter(tab => !toRemove.includes(tab.id));
+    });
+  }, [tabMatchesRelativeFile]);
   
   // Theme state – read persisted value so login screen preference carries over
   const [theme, setTheme] = useState<Theme>(() => {
@@ -219,6 +265,28 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
       return prev;
     });
   }, []);
+
+  // Keep explorer previews/diffs in sync with repository operations and external edits.
+  useEffect(() => {
+    const handleCloseAll = () => {
+      closeAllPreviewTabs();
+    };
+
+    const handleCloseFile = (event: Event) => {
+      const customEvent = event as CustomEvent<{ relativePath?: string }>;
+      const relativePath = customEvent.detail?.relativePath;
+      if (!relativePath) return;
+      closeTabsForFile(relativePath);
+    };
+
+    window.addEventListener(CLOSE_ALL_PREVIEW_TABS_EVENT, handleCloseAll);
+    window.addEventListener(CLOSE_FILE_PREVIEW_TABS_EVENT, handleCloseFile as EventListener);
+
+    return () => {
+      window.removeEventListener(CLOSE_ALL_PREVIEW_TABS_EVENT, handleCloseAll);
+      window.removeEventListener(CLOSE_FILE_PREVIEW_TABS_EVENT, handleCloseFile as EventListener);
+    };
+  }, [closeAllPreviewTabs, closeTabsForFile]);
 
   // Memoized context value to prevent unnecessary re-renders
   const value = useMemo<LayoutContextValue>(() => ({

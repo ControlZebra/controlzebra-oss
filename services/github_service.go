@@ -806,8 +806,9 @@ func (g *GitHubService) RepoListForOrg(org string, limit int) GitHubRepoListResu
 // RepoClone clones a GitHub repository to the specified directory
 // repo: repository in "owner/repo" format or full URL
 // destPath: local directory to clone into (will be created)
-func (g *GitHubService) RepoClone(repo string, destPath string) GitHubCloneResult {
-	done := LogMethod("GitHubService.RepoClone", map[string]interface{}{"repo": repo, "destPath": destPath})
+// shallow: when true, clone only the latest commit history (depth=1)
+func (g *GitHubService) RepoClone(repo string, destPath string, shallow bool) GitHubCloneResult {
+	done := LogMethod("GitHubService.RepoClone", map[string]interface{}{"repo": repo, "destPath": destPath, "shallow": shallow})
 	defer func() { done(nil, nil) }()
 
 	if repo == "" {
@@ -820,6 +821,9 @@ func (g *GitHubService) RepoClone(repo string, destPath string) GitHubCloneResul
 	args := []string{"repo", "clone", repo}
 	if destPath != "" {
 		args = append(args, destPath)
+	}
+	if shallow {
+		args = append(args, "--", "--depth=1")
 	}
 
 	result := g.runner.Run("", GhPath(), args...)
