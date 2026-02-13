@@ -568,6 +568,36 @@ type LFSLock struct {
 	Locked string `json:"locked"` // Timestamp
 }
 
+// isNonFatalLFSLocksError returns true for lock-list errors that should be
+// treated as "no locks available" rather than hard failures.
+//
+// Common cases:
+// - Repo has no remote configured
+// - Remote URL/protocol is missing or invalid
+// - LFS locking is not enabled/supported by the server
+func isNonFatalLFSLocksError(errMsg string) bool {
+	errLower := strings.ToLower(strings.TrimSpace(errMsg))
+	if errLower == "" {
+		return false
+	}
+
+	nonFatalSubstrings := []string{
+		"not enabled",
+		"not supported",
+		"missing protocol",
+		"no such remote",
+		"does not appear to be a git repository",
+	}
+
+	for _, s := range nonFatalSubstrings {
+		if strings.Contains(errLower, s) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // normalizeLFSFilePath converts an incoming path to a repo-relative path suitable
 // for git/lfs commands.
 //
@@ -610,8 +640,9 @@ func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
 	result := l.runner.RunGit(repoPath, "lfs", "locks")
 	if !result.Success {
 		errMsg := getErrorMessage(result)
-		// LFS locking requires server support; return empty if not available
-		if strings.Contains(errMsg, "not enabled") || strings.Contains(errMsg, "not supported") {
+		// LFS locking requires remote/server support. Treat known environmental
+		// issues as empty locks so polling callers don't surface noisy errors.
+		if isNonFatalLFSLocksError(errMsg) {
 			return []LFSLock{}, nil
 		}
 		return nil, fmt.Errorf("failed to get LFS locks: %s", errMsg)
