@@ -82,8 +82,9 @@ function LogEntryRow({ entry }: LogEntryRowProps): JSX.Element {
 
   return (
     <div
+      data-log-row
       className={`
-        border-b border-theme-default/50 text-[11px] leading-relaxed
+        border-b border-theme-default/50 text-[11px] leading-relaxed select-text
         ${entry.level === 'error' ? 'bg-red-500/5' : ''}
         ${expanded ? 'bg-theme-surface/50' : 'hover:bg-theme-surface/30'}
       `}
@@ -92,7 +93,7 @@ function LogEntryRow({ entry }: LogEntryRowProps): JSX.Element {
       <button
         onClick={toggle}
         disabled={!hasDetails}
-        className="w-full flex items-start gap-1.5 px-2 py-1 text-left cursor-pointer disabled:cursor-default"
+        className="w-full flex items-start gap-1.5 px-2 py-1 text-left cursor-pointer disabled:cursor-default select-text"
       >
         {/* Expand chevron */}
         <span className="shrink-0 mt-0.5 text-theme-muted w-3">
@@ -131,7 +132,7 @@ function LogEntryRow({ entry }: LogEntryRowProps): JSX.Element {
 
       {/* Expanded details panel */}
       {expanded && hasDetails && (
-        <div className="mx-2 mb-2 ml-[26px] p-2 rounded bg-theme-base/60 border border-theme-default/50 font-mono text-[10px] space-y-1.5 overflow-x-auto">
+        <div className="mx-2 mb-2 ml-[26px] p-2 rounded bg-theme-base/60 border border-theme-default/50 font-mono text-[10px] space-y-1.5 overflow-x-auto select-text">
           {details.command && (
             <DetailField label="Command" value={`${details.command} ${(details.args || []).join(' ')}`} />
           )}

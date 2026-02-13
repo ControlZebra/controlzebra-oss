@@ -12,6 +12,7 @@ export { ExplorerPage } from './explorer';
 export { default as HistoryPage } from './HistoryPage';
 export { default as MergeChangesPage } from './MergeChangesPage';
 export { default as ProfilePage } from './ProfilePage';
+export { default as DebugPage } from './DebugPage';
 export { SettingsPage } from './settings';
 export { RepoSettingsPage } from './repo-settings';
 
@@ -20,6 +21,7 @@ import { ExplorerPage } from './explorer';
 import HistoryPage from './HistoryPage';
 import MergeChangesPage from './MergeChangesPage';
 import ProfilePage from './ProfilePage';
+import DebugPage from './DebugPage';
 import { SettingsPage } from './settings';
 import { RepoSettingsPage } from './repo-settings';
 
@@ -34,4 +36,5 @@ export const VIEW_REGISTRY: Partial<Record<ViewType, ComponentType>> = {
   [VIEWS.REPO_SETTINGS]: RepoSettingsPage,
   [VIEWS.SETTINGS]: SettingsPage,
   [VIEWS.PROFILE]: ProfilePage,
+  [VIEWS.DEBUG]: DebugPage,
 };
