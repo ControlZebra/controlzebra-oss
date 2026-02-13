@@ -95,11 +95,19 @@ func (g *GitService) DetectRepo(path string) (ri RepoInfo) {
 	return
 }
 
-// GetRemoteURL returns the URL of the origin remote, or empty string if not set
+// GetRemoteURL returns the URL of the preferred remote.
+// Prefers origin when available, otherwise uses the first configured remote.
+// Returns empty string when no remotes are configured.
 func (g *GitService) GetRemoteURL(repoPath string) string {
 	done := LogMethod("GitService.GetRemoteURL", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
-	result := g.runner.RunGit(repoPath, "remote", "get-url", "origin")
+
+	remote, ok := g.getPreferredRemote(repoPath)
+	if !ok {
+		return ""
+	}
+
+	result := g.runner.RunGit(repoPath, "remote", "get-url", remote)
 	if !result.Success {
 		return ""
 	}
@@ -169,6 +177,54 @@ func trimOutput(s string) string {
 	return strings.TrimSpace(s)
 }
 
+// getRemotes returns all configured remote names (e.g. origin, upstream).
+func (g *GitService) getRemotes(repoPath string) []string {
+	result := g.runner.RunGit(repoPath, "remote")
+	if !result.Success {
+		return []string{}
+	}
+
+	lines := strings.Split(trimOutput(result.Stdout), "\n")
+	remotes := make([]string, 0, len(lines))
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			remotes = append(remotes, name)
+		}
+	}
+	return remotes
+}
+
+func (g *GitService) hasAnyRemote(repoPath string) bool {
+	return len(g.getRemotes(repoPath)) > 0
+}
+
+func (g *GitService) hasRemote(repoPath string, remote string) bool {
+	if strings.TrimSpace(remote) == "" {
+		return false
+	}
+	for _, r := range g.getRemotes(repoPath) {
+		if r == remote {
+			return true
+		}
+	}
+	return false
+}
+
+// getPreferredRemote returns origin when present, otherwise the first configured remote.
+func (g *GitService) getPreferredRemote(repoPath string) (string, bool) {
+	remotes := g.getRemotes(repoPath)
+	if len(remotes) == 0 {
+		return "", false
+	}
+	for _, r := range remotes {
+		if r == "origin" {
+			return r, true
+		}
+	}
+	return remotes[0], true
+}
+
 // unquoteGitPath removes Git's quoting from paths containing spaces or special characters.
 // Git uses "path with spaces" format in porcelain output. Also handles escaped characters.
 func unquoteGitPath(path string) string {
@@ -218,9 +274,9 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	var branchResult, aheadBehindResult, statusResult, commitCountResult CommandResult
+	var branchResult, aheadBehindResult, statusResult, commitCountResult, remoteListResult CommandResult
 
-	// Run all commands concurrently
+	// Run independent local commands concurrently
 	wg.Add(4)
 
 	// Get current branch
@@ -229,10 +285,10 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		branchResult = g.runner.RunGit(repoPath, "branch", "--show-current")
 	}()
 
-	// Get ahead/behind counts (will fail if no upstream)
+	// Get configured remotes (used to skip upstream checks for local-only repos)
 	go func() {
 		defer wg.Done()
-		aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
+		remoteListResult = g.runner.RunGit(repoPath, "remote")
 	}()
 
 	// Get changed files using git status --porcelain
@@ -249,6 +305,13 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 
 	wg.Wait()
 
+	hasRemote := remoteListResult.Success && trimOutput(remoteListResult.Stdout) != ""
+	if hasRemote {
+		// Only attempt upstream math when a remote exists.
+		// This avoids noisy "no upstream configured" errors for local-only repositories.
+		aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
+	}
+
 	// Process branch result
 	mu.Lock()
 	if branchResult.Success {
@@ -260,7 +323,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 
 	// Process ahead/behind result
 	// If this succeeds, we have an upstream
-	if aheadBehindResult.Success {
+	if hasRemote && aheadBehindResult.Success {
 		result.HasUpstream = true
 		parts := strings.Fields(trimOutput(aheadBehindResult.Stdout))
 		if len(parts) == 2 {
@@ -647,6 +710,14 @@ func (g *GitService) Commit(repoPath string, message string) (opResult Operation
 func (g *GitService) Fetch(repoPath string, remote string, branch string) OperationResult {
 	done := LogMethod("GitService.Fetch", map[string]interface{}{"repoPath": repoPath, "remote": remote, "branch": branch})
 	defer func() { done(nil, nil) }()
+	if remote == "" {
+		if !g.hasAnyRemote(repoPath) {
+			return failedOp("No remote repository configured. Publish to cloud first.")
+		}
+	} else if !g.hasRemote(repoPath, remote) {
+		return failedOp(fmt.Sprintf("Remote '%s' is not configured.", remote))
+	}
+
 	args := []string{"fetch"}
 	if remote != "" {
 		args = append(args, remote)
@@ -664,6 +735,9 @@ func (g *GitService) Fetch(repoPath string, remote string, branch string) Operat
 // FetchAll fetches from all remotes.
 // Equivalent to: git fetch --all
 func (g *GitService) FetchAll(repoPath string) OperationResult {
+	if !g.hasAnyRemote(repoPath) {
+		return failedOp("No remote repository configured. Publish to cloud first.")
+	}
 	result := g.runner.RunGit(repoPath, "fetch", "--all")
 	if !result.Success {
 		return failedOp("Failed to fetch: " + getErrorMessage(result))
@@ -814,6 +888,10 @@ func (g *GitService) MoveFile(repoPath string, source string, destination string
 func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
 	done := LogMethod("GitService.Pull", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(opResult, nil) }()
+	if !g.hasAnyRemote(repoPath) {
+		opResult = failedOp("No remote repository configured. Publish to cloud first.")
+		return
+	}
 	result := g.runner.RunGit(repoPath, "pull")
 	if !result.Success {
 		opResult = OperationResult{
@@ -839,6 +917,11 @@ func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
 func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 	done := LogMethod("GitService.Push", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(opResult, nil) }()
+	if !g.hasAnyRemote(repoPath) {
+		opResult = failedOp("No remote repository configured. Publish to cloud first.")
+		return
+	}
+
 	// First, try a regular push
 	result := g.runner.RunGit(repoPath, "push")
 	if !result.Success {
@@ -866,8 +949,14 @@ func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 				return
 			}
 
+			remoteName, hasRemote := g.getPreferredRemote(repoPath)
+			if !hasRemote {
+				opResult = failedOp("No remote repository configured. Publish to cloud first.")
+				return
+			}
+
 			// Try pushing with --set-upstream to automatically configure tracking
-			pushResult := g.runner.RunGit(repoPath, "push", "--set-upstream", "origin", branchName)
+			pushResult := g.runner.RunGit(repoPath, "push", "--set-upstream", remoteName, branchName)
 			if !pushResult.Success {
 				pushErr := getErrorMessage(pushResult)
 				// Check if there's no remote configured at all
@@ -876,7 +965,7 @@ func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 					strings.Contains(pushErr, "fatal: 'origin' does not appear") {
 					opResult = OperationResult{
 						Success: false,
-						Error:   "No remote repository configured. Add a remote first.",
+						Error:   "No remote repository configured. Publish to cloud first.",
 					}
 					return
 				}
@@ -910,6 +999,10 @@ func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 func (g *GitService) Sync(repoPath string) OperationResult {
 	done := LogMethod("GitService.Sync", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
+	if !g.hasAnyRemote(repoPath) {
+		return failedOp("No remote repository configured. Publish to cloud first.")
+	}
+
 	// First, pull with merge (not rebase)
 	pullResult := g.runner.RunGit(repoPath, "pull", "--no-rebase")
 	if !pullResult.Success {
@@ -2686,7 +2779,9 @@ func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBran
 	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
 	if !checkoutResult.Success {
 		// Try fetching and checking out if it's a remote branch
-		g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		if g.hasRemote(repoPath, "origin") {
+			g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		}
 		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
 		if !checkoutResult.Success {
 			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
@@ -2835,7 +2930,9 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 	// Step 1: Checkout the target branch
 	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
 	if !checkoutResult.Success {
-		g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		if g.hasRemote(repoPath, "origin") {
+			g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		}
 		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
 		if !checkoutResult.Success {
 			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
@@ -3812,20 +3909,12 @@ func (g *GitService) CheckBranchConflicts(repoPath string, targetBranch string, 
 	}
 
 	// Step 1: Fetch the target branch from origin to ensure we have latest
-	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
-	if !fetchResult.Success {
-		// Fetch might fail if no remote or branch doesn't exist on remote
-		// We can still try merge-tree with local branches
-		errMsg := getErrorMessage(fetchResult)
-		// Check if it's a "no remote" error vs other errors
-		if strings.Contains(errMsg, "does not appear to be a git repository") ||
-			strings.Contains(errMsg, "Could not read from remote") {
-			// No remote configured, try with local branch reference
-			// Continue without fetch
-		} else if strings.Contains(errMsg, "couldn't find remote ref") {
-			// Remote exists but branch doesn't - still try local
+	if g.hasRemote(repoPath, "origin") {
+		fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		if !fetchResult.Success {
+			// Fetch might fail if branch doesn't exist on remote.
+			// We can still try merge-tree with local branches.
 		}
-		// For other fetch errors, we'll still try the merge-tree with local refs
 	}
 
 	// Step 2: Determine the target ref to use

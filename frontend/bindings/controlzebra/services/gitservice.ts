@@ -486,7 +486,9 @@ export function GetRecentCommits(repoPath: string, limit: number): $CancellableP
 }
 
 /**
- * GetRemoteURL returns the URL of the origin remote, or empty string if not set
+ * GetRemoteURL returns the URL of the preferred remote.
+ * Prefers origin when available, otherwise uses the first configured remote.
+ * Returns empty string when no remotes are configured.
  */
 export function GetRemoteURL(repoPath: string): $CancellablePromise<string> {
     return $Call.ByID(3646388877, repoPath);

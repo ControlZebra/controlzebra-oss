@@ -70,7 +70,6 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 		return "", -1, ""
 	}
 
-	// Try to match percentage progress (e.g., "Receiving objects: 45% (123/456)")
 	if matches := progressPercentRegex.FindStringSubmatch(line); matches != nil {
 		phase = strings.TrimSpace(strings.ToLower(matches[1]))
 		if pct, err := strconv.Atoi(matches[2]); err == nil {
@@ -79,19 +78,16 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 		return phase, percent, line
 	}
 
-	// Try to match done messages
 	if matches := progressDoneRegex.FindStringSubmatch(line); matches != nil {
 		phase = strings.TrimSpace(strings.ToLower(matches[1]))
 		return phase, 100, line
 	}
 
-	// Try to match remote progress
 	if matches := remoteProgressRegex.FindStringSubmatch(line); matches != nil {
 		phase = "remote: " + strings.TrimSpace(strings.ToLower(matches[1]))
 		return phase, -1, line
 	}
 
-	// Detect common phases from keywords
 	lineLower := strings.ToLower(line)
 	switch {
 	case strings.Contains(lineLower, "enumerating"):
@@ -123,20 +119,16 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// First, check if the current branch has an upstream configured
+	if !p.hasAnyRemote(repoPath) {
+		errMsg := "No remote repository configured. Publish to cloud first."
+		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+		return failedOp(errMsg)
+	}
+
 	hasUpstream := p.checkHasUpstream(repoPath)
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Starting sync..."})
 
-	// Emit starting state
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "starting",
-		Percent:     -1,
-		Message:     "Starting sync...",
-	})
-
-	// Only pull if we have an upstream branch
 	if hasUpstream {
-		// Build pull args with optional fetch flags
 		pullArgs := []string{"pull", "--no-rebase", "--progress"}
 		if prune {
 			pullArgs = append(pullArgs, "--prune")
@@ -145,21 +137,10 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 			pullArgs = append(pullArgs, "--tags")
 		}
 
-		// Run pull with progress (using merge, not rebase, for safer conflict resolution)
 		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", pullArgs)
 		if !pullResult.Success {
 			errMsg := pullResult.Error
-			p.emitProgress(ProgressUpdate{
-				OperationID: operationID,
-				Phase:       "error",
-				Percent:     0,
-				Message:     errMsg,
-				IsComplete:  true,
-				Success:     false,
-				Error:       errMsg,
-			})
-
-			// Check for common errors
+			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
 			if strings.Contains(errMsg, "no tracking information") || strings.Contains(errMsg, "no upstream") {
 				return failedOp("No remote branch configured. Please set up a remote first.")
 			}
@@ -170,57 +151,34 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		}
 	}
 
-	// Emit push starting
 	pushMessage := "Pushing changes to remote..."
 	if !hasUpstream {
 		pushMessage = "Publishing branch to remote..."
 	}
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "pushing",
-		Percent:     -1,
-		Message:     pushMessage,
-	})
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "pushing", Percent: -1, Message: pushMessage})
 
-	// Determine push arguments based on whether we have an upstream
 	var pushArgs []string
 	if hasUpstream {
 		pushArgs = []string{"push", "--progress"}
 	} else {
-		// Get current branch name for --set-upstream
 		branchName := p.getCurrentBranch(repoPath)
 		if branchName == "" {
-			p.emitProgress(ProgressUpdate{
-				OperationID: operationID,
-				Phase:       "error",
-				Percent:     0,
-				Message:     "Cannot determine current branch",
-				IsComplete:  true,
-				Success:     false,
-				Error:       "Cannot determine current branch",
-			})
+			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: "Cannot determine current branch", IsComplete: true, Success: false, Error: "Cannot determine current branch"})
 			return failedOp("Cannot determine current branch")
 		}
-		pushArgs = []string{"push", "--set-upstream", "origin", branchName, "--progress"}
+		remoteName, ok := p.getPreferredRemote(repoPath)
+		if !ok {
+			return failedOp("No remote repository configured. Publish to cloud first.")
+		}
+		pushArgs = []string{"push", "--set-upstream", remoteName, branchName, "--progress"}
 	}
 
-	// Run push with progress
 	pushResult := p.runGitWithProgress(repoPath, operationID, "push", pushArgs)
 	if !pushResult.Success {
 		errMsg := pushResult.Error
-		p.emitProgress(ProgressUpdate{
-			OperationID: operationID,
-			Phase:       "error",
-			Percent:     0,
-			Message:     errMsg,
-			IsComplete:  true,
-			Success:     false,
-			Error:       errMsg,
-		})
-
-		if strings.Contains(errMsg, "does not appear to be a git repository") ||
-			strings.Contains(errMsg, "No configured push destination") {
-			return failedOp("No remote repository configured. Add a remote first.")
+		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+		if strings.Contains(errMsg, "does not appear to be a git repository") || strings.Contains(errMsg, "No configured push destination") {
+			return failedOp("No remote repository configured. Publish to cloud first.")
 		}
 		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
 			return failedOp("No remote branch configured. Please set up a remote first.")
@@ -231,20 +189,11 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		return failedOp("Failed to sync (push): " + errMsg)
 	}
 
-	// Emit completion
 	successMessage := "Synced successfully"
 	if !hasUpstream {
 		successMessage = "Branch published successfully"
 	}
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "done",
-		Percent:     100,
-		Message:     successMessage,
-		IsComplete:  true,
-		Success:     true,
-	})
-
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "done", Percent: 100, Message: successMessage, IsComplete: true, Success: true})
 	return successOp(successMessage)
 }
 
@@ -252,6 +201,41 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 func (p *ProgressService) checkHasUpstream(repoPath string) bool {
 	result := p.runner.RunGit(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
 	return result.Success
+}
+
+func (p *ProgressService) hasAnyRemote(repoPath string) bool {
+	result := p.runner.RunGit(repoPath, "remote")
+	if !result.Success {
+		return false
+	}
+	return strings.TrimSpace(result.Stdout) != ""
+}
+
+// getPreferredRemote returns origin when available, otherwise the first configured remote.
+func (p *ProgressService) getPreferredRemote(repoPath string) (string, bool) {
+	result := p.runner.RunGit(repoPath, "remote")
+	if !result.Success {
+		return "", false
+	}
+
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	remotes := make([]string, 0, len(lines))
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			remotes = append(remotes, name)
+		}
+	}
+
+	if len(remotes) == 0 {
+		return "", false
+	}
+	for _, remote := range remotes {
+		if remote == "origin" {
+			return remote, true
+		}
+	}
+	return remotes[0], true
 }
 
 // getCurrentBranch returns the current branch name
@@ -268,36 +252,22 @@ func (p *ProgressService) PullWithProgress(repoPath, operationID string) Operati
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "starting",
-		Percent:     -1,
-		Message:     "Fetching from remote...",
-	})
+	if !p.hasAnyRemote(repoPath) {
+		errMsg := "No remote repository configured. Publish to cloud first."
+		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+		return failedOp(errMsg)
+	}
+
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Fetching from remote..."})
 
 	// Using merge strategy (not rebase) for safer conflict resolution
 	result := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
 	if !result.Success {
-		p.emitProgress(ProgressUpdate{
-			OperationID: operationID,
-			Phase:       "error",
-			Message:     result.Error,
-			IsComplete:  true,
-			Success:     false,
-			Error:       result.Error,
-		})
+		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Message: result.Error, IsComplete: true, Success: false, Error: result.Error})
 		return failedOp("Pull failed: " + result.Error)
 	}
 
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "done",
-		Percent:     100,
-		Message:     "Pull complete",
-		IsComplete:  true,
-		Success:     true,
-	})
-
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "done", Percent: 100, Message: "Pull complete", IsComplete: true, Success: true})
 	return successOp("Pull complete")
 }
 
@@ -306,35 +276,21 @@ func (p *ProgressService) PushWithProgress(repoPath, operationID string) Operati
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "starting",
-		Percent:     -1,
-		Message:     "Pushing to remote...",
-	})
+	if !p.hasAnyRemote(repoPath) {
+		errMsg := "No remote repository configured. Publish to cloud first."
+		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+		return failedOp(errMsg)
+	}
+
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Pushing to remote..."})
 
 	result := p.runGitWithProgress(repoPath, operationID, "push", []string{"push", "--progress"})
 	if !result.Success {
-		p.emitProgress(ProgressUpdate{
-			OperationID: operationID,
-			Phase:       "error",
-			Message:     result.Error,
-			IsComplete:  true,
-			Success:     false,
-			Error:       result.Error,
-		})
+		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Message: result.Error, IsComplete: true, Success: false, Error: result.Error})
 		return failedOp("Push failed: " + result.Error)
 	}
 
-	p.emitProgress(ProgressUpdate{
-		OperationID: operationID,
-		Phase:       "done",
-		Percent:     100,
-		Message:     "Push complete",
-		IsComplete:  true,
-		Success:     true,
-	})
-
+	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "done", Percent: 100, Message: "Push complete", IsComplete: true, Success: true})
 	return successOp("Push complete")
 }
 
