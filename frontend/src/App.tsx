@@ -7,6 +7,8 @@ import LoginView from './components/layout/views/LoginView';
 import Spinner from './components/common/Spinner';
 import { useLoginTheme } from './hooks/useLoginTheme';
 
+const REPO_OPEN_SUCCESS_EVENT = 'cz:repo-open-success';
+
 // Check if this is first launch by looking for a stored flag
 const isFirstLaunch = !localStorage.getItem('cz_has_launched');
 if (isFirstLaunch) {
@@ -44,9 +46,15 @@ function App(): JSX.Element {
       });
     };
 
+    const handleRepoOpenSuccess = () => {
+      reposOpened.current += 1;
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener(REPO_OPEN_SUCCESS_EVENT, handleRepoOpenSuccess);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener(REPO_OPEN_SUCCESS_EVENT, handleRepoOpenSuccess);
     };
   }, []);
 

@@ -17,6 +17,7 @@ export type FileStatusType = 'added' | 'modified' | 'deleted' | 'renamed' | 'unt
 export type ConflictFileStatus = 'both-modified' | 'deleted-by-us' | 'deleted-by-them' | 'both-added';
 export type ResolutionStrategy = 'mine' | 'theirs' | 'both';
 export type MessageType = 'success' | 'error' | 'info' | 'warning';
+export type ProjectSetupStartSource = 'status_bar_nudge' | 'setup_banner';
 
 // ============================================================================
 // GitHub Types (for Phase 2: GitHub Integration)
@@ -498,7 +499,7 @@ export interface RepoContextValue {
   openRepo: (path: string) => Promise<boolean>;
   openFolder: (path: string) => Promise<boolean>;
   closeRepo: () => Promise<void>;
-  startTracking: () => Promise<boolean>;
+  startTracking: (source?: ProjectSetupStartSource) => Promise<boolean>;
   commitChanges: (message: string, force?: boolean) => Promise<boolean>;
   syncRepo: () => Promise<boolean>;
   refreshStatus: () => Promise<void>;

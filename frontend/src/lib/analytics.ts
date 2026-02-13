@@ -2,7 +2,7 @@
  * PostHog Analytics Module for ControlZebra
  *
  * Provides centralized analytics tracking functions with consent-level filtering.
- * See docs/technical/POSTHOG_INTEGRATION_STRATEGY.md for event taxonomy.
+ * See docs/plans/POSTHOG_INTEGRATION_STRATEGY.md for event taxonomy.
  * 
  * Event Categories:
  * - 'error': Error and crash events (tracked at all levels including minimal)
@@ -16,7 +16,7 @@ import posthog from 'posthog-js';
 export type AnalyticsConsent = 'minimal' | 'standard' | 'full';
 
 // Event categories determine which consent levels can track them
-export type EventCategory = 'error' | 'usage' | 'detailed';
+type EventCategory = 'error' | 'usage' | 'detailed';
 
 // Get app version from environment
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || 'dev';
@@ -64,10 +64,28 @@ export function initAnalytics(): void {
  */
 export function setAnalyticsConsent(level: AnalyticsConsent): void {
   currentConsentLevel = level;
+  const enableAutomaticCapture = level === 'full';
   
   // All levels stay opted in so we can track errors at minimum
   // The filtering happens in trackEvent based on category
   posthog.opt_in_capturing();
+
+  // Keep PostHog SDK automatic behaviors aligned with consent level.
+  // - minimal/standard: no automatic capture, pageview, or session replay
+  // - full: allow automatic behaviors (with reduced background event noise)
+  posthog.set_config({
+    autocapture: enableAutomaticCapture,
+    capture_pageview: enableAutomaticCapture,
+    capture_pageleave: false,
+    disable_session_recording: !enableAutomaticCapture,
+    enable_heatmaps: false,
+    rageclick: false,
+    advanced_disable_feature_flags_on_first_load: true,
+    rate_limiting: {
+      events_per_second: 2,
+      events_burst_limit: 20,
+    },
+  });
   
   switch (level) {
     case 'minimal':
@@ -90,26 +108,12 @@ export function getAnalyticsConsent(): AnalyticsConsent {
 }
 
 /**
- * Identify a user (anonymous by default for privacy)
- */
-export function identifyUser(userId: string, traits?: Record<string, unknown>): void {
-  posthog.identify(userId, traits);
-}
-
-/**
- * Reset user identity (on logout)
- */
-export function resetUser(): void {
-  posthog.reset();
-}
-
-/**
  * Track an event with consent-level filtering
  * @param eventName - The name of the event
  * @param properties - Optional event properties
  * @param category - Event category: 'error' (minimal+), 'usage' (standard+), 'detailed' (full only)
  */
-export function trackEvent(
+function trackEvent(
   eventName: string, 
   properties?: Record<string, unknown>,
   category: EventCategory = 'usage'
@@ -126,34 +130,6 @@ export function trackEvent(
     consent_level: currentConsentLevel,
     event_category: category,
   });
-}
-
-/**
- * Track page/view changes (detailed category - full consent only)
- */
-export function trackViewChange(viewName: string, properties?: Record<string, unknown>): void {
-  if (!isEventAllowed('detailed')) {
-    return;
-  }
-
-  posthog.capture('$pageview', {
-    $current_url: viewName,
-    ...properties,
-  });
-}
-
-/**
- * Check if a feature flag is enabled
- */
-export function isFeatureEnabled(flagName: string): boolean {
-  return posthog.isFeatureEnabled(flagName) ?? false;
-}
-
-/**
- * Get feature flag value (for multivariate flags)
- */
-export function getFeatureFlagValue(flagName: string): string | boolean | undefined {
-  return posthog.getFeatureFlag(flagName);
 }
 
 // ============================================================================
@@ -186,13 +162,14 @@ export function trackAppClosed(properties: {
 
 export function trackRepoOpened(properties: {
   isGitRepo: boolean;
-  hasRemote: boolean;
+  hasRemote: boolean | null;
   branchName: string;
   filesCount?: number;
 }): void {
   trackEvent('repo_opened', {
     is_git_repo: properties.isGitRepo,
     has_remote: properties.hasRemote,
+    has_remote_detected: properties.hasRemote !== null,
     branch_name: properties.branchName,
     files_count: properties.filesCount,
   }, 'usage');
@@ -211,12 +188,6 @@ export function trackRepoInitialized(properties: {
   trackEvent('repo_initialized', {
     lfs_enabled: properties.lfsEnabled,
     initial_commit_made: properties.initialCommitMade,
-  }, 'usage');
-}
-
-export function trackRepoLfsEnabled(properties: { trackedPatternsCount: number }): void {
-  trackEvent('repo_lfs_enabled', {
-    tracked_patterns_count: properties.trackedPatternsCount,
   }, 'usage');
 }
 
@@ -308,27 +279,7 @@ export function trackSyncFailed(properties: {
   }, 'error');
 }
 
-export function trackPushCompleted(properties: {
-  success: boolean;
-  commitsPushed: number;
-}): void {
-  trackEvent('push_completed', {
-    success: properties.success,
-    commits_pushed: properties.commitsPushed,
-  }, 'usage');
-}
-
 // --- Branch Events ---
-
-export function trackBranchModalOpened(properties: {
-  currentBranch: string;
-  hasUncommittedChanges: boolean;
-}): void {
-  trackEvent('branch_modal_opened', {
-    current_branch: properties.currentBranch,
-    has_uncommitted_changes: properties.hasUncommittedChanges,
-  }, 'detailed');
-}
 
 export function trackBranchSwitched(properties: {
   fromBranch: string;
@@ -354,67 +305,7 @@ export function trackBranchCreated(properties: {
   }, 'usage');
 }
 
-export function trackProtectedBranchWarningShown(properties: {
-  branchName: string;
-  actionAttempted: string;
-}): void {
-  trackEvent('protected_branch_warning_shown', {
-    branch_name: properties.branchName,
-    action_attempted: properties.actionAttempted,
-  }, 'usage');
-}
-
-export function trackProtectedBranchNudgeAction(properties: {
-  action: 'created_branch' | 'dismissed' | 'saved_anyway';
-}): void {
-  trackEvent('protected_branch_nudge_action', {
-    action: properties.action,
-  }, 'usage');
-}
-
-// --- History & Diff Events ---
-
-export function trackHistoryViewed(properties: { commitsLoaded: number }): void {
-  trackEvent('history_viewed', {
-    commits_loaded: properties.commitsLoaded,
-  }, 'detailed');
-}
-
-export function trackCommitSelected(properties: {
-  commitAgeDays: number;
-  filesInCommit: number;
-}): void {
-  trackEvent('commit_selected', {
-    commit_age_days: properties.commitAgeDays,
-    files_in_commit: properties.filesInCommit,
-  }, 'detailed');
-}
-
-export function trackDiffViewed(properties: {
-  fileExtension: string;
-  diffType: 'working' | 'commit';
-  linesChanged?: number;
-}): void {
-  trackEvent('diff_viewed', {
-    file_extension: properties.fileExtension,
-    diff_type: properties.diffType,
-    lines_changed: properties.linesChanged,
-  }, 'detailed');
-}
-
 // --- Merge/Conflict Events ---
-
-export function trackMergeStarted(properties: {
-  sourceBranch: string;
-  targetBranch: string;
-  isSquash: boolean;
-}): void {
-  trackEvent('merge_started', {
-    source_branch: properties.sourceBranch,
-    target_branch: properties.targetBranch,
-    is_squash: properties.isSquash,
-  }, 'usage');
-}
 
 export function trackConflictDetected(properties: {
   conflictedFilesCount: number;
@@ -468,16 +359,6 @@ export function trackSettingsOpened(properties: { category?: string }): void {
   }, 'detailed');
 }
 
-export function trackFileOpened(properties: {
-  fileExtension: string;
-  fileSizeKb?: number;
-}): void {
-  trackEvent('file_opened', {
-    file_extension: properties.fileExtension,
-    file_size_kb: properties.fileSizeKb,
-  }, 'detailed');
-}
-
 // --- Error & Recovery Events ---
 
 export function trackErrorShown(properties: {
@@ -489,22 +370,6 @@ export function trackErrorShown(properties: {
     error_code: properties.errorCode,
     error_context: properties.errorContext,
     action_attempted: properties.actionAttempted,
-  }, 'error');
-}
-
-export function trackRecoveryBannerShown(properties: {
-  stuckStateType: 'merge' | 'rebase' | 'cherry-pick';
-}): void {
-  trackEvent('recovery_banner_shown', {
-    stuck_state_type: properties.stuckStateType,
-  }, 'error');
-}
-
-export function trackRecoveryActionTaken(properties: {
-  action: 'abort' | 'continue' | 'skip';
-}): void {
-  trackEvent('recovery_action_taken', {
-    action: properties.action,
   }, 'error');
 }
 

@@ -14,6 +14,16 @@ Environment variables required:
 - `VITE_PUBLIC_POSTHOG_KEY`
 - `VITE_PUBLIC_POSTHOG_HOST`
 
+### Consent enforcement (actual behavior)
+
+- Default consent level is `standard` when no preference exists.
+- `minimal` and `standard` keep analytics opted-in but disable PostHog automatic capture/pageview/session replay.
+- `full` enables automatic capture, pageview, pageleave, and session replay.
+- Event-level filtering is enforced in `frontend/src/lib/analytics.ts` by category:
+  - `error` events: allowed for `minimal`, `standard`, and `full`
+  - `usage` events: allowed for `standard` and `full`
+  - `detailed` events: allowed for `full` only
+
 ---
 
 ## User Journey Mapping

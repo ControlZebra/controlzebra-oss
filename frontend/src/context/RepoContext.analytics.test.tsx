@@ -1,0 +1,354 @@
+import { act, render, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+
+const {
+  analyticsMocks,
+  DetectRepo,
+  Status,
+  CommitAll,
+  GetCommitGraph,
+  Branches,
+  GetMergeState,
+  GetConflictedFiles,
+  IsGHInstalled,
+  GetGHVersion,
+  AuthStatus,
+  InitializeLFS,
+  GetPresetPatterns,
+  TrackPattern,
+  SyncWithProgress,
+  GetAppSettings,
+  SaveAppSettings,
+  EnsureIdentity,
+  WatchDirectory,
+  StopWatching,
+  GetRemotes,
+  GetSettings,
+  StartBackgroundTasks,
+  StopBackgroundTasks,
+  EnsureControlZebraDir,
+} = vi.hoisted(() => ({
+  analyticsMocks: {
+    trackRepoOpened: vi.fn(),
+    trackRepoClosed: vi.fn(),
+    trackRepoInitialized: vi.fn(),
+    trackCommitCreated: vi.fn(),
+    trackCommitBranchAndSave: vi.fn(),
+    trackCommitUndone: vi.fn(),
+    trackChangesDiscarded: vi.fn(),
+    trackSyncStarted: vi.fn(),
+    trackSyncCompleted: vi.fn(),
+    trackSyncFailed: vi.fn(),
+    trackBranchSwitched: vi.fn(),
+    trackBranchCreated: vi.fn(),
+    trackConflictDetected: vi.fn(),
+    trackConflictResolved: vi.fn(),
+    trackMergeCompleted: vi.fn(),
+    trackMergeAborted: vi.fn(),
+    trackErrorShown: vi.fn(),
+    trackProjectSetupStarted: vi.fn(),
+    trackProjectSetupCompleted: vi.fn(),
+    trackProjectPublishAttempted: vi.fn(),
+    trackProjectPublishFailed: vi.fn(),
+    trackProjectPublishCompleted: vi.fn(),
+  },
+  DetectRepo: vi.fn(),
+  Status: vi.fn(),
+  CommitAll: vi.fn(),
+  GetCommitGraph: vi.fn(),
+  Branches: vi.fn(),
+  GetMergeState: vi.fn(),
+  GetConflictedFiles: vi.fn(),
+  IsGHInstalled: vi.fn(),
+  GetGHVersion: vi.fn(),
+  AuthStatus: vi.fn(),
+  InitializeLFS: vi.fn(),
+  GetPresetPatterns: vi.fn(),
+  TrackPattern: vi.fn(),
+  SyncWithProgress: vi.fn(),
+  GetAppSettings: vi.fn(),
+  SaveAppSettings: vi.fn(),
+  EnsureIdentity: vi.fn(),
+  WatchDirectory: vi.fn(),
+  StopWatching: vi.fn(),
+  GetRemotes: vi.fn(),
+  GetSettings: vi.fn(),
+  StartBackgroundTasks: vi.fn(),
+  StopBackgroundTasks: vi.fn(),
+  EnsureControlZebraDir: vi.fn(),
+}));
+
+vi.mock('./AuthContext', () => ({
+  useAuth: () => ({
+    userName: 'Test User',
+    userEmail: 'test@controlzebra.com',
+  }),
+}));
+
+vi.mock('../lib/analytics', () => analyticsMocks);
+
+vi.mock('../../bindings/controlzebra/services/gitservice', () => ({
+  DetectRepo,
+  Status,
+  CommitAll,
+  GetCommitGraph,
+  ShowCommit: vi.fn(),
+  DiffWorkingRaw: vi.fn(),
+  DiffCommitFileRaw: vi.fn(),
+  Branches,
+  CheckoutBranch: vi.fn(),
+  CreateBranchAndCheckout: vi.fn(),
+  StashAndSwitchBranch: vi.fn(),
+  ResetSoftHead: vi.fn(),
+  ResetHardHead: vi.fn(),
+  DiscardAll: vi.fn(),
+  DiscardFile: vi.fn(),
+  InitRepo: vi.fn(),
+  CheckBranchConflicts: vi.fn(),
+  GetParentBranch: vi.fn(),
+  GetMergeState,
+  GetConflictedFiles,
+  StartMergeWithOptions: vi.fn(),
+  ResolveConflictKeepOurs: vi.fn(),
+  ResolveConflictKeepTheirs: vi.fn(),
+  ResolveConflictKeepBoth: vi.fn(),
+  AbortMerge: vi.fn(),
+  CompleteMerge: vi.fn(),
+  GetConflictSidesInfo: vi.fn(),
+  AbortCurrentOperation: vi.fn(),
+  AbortCherryPick: vi.fn(),
+  ContinueCherryPick: vi.fn(),
+  SkipCherryPickCommit: vi.fn(),
+  AbortRevert: vi.fn(),
+  ContinueRevert: vi.fn(),
+  SkipRevertCommit: vi.fn(),
+  RevertCommit: vi.fn(),
+  AbortBisect: vi.fn(),
+  GetBisectState: vi.fn(),
+  AbortAM: vi.fn(),
+  SkipAMPatch: vi.fn(),
+  CreateBranchFromDetached: vi.fn(),
+  RemoveAllStaleLocks: vi.fn(),
+}));
+
+vi.mock('../../bindings/controlzebra/services/githubservice', () => ({
+  IsGHInstalled,
+  GetGHVersion,
+  AuthLogin: vi.fn(),
+  AuthLoginStart: vi.fn(),
+  AuthLoginComplete: vi.fn(),
+  AuthLoginCancel: vi.fn(),
+  AuthLogout: vi.fn(),
+  AuthStatus,
+  RepoList: vi.fn(),
+  RepoClone: vi.fn(),
+  RepoCreateFromLocal: vi.fn(),
+  ListUserOrganizations: vi.fn(),
+}));
+
+vi.mock('../../bindings/controlzebra/services/lfsservice', () => ({
+  InitializeLFS,
+  GetPresetPatterns,
+  TrackPattern,
+}));
+
+vi.mock('../../bindings/controlzebra/services/progressservice', () => ({
+  SyncWithProgress,
+}));
+
+vi.mock('../../bindings/controlzebra/services/settingsservice', () => ({
+  GetAppSettings,
+  SaveAppSettings,
+  EnsureIdentity,
+}));
+
+vi.mock('../../bindings/controlzebra/services/filewatcherservice', () => ({
+  WatchDirectory,
+  StopWatching,
+}));
+
+vi.mock('../../bindings/controlzebra/services/repositorysettingsservice', () => ({
+  GetRemotes,
+  WriteRepoLocalConfig: vi.fn(),
+  EnsureControlZebraDir,
+  GetSettings,
+  StartBackgroundTasks,
+  StopBackgroundTasks,
+  ApplyGitignoreTemplate: vi.fn(),
+}));
+
+vi.mock('../../bindings/controlzebra/services/filesystemservice', () => ({
+  RevealInFinder: vi.fn(),
+  OpenInTerminal: vi.fn(),
+}));
+
+vi.mock('../lib/recentFolders', () => ({
+  addRecentFolder: vi.fn(),
+}));
+
+vi.mock('../lib/viewer-cache', () => ({
+  clearViewerCache: vi.fn(),
+}));
+
+vi.mock('../components/viewers/l5x', () => ({
+  clearAllTabStates: vi.fn(),
+}));
+
+vi.mock('@wailsio/runtime', () => ({
+  Events: {
+    On: vi.fn(() => () => {}),
+  },
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
+import { RepoProvider, useRepo } from './RepoContext';
+
+function CaptureRepoApi({ onReady }: { onReady: (api: ReturnType<typeof useRepo>) => void }): null {
+  const api = useRepo();
+  onReady(api);
+  return null;
+}
+
+function renderHarness(onReady: (api: ReturnType<typeof useRepo>) => void): void {
+  const Wrapper = ({ children }: { children: ReactNode }) => <RepoProvider>{children}</RepoProvider>;
+  render(
+    <Wrapper>
+      <CaptureRepoApi onReady={onReady} />
+    </Wrapper>,
+  );
+}
+
+describe('RepoContext analytics validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    DetectRepo.mockResolvedValue({ path: '/tmp/repo', isRepo: true, branch: 'main', hasError: false });
+    Status.mockResolvedValue({
+      branch: 'main',
+      ahead: 0,
+      behind: 0,
+      changedFiles: [],
+      hasChanges: false,
+      hasUpstream: true,
+      totalLocalCommits: 0,
+      hasError: false,
+    });
+    CommitAll.mockResolvedValue({ success: true, message: 'ok' });
+    GetCommitGraph.mockResolvedValue({ hasError: false, commits: [] });
+    Branches.mockResolvedValue({ hasError: false, current: 'main', local: [], remote: [] });
+    GetMergeState.mockResolvedValue({ inMerge: false, inRebase: false, hasConflicts: false });
+    GetConflictedFiles.mockResolvedValue([]);
+
+    IsGHInstalled.mockResolvedValue(false);
+    GetGHVersion.mockResolvedValue('');
+    AuthStatus.mockResolvedValue(null);
+
+    InitializeLFS.mockResolvedValue({ success: true });
+    GetPresetPatterns.mockResolvedValue([]);
+    TrackPattern.mockResolvedValue({ success: true });
+
+    SyncWithProgress.mockResolvedValue({ success: true });
+
+    GetAppSettings.mockResolvedValue({ lastRepoPath: '' });
+    SaveAppSettings.mockResolvedValue({ success: true });
+    EnsureIdentity.mockResolvedValue({ wasAutoSet: false, name: '', email: '' });
+
+    WatchDirectory.mockResolvedValue({ success: true });
+    StopWatching.mockResolvedValue({ success: true });
+
+    GetRemotes.mockResolvedValue(['origin']);
+    GetSettings.mockResolvedValue({ fetchSettings: { pruneStaleBranches: true, fetchTags: true } });
+    StartBackgroundTasks.mockResolvedValue({ success: true });
+    StopBackgroundTasks.mockResolvedValue({ success: true });
+    EnsureControlZebraDir.mockResolvedValue({ success: true });
+  });
+
+  it('fires project_setup_started once per startTracking() call', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+
+    DetectRepo.mockResolvedValueOnce({ path: '/tmp/non-git', isRepo: false, branch: '', hasError: false });
+    await act(async () => {
+      await api!.openRepo('/tmp/non-git');
+    });
+
+    await act(async () => {
+      await api!.startTracking('status_bar_nudge');
+    });
+
+    expect(analyticsMocks.trackProjectSetupStarted).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits repo_opened with has_remote=true when remote exists', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      await api!.openRepo('/tmp/repo-with-remote');
+    });
+
+    expect(analyticsMocks.trackRepoOpened).toHaveBeenCalledWith(
+      expect.objectContaining({ hasRemote: true }),
+    );
+  });
+
+  it('emits repo_opened with has_remote=null when remote detection fails', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+    GetRemotes.mockRejectedValueOnce(new Error('remotes unavailable'));
+
+    await act(async () => {
+      await api!.openRepo('/tmp/repo-remote-error');
+    });
+
+    expect(analyticsMocks.trackRepoOpened).toHaveBeenCalledWith(
+      expect.objectContaining({ hasRemote: null }),
+    );
+  });
+
+  it('emits sync_completed with non-zero duration_ms', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      await api!.openRepo('/tmp/repo-sync');
+    });
+
+    await act(async () => {
+      await api!.syncRepo();
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      api!.handleProgressComplete(true);
+    });
+
+    expect(analyticsMocks.trackSyncCompleted).toHaveBeenCalled();
+    const args = analyticsMocks.trackSyncCompleted.mock.calls.at(-1)?.[0] as { durationMs: number };
+    expect(args.durationMs).toBeGreaterThan(0);
+  });
+});
