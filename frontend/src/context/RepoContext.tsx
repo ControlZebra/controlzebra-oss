@@ -155,6 +155,10 @@ import type {
 // Polling interval for status updates (in ms)
 const STATUS_POLL_INTERVAL = 30000;
 
+// Global UI events consumed by LayoutContext for explorer tab cleanup
+const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
+const CLOSE_FILE_PREVIEW_TABS_EVENT = 'cz:explorer-close-file-previews';
+
 // Create context with null default
 const RepoContext = createContext<RepoContextValue | null>(null);
 
@@ -240,6 +244,17 @@ export function RepoProvider({ children }: RepoProviderProps) {
         toast.info(text, options);
         break;
     }
+  }, []);
+
+  const closeAllExplorerPreviews = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(CLOSE_ALL_PREVIEW_TABS_EVENT));
+  }, []);
+
+  const closeExplorerPreviewsForFile = useCallback((relativePath: string) => {
+    if (!relativePath) return;
+    window.dispatchEvent(new CustomEvent(CLOSE_FILE_PREVIEW_TABS_EVENT, {
+      detail: { relativePath },
+    }));
   }, []);
 
   // Fetch repo status from Git
@@ -682,6 +697,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         isProtectedBranch: false,
         durationMs: Date.now() - startTime,
       });
+
+      closeAllExplorerPreviews();
       
       showMessage('success', 'Changes saved successfully');
       await refreshAll();
@@ -702,7 +719,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsCommitting(false);
       return false;
     }
-  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll]);
+  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll, closeAllExplorerPreviews]);
 
   // Generate unique operation ID
   const generateOperationId = useCallback((): string => {
@@ -909,6 +926,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         toBranch: branchName,
         usedStash: false,
       });
+
+      closeAllExplorerPreviews();
       
       showMessage('success', result.message || `Switched to ${branchName}`);
       clearSelection();
@@ -920,7 +939,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to switch branch: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches]);
+  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
 
   // Create new branch and switch to it
   const createBranch = useCallback(async (branchName: string): Promise<boolean> => {
@@ -944,6 +963,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         fromBranch,
         movedUncommittedChanges: false,
       });
+
+      closeAllExplorerPreviews();
       
       showMessage('success', result.message || `Created branch ${branchName}`);
       clearSelection();
@@ -955,7 +976,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to create branch: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches]);
+  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
 
   // Create new branch, switch to it, and commit changes
   const branchAndCommit = useCallback(async (branchName: string, message: string): Promise<boolean> => {
@@ -998,6 +1019,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         filesChanged,
         wasOnProtectedBranch,
       });
+
+      closeAllExplorerPreviews();
       
       showMessage('success', `Created branch "${branchName}" and saved changes`);
       clearSelection();
@@ -1009,7 +1032,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches]);
+  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
 
   // ===== Recovery Operations =====
 
@@ -1667,6 +1690,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     try {
       const result = await RevertCommit(repoPath, commitHash);
       if (result.success) {
+        closeAllExplorerPreviews();
         showMessage('success', result.message);
         await refreshAll();
         return true;
@@ -1678,7 +1702,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to revert commit: ${error.message}`);
       return false;
     }
-  }, [repoPath, showMessage, refreshAll]);
+  }, [repoPath, showMessage, refreshAll, closeAllExplorerPreviews]);
 
   const abortBisect = useCallback(async (): Promise<boolean> => {
     if (!repoPath) return false;
@@ -1938,7 +1962,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     destPath: string
   ): Promise<GitHubCloneResult> => {
     try {
-      const result = await RepoClone(repo, destPath);
+      const result = await RepoClone(repo, destPath, false);
       if (result.success) {
         showMessage('success', `Repository cloned to ${result.cloneDir}`);
         // Optionally open the cloned repo
@@ -2257,8 +2281,33 @@ export function RepoProvider({ children }: RepoProviderProps) {
     if (!repoPath || !repoInfo?.isRepo) return;
     
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const normalizedRepoPath = repoPath.replace(/\\/g, '/');
     
-    const handleFilesChanged = () => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path;
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!isDir && changedPath && (eventType === 'write' || eventType === 'rename' || eventType === 'remove')) {
+        const normalizedChangedPath = changedPath.replace(/\\/g, '/');
+        const repoPrefix = `${normalizedRepoPath}/`;
+
+        if (normalizedChangedPath.startsWith(repoPrefix)) {
+          const relativePath = normalizedChangedPath.slice(repoPrefix.length);
+
+          // Ignore internal git metadata updates.
+          if (relativePath && !relativePath.startsWith('.git/')) {
+            closeExplorerPreviewsForFile(relativePath);
+          }
+        }
+      }
+
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -2277,7 +2326,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
         unsubscribe();
       }
     };
-  }, [repoPath, repoInfo?.isRepo, refreshStatus]);
+  }, [repoPath, repoInfo?.isRepo, refreshStatus, closeExplorerPreviewsForFile]);
 
   // Reset conflict check state when local changes are detected
   useEffect(() => {

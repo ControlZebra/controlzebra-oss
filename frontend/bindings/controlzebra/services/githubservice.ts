@@ -116,9 +116,10 @@ export function ListUserOrganizations(): $CancellablePromise<$models.GitHubOrgan
  * RepoClone clones a GitHub repository to the specified directory
  * repo: repository in "owner/repo" format or full URL
  * destPath: local directory to clone into (will be created)
+ * shallow: when true, clone only the latest commit history (depth=1)
  */
-export function RepoClone(repo: string, destPath: string): $CancellablePromise<$models.GitHubCloneResult> {
-    return $Call.ByID(3713232932, repo, destPath).then(($result: any) => {
+export function RepoClone(repo: string, destPath: string, shallow: boolean): $CancellablePromise<$models.GitHubCloneResult> {
+    return $Call.ByID(3713232932, repo, destPath, shallow).then(($result: any) => {
         return $$createType5($result);
     });
 }
