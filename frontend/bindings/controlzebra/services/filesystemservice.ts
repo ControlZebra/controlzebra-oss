@@ -50,6 +50,15 @@ export function ListDirectoryWithOptions(path: string, includeHidden: boolean): 
 }
 
 /**
+ * MoveToTrash moves a file or directory to the system trash/recycle bin.
+ */
+export function MoveToTrash(path: string): $CancellablePromise<$models.OpenFileResult> {
+    return $Call.ByID(3151689427, path).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * OpenFile opens a file with the default application
  */
 export function OpenFile(path: string): $CancellablePromise<$models.OpenFileResult> {

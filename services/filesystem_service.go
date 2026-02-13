@@ -631,3 +631,90 @@ func (f *FileSystemService) CopyToClipboard(text string) OpenFileResult {
 		Success: true,
 	}
 }
+
+// MoveToTrash moves a file or directory to the system trash/recycle bin.
+func (f *FileSystemService) MoveToTrash(path string) OpenFileResult {
+	done := LogMethod("FileSystemService.MoveToTrash", map[string]interface{}{"path": path})
+	defer func() { done(nil, nil) }()
+
+	if path == "" {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Path is required",
+		}
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		return OpenFileResult{
+			Success: false,
+			Error:   "Path does not exist",
+		}
+	}
+
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: coerce POSIX path to alias, then delete in Finder (moves to Trash)
+		cmd = exec.Command(
+			"osascript",
+			"-e", "on run argv",
+			"-e", "set p to POSIX file (item 1 of argv) as alias",
+			"-e", "tell application \"Finder\" to delete p",
+			"-e", "end run",
+			path,
+		)
+	case "linux":
+		// Linux: prefer gio trash, fallback to xdg-trash if available
+		if _, err := exec.LookPath("gio"); err == nil {
+			cmd = exec.Command("gio", "trash", path)
+		} else if _, err := exec.LookPath("xdg-trash"); err == nil {
+			cmd = exec.Command("xdg-trash", path)
+		} else {
+			return OpenFileResult{
+				Success: false,
+				Error:   "No trash command found (install gio or xdg-utils)",
+			}
+		}
+	case "windows":
+		// Windows: use VisualBasic FileSystem APIs to send file/folder to Recycle Bin
+		// via explicit enum values and parameter binding for robust path handling.
+		script := `& {
+			param([string]$targetPath)
+			$ErrorActionPreference = 'Stop'
+			Add-Type -AssemblyName Microsoft.VisualBasic
+			if (Test-Path -LiteralPath $targetPath -PathType Container) {
+				[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
+					$targetPath,
+					[Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+					[Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
+				)
+			} else {
+				[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
+					$targetPath,
+					[Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+					[Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
+				)
+			}
+		}`
+		cmd = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script, path)
+	default:
+		return OpenFileResult{
+			Success: false,
+			Error:   "Unsupported operating system",
+		}
+	}
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		errMsg := strings.TrimSpace(string(output))
+		if errMsg == "" {
+			errMsg = err.Error()
+		}
+		return OpenFileResult{
+			Success: false,
+			Error:   "Failed to move to trash: " + errMsg,
+		}
+	}
+
+	return OpenFileResult{Success: true}
+}
