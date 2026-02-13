@@ -179,6 +179,29 @@ func TestOpenFile_NonExistentFile(t *testing.T) {
 	}
 }
 
+func TestMoveToTrash_EmptyPath(t *testing.T) {
+	svc := NewFileSystemService()
+
+	result := svc.MoveToTrash("")
+
+	if result.Success {
+		t.Error("Expected failure for empty path")
+	}
+	if result.Error == "" {
+		t.Error("Expected error message")
+	}
+}
+
+func TestMoveToTrash_NonExistentPath(t *testing.T) {
+	svc := NewFileSystemService()
+
+	result := svc.MoveToTrash("/nonexistent/path/that/does/not/exist")
+
+	if result.Success {
+		t.Error("Expected failure for non-existent path")
+	}
+}
+
 func TestGetParentDirectory(t *testing.T) {
 	svc := NewFileSystemService()
 

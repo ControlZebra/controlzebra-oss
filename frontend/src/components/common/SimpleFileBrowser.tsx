@@ -49,6 +49,7 @@ import {
   OpenFile,
   RevealInFinder,
   CopyToClipboard,
+  MoveToTrash,
 } from '../../../bindings/controlzebra/services/filesystemservice';
 import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
 import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../bindings/controlzebra/services/lfsservice';
@@ -653,6 +654,11 @@ function FileItemGrid({ file, gitStatus, isLfs, lockOwner, isOwnLock, isSelected
           <Share2 className="mr-2 h-4 w-4" />
           <span>Share...</span>
         </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('move-to-trash', file)}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          <span>Move to Trash</span>
+          <ContextMenuShortcut>{IS_MAC_OS ? '⌘⌫' : 'Del'}</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuItem onClick={() => onContextAction?.('get-info', file)}>
           <Info className="mr-2 h-4 w-4" />
           <span>Get Info</span>
@@ -685,6 +691,7 @@ type FileContextAction =
   | 'reveal-in-finder'
   | 'copy-path'
   | 'copy-name'
+  | 'move-to-trash'
   | 'share'
   | 'get-info';
 
@@ -871,6 +878,11 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOw
           <Share2 className="mr-2 h-4 w-4" />
           <span>Share...</span>
         </ContextMenuItem>
+        <ContextMenuItem onClick={() => onContextAction?.('move-to-trash', file)}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          <span>Move to Trash</span>
+          <ContextMenuShortcut>{IS_MAC_OS ? '⌘⌫' : 'Del'}</ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuItem onClick={() => onContextAction?.('get-info', file)}>
           <Info className="mr-2 h-4 w-4" />
           <span>Get Info</span>
@@ -953,6 +965,7 @@ interface FileDetailsSidebarProps {
   onClose: () => void;
   onPreview?: (file: FileEntry) => void;
   onOpenInApp?: (file: FileEntry) => void;
+  onMoveToTrash?: (file: FileEntry) => void;
   onLockLfs?: (file: FileEntry) => void;
   onUnlockLfs?: (file: FileEntry, force: boolean) => void;
 }
@@ -960,7 +973,7 @@ interface FileDetailsSidebarProps {
 /**
  * Right sidebar showing file details and actions
  */
-const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, isLfs, lockOwner, isOwnLock, onClose, onPreview, onOpenInApp, onLockLfs, onUnlockLfs }: FileDetailsSidebarProps) {
+const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, isLfs, lockOwner, isOwnLock, onClose, onPreview, onOpenInApp, onMoveToTrash, onLockLfs, onUnlockLfs }: FileDetailsSidebarProps) {
   const Icon = file ? getFileIcon(file.name, file.isDirectory) : File;
   const statusColor = gitStatus ? GIT_STATUS_COLORS[gitStatus] : '';
   const statusLabel = gitStatus ? GIT_STATUS_LABELS[gitStatus] : '';
@@ -991,6 +1004,11 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, i
     if (!file) return;
     onOpenInApp?.(file);
   }, [file, onOpenInApp]);
+
+  const handleMoveToTrash = useCallback(() => {
+    if (!file) return;
+    onMoveToTrash?.(file);
+  }, [file, onMoveToTrash]);
 
   const isLocked = !!lockOwner;
   const lockDisabled = !isLfs || !!file?.isDirectory || isLocked;
@@ -1164,7 +1182,7 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, i
             </button>
             <button
               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded transition-colors"
-              onClick={() => toast.info('Move to Trash coming soon')}
+              onClick={handleMoveToTrash}
             >
               <Trash2 className="w-4 h-4" />
               <span>Move to Trash</span>
@@ -1599,6 +1617,27 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     setSelectedPath(null);
   }, []);
 
+  // Move file/folder to system trash
+  const handleMoveToTrash = useCallback(async (file: FileEntry) => {
+    try {
+      const result = await MoveToTrash(file.path);
+      if (!result.success) {
+        toast.error(result.error || `Failed to move '${file.name}' to trash`);
+        return;
+      }
+
+      toast.success(`Moved '${file.name}' to trash`);
+      if (selectedPath === file.path) {
+        setSelectedPath(null);
+      }
+      setRefreshTrigger(prev => prev + 1);
+      setLockRefreshKey(k => k + 1);
+    } catch (err) {
+      console.error('MoveToTrash error:', err);
+      toast.error(`Failed to move '${file.name}' to trash`);
+    }
+  }, [selectedPath]);
+
   // Find the selected file object
   const selectedFile = useMemo(() => {
     if (!selectedPath || !files) return null;
@@ -1713,6 +1752,9 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
       case 'copy-name':
         await copyTextToClipboard(file.name, 'Name copied to clipboard');
         break;
+      case 'move-to-trash':
+        await handleMoveToTrash(file);
+        break;
       case 'share':
         toast.info('Share coming soon');
         break;
@@ -1721,7 +1763,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         setSelectedPath(file.path);
         break;
     }
-  }, [getRepoRelativePath, handleItemDoubleClick, handlePreview, lockOwnerByName, repoPath]);
+  }, [getRepoRelativePath, handleItemDoubleClick, handleMoveToTrash, handlePreview, lockOwnerByName, repoPath]);
 
   const selectedLockOwner = selectedFile ? lockOwnerByName[selectedFile.name] : undefined;
   const selectedIsOwnLock = selectedFile ? isOwnLockByName[selectedFile.name] : undefined;
@@ -1836,6 +1878,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
             onClose={handleCloseSidebar}
             onPreview={handlePreview}
             onOpenInApp={attemptOpenWithLockWarning}
+            onMoveToTrash={handleMoveToTrash}
             onLockLfs={(file) => handleContextAction('lfs-lock', file)}
             onUnlockLfs={(file, force) => handleContextAction(force ? 'lfs-unlock-force' : 'lfs-unlock', file)}
           />
