@@ -573,8 +573,8 @@ function FileItemGrid({ file, gitStatus, isLfs, lockOwner, isOwnLock, isSelected
           }`}
           title={file.name}
         >
-          <div className={`relative ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
-            <Icon className="w-10 h-10" />
+          <div className="relative text-theme-muted">
+            <Icon className={`w-10 h-10 ${file.isDirectory ? 'fill-current' : ''}`} />
             {gitStatus && (
               <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
                 gitStatus === 'added' ? 'bg-green-500' :
@@ -768,7 +768,7 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOw
           
           {/* Type Icon Column */}
           <div className="w-8 shrink-0 flex items-center justify-center" role="cell">
-            <Icon className={`w-4 h-4 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`} />
+            <Icon className={`w-4 h-4 text-theme-muted ${file.isDirectory ? 'fill-current' : ''}`} />
           </div>
           
           {/* Name Column */}
@@ -935,7 +935,7 @@ function EmptyDirectory() {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="text-center">
-        <Folder className="w-12 h-12 text-theme-muted mx-auto mb-3" />
+        <Folder className="w-12 h-12 text-theme-muted fill-current mx-auto mb-3" />
         <p className="text-theme-muted text-sm">This folder is empty</p>
       </div>
     </div>
@@ -1044,8 +1044,8 @@ const FileDetailsSidebar = memo(function FileDetailsSidebar({ file, gitStatus, i
       <div className="flex-1 overflow-auto p-4">
         {/* Icon and Name */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className={`mb-3 ${file.isDirectory ? 'text-yellow-500' : 'text-theme-muted'}`}>
-            <Icon className="w-16 h-16" />
+          <div className="mb-3 text-theme-muted">
+            <Icon className={`w-16 h-16 ${file.isDirectory ? 'fill-current' : ''}`} />
           </div>
           <h4 className={`text-sm font-medium break-all ${statusColor || 'text-theme-primary'}`}>
             {file.name}
