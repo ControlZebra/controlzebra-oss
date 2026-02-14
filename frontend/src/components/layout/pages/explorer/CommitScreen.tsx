@@ -21,7 +21,9 @@ import {
 } from '../../../ui';
 
 import { RewindConfirmModal } from '../../';
+import LFSAutoTrackModal from '../../../common/LFSAutoTrackModal';
 import { GetUserProfile } from '../../../../../bindings/controlzebra/services/settingsservice';
+import { useLfsAutoTrackBeforeSave } from '../../../../hooks/useLfsAutoTrackBeforeSave';
 import type { FileStatus } from '../../../../context';
 
 // ============================================================================
@@ -138,6 +140,21 @@ function CommitScreen({
   const [branchName, setBranchName] = useState('');
   const [defaultBranchName, setDefaultBranchName] = useState('');
 
+  const {
+    modalOpen: showAutoTrackModal,
+    candidates: autoTrackCandidates,
+    selectedFilePaths: selectedAutoTrackFiles,
+    isApplying: isApplyingAutoTrack,
+    runBeforeSave,
+    toggleCandidate,
+    toggleSelectAll,
+    cancelModal,
+    confirmAndContinue,
+  } = useLfsAutoTrackBeforeSave({
+    repoPath,
+    changedFiles,
+  });
+
   // Fetch user profile for default branch name
   useEffect(() => {
     const fetchDefaults = async (): Promise<void> => {
@@ -162,12 +179,14 @@ function CommitScreen({
 
   const handleSave = useCallback(async (): Promise<void> => {
     if (!message.trim()) return;
-    const success = await onCommit(message);
-    if (success) {
-      setMessage('');
-      setJustCommitted(true);
-    }
-  }, [message, onCommit]);
+    await runBeforeSave(
+      () => onCommit(message),
+      () => {
+        setMessage('');
+        setJustCommitted(true);
+      },
+    );
+  }, [message, onCommit, runBeforeSave]);
 
   const handleSync = useCallback(async (): Promise<void> => {
     await onSync();
@@ -213,14 +232,16 @@ function CommitScreen({
 
   const handleBranchAndSaveConfirm = useCallback(async (): Promise<void> => {
     if (!message.trim() || !branchName.trim()) return;
-    const success = await onBranchAndCommit(branchName, message);
-    if (success) {
-      setMessage('');
-      setBranchName('');
-      setShowBranchInput(false);
-      setJustCommitted(true);
-    }
-  }, [message, branchName, onBranchAndCommit]);
+    await runBeforeSave(
+      () => onBranchAndCommit(branchName, message),
+      () => {
+        setMessage('');
+        setBranchName('');
+        setShowBranchInput(false);
+        setJustCommitted(true);
+      },
+    );
+  }, [message, branchName, onBranchAndCommit, runBeforeSave]);
 
   const handleBranchAndSaveCancel = useCallback((): void => {
     setShowBranchInput(false);
@@ -344,6 +365,21 @@ function CommitScreen({
         onClose={handleRewindCancel}
         onConfirm={handleRewindConfirm}
         isLoading={isRewinding}
+      />
+
+      <LFSAutoTrackModal
+        open={showAutoTrackModal}
+        candidates={autoTrackCandidates}
+        selectedFilePaths={selectedAutoTrackFiles}
+        isApplying={isApplyingAutoTrack}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelModal();
+          }
+        }}
+        onToggleFile={toggleCandidate}
+        onToggleSelectAll={toggleSelectAll}
+        onConfirm={confirmAndContinue}
       />
     </div>
   );

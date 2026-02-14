@@ -80,10 +80,12 @@ export function GetTrackedPatterns(repoPath: string): $CancellablePromise<$model
 }
 
 /**
- * GetUntrackedLargeFiles returns untracked files whose size exceeds thresholdMB.
+ * GetUntrackedLargeFiles returns new (not yet committed) files whose size exceeds thresholdMB.
  * 
- * It shells out to `git status --porcelain --untracked-files=all`, filters for
- * ?? entries (untracked), stats each file, and returns those above the threshold.
+ * It shells out to `git status --porcelain --untracked-files=all`, filters for:
+ *   - ?? entries (untracked)
+ *   - A* entries (newly added/staged)
+ * Then it stats each file and returns those above the threshold.
  * Paths in the result are relative to the repository root.
  */
 export function GetUntrackedLargeFiles(repoPath: string, thresholdMB: number): $CancellablePromise<$models.UntrackedLargeFile[]> {

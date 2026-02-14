@@ -1436,7 +1436,9 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     [repoStatus, currentPath, repoPath]
   );
 
-  // Load LFS tracked files list
+  // Load LFS tracked files list.
+  // Also re-run when repo status changes so new auto-tracked files update
+  // their LFS badges immediately (without requiring explorer reload).
   useEffect(() => {
     if (!repoPath) {
       setLfsFiles(new Set());
@@ -1470,7 +1472,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
       }
     })();
     return () => { aborted = true; };
-  }, [repoPath, currentPath]);
+  }, [repoPath, currentPath, repoStatus]);
 
   // Load LFS locks for the current directory (repo-wide locks filtered to current folder)
   useEffect(() => {

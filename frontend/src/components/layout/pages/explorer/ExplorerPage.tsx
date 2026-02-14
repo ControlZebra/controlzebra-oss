@@ -20,12 +20,13 @@ import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
 import { PROJECT_STATES, ICON_SIZES, type ProjectState, type ExplorerTab } from '../../../../constants';
 import { ViewerRenderer, TextDiffViewer, getViewerForFile, getViewerById } from '../../../viewers';
-import { isL5XFile, isImageFile, isPdfFile } from '../../../../lib/file-utils';
+import { isL5XFile, isImageFile, isPdfFile, is3DModelFile } from '../../../../lib/file-utils';
 
 // Lazy-load heavy diff viewers for code splitting
 const L5XWorkingDiffViewer = lazy(() => import('../../../viewers/l5x-diff/L5XWorkingDiffViewer'));
 const ImageDiffViewer = lazy(() => import('../../../viewers/ImageDiffViewer'));
 const PDFDiffViewer = lazy(() => import('../../../viewers/PDFDiffViewer'));
+const Model3DDiffViewer = lazy(() => import('../../../viewers/Model3DDiffViewer'));
 
 function ExplorerPage(): JSX.Element {
   const {
@@ -157,6 +158,7 @@ function ExplorerPage(): JSX.Element {
       const isL5X = isL5XFile(filePath);
       const isImage = isImageFile(filePath);
       const isPdf = isPdfFile(filePath);
+      const is3DModel = is3DModelFile(filePath);
 
       const commitHash = diffContext.type === 'commit' ? (diffContext.commitHash ?? null) : null;
       const statusOverride = diffContext.status;
@@ -209,6 +211,21 @@ function ExplorerPage(): JSX.Element {
               }
             >
               <PDFDiffViewer
+                repoPath={repoPath}
+                filePath={filePath}
+                isWorkingTree
+              />
+            </Suspense>
+          ) : diffContext.type === 'working' && is3DModel ? (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
+                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
+                  <span className="text-sm">Loading 3D diff viewer…</span>
+                </div>
+              }
+            >
+              <Model3DDiffViewer
                 repoPath={repoPath}
                 filePath={filePath}
                 isWorkingTree

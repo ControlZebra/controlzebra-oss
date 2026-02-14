@@ -5,7 +5,6 @@ package services
 import (
 	"bufio"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -803,10 +802,12 @@ type UntrackedLargeFile struct {
 	IsBinary bool   `json:"isBinary"` // True if content detected as non-text
 }
 
-// GetUntrackedLargeFiles returns untracked files whose size exceeds thresholdMB.
+// GetUntrackedLargeFiles returns new (not yet committed) files whose size exceeds thresholdMB.
 //
-// It shells out to `git status --porcelain --untracked-files=all`, filters for
-// ?? entries (untracked), stats each file, and returns those above the threshold.
+// It shells out to `git status --porcelain --untracked-files=all`, filters for:
+//   - ?? entries (untracked)
+//   - A* entries (newly added/staged)
+// Then it stats each file and returns those above the threshold.
 // Paths in the result are relative to the repository root.
 func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) ([]UntrackedLargeFile, error) {
 	done := LogMethod("LFSService.GetUntrackedLargeFiles", map[string]interface{}{"repoPath": repoPath, "thresholdMB": thresholdMB})
@@ -833,14 +834,26 @@ func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Untracked files start with "?? "
-		if !strings.HasPrefix(line, "?? ") {
+		if len(line) < 4 {
 			continue
 		}
 
-		// Extract path (everything after "?? "), trimming any trailing quotes
-		relPath := strings.TrimPrefix(line, "?? ")
-		relPath = strings.Trim(relPath, "\"") // git quotes paths with special chars
+		// Git porcelain v1 format: XY<space><path>
+		// We include files that are either:
+		// - untracked (??)
+		// - newly added in index/worktree (A ) / (AM)
+		xStatus := line[0]
+		yStatus := line[1]
+		if !(xStatus == '?' && yStatus == '?') && xStatus != 'A' {
+			continue
+		}
+
+		// Extract path (everything after the XY and separator space),
+		// then unquote Git porcelain escape/quote format.
+		relPath := unquoteGitPath(line[3:])
+		if relPath == "" {
+			continue
+		}
 
 		absPath := filepath.Join(repoRoot, relPath)
 
@@ -858,12 +871,10 @@ func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) 
 			continue
 		}
 
-		isBinary := detectBinary(absPath)
-
 		largeFiles = append(largeFiles, UntrackedLargeFile{
 			Path:     relPath,
 			Size:     info.Size(),
-			IsBinary: isBinary,
+			IsBinary: false,
 		})
 	}
 
@@ -872,23 +883,4 @@ func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) 
 	}
 
 	return largeFiles, nil
-}
-
-// detectBinary reads the first 512 bytes of a file and uses http.DetectContentType
-// to determine whether the content is binary (i.e. not text/*).
-func detectBinary(filePath string) bool {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return false // assume text if unreadable — caller already validated existence
-	}
-	defer f.Close()
-
-	buf := make([]byte, 512)
-	n, _ := f.Read(buf)
-	if n == 0 {
-		return false // empty file is text
-	}
-
-	mime := http.DetectContentType(buf[:n])
-	return !strings.HasPrefix(mime, "text/")
 }
