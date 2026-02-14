@@ -252,6 +252,7 @@ function HistoryPage(): JSX.Element {
     repoInfo,
     repoStatus,
     branches,
+    graphCommits,
     selectedCommit,
     selectedCommitFile,
     currentDiff,
@@ -262,6 +263,44 @@ function HistoryPage(): JSX.Element {
   } = useRepo();
 
   const currentBranchName = repoStatus?.branch || branches?.current || repoInfo?.branch;
+  const selectedCommitBranchName = useMemo(() => {
+    if (!selectedCommit) {
+      return currentBranchName;
+    }
+
+    const graphCommit = graphCommits.find((commit) => commit.hash === selectedCommit.hash);
+    if (!graphCommit?.refs?.length) {
+      return currentBranchName;
+    }
+
+    const refs = graphCommit.refs.filter((ref) => ref && !ref.endsWith('/HEAD'));
+    if (refs.length === 0) {
+      return currentBranchName;
+    }
+
+    const localBranchNames = new Set([
+      ...(branches?.local?.map((branch) => branch.name) ?? []),
+      branches?.current,
+      repoStatus?.branch,
+      repoInfo?.branch,
+    ].filter(Boolean) as string[]);
+
+    const remoteBranchNames = new Set(
+      (branches?.remote?.map((branch) => branch.name) ?? []).filter(Boolean),
+    );
+
+    const localRef = refs.find((ref) => localBranchNames.has(ref));
+    if (localRef) {
+      return localRef;
+    }
+
+    const remoteRef = refs.find((ref) => remoteBranchNames.has(ref));
+    if (remoteRef) {
+      return remoteRef;
+    }
+
+    return refs[0] || currentBranchName;
+  }, [selectedCommit, graphCommits, branches, repoStatus?.branch, repoInfo?.branch, currentBranchName]);
 
   // Determine if the currently selected file is an L5X file or image file
   const isL5XDiff = useMemo(
@@ -358,7 +397,7 @@ function HistoryPage(): JSX.Element {
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
           commit={selectedCommit} 
-          branchName={currentBranchName}
+          branchName={selectedCommitBranchName}
           onBack={handleBackToCommit}
           onRestore={handleRestoreClick}
           isRestoring={isRestoring}
@@ -450,7 +489,7 @@ function HistoryPage(): JSX.Element {
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
           commit={selectedCommit}
-          branchName={currentBranchName}
+          branchName={selectedCommitBranchName}
           onRestore={handleRestoreClick}
           isRestoring={isRestoring}
         />
