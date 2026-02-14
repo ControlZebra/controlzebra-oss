@@ -62,6 +62,34 @@ export function isPdfFile(filePath: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// 3D Model Files
+// ---------------------------------------------------------------------------
+
+const MODEL_3D_EXTENSIONS = new Set([
+  // Mesh / Print
+  'stl', 'obj', '3mf', 'ply', 'off', 'amf',
+  // CAD / Engineering
+  'step', 'stp', 'iges', 'igs', 'brep', '3dm', 'fcstd',
+  // Scene / Exchange
+  'gltf', 'glb', 'fbx', 'dae', '3ds', 'wrl',
+  // BIM
+  'bim', 'ifc',
+]);
+
+/**
+ * Check if a file path has a 3D model extension.
+ *
+ * @example
+ *   is3DModelFile('part.stl')             // true
+ *   is3DModelFile('/repo/cad/housing.stp') // true
+ *   is3DModelFile('readme.md')            // false
+ */
+export function is3DModelFile(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return MODEL_3D_EXTENSIONS.has(ext);
+}
+
+// ---------------------------------------------------------------------------
 // Aggregate helpers
 // ---------------------------------------------------------------------------
 
@@ -70,7 +98,7 @@ export function isPdfFile(filePath: string): boolean {
  * (image diff, L5X domain diff, PDF visual diff, etc.) — as opposed to plain text diff.
  */
 export function supportsVisualDiff(filePath: string): boolean {
-  return isImageFile(filePath) || isL5XFile(filePath) || isPdfFile(filePath);
+  return isImageFile(filePath) || isL5XFile(filePath) || isPdfFile(filePath) || is3DModelFile(filePath);
 }
 
 /**
