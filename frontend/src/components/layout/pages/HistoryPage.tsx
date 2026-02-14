@@ -10,6 +10,7 @@ import {
   Plus, 
   Minus, 
   Hash,
+  GitBranch,
   ChevronLeft,
   RotateCcw,
   Loader2,
@@ -51,6 +52,7 @@ interface CommitFile {
 
 interface CommitHeaderProps {
   commit: CommitDetail;
+  branchName?: string;
   onBack?: () => void;
   onRestore?: () => void;
   isRestoring?: boolean;
@@ -75,7 +77,51 @@ const iconXsStyle: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs
 /**
  * CommitHeader - Shows commit metadata (author, date, message).
  */
-const CommitHeader = memo(function CommitHeader({ commit, onBack, onRestore, isRestoring }: CommitHeaderProps): JSX.Element {
+const CommitHeader = memo(function CommitHeader({ commit, branchName, onBack, onRestore, isRestoring }: CommitHeaderProps): JSX.Element {
+  const parentCount = commit.parentHashes?.length ?? 0;
+  const isMergeCommit = parentCount > 1;
+  const actionLabel = isMergeCommit ? 'merged changes' : 'saved changes';
+  const absoluteTimestamp = useMemo(() => {
+    const parsed = new Date(commit.date);
+    if (Number.isNaN(parsed.getTime())) return commit.date;
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(parsed);
+  }, [commit.date]);
+  const friendlyDateTime = useMemo(() => {
+    const parsed = new Date(commit.date);
+    if (Number.isNaN(parsed.getTime())) return commit.relativeDate;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    const timePart = new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(parsed);
+
+    if (parsed >= startOfToday) {
+      return `today at ${timePart}`;
+    }
+    if (parsed >= startOfYesterday && parsed < startOfToday) {
+      return `yesterday at ${timePart}`;
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(parsed);
+  }, [commit.date, commit.relativeDate]);
+
   return (
     <div className="border-b border-theme-default bg-theme-elevated">
       {/* Back button when viewing file diff */}
@@ -90,7 +136,10 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack, onRestore, isR
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h2 className="text-theme-primary font-medium mb-2">{commit.message}</h2>
+            <h2 className="text-theme-primary font-medium mb-1">
+              {commit.author} {actionLabel} {friendlyDateTime}
+            </h2>
+            <p className="text-theme-secondary text-sm mb-2 break-words">"{commit.message}"</p>
             {commit.body && (
               <p className="text-theme-secondary text-sm mb-3 whitespace-pre-wrap">{commit.body}</p>
             )}
@@ -108,7 +157,19 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack, onRestore, isR
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-4 text-xs text-theme-muted">
+        <div className="flex items-center flex-wrap gap-2 text-xs text-theme-muted">
+          <span className={`px-2 py-0.5 rounded-full border ${isMergeCommit ? 'border-blue-500/50 text-blue-400 bg-blue-500/10' : 'border-theme-default text-theme-secondary bg-theme-muted/30'}`}>
+            {isMergeCommit ? 'Merged changes' : 'Saved snapshot'}
+          </span>
+          <span className="px-2 py-0.5 rounded-full border border-theme-default text-theme-secondary bg-theme-muted/20">
+            Parents: {parentCount}
+          </span>
+          {branchName && (
+            <div className="flex items-center gap-1.5">
+              <GitBranch style={iconXsStyle} />
+              <span>{branchName}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <Hash style={iconXsStyle} />
             <span>{commit.shortHash}</span>
@@ -119,7 +180,7 @@ const CommitHeader = memo(function CommitHeader({ commit, onBack, onRestore, isR
           </div>
           <div className="flex items-center gap-1.5">
             <Clock style={iconXsStyle} />
-            <span>{commit.relativeDate}</span>
+            <span>{commit.relativeDate} • {absoluteTimestamp}</span>
           </div>
         </div>
         {/* Stats */}
@@ -188,6 +249,9 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: Com
 function HistoryPage(): JSX.Element {
   const { 
     repoPath,
+    repoInfo,
+    repoStatus,
+    branches,
     selectedCommit,
     selectedCommitFile,
     currentDiff,
@@ -196,6 +260,8 @@ function HistoryPage(): JSX.Element {
     selectCommit,
     revertCommit,
   } = useRepo();
+
+  const currentBranchName = repoStatus?.branch || branches?.current || repoInfo?.branch;
 
   // Determine if the currently selected file is an L5X file or image file
   const isL5XDiff = useMemo(
@@ -292,6 +358,7 @@ function HistoryPage(): JSX.Element {
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
           commit={selectedCommit} 
+          branchName={currentBranchName}
           onBack={handleBackToCommit}
           onRestore={handleRestoreClick}
           isRestoring={isRestoring}
@@ -383,6 +450,7 @@ function HistoryPage(): JSX.Element {
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
           commit={selectedCommit}
+          branchName={currentBranchName}
           onRestore={handleRestoreClick}
           isRestoring={isRestoring}
         />
