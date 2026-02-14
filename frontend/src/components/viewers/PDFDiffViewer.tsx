@@ -23,6 +23,7 @@ import {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from 'react';
 import {
   AlertCircle,
@@ -382,8 +383,12 @@ const OverlayView = memo(function OverlayView({
         />
         {/* Slider line */}
         <div
-          className="absolute top-0 bottom-0 w-[2px] bg-theme-accent shadow-lg z-10"
-          style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)' }}
+          className="absolute top-0 bottom-0 w-[2px] shadow-lg z-10"
+          style={{
+            left: `${sliderPos}%`,
+            transform: 'translateX(-50%)',
+            backgroundColor: 'var(--color-accent-primary)',
+          }}
         />
         {/* Slider handle */}
         <div
@@ -391,7 +396,10 @@ const OverlayView = memo(function OverlayView({
           style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)' }}
           onPointerDown={handlePointerDown}
         >
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-theme-accent flex items-center justify-center shadow-lg">
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center shadow-lg"
+            style={{ backgroundColor: 'var(--color-accent-primary)' }}
+          >
             <SlidersHorizontal size={12} className="text-white" />
           </div>
         </div>
@@ -423,6 +431,7 @@ function PDFDiffViewer({
   const [pdfPair, setPdfPair] = useState<PdfPair | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [mode, setMode] = useState<DiffMode>('side-by-side');
+  const [showChangesOnly, setShowChangesOnly] = useState(false);
   const [pageResult, setPageResult] = useState<PageDiffResult | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [summary, setSummary] = useState<PdfDiffSummary | null>(null);
@@ -449,6 +458,7 @@ function PDFDiffViewer({
       setError(null);
       setPdfPair(null);
       setCurrentPage(1);
+      setShowChangesOnly(false);
       setSummary(null);
       pageCacheRef.current.clear();
 
@@ -676,13 +686,71 @@ function PDFDiffViewer({
   }, [pdfPair, totalPages]);
 
   // ── Page navigation ────────────────────────────────────────────────────
+  const changedPages = useMemo(() => {
+    if (!pdfPair || totalPages === 0) return [] as number[];
+
+    const pages: number[] = [];
+    for (let i = 1; i <= totalPages; i++) {
+      const cached = pageCacheRef.current.get(i);
+      if (!cached) continue;
+
+      if (i > pdfPair.oldPageCount || i > pdfPair.newPageCount || !cached.isEqual) {
+        pages.push(i);
+      }
+    }
+
+    return pages;
+  }, [pdfPair, totalPages, summary, pageResult]);
+
+  const visiblePages = useMemo(() => {
+    if (!showChangesOnly) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    return changedPages;
+  }, [showChangesOnly, totalPages, changedPages]);
+
+  useEffect(() => {
+    if (!showChangesOnly) return;
+    if (visiblePages.length === 0) return;
+    if (visiblePages.includes(currentPage)) return;
+
+    setCurrentPage(visiblePages[0]);
+  }, [showChangesOnly, visiblePages, currentPage]);
+
   const goToPrev = useCallback(() => {
+    if (showChangesOnly) {
+      setCurrentPage(p => {
+        const idx = visiblePages.indexOf(p);
+        if (idx <= 0) return visiblePages[0] ?? p;
+        return visiblePages[idx - 1];
+      });
+      return;
+    }
+
     setCurrentPage(p => Math.max(1, p - 1));
-  }, []);
+  }, [showChangesOnly, visiblePages]);
 
   const goToNext = useCallback(() => {
+    if (showChangesOnly) {
+      setCurrentPage(p => {
+        const idx = visiblePages.indexOf(p);
+        if (idx < 0) return visiblePages[0] ?? p;
+        if (idx >= visiblePages.length - 1) return visiblePages[visiblePages.length - 1] ?? p;
+        return visiblePages[idx + 1];
+      });
+      return;
+    }
+
     setCurrentPage(p => Math.min(totalPages, p + 1));
-  }, [totalPages]);
+  }, [showChangesOnly, visiblePages, totalPages]);
+
+  const currentVisibleIndex = visiblePages.indexOf(currentPage);
+  const canGoPrev = showChangesOnly
+    ? currentVisibleIndex > 0
+    : currentPage > 1;
+  const canGoNext = showChangesOnly
+    ? currentVisibleIndex >= 0 && currentVisibleIndex < visiblePages.length - 1
+    : currentPage < totalPages;
 
   // Keyboard navigation
   useEffect(() => {
@@ -751,6 +819,17 @@ function PDFDiffViewer({
           {/* Summary stats */}
           <SummaryBar summary={summary} />
 
+          {/* Page filter */}
+          <div className="flex items-center border border-theme-default rounded-md p-0.5 ml-2">
+            <ToolbarBtn
+              active={showChangesOnly}
+              onClick={() => setShowChangesOnly(v => !v)}
+              title="Changes only"
+            >
+              <span className="text-xs px-1">Changes only</span>
+            </ToolbarBtn>
+          </div>
+
           {/* Mode toggle */}
           <div className="flex items-center gap-0.5 border border-theme-default rounded-md p-0.5 ml-2">
             <ToolbarBtn active={mode === 'side-by-side'} onClick={() => setMode('side-by-side')} title="Side by side">
@@ -771,7 +850,7 @@ function PDFDiffViewer({
         <button
           type="button"
           onClick={goToPrev}
-          disabled={currentPage <= 1}
+          disabled={!canGoPrev}
           className="p-1 rounded hover:bg-theme-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-theme-secondary"
           title="Previous page (←)"
         >
@@ -783,8 +862,11 @@ function PDFDiffViewer({
             Page {currentPage}
           </span>
           <span className="text-theme-muted">
-            of {totalPages}
+            of {showChangesOnly ? visiblePages.length : totalPages}
           </span>
+          {showChangesOnly && (
+            <span className="text-xs text-theme-modified">(changed only)</span>
+          )}
           {pdfPair.oldPageCount !== pdfPair.newPageCount && (
             <span className="text-xs text-theme-muted">
               (old: {pdfPair.oldPageCount}, new: {pdfPair.newPageCount})
@@ -795,7 +877,7 @@ function PDFDiffViewer({
         <button
           type="button"
           onClick={goToNext}
-          disabled={currentPage >= totalPages}
+          disabled={!canGoNext}
           className="p-1 rounded hover:bg-theme-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-theme-secondary"
           title="Next page (→)"
         >
@@ -813,7 +895,13 @@ function PDFDiffViewer({
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {pageLoading && !pageResult ? (
+        {showChangesOnly && visiblePages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-theme-muted text-sm">
+            {summary && pageCacheRef.current.size >= totalPages
+              ? 'No changed pages found'
+              : 'Finding changed pages…'}
+          </div>
+        ) : pageLoading && !pageResult ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <Loader2 size={ICON_SIZES.md} className="animate-spin text-theme-secondary" />
             <span className="text-sm text-theme-muted">Comparing page {currentPage}…</span>
@@ -843,9 +931,9 @@ function PDFDiffViewer({
       </div>
 
       {/* ── Page thumbnail strip (for quick navigation) ─────────────────── */}
-      {totalPages > 1 && totalPages <= 50 && (
+      {visiblePages.length > 1 && totalPages <= 50 && (
         <div className="flex items-center gap-1 px-4 py-2 border-t border-theme-default bg-theme-surface overflow-x-auto shrink-0">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+          {visiblePages.map(pageNum => {
             const cached = pageCacheRef.current.get(pageNum);
             const isActive = pageNum === currentPage;
 

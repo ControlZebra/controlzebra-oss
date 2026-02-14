@@ -807,6 +807,7 @@ type UntrackedLargeFile struct {
 // It shells out to `git status --porcelain --untracked-files=all`, filters for:
 //   - ?? entries (untracked)
 //   - A* entries (newly added/staged)
+//
 // Then it stats each file and returns those above the threshold.
 // Paths in the result are relative to the repository root.
 func (l *LFSService) GetUntrackedLargeFiles(repoPath string, thresholdMB int64) ([]UntrackedLargeFile, error) {
