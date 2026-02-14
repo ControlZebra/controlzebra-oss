@@ -79,7 +79,14 @@ const iconXsStyle: CSSProperties = { width: ICON_SIZES.xs, height: ICON_SIZES.xs
  */
 const CommitHeader = memo(function CommitHeader({ commit, branchName, onBack, onRestore, isRestoring }: CommitHeaderProps): JSX.Element {
   const parentCount = commit.parentHashes?.length ?? 0;
-  const isMergeCommit = parentCount > 1;
+  const hasMergeLikeMessage = useMemo(() => {
+    const subject = (commit.message || '').trim();
+    const body = (commit.body || '').trim();
+    return /^merge\b/i.test(subject)
+      || /^squash merge\b/i.test(subject)
+      || /squashed commit of the following:/i.test(body);
+  }, [commit.message, commit.body]);
+  const isMergeCommit = parentCount > 1 || hasMergeLikeMessage;
   const actionLabel = isMergeCommit ? 'merged changes' : 'saved changes';
   const absoluteTimestamp = useMemo(() => {
     const parsed = new Date(commit.date);
