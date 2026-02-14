@@ -12,10 +12,12 @@ import { FILE_STATUS, MAIN_BRANCHES, type FileStatusType, type ExplorerTab } fro
 import { ICON_STYLES, STATUS_CONFIG } from '../../../lib/gitHelpers';
 import { useLayout, useRepo } from '../../../context';
 import { Button, Textarea } from '../../ui';
+import LFSAutoTrackModal from '../../common/LFSAutoTrackModal';
 import { RewindConfirmModal } from '../';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import { supportsDiff } from '../../../lib/file-utils';
 import type { FileStatus } from '../../../context';
+import { useLfsAutoTrackBeforeSave } from '../../../hooks/useLfsAutoTrackBeforeSave';
 import MainBranchSaveChoiceModal, { type MainBranchSaveChoice } from './MainBranchSaveChoiceModal';
 
 let rememberedMainBranchSaveChoice: MainBranchSaveChoice | null = null;
@@ -168,6 +170,21 @@ function SidebarCommitPanel({
   const [isDiscardingFile, setIsDiscardingFile] = useState(false);
   const [defaultBranchName, setDefaultBranchName] = useState('');
 
+  const {
+    modalOpen: showAutoTrackModal,
+    candidates: autoTrackCandidates,
+    selectedFilePaths: selectedAutoTrackFiles,
+    isApplying: isApplyingAutoTrack,
+    runBeforeSave,
+    toggleCandidate,
+    toggleSelectAll,
+    cancelModal,
+    confirmAndContinue,
+  } = useLfsAutoTrackBeforeSave({
+    repoPath,
+    changedFiles,
+  });
+
   // Fetch user profile for default branch name
   useEffect(() => {
     const fetchDefaults = async (): Promise<void> => {
@@ -209,40 +226,39 @@ function SidebarCommitPanel({
     const isMainBranch = MAIN_BRANCHES.includes(currentBranch.toLowerCase());
 
     if (!isMainBranch) {
-      const success = await onCommit(message);
-      if (success) {
-        setMessage('');
-      }
+      await runBeforeSave(
+        () => onCommit(message),
+        () => setMessage(''),
+      );
       return;
     }
 
     if (rememberedMainBranchSaveChoice) {
-      const success = await executeSaveChoice(rememberedMainBranchSaveChoice);
-      if (success) {
-        setMessage('');
-      }
+      const rememberedChoice = rememberedMainBranchSaveChoice;
+      await runBeforeSave(
+        () => executeSaveChoice(rememberedChoice),
+        () => setMessage(''),
+      );
       return;
     }
 
     setMainBranchChoice('branch-and-save');
     setRememberChoiceForSession(false);
     setShowMainBranchChoiceModal(true);
-  }, [currentBranch, executeSaveChoice, message, onCommit]);
+  }, [currentBranch, executeSaveChoice, message, onCommit, runBeforeSave]);
 
   const handleConfirmMainBranchSaveChoice = useCallback(async (): Promise<void> => {
-    const success = await executeSaveChoice(mainBranchChoice);
-
-    if (!success) return;
-
-    if (rememberChoiceForSession) {
-      rememberedMainBranchSaveChoice = mainBranchChoice;
-    }
-
-    if (success) {
-      setMessage('');
-      setShowMainBranchChoiceModal(false);
-    }
-  }, [executeSaveChoice, mainBranchChoice, rememberChoiceForSession]);
+    await runBeforeSave(
+      () => executeSaveChoice(mainBranchChoice),
+      () => {
+        if (rememberChoiceForSession) {
+          rememberedMainBranchSaveChoice = mainBranchChoice;
+        }
+        setMessage('');
+        setShowMainBranchChoiceModal(false);
+      },
+    );
+  }, [executeSaveChoice, mainBranchChoice, rememberChoiceForSession, runBeforeSave]);
 
   const handleRewindConfirm = useCallback(async (): Promise<void> => {
     const success = await onRewind();
@@ -355,6 +371,21 @@ function SidebarCommitPanel({
         isCommitting={isCommitting}
         canConfirm={!!message.trim()}
         onConfirm={handleConfirmMainBranchSaveChoice}
+      />
+
+      <LFSAutoTrackModal
+        open={showAutoTrackModal}
+        candidates={autoTrackCandidates}
+        selectedFilePaths={selectedAutoTrackFiles}
+        isApplying={isApplyingAutoTrack}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelModal();
+          }
+        }}
+        onToggleFile={toggleCandidate}
+        onToggleSelectAll={toggleSelectAll}
+        onConfirm={confirmAndContinue}
       />
     </div>
   );

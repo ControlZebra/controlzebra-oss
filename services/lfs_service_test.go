@@ -2,6 +2,7 @@ package services
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -409,5 +410,51 @@ func TestIsLFSInstalledCaching(t *testing.T) {
 	// Different instances should also return consistent results (same system)
 	if result1a != result2 {
 		t.Error("Different LFSService instances should return same IsLFSInstalled result on same system")
+	}
+}
+
+func TestGetUntrackedLargeFiles_IncludesStagedAddedFiles(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewLFSService()
+
+	modelsDir := filepath.Join(repoPath, "Models")
+	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+		t.Fatalf("failed to create Models dir: %v", err)
+	}
+
+	largeRelPath := "Models/Affinity Save with History.af"
+	largeAbsPath := filepath.Join(repoPath, largeRelPath)
+	largeContent := make([]byte, 2*1024*1024) // 2MB
+	if err := os.WriteFile(largeAbsPath, largeContent, 0644); err != nil {
+		t.Fatalf("failed to create large test file: %v", err)
+	}
+
+	// Stage file so it appears as "A " in porcelain output (not "??").
+	addCmd := exec.Command("git", "add", largeRelPath)
+	addCmd.Dir = repoPath
+	if output, err := addCmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to stage large file: %v (output: %s)", err, strings.TrimSpace(string(output)))
+	}
+
+	files, err := svc.GetUntrackedLargeFiles(repoPath, 1) // 1MB threshold
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	found := false
+	for _, f := range files {
+		if f.Path == largeRelPath {
+			found = true
+			if f.Size < 1*1024*1024 {
+				t.Errorf("expected detected size >= 1MB, got %d", f.Size)
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("expected staged large file %q to be detected, got %#v", largeRelPath, files)
 	}
 }
