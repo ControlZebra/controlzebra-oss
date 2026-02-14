@@ -14,6 +14,7 @@
 import { lazy } from 'react';
 import { FileText, Image as ImageIcon, FileQuestion, Cpu, Box } from 'lucide-react';
 import { registerViewer, extMatch, nameMatch, anyMatch, magicMatch, matchAll } from './viewers';
+import { TEXT_VIEWER_EXTENSIONS } from './text-viewer-patterns';
 import TextViewer from '../components/viewers/TextViewer';
 import ImageViewer from '../components/viewers/ImageViewer';
 import UnsupportedViewer from '../components/viewers/UnsupportedViewer';
@@ -22,29 +23,6 @@ import UnsupportedViewer from '../components/viewers/UnsupportedViewer';
 // Text Viewer
 // Handles code files, config files, and plain text
 // ============================================================================
-
-/** Extensions handled by the text viewer */
-const TEXT_EXTENSIONS = [
-  // JavaScript/TypeScript
-  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
-  // Web
-  'html', 'htm', 'css', 'scss', 'sass', 'less',
-  // Data/Config
-  'json', 'yaml', 'yml', 'toml', 'xml', 'ini', 'conf', 'cfg',
-  // Languages
-  'go', 'py', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs',
-  'rb', 'php', 'swift', 'kt', 'scala',
-  // Shell
-  'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
-  // Git/Config
-  'gitignore', 'gitattributes', 'env', 'editorconfig', 'prettierrc',
-  // Text/Docs
-  'txt', 'md', 'markdown', 'rst', 'log', 'csv',
-  // Other
-  'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro',
-  // Make/Build
-  'makefile', 'cmake', 'gradle',
-];
 
 /** Common file names without extensions that are text files */
 const TEXT_FILE_NAMES = [
@@ -74,7 +52,7 @@ registerViewer({
   priority: 0,
   builtIn: true,
   canHandle: anyMatch([
-    extMatch(TEXT_EXTENSIONS),
+    extMatch([...TEXT_VIEWER_EXTENSIONS]),
     nameMatch({
       dotfiles: true,         // .gitignore, .env, etc.
       extensionless: true,    // Makefile, LICENSE, etc.

@@ -1,6 +1,6 @@
 import { FILE_STATUS } from '../constants';
 import type { FileStatus } from '../context';
-import { getViewerForFile } from './viewers';
+import { isTextViewerExtension } from './text-viewer-patterns';
 import type { TrackedPattern } from '../../bindings/controlzebra/services/models';
 
 export interface LFSAutoTrackCandidate {
@@ -58,8 +58,7 @@ export function getLFSAutoTrackCandidates(
       continue;
     }
 
-    const viewer = getViewerForFile(file.name || file.path);
-    if (viewer?.id === 'text') {
+    if (isTextViewerExtension(extension)) {
       continue;
     }
 
