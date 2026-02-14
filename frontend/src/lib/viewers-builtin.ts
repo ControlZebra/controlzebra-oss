@@ -12,7 +12,7 @@
  * - Use positive for preferred/specialized viewers
  */
 import { lazy } from 'react';
-import { FileText, Image as ImageIcon, FileQuestion, Cpu } from 'lucide-react';
+import { FileText, Image as ImageIcon, FileQuestion, Cpu, Box } from 'lucide-react';
 import { registerViewer, extMatch, nameMatch, anyMatch, magicMatch, matchAll } from './viewers';
 import TextViewer from '../components/viewers/TextViewer';
 import ImageViewer from '../components/viewers/ImageViewer';
@@ -124,6 +124,35 @@ registerViewer({
   managesOwnHeader: true, // L5X viewer has its own header with navigator toggle
   canHandle: extMatch(L5X_EXTENSIONS),
   component: lazy(() => import('../components/viewers/L5XViewer')),
+});
+
+// ============================================================================
+// 3D Model Viewer
+// Handles 3D model files (STL, OBJ, STEP, GLTF, etc.)
+// Lazy-loaded for code splitting (online-3d-viewer + three.js are large)
+// ============================================================================
+
+/** Extensions handled by the 3D model viewer */
+const MODEL_3D_EXTENSIONS = [
+  // Mesh / Print
+  'stl', 'obj', '3mf', 'ply', 'off', 'amf',
+  // CAD / Engineering
+  'step', 'stp', 'iges', 'igs', 'brep', '3dm', 'fcstd',
+  // Scene / Exchange
+  'gltf', 'glb', 'fbx', 'dae', '3ds', 'wrl',
+  // BIM
+  'bim', 'ifc',
+];
+
+registerViewer({
+  id: 'model-3d',
+  name: '3D Model Viewer',
+  description: 'Displays 3D models with orbit, pan, and zoom',
+  icon: Box,
+  priority: 10, // Higher than text viewer to claim .obj files as 3D models
+  builtIn: true,
+  canHandle: extMatch(MODEL_3D_EXTENSIONS),
+  component: lazy(() => import('../components/viewers/Model3DViewer')),
 });
 
 // ============================================================================
