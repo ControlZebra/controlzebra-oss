@@ -42,6 +42,7 @@ import {
   Cloud,
   Box,
   Lock,
+  MoreHorizontal,
   type LucideIcon,
 } from 'lucide-react';
 import { 
@@ -55,6 +56,7 @@ import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice
 import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../bindings/controlzebra/services/lfsservice';
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
+import { useWindowSize } from '../../hooks';
 import { toast } from 'sonner';
 import { Browser, Events } from '@wailsio/runtime';
 import { type ExplorerTab } from '../../constants';
@@ -77,6 +79,12 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '../ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 
 /**
  * Helper to reveal a path in the system file manager (Finder on macOS, Explorer on Windows)
@@ -162,6 +170,24 @@ const IS_MAC_OS = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.tes
 
 // Platform-specific file manager name
 const FILE_MANAGER_NAME = IS_MAC_OS ? 'Finder' : 'Explorer';
+
+// Responsive list-column breakpoints (aligned with TopBar compact behavior).
+const LIST_COLUMN_BREAKPOINTS = {
+  hideModified: 1400,
+  hideSize: 1180,
+} as const;
+
+const TOOLBAR_BREAKPOINTS = {
+  compactLabels: 1360,
+  overflowSecondaryActions: 1120,
+} as const;
+
+const DETAILS_PANEL_BREAKPOINT = 1360;
+
+interface ListColumnVisibility {
+  showSize: boolean;
+  showModified: boolean;
+}
 
 // File extension to icon mapping
 const EXTENSION_ICONS: Record<string, LucideIcon> = {
@@ -401,6 +427,11 @@ function Toolbar({
   currentPath,
   repoPath,
 }: ToolbarProps) {
+  const { width } = useWindowSize();
+
+  const showButtonLabels = width >= TOOLBAR_BREAKPOINTS.compactLabels;
+  const showSecondaryActionsInline = width >= TOOLBAR_BREAKPOINTS.overflowSecondaryActions;
+
   const handleOpenInFileManager = useCallback(async () => {
     if (!currentPath) return;
     await revealInFileManager(currentPath);
@@ -486,66 +517,96 @@ function Toolbar({
   }, [repoPath]);
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-fb-toolbar border-b border-theme-default">
-      <div className="flex items-center gap-1">
+    <div className="flex items-center justify-between gap-2 px-3 py-2 bg-fb-toolbar border-b border-theme-default">
+      <div className="flex items-center gap-1 min-w-0">
         <button
           onClick={handleOpenInFileManager}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
           title={`Open in ${FILE_MANAGER_NAME}`}
           disabled={!currentPath}
         >
           <FolderOpen className="w-4 h-4" />
-          <span>Open in {FILE_MANAGER_NAME}</span>
+          {showButtonLabels && <span>Open in {FILE_MANAGER_NAME}</span>}
         </button>
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
           title="Reload"
         >
           <RefreshCw className="w-4 h-4" />
-          <span>Reload</span>
+          {showButtonLabels && <span>Reload</span>}
         </button>
         <button
           onClick={onShowHiddenChange}
-          className={`flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded transition-colors text-xs ${
+          className={`flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded transition-colors text-xs shrink-0 ${
             showHidden ? 'text-theme-primary' : 'text-theme-muted hover:text-theme-secondary'
           }`}
           title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
         >
           {showHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-          <span>{showHidden ? 'Hide Hidden' : 'Show Hidden'}</span>
+          {showButtonLabels && <span>{showHidden ? 'Hide Hidden' : 'Show Hidden'}</span>}
         </button>
-        <div className="w-px h-4 bg-theme-muted mx-1" />
-        <button
-          onClick={handleCopyLink}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
-          title="Copy remote repository link"
-          disabled={!currentPath || !repoPath}
-        >
-          <Link className="w-4 h-4" />
-          <span>Copy Link</span>
-        </button>
-        <button
-          onClick={handleViewInCloud}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs"
-          title="View in Cloud"
-          disabled={!repoPath}
-        >
-          <Cloud className="w-4 h-4" />
-          <span>View in Cloud</span>
-        </button>
-        <button
-          onClick={() => void onSync()}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-          title="Sync with Cloud"
-          disabled={!repoPath || isSyncing}
-        >
-          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>
-        </button>
+
+        {showSecondaryActionsInline ? (
+          <>
+            <div className="w-px h-4 bg-theme-muted mx-1 shrink-0" />
+            <button
+              onClick={handleCopyLink}
+              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
+              title="Copy remote repository link"
+              disabled={!currentPath || !repoPath}
+            >
+              <Link className="w-4 h-4" />
+              {showButtonLabels && <span>Copy Link</span>}
+            </button>
+            <button
+              onClick={handleViewInCloud}
+              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
+              title="View in Cloud"
+              disabled={!repoPath}
+            >
+              <Cloud className="w-4 h-4" />
+              {showButtonLabels && <span>View in Cloud</span>}
+            </button>
+            <button
+              onClick={() => void onSync()}
+              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent shrink-0"
+              title="Sync with Cloud"
+              disabled={!repoPath || isSyncing}
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {showButtonLabels && <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>}
+            </button>
+          </>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex items-center justify-center h-8 w-8 p-0 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors shrink-0"
+                title="More actions"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuItem onClick={handleCopyLink} disabled={!currentPath || !repoPath}>
+                <Link className="mr-2 h-4 w-4" />
+                Copy Link
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleViewInCloud} disabled={!repoPath}>
+                <Cloud className="mr-2 h-4 w-4" />
+                View in Cloud
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void onSync()} disabled={!repoPath || isSyncing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       
-      <div className="flex items-center gap-1 bg-fb-surface rounded p-0.5">
+      <div className="flex items-center gap-1 bg-fb-surface rounded p-0.5 shrink-0">
         <button
           onClick={() => onViewModeChange('grid')}
           className={`p-1.5 rounded transition-colors ${
@@ -718,6 +779,7 @@ interface FileItemListProps {
   isLfs?: boolean;
   lockOwner?: string;
   isOwnLock?: boolean;
+  columnVisibility?: ListColumnVisibility;
   onDoubleClick: () => void;
   isSelected?: boolean;
   onSelect?: () => void;
@@ -758,7 +820,7 @@ const GitStatusIcon = memo(function GitStatusIcon({ status }: { status?: string 
 /**
  * File item component for table view (used in virtualized list)
  */
-const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOwner, isOwnLock, onDoubleClick, isSelected, onSelect, onPreview, onContextAction }: FileItemListProps) {
+const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOwner, isOwnLock, columnVisibility = { showSize: true, showModified: true }, onDoubleClick, isSelected, onSelect, onPreview, onContextAction }: FileItemListProps) {
   const Icon = getFileIcon(file.name, file.isDirectory);
   const statusColor = (gitStatus && !file.isDirectory) ? GIT_STATUS_COLORS[gitStatus] : '';
   
@@ -850,19 +912,21 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOw
             </button>
           </div>
           
-          {/* Size Column */}
-          <div className="w-20 shrink-0 text-right pr-4" role="cell">
-            <span className="text-xs text-theme-muted">
-              {!file.isDirectory ? formatFileSize(file.size) : '—'}
-            </span>
-          </div>
-          
-          {/* Modified Column */}
-          <div className="w-24 shrink-0 text-right" role="cell">
-            <span className="text-xs text-theme-muted">
-              {formatDate(file.modTime)}
-            </span>
-          </div>
+          {columnVisibility.showSize && (
+            <div className="w-20 shrink-0 text-right pr-4" role="cell">
+              <span className="text-xs text-theme-muted">
+                {!file.isDirectory ? formatFileSize(file.size) : '—'}
+              </span>
+            </div>
+          )}
+
+          {columnVisibility.showModified && (
+            <div className="w-24 shrink-0 text-right" role="cell">
+              <span className="text-xs text-theme-muted">
+                {formatDate(file.modTime)}
+              </span>
+            </div>
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
@@ -939,7 +1003,7 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOw
 /**
  * Table header for list view
  */
-const FileTableHeader = memo(function FileTableHeader() {
+const FileTableHeader = memo(function FileTableHeader({ columnVisibility }: { columnVisibility: ListColumnVisibility }) {
   return (
     <div 
       role="row" 
@@ -959,15 +1023,17 @@ const FileTableHeader = memo(function FileTableHeader() {
         Name
       </div>
       
-      {/* Size Column */}
-      <div className="w-20 shrink-0 text-right pr-4" role="columnheader">
-        Size
-      </div>
-      
-      {/* Modified Column */}
-      <div className="w-24 shrink-0 text-right" role="columnheader">
-        Modified
-      </div>
+      {columnVisibility.showSize && (
+        <div className="w-20 shrink-0 text-right pr-4" role="columnheader">
+          Size
+        </div>
+      )}
+
+      {columnVisibility.showModified && (
+        <div className="w-24 shrink-0 text-right" role="columnheader">
+          Modified
+        </div>
+      )}
     </div>
   );
 });
@@ -1271,6 +1337,12 @@ function VirtualizedFileTable({
   onContextAction,
 }: VirtualizedFileTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const { width } = useWindowSize();
+
+  const columnVisibility = useMemo<ListColumnVisibility>(() => ({
+    showSize: width >= LIST_COLUMN_BREAKPOINTS.hideSize,
+    showModified: width >= LIST_COLUMN_BREAKPOINTS.hideModified,
+  }), [width]);
   
   const rowVirtualizer = useVirtualizer({
     count: files.length,
@@ -1286,7 +1358,7 @@ function VirtualizedFileTable({
       role="table"
       aria-label="Files"
     >
-      <FileTableHeader />
+      <FileTableHeader columnVisibility={columnVisibility} />
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
@@ -1315,6 +1387,7 @@ function VirtualizedFileTable({
                 isLfs={lfsFilesSet.has(file.name)}
                 lockOwner={lockOwnerByName[file.name]}
                 isOwnLock={isOwnLockByName[file.name]}
+                columnVisibility={columnVisibility}
                 isSelected={selectedPath === file.path}
                 onSelect={() => onSelect(file.path)}
                 onDoubleClick={() => onDoubleClick(file)}
@@ -1333,6 +1406,9 @@ function VirtualizedFileTable({
  * Main SimpleFileBrowser component
  */
 function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
+  const { width } = useWindowSize();
+  const showDetailsPanel = width >= DETAILS_PANEL_BREAKPOINT;
+
   const [currentPath, setCurrentPath] = useState<string | null>(repoPath);
   const [files, setFiles] = useState<FileEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1919,8 +1995,8 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
           )}
         </div>
 
-        {/* Right sidebar for file details */}
-        {selectedFile && (
+        {/* Right sidebar for file details (hidden on smaller screens) */}
+        {showDetailsPanel && selectedFile && (
           <FileDetailsSidebar
             file={selectedFile}
             gitStatus={selectedFile ? gitStatusMap[selectedFile.name] : undefined}
