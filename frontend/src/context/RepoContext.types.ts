@@ -241,6 +241,7 @@ export interface BranchInfo {
   isCurrent: boolean;
   isRemote: boolean;
   upstream?: string;
+  lastUpdatedUnix?: number;
 }
 
 /**
@@ -516,6 +517,8 @@ export interface RepoContextValue {
   refreshBranches: () => Promise<void>;
   switchBranch: (branchName: string) => Promise<boolean>;
   createBranch: (branchName: string) => Promise<boolean>;
+  renameBranch: (oldName: string, newName: string) => Promise<boolean>;
+  deleteBranch: (branchName: string) => Promise<boolean>;
   branchAndCommit: (branchName: string, message: string) => Promise<boolean>;
 
   // v2: Recovery actions

@@ -535,6 +535,44 @@ func pluralize(singular string, n int) string {
 	return singular + "s"
 }
 
+func isProtectedBranchName(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	return lower == "main" || lower == "master"
+}
+
+func parseUpstream(upstream string) (remote string, remoteBranch string, ok bool) {
+	trimmed := strings.TrimSpace(upstream)
+	if trimmed == "" {
+		return "", "", false
+	}
+	parts := strings.SplitN(trimmed, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+func (g *GitService) localBranchExists(repoPath string, branchName string) bool {
+	result := g.runner.RunGit(repoPath, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	return result.Success
+}
+
+func (g *GitService) getLocalBranchUpstream(repoPath string, branchName string) string {
+	result := g.runner.RunGit(repoPath, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+branchName)
+	if !result.Success {
+		return ""
+	}
+	return trimOutput(result.Stdout)
+}
+
+func (g *GitService) rollbackBranchRename(repoPath string, currentName string, oldName string) error {
+	rollbackResult := g.runner.RunGit(repoPath, "branch", "-m", currentName, oldName)
+	if rollbackResult.Success {
+		return nil
+	}
+	return fmt.Errorf("%s", getErrorMessage(rollbackResult))
+}
+
 // ============================================================================
 // Primitive Git Operations - Individual Commands
 // These methods wrap single git commands for maximum reusability.
@@ -1277,10 +1315,11 @@ type CommitStats struct {
 
 // BranchInfo represents a git branch
 type BranchInfo struct {
-	Name      string `json:"name"`
-	IsCurrent bool   `json:"isCurrent"`
-	IsRemote  bool   `json:"isRemote"`
-	Upstream  string `json:"upstream,omitempty"` // Remote tracking branch
+	Name            string `json:"name"`
+	IsCurrent       bool   `json:"isCurrent"`
+	IsRemote        bool   `json:"isRemote"`
+	Upstream        string `json:"upstream,omitempty"`        // Remote tracking branch
+	LastUpdatedUnix int64  `json:"lastUpdatedUnix,omitempty"` // Last commit timestamp on this branch (unix seconds)
 }
 
 // BranchList contains all branches in a repository
@@ -1930,6 +1969,13 @@ func (g *GitService) Branches(repoPath string) BranchList {
 			}
 		}
 
+		lastUpdatedResult := g.runner.RunGit(repoPath, "log", "-1", "--format=%ct", branch.Name)
+		if lastUpdatedResult.Success {
+			if unixTs, err := strconv.ParseInt(trimOutput(lastUpdatedResult.Stdout), 10, 64); err == nil {
+				branch.LastUpdatedUnix = unixTs
+			}
+		}
+
 		result.Local = append(result.Local, branch)
 	}
 
@@ -2005,6 +2051,141 @@ func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string)
 	}
 
 	return successOp(fmt.Sprintf("Created and switched to new branch '%s'", branchName))
+}
+
+// RenameBranch renames a local branch and, when it has an upstream, renames its
+// remote-tracking branch by creating the new remote branch and deleting the old one.
+// This operation is all-or-fail: on remote failures, it attempts best-effort rollback.
+// Requires confirm=true as a safety measure.
+func (g *GitService) RenameBranch(repoPath string, oldName string, newName string, confirm bool) OperationResult {
+	done := LogMethod("GitService.RenameBranch", map[string]interface{}{"repoPath": repoPath, "oldName": oldName, "newName": newName, "confirm": confirm})
+	defer func() { done(nil, nil) }()
+
+	if err := requireConfirmation(confirm); err != nil {
+		return failedOp(err.Error())
+	}
+
+	oldName = strings.TrimSpace(oldName)
+	newName = strings.TrimSpace(newName)
+
+	if oldName == "" || newName == "" {
+		return failedOp("Old and new branch names are required")
+	}
+	if oldName == newName {
+		return failedOp("New branch name must be different from the current name")
+	}
+	if isProtectedBranchName(oldName) {
+		return failedOp(fmt.Sprintf("Branch '%s' is protected and cannot be renamed", oldName))
+	}
+
+	nameValidation := g.runner.RunGit(repoPath, "check-ref-format", "--branch", newName)
+	if !nameValidation.Success {
+		return failedOp("Invalid new branch name: " + getErrorMessage(nameValidation))
+	}
+
+	if !g.localBranchExists(repoPath, oldName) {
+		return failedOp(fmt.Sprintf("Branch '%s' does not exist", oldName))
+	}
+	if g.localBranchExists(repoPath, newName) {
+		return failedOp(fmt.Sprintf("Branch '%s' already exists", newName))
+	}
+
+	upstream := g.getLocalBranchUpstream(repoPath, oldName)
+	remote, remoteBranch, hasUpstream := parseUpstream(upstream)
+
+	renameResult := g.runner.RunGit(repoPath, "branch", "-m", oldName, newName)
+	if !renameResult.Success {
+		return failedOp("Failed to rename branch: " + getErrorMessage(renameResult))
+	}
+
+	if !hasUpstream {
+		return successOp(fmt.Sprintf("Renamed branch '%s' to '%s'", oldName, newName))
+	}
+
+	pushNewResult := g.runner.RunGit(repoPath, "push", remote, "refs/heads/"+newName+":refs/heads/"+newName)
+	if !pushNewResult.Success {
+		if rollbackErr := g.rollbackBranchRename(repoPath, newName, oldName); rollbackErr != nil {
+			return failedOp(fmt.Sprintf("Failed to rename remote branch: %s. Also failed to rollback local rename: %s", getErrorMessage(pushNewResult), rollbackErr.Error()))
+		}
+		return failedOp("Failed to rename remote branch: " + getErrorMessage(pushNewResult))
+	}
+
+	setUpstreamResult := g.runner.RunGit(repoPath, "branch", "--set-upstream-to", remote+"/"+newName, newName)
+	if !setUpstreamResult.Success {
+		g.runner.RunGit(repoPath, "push", remote, "--delete", newName)
+		if rollbackErr := g.rollbackBranchRename(repoPath, newName, oldName); rollbackErr != nil {
+			return failedOp(fmt.Sprintf("Failed to update upstream after remote rename: %s. Also failed to rollback local rename: %s", getErrorMessage(setUpstreamResult), rollbackErr.Error()))
+		}
+		return failedOp("Failed to update upstream after remote rename: " + getErrorMessage(setUpstreamResult))
+	}
+
+	deleteOldRemoteResult := g.runner.RunGit(repoPath, "push", remote, "--delete", remoteBranch)
+	if !deleteOldRemoteResult.Success {
+		g.runner.RunGit(repoPath, "push", remote, "--delete", newName)
+		if rollbackErr := g.rollbackBranchRename(repoPath, newName, oldName); rollbackErr != nil {
+			return failedOp(fmt.Sprintf("Failed to delete old remote branch '%s/%s': %s. Also failed to rollback local rename: %s", remote, remoteBranch, getErrorMessage(deleteOldRemoteResult), rollbackErr.Error()))
+		}
+		return failedOp(fmt.Sprintf("Failed to delete old remote branch '%s/%s': %s", remote, remoteBranch, getErrorMessage(deleteOldRemoteResult)))
+	}
+
+	return successOp(fmt.Sprintf("Renamed branch '%s' to '%s' locally and on remote '%s'", oldName, newName, remote))
+}
+
+// DeleteBranch deletes a local branch and, when it has an upstream, deletes the remote branch too.
+// Requires confirm=true as a safety measure.
+func (g *GitService) DeleteBranch(repoPath string, branchName string, confirm bool) OperationResult {
+	done := LogMethod("GitService.DeleteBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName, "confirm": confirm})
+	defer func() { done(nil, nil) }()
+
+	if err := requireConfirmation(confirm); err != nil {
+		return failedOp(err.Error())
+	}
+
+	branchName = strings.TrimSpace(branchName)
+	if branchName == "" {
+		return failedOp("Branch name is required")
+	}
+	if isProtectedBranchName(branchName) {
+		return failedOp(fmt.Sprintf("Branch '%s' is protected and cannot be deleted", branchName))
+	}
+	if !g.localBranchExists(repoPath, branchName) {
+		return failedOp(fmt.Sprintf("Branch '%s' does not exist", branchName))
+	}
+
+	currentBranch, err := g.GetCurrentBranch(repoPath)
+	if err != nil {
+		return failedOp("Failed to determine current branch: " + err.Error())
+	}
+	if currentBranch == branchName {
+		return failedOp("Cannot delete the currently checked-out branch")
+	}
+
+	upstream := g.getLocalBranchUpstream(repoPath, branchName)
+	remote, remoteBranch, hasUpstream := parseUpstream(upstream)
+
+	if hasUpstream {
+		deleteRemoteResult := g.runner.RunGit(repoPath, "push", remote, "--delete", remoteBranch)
+		if !deleteRemoteResult.Success {
+			return failedOp(fmt.Sprintf("Failed to delete remote branch '%s/%s': %s", remote, remoteBranch, getErrorMessage(deleteRemoteResult)))
+		}
+	}
+
+	deleteLocalResult := g.runner.RunGit(repoPath, "branch", "-D", branchName)
+	if !deleteLocalResult.Success {
+		if hasUpstream {
+			restoreRemoteResult := g.runner.RunGit(repoPath, "push", remote, "refs/heads/"+branchName+":refs/heads/"+remoteBranch)
+			if !restoreRemoteResult.Success {
+				return failedOp(fmt.Sprintf("Failed to delete local branch '%s': %s. Also failed to restore remote branch '%s/%s': %s", branchName, getErrorMessage(deleteLocalResult), remote, remoteBranch, getErrorMessage(restoreRemoteResult)))
+			}
+		}
+		return failedOp(fmt.Sprintf("Failed to delete local branch '%s': %s", branchName, getErrorMessage(deleteLocalResult)))
+	}
+
+	if hasUpstream {
+		return successOp(fmt.Sprintf("Deleted branch '%s' locally and removed remote branch '%s/%s'", branchName, remote, remoteBranch))
+	}
+
+	return successOp(fmt.Sprintf("Deleted local branch '%s'", branchName))
 }
 
 // ResetHardHead resets the working directory to HEAD, discarding all uncommitted changes.

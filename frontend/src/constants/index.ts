@@ -77,9 +77,8 @@ export const FILE_STATUS_COLORS: Record<FileStatusType, string> = {
 // Configuration for the settings view sidebar.
 // ============================================================================
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
-  { id: 'git-config', name: 'Git Configuration', description: 'Name and email for commits' },
-  { id: 'lfs-groups', name: 'LFS Groups', description: 'Custom file extension groups' },
   { id: 'general', name: 'General', description: 'App preferences' },
+  { id: 'git-config', name: 'Git Configuration', description: 'Name and email for commits' },
 ];
 
 // ============================================================================
@@ -162,6 +161,7 @@ export const PROJECT_STATE_CONFIGS: Record<ProjectState, ProjectStateConfig> = {
 // ============================================================================
 export const REPO_SETTINGS_CATEGORIES: SettingsCategory[] = [
   { id: 'about', name: 'About', description: 'Repository information and details' },
+  { id: 'branch-management', name: 'Branch Management', description: 'Rename and delete local branches safely' },
   { id: 'remote-sync', name: 'Remote Sync', description: 'How and when to sync with remote' },
   { id: 'large-files', name: 'Large Files (LFS)', description: 'Storage and download settings for large files' },
   { id: 'performance', name: 'Performance', description: 'Optimization and maintenance tasks' },

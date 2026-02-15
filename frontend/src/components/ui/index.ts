@@ -43,6 +43,16 @@ export { Progress } from "./progress";
 export { default as ProgressModal } from "./progress-modal";
 export { Select, ToggleGroup, type SelectOption, type ToggleGroupOption } from "./select";
 export { Switch } from "./switch";
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+} from "./table";
 export { Textarea } from "./textarea";
 export { default as UndoLastSaveDialog } from './UndoLastSaveDialog';
 export { Toaster } from "./sonner";

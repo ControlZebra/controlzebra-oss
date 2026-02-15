@@ -216,6 +216,11 @@ export class BranchInfo {
      */
     "upstream"?: string;
 
+    /**
+     * Last commit timestamp on this branch (unix seconds)
+     */
+    "lastUpdatedUnix"?: number;
+
     /** Creates a new BranchInfo instance. */
     constructor($$source: Partial<BranchInfo> = {}) {
         if (!("name" in $$source)) {
@@ -674,90 +679,6 @@ export class ConflictedFile {
 }
 
 /**
- * CustomLFSGroup represents a user-defined LFS extension group
- */
-export class CustomLFSGroup {
-    "id": string;
-    "name": string;
-
-    /**
-     * Tailwind color class like "text-cyan-400"
-     */
-    "color": string;
-
-    /**
-     * e.g., [".bin", ".dat"]
-     */
-    "extensions": string[];
-
-    /**
-     * Optional description
-     */
-    "description": string;
-
-    /** Creates a new CustomLFSGroup instance. */
-    constructor($$source: Partial<CustomLFSGroup> = {}) {
-        if (!("id" in $$source)) {
-            this["id"] = "";
-        }
-        if (!("name" in $$source)) {
-            this["name"] = "";
-        }
-        if (!("color" in $$source)) {
-            this["color"] = "";
-        }
-        if (!("extensions" in $$source)) {
-            this["extensions"] = [];
-        }
-        if (!("description" in $$source)) {
-            this["description"] = "";
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new CustomLFSGroup instance from a string or object.
-     */
-    static createFrom($$source: any = {}): CustomLFSGroup {
-        const $$createField3_0 = $$createType0;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("extensions" in $$parsedSource) {
-            $$parsedSource["extensions"] = $$createField3_0($$parsedSource["extensions"]);
-        }
-        return new CustomLFSGroup($$parsedSource as Partial<CustomLFSGroup>);
-    }
-}
-
-/**
- * CustomLFSGroupsData contains all custom LFS groups
- */
-export class CustomLFSGroupsData {
-    "groups": CustomLFSGroup[];
-
-    /** Creates a new CustomLFSGroupsData instance. */
-    constructor($$source: Partial<CustomLFSGroupsData> = {}) {
-        if (!("groups" in $$source)) {
-            this["groups"] = [];
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new CustomLFSGroupsData instance from a string or object.
-     */
-    static createFrom($$source: any = {}): CustomLFSGroupsData {
-        const $$createField0_0 = $$createType15;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("groups" in $$parsedSource) {
-            $$parsedSource["groups"] = $$createField0_0($$parsedSource["groups"]);
-        }
-        return new CustomLFSGroupsData($$parsedSource as Partial<CustomLFSGroupsData>);
-    }
-}
-
-/**
  * DebugStats summarises the current state of the logger.
  */
 export class DebugStats {
@@ -886,38 +807,12 @@ export class DirectoryContents {
      * Creates a new DirectoryContents instance from a string or object.
      */
     static createFrom($$source: any = {}): DirectoryContents {
-        const $$createField1_0 = $$createType17;
+        const $$createField1_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
         }
         return new DirectoryContents($$parsedSource as Partial<DirectoryContents>);
-    }
-}
-
-/**
- * ExportLFSGroupsResult contains the result of an export operation
- */
-export class ExportLFSGroupsResult {
-    "success": boolean;
-    "path"?: string;
-    "error"?: string;
-
-    /** Creates a new ExportLFSGroupsResult instance. */
-    constructor($$source: Partial<ExportLFSGroupsResult> = {}) {
-        if (!("success" in $$source)) {
-            this["success"] = false;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new ExportLFSGroupsResult instance from a string or object.
-     */
-    static createFrom($$source: any = {}): ExportLFSGroupsResult {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new ExportLFSGroupsResult($$parsedSource as Partial<ExportLFSGroupsResult>);
     }
 }
 
@@ -1342,7 +1237,7 @@ export class GitHubOrganizationsResult {
      * Creates a new GitHubOrganizationsResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubOrganizationsResult {
-        const $$createField2_0 = $$createType19;
+        const $$createField2_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("organizations" in $$parsedSource) {
             $$parsedSource["organizations"] = $$createField2_0($$parsedSource["organizations"]);
@@ -1530,7 +1425,7 @@ export class GitHubRepoCreateResult {
      * Creates a new GitHubRepoCreateResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoCreateResult {
-        const $$createField1_0 = $$createType20;
+        const $$createField1_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repo" in $$parsedSource) {
             $$parsedSource["repo"] = $$createField1_0($$parsedSource["repo"]);
@@ -1563,7 +1458,7 @@ export class GitHubRepoListResult {
      * Creates a new GitHubRepoListResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoListResult {
-        const $$createField1_0 = $$createType21;
+        const $$createField1_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
@@ -1850,35 +1745,6 @@ export class ImageDiffResult {
     static createFrom($$source: any = {}): ImageDiffResult {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new ImageDiffResult($$parsedSource as Partial<ImageDiffResult>);
-    }
-}
-
-/**
- * ImportLFSGroupsResult contains the result of an import operation
- */
-export class ImportLFSGroupsResult {
-    "success": boolean;
-    "importedCount": number;
-    "error"?: string;
-
-    /** Creates a new ImportLFSGroupsResult instance. */
-    constructor($$source: Partial<ImportLFSGroupsResult> = {}) {
-        if (!("success" in $$source)) {
-            this["success"] = false;
-        }
-        if (!("importedCount" in $$source)) {
-            this["importedCount"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new ImportLFSGroupsResult instance from a string or object.
-     */
-    static createFrom($$source: any = {}): ImportLFSGroupsResult {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new ImportLFSGroupsResult($$parsedSource as Partial<ImportLFSGroupsResult>);
     }
 }
 
@@ -2232,7 +2098,7 @@ export class LogEntry {
      * Creates a new LogEntry instance from a string or object.
      */
     static createFrom($$source: any = {}): LogEntry {
-        const $$createField6_0 = $$createType22;
+        const $$createField6_0 = $$createType20;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("details" in $$parsedSource) {
             $$parsedSource["details"] = $$createField6_0($$parsedSource["details"]);
@@ -3095,7 +2961,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType24;
+        const $$createField3_0 = $$createType22;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -3183,12 +3049,12 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType25;
-        const $$createField3_0 = $$createType25;
-        const $$createField4_0 = $$createType25;
-        const $$createField5_0 = $$createType26;
-        const $$createField6_0 = $$createType27;
-        const $$createField7_0 = $$createType28;
+        const $$createField2_0 = $$createType23;
+        const $$createField3_0 = $$createType23;
+        const $$createField4_0 = $$createType23;
+        const $$createField5_0 = $$createType24;
+        const $$createField6_0 = $$createType25;
+        const $$createField7_0 = $$createType26;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -3424,18 +3290,16 @@ const $$createType10 = GraphCommit.createFrom;
 const $$createType11 = $Create.Array($$createType10);
 const $$createType12 = $Create.Map($Create.Any, $Create.Any);
 const $$createType13 = ConflictCommitInfo.createFrom;
-const $$createType14 = CustomLFSGroup.createFrom;
+const $$createType14 = FileEntry.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = FileEntry.createFrom;
+const $$createType16 = GitHubOrganization.createFrom;
 const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = GitHubOrganization.createFrom;
+const $$createType18 = GitHubRepo.createFrom;
 const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = GitHubRepo.createFrom;
-const $$createType21 = $Create.Array($$createType20);
-const $$createType22 = LogDetails.createFrom;
-const $$createType23 = FileStatus.createFrom;
-const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = BackgroundTaskConfig.createFrom;
-const $$createType26 = FetchSettings.createFrom;
-const $$createType27 = LFSSettings.createFrom;
-const $$createType28 = MaintenanceSettings.createFrom;
+const $$createType20 = LogDetails.createFrom;
+const $$createType21 = FileStatus.createFrom;
+const $$createType22 = $Create.Array($$createType21);
+const $$createType23 = BackgroundTaskConfig.createFrom;
+const $$createType24 = FetchSettings.createFrom;
+const $$createType25 = LFSSettings.createFrom;
+const $$createType26 = MaintenanceSettings.createFrom;

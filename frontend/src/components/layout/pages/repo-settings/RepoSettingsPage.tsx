@@ -2,7 +2,7 @@
  * RepoSettingsPage - Main area content for Repository Settings view.
  * Shows repository-specific settings forms organized by user perspective.
  */
-import { memo, useState, useEffect, useCallback, type CSSProperties, type ChangeEvent, type KeyboardEvent, type JSX } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, type CSSProperties, type ChangeEvent, type KeyboardEvent, type JSX } from 'react';
 import { 
   Settings, 
   RefreshCw, 
@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   Plus,
   Check,
+  Edit3,
+  ArrowUpDown,
   Info,
   FolderGit2,
   Globe,
@@ -36,11 +38,18 @@ import {
   CardTitle, 
   CardDescription, 
   CardContent,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   Input,
   Label,
   Switch,
   Badge,
 } from '../../../ui';
+import RewindConfirmModal from '../../RewindConfirmModal';
 import {
   GetSettings,
   UpdateBackgroundTask,
@@ -177,6 +186,25 @@ interface BackgroundTaskCardProps {
 interface PanelProps {
   settings: RepoSettings;
   onUpdate: () => void;
+  repoPath: string;
+}
+
+interface LocalBranchRow {
+  name: string;
+  isCurrent: boolean;
+  upstream?: string;
+  lastUpdatedUnix?: number;
+}
+
+interface RenameBranchModalProps {
+  open: boolean;
+  branchName: string;
+  isLoading: boolean;
+  onClose: () => void;
+  onConfirm: (newName: string) => Promise<void>;
+}
+
+interface BranchManagementPanelProps {
   repoPath: string;
 }
 
@@ -1655,6 +1683,353 @@ const TroubleshootingPanel = memo(function TroubleshootingPanel({ repoPath }: Tr
   );
 });
 
+const RenameBranchModal = memo(function RenameBranchModal({
+  open,
+  branchName,
+  isLoading,
+  onClose,
+  onConfirm,
+}: RenameBranchModalProps): JSX.Element | null {
+  const [newName, setNewName] = useState('');
+  const [acknowledgedRisk, setAcknowledgedRisk] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setNewName('');
+      setAcknowledgedRisk(false);
+    }
+  }, [open, branchName]);
+
+  const isValid = newName.trim().length > 0 && newName.trim() !== branchName && acknowledgedRisk;
+
+  const handleConfirm = useCallback(async (): Promise<void> => {
+    if (!isValid || isLoading) return;
+    await onConfirm(newName.trim());
+  }, [isValid, isLoading, newName, onConfirm]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key === 'Enter' && isValid && !isLoading) {
+      void handleConfirm();
+    }
+  }, [onClose, isValid, isLoading, handleConfirm]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-theme-default">
+            <h2 className="text-lg font-semibold text-theme-primary">Rename Branch</h2>
+            <p className="text-sm text-theme-muted mt-1">Update the branch name locally and on remote.</p>
+          </div>
+
+          <div className="px-6 py-4 space-y-4">
+            <div>
+              <Label className="text-xs text-theme-secondary">Old branch name</Label>
+              <Input value={branchName} disabled className="mt-1" />
+            </div>
+
+            <div>
+              <Label className="text-xs text-theme-secondary">New branch name</Label>
+              <Input
+                value={newName}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
+                placeholder="feature/new-name"
+                autoFocus
+                className="mt-1"
+                disabled={isLoading}
+              />
+            </div>
+
+            <label className="flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={acknowledgedRisk}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setAcknowledgedRisk(e.target.checked)}
+                disabled={isLoading}
+              />
+              <span className="text-sm text-theme-secondary">
+                I understand the risks related with renaming a branch.
+              </span>
+            </label>
+          </div>
+
+          <div className="px-6 py-4 border-t border-theme-default flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={isLoading}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleConfirm} disabled={!isValid} loading={isLoading}>
+              Rename Branch
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const BranchManagementPanel = memo(function BranchManagementPanel({ repoPath }: BranchManagementPanelProps): JSX.Element {
+  const { branches, refreshBranches, renameBranch, deleteBranch } = useRepo();
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<LocalBranchRow | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'lastUpdatedUnix'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const TWO_WEEKS_SECONDS = 14 * 24 * 60 * 60;
+
+  useEffect(() => {
+    void refreshBranches();
+  }, [repoPath, refreshBranches]);
+
+  const localBranches: LocalBranchRow[] = (branches?.local || []).map((branch) => ({
+    name: branch.name,
+    isCurrent: branch.isCurrent,
+    upstream: branch.upstream,
+    lastUpdatedUnix: branch.lastUpdatedUnix,
+  }));
+
+  const handleSort = useCallback((column: 'name' | 'lastUpdatedUnix'): void => {
+    if (sortBy === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortBy(column);
+    setSortDirection(column === 'name' ? 'asc' : 'desc');
+  }, [sortBy]);
+
+  const sortedBranches = useMemo(() => {
+    const cloned = [...localBranches];
+    cloned.sort((a, b) => {
+      let result = 0;
+      if (sortBy === 'name') {
+        result = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      } else {
+        const aTs = a.lastUpdatedUnix || 0;
+        const bTs = b.lastUpdatedUnix || 0;
+        result = aTs - bTs;
+      }
+
+      return sortDirection === 'asc' ? result : -result;
+    });
+    return cloned;
+  }, [localBranches, sortBy, sortDirection]);
+
+  const formatFriendlyDateTime = useCallback((unixTs?: number): string => {
+    if (!unixTs || unixTs <= 0) return '—';
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(unixTs * 1000));
+    } catch {
+      return '—';
+    }
+  }, []);
+
+  const isInactiveBranch = useCallback((branch: LocalBranchRow): boolean => {
+    const isProtected = branch.name === 'main' || branch.name === 'master';
+    if (isProtected) return false;
+    const ts = branch.lastUpdatedUnix || 0;
+    if (ts <= 0) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return now-ts > TWO_WEEKS_SECONDS;
+  }, [TWO_WEEKS_SECONDS]);
+
+  const openRename = useCallback((branch: LocalBranchRow): void => {
+    setSelectedBranch(branch);
+    setRenameOpen(true);
+  }, []);
+
+  const openDelete = useCallback((branch: LocalBranchRow): void => {
+    setSelectedBranch(branch);
+    setDeleteOpen(true);
+  }, []);
+
+  const handleRenameConfirm = useCallback(async (newName: string): Promise<void> => {
+    if (!selectedBranch) return;
+
+    setIsRenaming(true);
+    try {
+      const success = await renameBranch(selectedBranch.name, newName);
+      if (success) {
+        setRenameOpen(false);
+        setSelectedBranch(null);
+      }
+    } finally {
+      setIsRenaming(false);
+    }
+  }, [renameBranch, selectedBranch]);
+
+  const handleDeleteConfirm = useCallback(async (): Promise<void> => {
+    if (!selectedBranch) return;
+
+    setIsDeleting(true);
+    try {
+      const success = await deleteBranch(selectedBranch.name);
+      if (success) {
+        setDeleteOpen(false);
+        setSelectedBranch(null);
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteBranch, selectedBranch]);
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-theme-primary flex items-center gap-2">
+            <GitBranch style={iconStyleSm} />
+            Branch Management
+          </CardTitle>
+          <CardDescription>
+            Manage local branches and their remote-tracking metadata.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-theme-muted hover:text-theme-primary transition-colors"
+                    onClick={() => handleSort('name')}
+                    title="Sort by branch name"
+                  >
+                    Branch Name
+                    <ArrowUpDown style={iconStyleSm} />
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-theme-muted hover:text-theme-primary transition-colors"
+                    onClick={() => handleSort('lastUpdatedUnix')}
+                    title="Sort by last updated"
+                  >
+                    Last Updated
+                    <ArrowUpDown style={iconStyleSm} />
+                  </button>
+                </TableHead>
+                <TableHead className="w-28">Rename</TableHead>
+                <TableHead className="w-28">Delete</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {localBranches.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-theme-muted text-center py-8">
+                    No local branches found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sortedBranches.map((branch) => {
+                  const isProtected = branch.name === 'main' || branch.name === 'master';
+                  const cannotDelete = isProtected || branch.isCurrent;
+                  const isInactive = isInactiveBranch(branch);
+
+                  return (
+                    <TableRow key={branch.name}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-theme-primary">{branch.name}</span>
+                          {branch.isCurrent && <Badge variant="outline">Current</Badge>}
+                          {isProtected && <Badge variant="outline">Protected</Badge>}
+                          {isInactive && <Badge variant="outline">Inactive</Badge>}
+                        </div>
+                        <p className="text-xs text-theme-muted mt-1">
+                          {branch.upstream ? `Tracks ${branch.upstream}` : 'No remote tracking branch'}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-theme-secondary">
+                          {formatFriendlyDateTime(branch.lastUpdatedUnix)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openRename(branch)}
+                          disabled={isProtected}
+                          title={isProtected ? 'main/master cannot be renamed' : 'Rename branch'}
+                        >
+                          <Edit3 style={iconStyleSm} className="mr-1" />
+                          Rename
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => openDelete(branch)}
+                          disabled={cannotDelete}
+                          title={
+                            isProtected
+                              ? 'main/master cannot be deleted'
+                              : branch.isCurrent
+                                ? 'Current branch cannot be deleted'
+                                : 'Delete branch'
+                          }
+                        >
+                          <Trash2 style={iconStyleSm} className="mr-1" />
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+          <p className="text-xs text-theme-muted mt-3">
+            Protected branches (main/master) cannot be renamed or deleted. Current branch cannot be deleted.
+          </p>
+        </CardContent>
+      </Card>
+
+      <RenameBranchModal
+        open={renameOpen}
+        branchName={selectedBranch?.name || ''}
+        isLoading={isRenaming}
+        onClose={() => {
+          setRenameOpen(false);
+          setSelectedBranch(null);
+        }}
+        onConfirm={handleRenameConfirm}
+      />
+
+      <RewindConfirmModal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setSelectedBranch(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+        title={selectedBranch ? `Delete Branch '${selectedBranch.name}'?` : 'Delete Branch?'}
+        description="This will permanently delete the selected branch locally and on remote (if tracked)."
+        warningText="⚠️ This cannot be undone. Make sure the branch is no longer needed."
+        confirmButtonText="Delete Branch"
+        confirmationWord="Delete"
+      />
+    </>
+  );
+});
+
 // ============================================================================
 // Main RepoSettingsPage Component
 // ============================================================================
@@ -1725,6 +2100,8 @@ function RepoSettingsPage(): JSX.Element {
     }
 
     switch (selectedRepoSettingsCategory) {
+      case 'branch-management':
+        return <BranchManagementPanel repoPath={repoPath} />;
       case 'remote-sync':
         return <RemoteSyncPanel settings={settings} onUpdate={loadSettings} repoPath={repoPath} />;
       case 'large-files':
@@ -1742,7 +2119,7 @@ function RepoSettingsPage(): JSX.Element {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="max-w-2xl mx-auto p-8">
+      <div className={`${selectedRepoSettingsCategory === 'branch-management' ? 'max-w-5xl' : 'max-w-2xl'} mx-auto p-8`}>
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">

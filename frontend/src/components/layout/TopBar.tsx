@@ -20,7 +20,7 @@ import {
   Menu,
 } from 'lucide-react';
 import { Browser } from '@wailsio/runtime';
-import { ICON_SIZES } from '../../constants';
+import { ICON_SIZES, VIEWS } from '../../constants';
 import { useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../hooks';
 import { UndoLastSaveDialog } from '../ui';
@@ -63,7 +63,7 @@ function TopBar(): JSX.Element {
     undoLastCommit,
     discardAllChanges,
   } = useRepo();
-  const { sidebarCollapsed, sidebarWidth, toggleSidebar } = useLayout();
+  const { sidebarCollapsed, sidebarWidth, toggleSidebar, setActiveView } = useLayout();
 
   // Responsive state
   const { isCompactTopBar } = useWindowSize();
@@ -77,7 +77,8 @@ function TopBar(): JSX.Element {
 
   const handleSwitchProject = useCallback(async (): Promise<void> => {
     await closeRepo();
-  }, [closeRepo]);
+    setActiveView(VIEWS.EXPLORER);
+  }, [closeRepo, setActiveView]);
 
   const handleOpenCommunity = useCallback((): void => {
     Browser.OpenURL(COMMUNITY_DISCORD_URL);
