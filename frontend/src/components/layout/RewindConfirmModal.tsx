@@ -16,19 +16,34 @@ interface RewindConfirmModalProps {
   onClose: () => void;
   onConfirm: () => Promise<void>;
   isLoading?: boolean;
+  title?: string;
+  description?: string;
+  warningText?: string;
+  confirmButtonText?: string;
+  confirmationWord?: string;
 }
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-const CONFIRMATION_WORD = 'Delete';
+const DEFAULT_CONFIRMATION_WORD = 'Delete';
 
 // ============================================================================
 // Component
 // ============================================================================
 
-function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: RewindConfirmModalProps): JSX.Element | null {
+function RewindConfirmModal({
+  open,
+  onClose,
+  onConfirm,
+  isLoading = false,
+  title = 'Delete Uncommitted Changes?',
+  description = 'This will permanently delete all uncommitted changes and restore files to the last saved snapshot.',
+  warningText = '⚠️ This cannot be undone. Any work not saved in a commit will be lost.',
+  confirmButtonText = 'Delete Changes',
+  confirmationWord = DEFAULT_CONFIRMATION_WORD,
+}: RewindConfirmModalProps): JSX.Element | null {
   const [inputValue, setInputValue] = useState('');
   
   // Reset input when modal opens/closes
@@ -38,7 +53,7 @@ function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: Rew
     }
   }, [open]);
 
-  const isConfirmEnabled = inputValue === CONFIRMATION_WORD;
+  const isConfirmEnabled = inputValue === confirmationWord;
 
   const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>): void => {
     setInputValue(e.target.value);
@@ -82,31 +97,31 @@ function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: Rew
               />
             </div>
             <h2 className="text-lg font-semibold text-theme-primary">
-              Delete Uncommitted Changes?
+              {title}
             </h2>
           </div>
 
           {/* Content */}
           <div className="px-6 py-4 space-y-4">
             <p className="text-sm text-theme-secondary">
-              This will permanently delete all uncommitted changes and restore files to the last saved snapshot.
+              {description}
             </p>
             
             <div className="p-3 rounded bg-red-500/10 border border-red-500/30">
               <p className="text-sm text-red-400 font-medium">
-                ⚠️ This cannot be undone. Any work not saved in a commit will be lost.
+                {warningText}
               </p>
             </div>
 
             {/* Confirmation input */}
             <div>
               <label className="block text-xs text-theme-secondary mb-2">
-                Type <span className="font-bold text-theme-primary">{CONFIRMATION_WORD}</span> to confirm
+                Type <span className="font-bold text-theme-primary">{confirmationWord}</span> to confirm
               </label>
               <Input
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder={CONFIRMATION_WORD}
+                placeholder={confirmationWord}
                 autoFocus
                 disabled={isLoading}
               />
@@ -128,7 +143,7 @@ function RewindConfirmModal({ open, onClose, onConfirm, isLoading = false }: Rew
               disabled={!isConfirmEnabled}
               loading={isLoading}
             >
-              Delete Changes
+              {confirmButtonText}
             </Button>
           </div>
         </div>

@@ -45,6 +45,29 @@ func cleanupTestRepo(t *testing.T, path string) {
 	os.RemoveAll(path)
 }
 
+func runGitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
+	}
+}
+
+func createBareRemoteAndLink(t *testing.T, repoPath string) string {
+	t.Helper()
+
+	remoteDir, err := os.MkdirTemp("", "control-zebra-remote-*.git")
+	if err != nil {
+		t.Fatalf("Failed to create remote temp dir: %v", err)
+	}
+
+	runGitCmd(t, remoteDir, "init", "--bare")
+	runGitCmd(t, repoPath, "remote", "add", "origin", remoteDir)
+
+	return remoteDir
+}
+
 // TestUnquoteGitPath tests the unquoteGitPath helper function
 func TestUnquoteGitPath(t *testing.T) {
 	tests := []struct {
@@ -912,6 +935,183 @@ func TestCheckoutBranch_NonExistent(t *testing.T) {
 	}
 	if !strings.Contains(result.Error, "does not exist") {
 		t.Errorf("Expected error about branch not existing, got: %s", result.Error)
+	}
+}
+
+func TestRenameBranch_Success_LocalAndRemote(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	remoteDir := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remoteDir)
+
+	// Push current branch and set upstream
+	branches := svc.Branches(repoPath)
+	baseBranch := branches.Current
+	runGitCmd(t, repoPath, "push", "-u", "origin", baseBranch)
+
+	// Create feature branch and push to remote
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/alpha")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "feature/alpha")
+
+	result := svc.RenameBranch(repoPath, "feature/alpha", "feature/beta", true)
+	if !result.Success {
+		t.Fatalf("Expected rename success, got error: %s", result.Error)
+	}
+
+	// local old gone, new exists
+	if svc.localBranchExists(repoPath, "feature/alpha") {
+		t.Error("Expected old local branch to be removed")
+	}
+	if !svc.localBranchExists(repoPath, "feature/beta") {
+		t.Error("Expected new local branch to exist")
+	}
+
+	// remote old gone, new exists
+	resultShowOld := svc.runner.RunGit(repoPath, "show-ref", "--verify", "--quiet", "refs/remotes/origin/feature/alpha")
+	if resultShowOld.Success {
+		t.Error("Expected old remote tracking branch to be removed")
+	}
+	resultShowNew := svc.runner.RunGit(repoPath, "show-ref", "--verify", "--quiet", "refs/remotes/origin/feature/beta")
+	if !resultShowNew.Success {
+		t.Error("Expected new remote tracking branch to exist")
+	}
+}
+
+func TestRenameBranch_ProtectedBranchBlocked(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Determine default branch
+	branches := svc.Branches(repoPath)
+	protected := branches.Current
+	if protected != "main" && protected != "master" {
+		protected = "master"
+	}
+
+	result := svc.RenameBranch(repoPath, protected, "renamed-default", true)
+	if result.Success {
+		t.Fatal("Expected protected branch rename to fail")
+	}
+	if !strings.Contains(strings.ToLower(result.Error), "protected") {
+		t.Fatalf("Expected protected-branch error, got: %s", result.Error)
+	}
+}
+
+func TestRenameBranch_RequiresConfirmation(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	result := svc.RenameBranch(repoPath, "feature/a", "feature/b", false)
+	if result.Success {
+		t.Fatal("Expected rename to fail without confirmation")
+	}
+	if !strings.Contains(result.Error, "requires confirmation") {
+		t.Fatalf("Expected confirmation error, got: %s", result.Error)
+	}
+}
+
+func TestDeleteBranch_Success_LocalAndRemote(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	remoteDir := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remoteDir)
+
+	branches := svc.Branches(repoPath)
+	baseBranch := branches.Current
+	runGitCmd(t, repoPath, "push", "-u", "origin", baseBranch)
+
+	// Create and push branch to delete
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/delete-me")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "feature/delete-me")
+	runGitCmd(t, repoPath, "checkout", baseBranch)
+
+	result := svc.DeleteBranch(repoPath, "feature/delete-me", true)
+	if !result.Success {
+		t.Fatalf("Expected delete success, got error: %s", result.Error)
+	}
+
+	if svc.localBranchExists(repoPath, "feature/delete-me") {
+		t.Error("Expected local branch to be deleted")
+	}
+
+	resultShowRemote := svc.runner.RunGit(repoPath, "show-ref", "--verify", "--quiet", "refs/remotes/origin/feature/delete-me")
+	if resultShowRemote.Success {
+		t.Error("Expected remote tracking branch to be deleted")
+	}
+}
+
+func TestDeleteBranch_BlocksCurrentAndProtected(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Create initial commit
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	branches := svc.Branches(repoPath)
+	current := branches.Current
+
+	// current branch must be blocked
+	currentResult := svc.DeleteBranch(repoPath, current, true)
+	if currentResult.Success {
+		t.Fatal("Expected deleting current branch to fail")
+	}
+
+	// protected names blocked
+	for _, protected := range []string{"main", "master"} {
+		result := svc.DeleteBranch(repoPath, protected, true)
+		if result.Success {
+			t.Fatalf("Expected deleting protected branch '%s' to fail", protected)
+		}
+	}
+}
+
+func TestDeleteBranch_RequiresConfirmation(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	result := svc.DeleteBranch(repoPath, "feature/a", false)
+	if result.Success {
+		t.Fatal("Expected delete to fail without confirmation")
+	}
+	if !strings.Contains(result.Error, "requires confirmation") {
+		t.Fatalf("Expected confirmation error, got: %s", result.Error)
 	}
 }
 

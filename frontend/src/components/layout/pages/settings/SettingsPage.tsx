@@ -8,7 +8,6 @@ import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../../constant
 import { useLayout } from '../../../../context';
 import GitConfigForm from './GitConfigForm';
 import GeneralSettings from './GeneralSettings';
-import LFSGroupsSettings from './LFSGroupsSettings';
 
 function SettingsPage(): JSX.Element {
   const { selectedSettingsCategory } = useLayout();
@@ -19,12 +18,10 @@ function SettingsPage(): JSX.Element {
 
   const renderCategoryContent = (): JSX.Element | null => {
     switch (selectedSettingsCategory) {
-      case 'git-config':
-        return <GitConfigForm />;
-      case 'lfs-groups':
-        return <LFSGroupsSettings />;
       case 'general':
         return <GeneralSettings />;
+      case 'git-config':
+        return <GitConfigForm />;
       default:
         return null;
     }

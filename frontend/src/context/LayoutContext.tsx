@@ -142,10 +142,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   }, []);
   
   // Settings category state (shared between sidebar and main area)
-  const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('git-config');
+  const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('general');
   
   // Repository settings category state (for repo-specific settings view)
-  const [selectedRepoSettingsCategory, setSelectedRepoSettingsCategory] = useState('remote-sync');
+  const [selectedRepoSettingsCategory, setSelectedRepoSettingsCategory] = useState('about');
   
   // Welcome category state (for welcome screen when no repo is open)
   const [selectedWelcomeCategory, setSelectedWelcomeCategory] = useState('recent-projects');

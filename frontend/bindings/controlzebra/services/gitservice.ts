@@ -308,6 +308,16 @@ export function CreateBranchFromDetached(repoPath: string, branchName: string): 
 }
 
 /**
+ * DeleteBranch deletes a local branch and, when it has an upstream, deletes the remote branch too.
+ * Requires confirm=true as a safety measure.
+ */
+export function DeleteBranch(repoPath: string, branchName: string, confirm: boolean): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3038471925, repoPath, branchName, confirm).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * DetectRepo checks if the given path is a git repository
  */
 export function DetectRepo(path: string): $CancellablePromise<$models.RepoInfo> {
@@ -637,6 +647,18 @@ export function RemoveLockFile(repoPath: string): $CancellablePromise<$models.Op
  */
 export function RemoveStaleLock(repoPath: string, lockFile: string, confirm: boolean): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(764376340, repoPath, lockFile, confirm).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * RenameBranch renames a local branch and, when it has an upstream, renames its
+ * remote-tracking branch by creating the new remote branch and deleting the old one.
+ * This operation is all-or-fail: on remote failures, it attempts best-effort rollback.
+ * Requires confirm=true as a safety measure.
+ */
+export function RenameBranch(repoPath: string, oldName: string, newName: string, confirm: boolean): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3714449276, repoPath, oldName, newName, confirm).then(($result: any) => {
         return $$createType0($result);
     });
 }

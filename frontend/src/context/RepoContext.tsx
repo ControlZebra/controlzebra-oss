@@ -32,6 +32,8 @@ import {
   Branches,
   CheckoutBranch,
   CreateBranchAndCheckout,
+  RenameBranch,
+  DeleteBranch,
   StashAndSwitchBranch,
   ResetSoftHead,
   ResetHardHead,
@@ -991,6 +993,56 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
   }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
+
+  // Rename an existing branch (local + remote when upstream exists)
+  const renameBranch = useCallback(async (oldName: string, newName: string): Promise<boolean> => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+
+    try {
+      const result = await RenameBranch(repoPath, oldName, newName, true);
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to rename branch');
+        return false;
+      }
+
+      showMessage('success', result.message || `Renamed branch '${oldName}' to '${newName}'`);
+      await refreshAll();
+      await refreshBranches();
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      showMessage('error', `Failed to rename branch: ${error.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll, refreshBranches]);
+
+  // Delete an existing branch (local + remote when upstream exists)
+  const deleteBranch = useCallback(async (branchName: string): Promise<boolean> => {
+    if (!repoPath) {
+      showMessage('error', 'No repository open');
+      return false;
+    }
+
+    try {
+      const result = await DeleteBranch(repoPath, branchName, true);
+      if (!result.success) {
+        showMessage('error', result.error || 'Failed to delete branch');
+        return false;
+      }
+
+      showMessage('success', result.message || `Deleted branch '${branchName}'`);
+      await refreshAll();
+      await refreshBranches();
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      showMessage('error', `Failed to delete branch: ${error.message || err}`);
+      return false;
+    }
+  }, [repoPath, showMessage, refreshAll, refreshBranches]);
 
   // Create new branch, switch to it, and commit changes
   const branchAndCommit = useCallback(async (branchName: string, message: string): Promise<boolean> => {
@@ -2490,6 +2542,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     refreshBranches,
     switchBranch,
     createBranch,
+    renameBranch,
+    deleteBranch,
     branchAndCommit,
     
     // v2: Recovery actions
@@ -2574,7 +2628,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     nonGitFolderPromptPath, dismissNonGitFolderPrompt,
     openRepo, openFolder, closeRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
-    refreshBranches, switchBranch, createBranch, branchAndCommit,
+    refreshBranches, switchBranch, createBranch, renameBranch, deleteBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
     conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, 
     checkConflictsOnly, startMerge, checkBranchConflicts, clearConflicts,
