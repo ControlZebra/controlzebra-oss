@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "ControlZebra"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "v0.5.0-beta"
+    !define INFO_PRODUCTVERSION "v0.6.0-beta"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "(c) 2025, ControlZebra"
