@@ -11,6 +11,7 @@ import { memo, Suspense, type ReactElement } from 'react';
 import { Loader2 } from 'lucide-react';
 import ViewerErrorBoundary from './ViewerErrorBoundary';
 import { ViewerHeader } from './ViewerHeader';
+import { getPathFileName } from './path-utils';
 import type { ViewerConfig, ViewerProps } from '../../lib/viewers';
 import { ICON_SIZES } from '../../constants';
 
@@ -79,7 +80,7 @@ function ViewerRendererInner({
   showHeader = true,
 }: ViewerRendererProps): ReactElement {
   const ViewerComponent = viewer.component;
-  const fileName = filePath.split('/').pop() || filePath;
+  const fileName = getPathFileName(filePath);
   
   const viewerProps: ViewerProps = {
     filePath,

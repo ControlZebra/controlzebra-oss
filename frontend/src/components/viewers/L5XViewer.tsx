@@ -23,6 +23,7 @@ import { useLayout } from '../../context/LayoutContext';
 import type { ViewerProps } from '../../lib/viewers';
 import { useCachedContent } from '../../lib/viewer-cache';
 import { ViewerHeader } from './ViewerHeader';
+import { getPathFileName } from './path-utils';
 
 // Import ladder-visualizer components and parsers
 import {
@@ -464,7 +465,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
   // Loading state
   if (isLoading) {
-    const fileName = filePath.split('/').pop() || filePath;
+    const fileName = getPathFileName(filePath);
     return (
       <div className="flex items-center justify-center h-full text-theme-secondary">
         <div className="animate-pulse flex items-center gap-2">

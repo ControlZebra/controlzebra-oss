@@ -48,6 +48,7 @@ import {
 } from '../../../bindings/controlzebra/services/imagediffservice';
 import type { ImageDiffResult } from '../../../bindings/controlzebra/services/models';
 import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from './image-utils';
+import { getPathFileName } from './path-utils';
 
 // ============================================================================
 // Types
@@ -550,7 +551,7 @@ function ImageDiffViewer({
   const mountedRef = useRef(true);
 
   const fileName = useMemo(
-    () => filePath.split('/').pop() ?? filePath,
+    () => getPathFileName(filePath),
     [filePath],
   );
 

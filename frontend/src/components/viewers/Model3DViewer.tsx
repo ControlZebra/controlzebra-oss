@@ -21,6 +21,7 @@ import { ICON_SIZES } from '../../constants';
 import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../lib/viewers';
 import { base64ToFile } from './model3d-utils';
+import { getPathFileName } from './path-utils';
 
 // ---------------------------------------------------------------------------
 // Cache – avoids re-fetching base64 when switching tabs
@@ -67,7 +68,7 @@ function Model3DViewer({ filePath }: ViewerProps): JSX.Element {
   // Track whether OV module has been imported
   const ovModuleRef = useRef<any>(null);
 
-  const fileName = useMemo(() => filePath.split('/').pop() || filePath, [filePath]);
+  const fileName = useMemo(() => getPathFileName(filePath), [filePath]);
 
   // -----------------------------------------------------------------------
   // Format file size for display

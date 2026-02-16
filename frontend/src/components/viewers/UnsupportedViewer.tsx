@@ -20,12 +20,13 @@ import { memo } from 'react';
 import { FileQuestion } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
 import type { ViewerProps } from '../../lib/viewers';
+import { getPathFileName } from './path-utils';
 
 /**
  * Extract file extension from a file path.
  */
 function getFileExtension(filePath: string): string | null {
-  const fileName = filePath.split('/').pop() || filePath;
+  const fileName = getPathFileName(filePath);
   const lastDot = fileName.lastIndexOf('.');
   if (lastDot === -1 || lastDot === 0) {
     return null;
@@ -39,7 +40,7 @@ function getFileExtension(filePath: string): string | null {
  */
 function UnsupportedViewer({ filePath }: ViewerProps): JSX.Element {
   // Extract filename and extension
-  const fileName = filePath.split('/').pop() || filePath;
+  const fileName = getPathFileName(filePath);
   const extension = getFileExtension(filePath);
 
   return (

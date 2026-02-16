@@ -15,6 +15,7 @@
 import { Component, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
+import { getPathFileName } from './path-utils';
 
 interface ViewerErrorBoundaryProps {
   /** The file path being viewed (for error display) */
@@ -75,7 +76,7 @@ class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErro
 
   render(): ReactNode {
     if (this.state.hasError) {
-      const fileName = this.props.filePath.split('/').pop() || this.props.filePath;
+      const fileName = getPathFileName(this.props.filePath);
       
       return (
         <div className="flex flex-col items-center justify-center h-full p-6 text-center">
