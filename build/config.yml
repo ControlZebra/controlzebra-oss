@@ -8,10 +8,10 @@ info:
   companyName: "ControlZebra" # The name of the company
   productName: "ControlZebra" # The name of the application
   productIdentifier: "com.controlzebra.controlzebra" # The unique product identifier
-  description: "A simplified Git client for industrial automation users" # The application description
+  description: "ControlZebra" # The application description
   copyright: "(c) 2025, ControlZebra" # Copyright text
   comments: "Democratizing git for everyone" # Comments
-  version: "v0.3.0-beta" # The application version
+  version: "v0.4.0-beta" # The application version
 
 # Dev mode configuration
 dev_mode:

@@ -14,10 +14,10 @@
     !define INFO_PRODUCTNAME "ControlZebra"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "v0.3.0-beta"
+    !define INFO_PRODUCTVERSION "v0.4.0-beta"
 !endif
 !ifndef INFO_COPYRIGHT
-    !define INFO_COPYRIGHT "© 2025, ControlZebra"
+    !define INFO_COPYRIGHT "(c) 2025, ControlZebra"
 !endif
 !ifndef PRODUCT_EXECUTABLE
     !define PRODUCT_EXECUTABLE "${INFO_PROJECTNAME}.exe"

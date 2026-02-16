@@ -1,6 +1,6 @@
 # ControlZebra — Revision Plan (v1 / v2 / v3)
 
-This document proposes an incremental delivery plan for ControlZebra: a simplified Git client for industrial automation users (PLC/HMI/actuator configuration workflows) who are not comfortable with Git/CLI.
+This document proposes an incremental delivery plan for ControlZebra: ControlZebra (PLC/HMI/actuator configuration workflows) who are not comfortable with Git/CLI.
 
 Guiding principles:
 - Opinionated, minimal surface area: map user language to Git actions.

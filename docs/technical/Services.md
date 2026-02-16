@@ -66,7 +66,7 @@ Services are registered in `main.go`:
 ```go
 app := application.New(application.Options{
     Name:        "control-zebra",
-    Description: "A simplified Git client for industrial automation users",
+    Description: "ControlZebra",
     Services: []application.Service{
         application.NewService(services.NewGitService()),
         application.NewService(services.NewLFSService()),
