@@ -10,6 +10,11 @@ vars:
   # TIMESTAMP_SERVER: "http://timestamp.digicert.com"
   #
   # Password is stored securely in system keychain. Run: wails3 setup signing
+  SIGN_CERTIFICATE: '{{.SIGN_CERTIFICATE | default (env "CZ_WINDOWS_SIGN_CERTIFICATE") | default ""}}'
+  SIGN_THUMBPRINT: '{{.SIGN_THUMBPRINT | default (env "CZ_WINDOWS_SIGN_THUMBPRINT") | default ""}}'
+  TIMESTAMP_SERVER: '{{.TIMESTAMP_SERVER | default (env "CZ_WINDOWS_TIMESTAMP_SERVER") | default "http://timestamp.digicert.com"}}'
+  SELF_SIGNED: '{{.SELF_SIGNED | default (env "CZ_WINDOWS_SELF_SIGNED") | default "false"}}'
+  SELF_SIGNED_CERT_DIR: '{{.SELF_SIGNED_CERT_DIR | default (env "CZ_WINDOWS_SELF_SIGNED_CERT_DIR") | default "build/certs/windows/selfsigned"}}'
 
   # Docker image for cross-compilation with CGO (used when CGO_ENABLED=1 on non-Windows)
   CROSS_IMAGE: wails-cross
@@ -120,6 +125,9 @@ tasks:
     dir: build/windows/nsis
     deps:
       - task: build
+    preconditions:
+      - sh: '[ -f "{{.ROOT_DIR}}/build/windows/nsis/resources/license.txt" ]'
+        msg: "Missing installer license file at build/windows/nsis/resources/license.txt"
     cmds:
       # Create the Microsoft WebView2 bootstrapper if it doesn't exist
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
@@ -163,6 +171,13 @@ tasks:
     cmds:
       - '{{.BIN_DIR}}/{{.APP_NAME}}.exe'
 
+  cert:selfsigned:
+    summary: Generates or refreshes local self-signed Windows code-signing certificate
+    cmds:
+      - bash scripts/setup-self-signed-windows-cert.sh --cert-dir {{.SELF_SIGNED_CERT_DIR}} {{if eq .FORCE "true"}}--force{{end}}
+    vars:
+      FORCE: '{{.FORCE | default "false"}}'
+
   sign:
     summary: Signs the Windows executable
     desc: |
@@ -172,10 +187,36 @@ tasks:
     deps:
       - task: build
     cmds:
-      - wails3 tool sign --input {{.BIN_DIR}}/{{.APP_NAME}}.exe {{if .SIGN_CERTIFICATE}}--certificate {{.SIGN_CERTIFICATE}}{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint {{.SIGN_THUMBPRINT}}{{end}} {{if .TIMESTAMP_SERVER}}--timestamp {{.TIMESTAMP_SERVER}}{{end}}
+      - task: sign:artifact
+        vars:
+          INPUT: '{{.BIN_DIR}}/{{.APP_NAME}}.exe'
     preconditions:
       - sh: '[ -n "{{.SIGN_CERTIFICATE}}" ] || [ -n "{{.SIGN_THUMBPRINT}}" ]'
         msg: "Either SIGN_CERTIFICATE or SIGN_THUMBPRINT is required. Set it in the vars section at the top of build/windows/Taskfile.yml"
+
+  sign:artifact:
+    summary: Signs a specific Windows artifact (.exe)
+    desc: |
+      Signs the provided artifact path with Authenticode.
+      Usage example:
+        task windows:sign:artifact INPUT=bin/control-zebra-windows-arm64.exe
+    cmds:
+      - |
+        {{if eq .SELF_SIGNED "true"}}
+        CZ_WINDOWS_SELF_SIGNED=true \
+        CZ_WINDOWS_SELF_SIGNED_CERT_DIR="{{.SELF_SIGNED_CERT_DIR}}" \
+        CZ_WINDOWS_TIMESTAMP_SERVER="{{.TIMESTAMP_SERVER}}" \
+        bash scripts/sign-windows-artifact.sh "{{.INPUT}}"
+        {{else}}
+        wails3 tool sign --input {{.INPUT}} {{if .SIGN_CERTIFICATE}}--certificate {{.SIGN_CERTIFICATE}}{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint {{.SIGN_THUMBPRINT}}{{end}} {{if .TIMESTAMP_SERVER}}--timestamp {{.TIMESTAMP_SERVER}}{{end}}
+        {{end}}
+    preconditions:
+      - sh: '[ -n "{{.INPUT}}" ]'
+        msg: "INPUT is required. Example: task windows:sign:artifact INPUT=bin/control-zebra-windows-amd64.exe"
+      - sh: '[ -f "{{.INPUT}}" ]'
+        msg: "Input artifact not found: {{.INPUT}}"
+      - sh: '[ "{{.SELF_SIGNED}}" = "true" ] || [ -n "{{.SIGN_CERTIFICATE}}" ] || [ -n "{{.SIGN_THUMBPRINT}}" ]'
+        msg: "Set CZ_WINDOWS_SELF_SIGNED=true for local self-signed signing, or configure SIGN_CERTIFICATE/SIGN_THUMBPRINT for CA-issued signing."
 
   sign:installer:
     summary: Signs the NSIS installer
@@ -186,7 +227,49 @@ tasks:
     deps:
       - task: create:nsis:installer
     cmds:
-      - wails3 tool sign --input build/windows/nsis/{{.APP_NAME}}-installer.exe {{if .SIGN_CERTIFICATE}}--certificate {{.SIGN_CERTIFICATE}}{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint {{.SIGN_THUMBPRINT}}{{end}} {{if .TIMESTAMP_SERVER}}--timestamp {{.TIMESTAMP_SERVER}}{{end}}
+      - task: sign:artifact
+        vars:
+          INPUT: '{{if .INSTALLER_PATH}}{{.INSTALLER_PATH}}{{else}}{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}-installer.exe{{end}}'
     preconditions:
       - sh: '[ -n "{{.SIGN_CERTIFICATE}}" ] || [ -n "{{.SIGN_THUMBPRINT}}" ]'
         msg: "Either SIGN_CERTIFICATE or SIGN_THUMBPRINT is required. Set it in the vars section at the top of build/windows/Taskfile.yml"
+
+  sign:release:
+    summary: Signs both binary and installer for a Windows architecture
+    desc: |
+      Expects release artifacts to already exist in bin/:
+      - {{.APP_NAME}}-windows-{{.ARCH}}.exe
+      - {{.APP_NAME}}-{{.ARCH}}-installer.exe
+    cmds:
+      - task: sign:artifact
+        vars:
+          INPUT: '{{.BIN_DIR}}/{{.APP_NAME}}-windows-{{.ARCH}}.exe'
+      - task: sign:artifact
+        vars:
+          INPUT: '{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}-installer.exe'
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
+
+  verify:artifact:
+    summary: Verifies Authenticode signature and timestamp for one artifact
+    cmds:
+      - |
+        CZ_WINDOWS_SELF_SIGNED="{{.SELF_SIGNED}}" \
+        bash scripts/verify-windows-signature.sh "{{.INPUT}}"
+    preconditions:
+      - sh: '[ -n "{{.INPUT}}" ]'
+        msg: "INPUT is required. Example: task windows:verify:artifact INPUT=bin/control-zebra-windows-amd64.exe"
+      - sh: '[ -f "{{.INPUT}}" ]'
+        msg: "Input artifact not found: {{.INPUT}}"
+
+  verify:release:
+    summary: Verifies signatures for binary + installer of one Windows architecture
+    cmds:
+      - task: verify:artifact
+        vars:
+          INPUT: '{{.BIN_DIR}}/{{.APP_NAME}}-windows-{{.ARCH}}.exe'
+      - task: verify:artifact
+        vars:
+          INPUT: '{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}-installer.exe'
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'

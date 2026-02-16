@@ -56,7 +56,7 @@
 #     update.json                              ← manifest for update server
 #     control-zebra-0.1.0-darwin-arm64         ← versioned binary
 #     control-zebra-0.1.0-windows-amd64.exe    ← versioned binary
-#     checksums.txt                            ← SHA-256 checksums
+#     SHA256SUMS.txt                           ← SHA-256 checksums
 #
 set -euo pipefail
 
@@ -257,7 +257,8 @@ mkdir -p "$OUTPUT_DIR"
 # Write platform data to a temp file (one record per line, pipe-delimited)
 # Format: platform|download_url|size_bytes|sha256_hex
 RECORDS_TMPFILE=$(mktemp)
-CHECKSUMS_FILE="$OUTPUT_DIR/checksums.txt"
+CHECKSUMS_FILE="$OUTPUT_DIR/SHA256SUMS.txt"
+LEGACY_CHECKSUMS_FILE="$OUTPUT_DIR/checksums.txt"
 > "$CHECKSUMS_FILE"
 
 # Track output filenames for the --upload step
@@ -313,6 +314,9 @@ while [[ $i -lt ${#FOUND_PLATFORMS[@]} ]]; do
 
     i=$((i + 1))
 done
+
+# Backward-compatibility: keep the legacy checksum filename too.
+cp "$CHECKSUMS_FILE" "$LEGACY_CHECKSUMS_FILE"
 
 echo ""
 

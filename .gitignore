@@ -17,3 +17,6 @@ test-updates/
 
 # Local secrets (signing keys)
 .secrets/
+
+# Local Windows self-signed code-signing artifacts
+build/certs/
