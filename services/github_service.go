@@ -1084,7 +1084,15 @@ func getGHErrorMessage(result CommandResult) string {
 		errMsg := result.Stderr
 		errMsg = strings.TrimPrefix(errMsg, "error: ")
 		errMsg = strings.TrimPrefix(errMsg, "Error: ")
-		return strings.TrimSpace(errMsg)
+		errMsg = strings.TrimSpace(errMsg)
+		lowerErr := strings.ToLower(errMsg)
+		if strings.Contains(lowerErr, "failed to execute prompt script") ||
+			strings.Contains(lowerErr, "could not read username for 'https://github.com'") ||
+			(strings.Contains(lowerErr, "terminal prompts disabled") && strings.Contains(lowerErr, "github.com")) ||
+			strings.Contains(lowerErr, "/dev/tty") {
+			return "GitHub authentication failed. Connect GitHub in ControlZebra and retry."
+		}
+		return errMsg
 	}
 	if result.Error != "" {
 		return result.Error

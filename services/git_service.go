@@ -466,10 +466,24 @@ func (g *GitService) CommitAll(repoPath string, message string) (opResult Operat
 
 // getErrorMessage extracts the most informative error message from a command result.
 func getErrorMessage(result CommandResult) string {
+	errMsg := ""
 	if result.Stderr != "" {
-		return result.Stderr
+		errMsg = result.Stderr
+	} else {
+		errMsg = result.Error
 	}
-	return result.Error
+
+	errMsg = strings.TrimSpace(errMsg)
+	lowerErr := strings.ToLower(errMsg)
+
+	if strings.Contains(lowerErr, "failed to execute prompt script") ||
+		strings.Contains(lowerErr, "could not read username for 'https://github.com'") ||
+		(strings.Contains(lowerErr, "terminal prompts disabled") && strings.Contains(lowerErr, "github.com")) ||
+		strings.Contains(lowerErr, "/dev/tty") {
+		return "GitHub authentication failed. Connect GitHub in ControlZebra and retry."
+	}
+
+	return errMsg
 }
 
 // ============================================================================

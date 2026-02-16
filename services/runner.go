@@ -273,6 +273,12 @@ func buildCommandEnv(commandPath string) []string {
 		return env
 	}
 
+	// GUI app child processes can inherit IDE/shell askpass variables that point
+	// to scripts unavailable in our packaged Windows runtime (for example, bash-
+	// based prompt scripts referencing /dev/tty). Remove those to prevent cryptic
+	// auth failures such as "failed to execute prompt script".
+	env = normalizeWindowsPromptEnv(env)
+
 	prependDirs := make([]string, 0, 6)
 	seen := map[string]struct{}{}
 
@@ -360,4 +366,55 @@ func buildCommandEnv(commandPath string) []string {
 	}
 
 	return env
+}
+
+func normalizeWindowsPromptEnv(env []string) []string {
+	for _, key := range []string{
+		"GIT_ASKPASS",
+		"SSH_ASKPASS",
+		"VSCODE_GIT_ASKPASS_MAIN",
+		"VSCODE_GIT_ASKPASS_NODE",
+		"VSCODE_GIT_ASKPASS_EXTRA_ARGS",
+	} {
+		env = removeEnvCaseInsensitive(env, key)
+	}
+
+	// Force non-interactive credential behavior for background CLI calls.
+	env = setEnvCaseInsensitive(env, "GIT_TERMINAL_PROMPT", "0")
+	env = setEnvCaseInsensitive(env, "GCM_INTERACTIVE", "never")
+
+	return env
+}
+
+func removeEnvCaseInsensitive(env []string, key string) []string {
+	filtered := env[:0]
+	for _, kv := range env {
+		idx := strings.IndexByte(kv, '=')
+		if idx <= 0 {
+			filtered = append(filtered, kv)
+			continue
+		}
+		k := kv[:idx]
+		if strings.EqualFold(k, key) {
+			continue
+		}
+		filtered = append(filtered, kv)
+	}
+	return filtered
+}
+
+func setEnvCaseInsensitive(env []string, key string, value string) []string {
+	entry := key + "=" + value
+	for i, kv := range env {
+		idx := strings.IndexByte(kv, '=')
+		if idx <= 0 {
+			continue
+		}
+		k := kv[:idx]
+		if strings.EqualFold(k, key) {
+			env[i] = k + "=" + value
+			return env
+		}
+	}
+	return append(env, entry)
 }
