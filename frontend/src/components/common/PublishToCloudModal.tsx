@@ -12,6 +12,7 @@ import {
   AlertDialogCancel,
 } from '../ui/alert-dialog';
 import { cn } from '../../lib/utils';
+import { getFolderNameFromPath } from '../../lib/pathUtils';
 import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../context/RepoContext.types';
 
 interface PublishToCloudModalProps {
@@ -58,7 +59,7 @@ function PublishToCloudModal({
   // Reset form values when modal opens
   useEffect(() => {
     if (!isOpen) return;
-    const defaultRepoName = repoPath?.split('/').pop() || 'my-repo';
+    const defaultRepoName = repoPath ? getFolderNameFromPath(repoPath) : 'my-repo';
     setRepoName(defaultRepoName);
     setIsPrivate(true);
   }, [isOpen, repoPath]);

@@ -12,6 +12,7 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import { MAIN_BRANCHES, VIEWS } from '../../../constants';
 import { useLayout, useRepo, type FileStatus } from '../../../context';
+import { getFolderNameFromPath } from '../../../lib/pathUtils';
 import { SidebarCommitPanel, ExplorerStatusPanel } from '../sidebar-panels';
 import { GitHubDeviceFlowModal } from '../../common';
 
@@ -74,7 +75,7 @@ function ExplorerView(): JSX.Element {
   // Derive panel state from repo status
   const panelState = useMemo((): PanelState => {
     if (!repoPath) return { type: 'noFolder' };
-    if (!repoInfo?.isRepo) return { type: 'noRepo', folderName: repoPath.split('/').pop() || '' };
+    if (!repoInfo?.isRepo) return { type: 'noRepo', folderName: getFolderNameFromPath(repoPath) || '' };
     
     const changedFiles = repoStatus?.changedFiles || [];
     const ahead = repoStatus?.ahead || 0;

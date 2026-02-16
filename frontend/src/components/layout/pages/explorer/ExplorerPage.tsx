@@ -21,6 +21,7 @@ import { ProjectSetupBanner } from '../../../common';
 import { PROJECT_STATES, ICON_SIZES, type ProjectState, type ExplorerTab } from '../../../../constants';
 import { ViewerRenderer, TextDiffViewer, getViewerForFile, getViewerById } from '../../../viewers';
 import { isL5XFile, isImageFile, isPdfFile, is3DModelFile } from '../../../../lib/file-utils';
+import { getFolderNameFromPath } from '../../../../lib/pathUtils';
 
 // Lazy-load heavy diff viewers for code splitting
 const L5XWorkingDiffViewer = lazy(() => import('../../../viewers/l5x-diff/L5XWorkingDiffViewer'));
@@ -266,7 +267,7 @@ function ExplorerPage(): JSX.Element {
 
   // Folder open - show tabs and content, with optional setup banner
   // Hide banner for fully-set-up projects and nested repos (Phase 14)
-  const folderName = repoPath.split('/').pop() || '';
+  const folderName = getFolderNameFromPath(repoPath) || '';
   const showBanner = projectState != null 
     && projectState !== PROJECT_STATES.TRACKED_WITH_REMOTE
     && projectState !== PROJECT_STATES.NESTED_REPO;

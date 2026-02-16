@@ -83,6 +83,7 @@ import {
   UntrackPattern,
 } from '../../../../../bindings/controlzebra/services/lfsservice';
 import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../../bindings/controlzebra/services/models';
+import { getFolderNameFromPath } from '../../../../lib/pathUtils';
 
 // ============================================================================
 // Types
@@ -1144,7 +1145,7 @@ const AboutPanel = memo(function AboutPanel({ repoPath, repoInfo }: AboutPanelPr
   const { repoStatus, hasRemote } = useRepo();
   const [remoteUrl, setRemoteUrl] = useState<string>('');
 
-  const repoName = repoPath ? repoPath.split('/').pop() || repoPath : '—';
+  const repoName = repoPath ? getFolderNameFromPath(repoPath) || repoPath : '—';
   const currentBranch = repoInfo?.branch || repoStatus?.branch || '—';
   const changedFilesCount = repoStatus?.changedFiles?.length || 0;
   const ahead = repoStatus?.ahead || 0;
@@ -2136,7 +2137,7 @@ function RepoSettingsPage(): JSX.Element {
           <p className="text-theme-muted">{categoryInfo.description}</p>
           {repoPath && (
             <p className="text-theme-muted text-xs mt-1">
-              Repository: {repoPath.split('/').pop()}
+              Repository: {getFolderNameFromPath(repoPath)}
             </p>
           )}
         </div>
