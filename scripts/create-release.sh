@@ -295,8 +295,14 @@ while [[ $i -lt ${#FOUND_PLATFORMS[@]} ]]; do
         size=$(stat -c%s "$dest")
     fi
 
-    # Construct the download URL (GitHub Releases asset URL)
-    download_url="https://github.com/$REPO/releases/download/v$VERSION/$dest_name"
+    # Construct the download URL.
+    # ControlZebra serves update artifacts via GitHub Pages from the
+    # controlzebra-releases repo under /releases/download/... .
+    if [[ "$REPO" == "ControlZebra/controlzebra-releases" ]]; then
+        download_url="https://controlzebra.github.io/controlzebra-releases/releases/download/v$VERSION/$dest_name"
+    else
+        download_url="https://github.com/$REPO/releases/download/v$VERSION/$dest_name"
+    fi
 
     # Human-readable size
     size_mb=$(echo "scale=1; $size / 1048576" | bc 2>/dev/null || echo "?")

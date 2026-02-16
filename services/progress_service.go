@@ -299,9 +299,11 @@ func (p *ProgressService) runGitWithProgress(repoPath, operationID, opName strin
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "git", args...)
+	gitExec := GitPath()
+	cmd := exec.CommandContext(ctx, gitExec, args...)
 	cmd.Dir = repoPath
 	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(gitExec)
 
 	// Git sends progress to stderr
 	stderrPipe, err := cmd.StderrPipe()
