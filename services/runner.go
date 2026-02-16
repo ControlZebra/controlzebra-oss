@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -46,6 +49,7 @@ func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workDir
 	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(name)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -116,6 +120,7 @@ func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, erro
 	cmd := exec.CommandContext(ctx, GitPath(), args...)
 	cmd.Dir = repoPath
 	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(GitPath())
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -209,6 +214,7 @@ func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir stri
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workDir
 	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(name)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -259,4 +265,89 @@ func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir stri
 	}
 
 	return result
+}
+
+func buildCommandEnv(commandPath string) []string {
+	env := os.Environ()
+	if runtime.GOOS != "windows" {
+		return env
+	}
+
+	prependDirs := make([]string, 0, 6)
+	seen := map[string]struct{}{}
+
+	addDir := func(dir string) {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			return
+		}
+		key := strings.ToLower(dir)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			seen[key] = struct{}{}
+			prependDirs = append(prependDirs, dir)
+		}
+	}
+
+	// Keep the command's own directory at the front when available.
+	if filepath.IsAbs(commandPath) {
+		addDir(filepath.Dir(commandPath))
+	}
+
+	// Ensure bundled git is discoverable for tools (like gh) that shell out to "git".
+	gitPath := GitPath()
+	if filepath.IsAbs(gitPath) {
+		gitDir := filepath.Dir(gitPath)
+		addDir(gitDir)
+
+		// Typical bundled layout:
+		//   <install>/git/cmd/git.exe
+		//   <install>/git/mingw64/bin/*.dll
+		if strings.EqualFold(filepath.Base(gitDir), "cmd") || strings.EqualFold(filepath.Base(gitDir), "bin") {
+			gitRoot := filepath.Dir(gitDir)
+			addDir(filepath.Join(gitRoot, "mingw64", "bin"))
+			addDir(filepath.Join(gitRoot, "clangarm64", "bin"))
+			addDir(filepath.Join(gitRoot, "usr", "bin"))
+		}
+	}
+
+	ghPath := GhPath()
+	if filepath.IsAbs(ghPath) {
+		addDir(filepath.Dir(ghPath))
+	}
+
+	if len(prependDirs) == 0 {
+		return env
+	}
+
+	pathKey := "Path"
+	pathValue := ""
+	pathIdx := -1
+	for i, kv := range env {
+		if idx := strings.IndexByte(kv, '='); idx > 0 {
+			key := kv[:idx]
+			if strings.EqualFold(key, "Path") {
+				pathKey = key
+				pathValue = kv[idx+1:]
+				pathIdx = i
+				break
+			}
+		}
+	}
+
+	newPath := strings.Join(prependDirs, ";")
+	if strings.TrimSpace(pathValue) != "" {
+		newPath += ";" + pathValue
+	}
+
+	newEntry := pathKey + "=" + newPath
+	if pathIdx >= 0 {
+		env[pathIdx] = newEntry
+	} else {
+		env = append(env, newEntry)
+	}
+
+	return env
 }

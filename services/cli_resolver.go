@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -32,11 +33,13 @@ func resolveCLIPaths() {
 			return
 		}
 
-		// Resolve symlinks so we get the real location inside the .app / install dir
-		execPath, err = filepath.EvalSymlinks(execPath)
-		if err != nil {
-			log.Printf("[cli_resolver] could not resolve symlinks: %v", err)
-			return
+		// Resolve symlinks so we get the real location inside the .app / install dir.
+		// If this fails (common on some Windows install/update flows), continue with
+		// the original executable path instead of aborting CLI resolution.
+		if resolvedExecPath, resolveErr := filepath.EvalSymlinks(execPath); resolveErr != nil {
+			log.Printf("[cli_resolver] could not resolve symlinks (continuing with raw executable path): %v", resolveErr)
+		} else {
+			execPath = resolvedExecPath
 		}
 
 		execDir := filepath.Dir(execPath)
@@ -56,8 +59,18 @@ func resolveCLIPaths() {
 			//   <install dir>/control-zebra.exe      ← execDir
 			//   <install dir>/git/cmd/git.exe
 			//   <install dir>/gh/gh.exe
-			tryResolve(&resolvedGit, filepath.Join(execDir, "git", "cmd", "git.exe"))
-			tryResolve(&resolvedGh, filepath.Join(execDir, "gh", "gh.exe"))
+			tryResolveMany(&resolvedGit,
+				filepath.Join(execDir, "git", "cmd", "git.exe"),
+				filepath.Join(execDir, "git", "bin", "git.exe"),
+				filepath.Join(execDir, "resources", "git", "cmd", "git.exe"),
+				filepath.Join(execDir, "resources", "git", "bin", "git.exe"),
+			)
+			tryResolveMany(&resolvedGh,
+				filepath.Join(execDir, "gh", "gh.exe"),
+				filepath.Join(execDir, "gh", "bin", "gh.exe"),
+				filepath.Join(execDir, "resources", "gh", "gh.exe"),
+				filepath.Join(execDir, "resources", "gh", "bin", "gh.exe"),
+			)
 		}
 
 		// Fall back to system PATH
@@ -69,6 +82,17 @@ func resolveCLIPaths() {
 		if resolvedGh == "" {
 			if p, err := exec.LookPath("gh"); err == nil {
 				resolvedGh = p
+			}
+		}
+
+		// Windows fallback: discover common install paths even when PATH is not
+		// inherited correctly (for example, app launched from Explorer before PATH refresh).
+		if runtime.GOOS == "windows" {
+			if resolvedGit == "" {
+				tryResolveMany(&resolvedGit, commonWindowsGitPaths()...)
+			}
+			if resolvedGh == "" {
+				tryResolveMany(&resolvedGh, commonWindowsGhPaths()...)
 			}
 		}
 
@@ -100,9 +124,75 @@ func GhPath() string {
 // ---------- helpers ----------
 
 func tryResolve(target *string, candidate string) {
+	if *target != "" || strings.TrimSpace(candidate) == "" {
+		return
+	}
 	if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 		*target = candidate
 	}
+}
+
+func tryResolveMany(target *string, candidates ...string) {
+	for _, candidate := range candidates {
+		tryResolve(target, candidate)
+		if *target != "" {
+			return
+		}
+	}
+}
+
+func commonWindowsGitPaths() []string {
+	paths := make([]string, 0, 8)
+
+	appendGitPaths := func(base string) {
+		if strings.TrimSpace(base) == "" {
+			return
+		}
+		paths = append(paths,
+			filepath.Join(base, "Git", "cmd", "git.exe"),
+			filepath.Join(base, "Git", "bin", "git.exe"),
+		)
+	}
+
+	appendGitPaths(os.Getenv("ProgramFiles"))
+	appendGitPaths(os.Getenv("ProgramFiles(x86)"))
+	appendGitPaths(filepath.Join(os.Getenv("LocalAppData"), "Programs"))
+
+	if userProfile := os.Getenv("UserProfile"); strings.TrimSpace(userProfile) != "" {
+		paths = append(paths,
+			filepath.Join(userProfile, "scoop", "apps", "git", "current", "cmd", "git.exe"),
+			filepath.Join(userProfile, "scoop", "apps", "git", "current", "bin", "git.exe"),
+		)
+	}
+
+	return paths
+}
+
+func commonWindowsGhPaths() []string {
+	paths := make([]string, 0, 8)
+
+	appendGhPaths := func(base string) {
+		if strings.TrimSpace(base) == "" {
+			return
+		}
+		paths = append(paths,
+			filepath.Join(base, "GitHub CLI", "gh.exe"),
+			filepath.Join(base, "GitHub CLI", "bin", "gh.exe"),
+		)
+	}
+
+	appendGhPaths(os.Getenv("ProgramFiles"))
+	appendGhPaths(os.Getenv("ProgramFiles(x86)"))
+	appendGhPaths(filepath.Join(os.Getenv("LocalAppData"), "Programs"))
+
+	if userProfile := os.Getenv("UserProfile"); strings.TrimSpace(userProfile) != "" {
+		paths = append(paths,
+			filepath.Join(userProfile, "scoop", "apps", "gh", "current", "bin", "gh.exe"),
+			filepath.Join(userProfile, "scoop", "apps", "gh", "current", "gh.exe"),
+		)
+	}
+
+	return paths
 }
 
 func cliLabel(resolved, fallback string) string {
