@@ -119,6 +119,7 @@ echo -e "${BOLD}╚════════════════════�
 echo ""
 echo -e "  Platforms: ${BOLD}${PLATFORMS[*]}${NC}"
 echo -e "  Universal: ${BOLD}${UNIVERSAL}${NC}"
+echo -e "  Sign: ${BOLD}${DO_SIGN}${NC}"
 echo ""
 
 check_tool() {
@@ -235,7 +236,7 @@ if ! $SKIP_BUILD; then
         APP_VERSION="$VERSION" task darwin:build:universal
         ok "macOS universal binary → ${BIN_DIR}/${APP_NAME}"
     else
-        for arch in "${DARWIN_ARCHS[@]}"; do
+        for arch in ${DARWIN_ARCHS[@]+"${DARWIN_ARCHS[@]}"}; do
             info "Building macOS ${arch}..."
 
             output="${BIN_DIR}/${APP_NAME}-darwin-${arch}"
@@ -248,7 +249,7 @@ if ! $SKIP_BUILD; then
     # ── macOS updater sidecar ──
 
     if [[ ${#DARWIN_ARCHS[@]} -gt 0 ]]; then
-        for arch in "${DARWIN_ARCHS[@]}"; do
+        for arch in ${DARWIN_ARCHS[@]+"${DARWIN_ARCHS[@]}"}; do
             info "Building macOS updater (${arch})..."
             APP_VERSION="$VERSION" task build:updater:cross TARGET_OS=darwin TARGET_ARCH="$arch"
         done
@@ -256,7 +257,7 @@ if ! $SKIP_BUILD; then
 
     # ── Windows builds (cross-compile from macOS using Go without CGO) ──
 
-    for arch in "${WINDOWS_ARCHS[@]}"; do
+    for arch in ${WINDOWS_ARCHS[@]+"${WINDOWS_ARCHS[@]}"}; do
         info "Building Windows ${arch}..."
 
         APP_VERSION="$VERSION" task windows:build ARCH="$arch"
@@ -328,7 +329,7 @@ if ! $SKIP_PACKAGE; then
         ok "macOS .app bundle → ${APP_DIR}"
 
     else
-        for arch in "${DARWIN_ARCHS[@]}"; do
+        for arch in ${DARWIN_ARCHS[@]+"${DARWIN_ARCHS[@]}"}; do
             info "Packaging macOS ${arch} .app bundle..."
 
             src_bin="${BIN_DIR}/${APP_NAME}-darwin-${arch}"
@@ -379,13 +380,20 @@ if ! $SKIP_PACKAGE; then
 
     # ── Windows NSIS installers ──
 
-    for arch in "${WINDOWS_ARCHS[@]}"; do
+    for arch in ${WINDOWS_ARCHS[@]+"${WINDOWS_ARCHS[@]}"}; do
         info "Packaging Windows ${arch} NSIS installer..."
 
         src_exe="${BIN_DIR}/${APP_NAME}-windows-${arch}.exe"
         if [[ ! -f "$src_exe" ]]; then
             warn "Binary not found: ${src_exe} — skipping"
             continue
+        fi
+
+        if $DO_SIGN; then
+            info "Signing Windows ${arch} binary..."
+            task windows:sign:artifact INPUT="$src_exe"
+            task windows:verify:artifact INPUT="$src_exe"
+            ok "Signed binary → ${src_exe}"
         fi
 
         # Stage deps alongside the binary for NSIS to pick up
@@ -445,6 +453,14 @@ if ! $SKIP_PACKAGE; then
                 build/windows/nsis/project.nsi
 
             ok "Windows ${arch} installer → bin/${APP_NAME}-${arch}-installer.exe"
+
+            if $DO_SIGN; then
+                installer_path="${BIN_DIR}/${APP_NAME}-${arch}-installer.exe"
+                info "Signing Windows ${arch} installer..."
+                task windows:sign:artifact INPUT="$installer_path"
+                task windows:verify:artifact INPUT="$installer_path"
+                ok "Signed installer → ${installer_path}"
+            fi
         else
             warn "makensis not available — skipping NSIS installer for windows-${arch}"
             warn "Staged files are in: ${staging_dir}/"

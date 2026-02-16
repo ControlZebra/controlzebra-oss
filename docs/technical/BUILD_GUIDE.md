@@ -59,6 +59,7 @@ APP_VERSION=0.2.0 task windows:package         # Windows NSIS installer
 | Tool | Purpose | Install |
 |------|---------|---------|
 | **NSIS** (makensis) | Windows installer creation | `brew install makensis` (macOS), `apt install nsis` (Linux) |
+| **osslsigncode** | Local self-signed Windows artifact signing | `brew install osslsigncode` (macOS), `apt install osslsigncode` (Linux) |
 | **Docker** | Cross-compilation with CGO | [docker.com](https://docs.docker.com/get-docker/) |
 | **Xcode CLT** | macOS codesigning | `xcode-select --install` |
 
@@ -462,16 +463,33 @@ task darwin:sign:notarize
 ### Windows
 
 ```bash
-# 1. Configure signing in build/windows/Taskfile.yml:
-#    SIGN_CERTIFICATE: "path/to/certificate.pfx"
-#    SIGN_THUMBPRINT: "certificate-thumbprint"
+# Option A (recommended for beta/internal): local self-signed signing
+# 1) One-time: generate local cert bundle
+task windows:cert:selfsigned
 
-# 2. Sign the executable
+# 2) Sign artifacts in self-signed mode
+CZ_WINDOWS_SELF_SIGNED=true task windows:sign:artifact INPUT=bin/control-zebra-windows-amd64.exe
+CZ_WINDOWS_SELF_SIGNED=true task windows:sign:artifact INPUT=bin/control-zebra-amd64-installer.exe
+
+# 3) Verify signatures (self-signed aware)
+CZ_WINDOWS_SELF_SIGNED=true task windows:verify:artifact INPUT=bin/control-zebra-windows-amd64.exe
+CZ_WINDOWS_SELF_SIGNED=true task windows:verify:artifact INPUT=bin/control-zebra-amd64-installer.exe
+
+# Option B (CA-issued cert):
+# Configure SIGN_CERTIFICATE or SIGN_THUMBPRINT and use:
 task windows:sign
-
-# 3. Sign the NSIS installer
 task windows:sign:installer
 ```
+
+#### Self-signed workflow notes
+
+- Cert artifacts are generated under `build/certs/windows/selfsigned/` and are gitignored.
+- The workflow generates/uses:
+  - `controlzebra-selfsigned.pfx`
+  - `controlzebra-selfsigned.cer`
+  - `password.txt`
+- Self-signed mode is intended for **beta/internal** distribution and consistency, not SmartScreen trust.
+- In multi-platform builds, pass `--sign` and export `CZ_WINDOWS_SELF_SIGNED=true` to sign Windows artifacts during packaging.
 
 ---
 
@@ -495,6 +513,11 @@ task windows:sign:installer
 | `task windows:build ARCH=arm64` | Build Windows ARM64 binary |
 | `task windows:package` | Create NSIS installer |
 | `task windows:package FORMAT=msix` | Create MSIX package |
+| `task windows:cert:selfsigned` | Generate/refresh local self-signed Windows code-signing cert |
+| `task windows:sign:artifact INPUT=...` | Sign one Windows artifact (`.exe`) |
+| `task windows:verify:artifact INPUT=...` | Verify one signed Windows artifact |
+| `task windows:sign:release ARCH=amd64` | Sign binary + installer for an architecture |
+| `task windows:verify:release ARCH=amd64` | Verify binary + installer for an architecture |
 | `task build:updater` | Build updater sidecar |
 | `task build:updater:cross TARGET_OS=windows TARGET_ARCH=amd64` | Cross-compile updater |
 | `task setup:docker` | Build Docker cross-compilation image |
@@ -514,6 +537,11 @@ task windows:sign:installer
 | `APP_VERSION` | `0.0.0-dev` | Version injected into binary via `-ldflags` |
 | `SIGNING_PUBLIC_KEY` | `""` | Ed25519 public key for update manifest verification |
 | `CZ_SIGNING_KEY` | `""` | Ed25519 private key for manifest signing |
+| `CZ_WINDOWS_SELF_SIGNED` | `false` | Enable self-signed Windows artifact signing/verification mode |
+| `CZ_WINDOWS_SELF_SIGNED_CERT_DIR` | `build/certs/windows/selfsigned` | Directory for local self-signed PFX/CER/password |
+| `CZ_WINDOWS_TIMESTAMP_SERVER` | `http://timestamp.digicert.com` | Timestamp server used during Windows signing |
+| `CZ_WINDOWS_SIGN_CERTIFICATE` | `""` | Path to CA-issued signing certificate (PFX) |
+| `CZ_WINDOWS_SIGN_THUMBPRINT` | `""` | Thumbprint for certificate in local store |
 
 ---
 
@@ -558,6 +586,23 @@ The NSIS script automatically downloads the WebView2 bootstrapper. If the build 
 ```bash
 # Pre-download the bootstrapper
 wails3 generate webview2bootstrapper -dir build/windows/nsis/
+```
+
+### "osslsigncode is required for local self-signed signing"
+
+```bash
+# macOS
+brew install osslsigncode
+
+# Linux
+sudo apt install osslsigncode
+```
+
+Then rerun:
+
+```bash
+task windows:cert:selfsigned
+CZ_WINDOWS_SELF_SIGNED=true task windows:sign:artifact INPUT=bin/control-zebra-windows-amd64.exe
 ```
 
 ### Bundled git not found at runtime
