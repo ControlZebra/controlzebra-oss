@@ -263,6 +263,7 @@ h1 { font-size: 24px; margin: 0 0 8px 0; color: #fff; }
 	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: "ControlZebra (Beta)",
+		UseApplicationMenu: true,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,
