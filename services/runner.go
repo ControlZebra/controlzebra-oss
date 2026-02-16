@@ -102,7 +102,7 @@ func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name
 }
 
 // RunGit is a convenience method for running git commands.
-// Uses the bundled git binary when available, otherwise falls back to PATH.
+// Uses the resolved git binary when available, otherwise falls back to PATH.
 func (r *CommandRunner) RunGit(repoPath string, args ...string) CommandResult {
 	return r.Run(repoPath, GitPath(), args...)
 }
@@ -167,7 +167,7 @@ func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, erro
 }
 
 // RunGh is a convenience method for running gh CLI commands.
-// Uses the bundled gh binary when available, otherwise falls back to PATH.
+// Uses the resolved gh binary when available, otherwise falls back to PATH.
 func (r *CommandRunner) RunGh(workDir string, args ...string) CommandResult {
 	return r.Run(workDir, GhPath(), args...)
 }
@@ -296,7 +296,12 @@ func buildCommandEnv(commandPath string) []string {
 		addDir(filepath.Dir(commandPath))
 	}
 
-	// Ensure bundled git is discoverable for tools (like gh) that shell out to "git".
+	// Always prioritize managed user-level portable tool directories.
+	for _, dir := range localManagedPathPrepends() {
+		addDir(dir)
+	}
+
+	// Ensure resolved git is discoverable for tools (like gh) that shell out to "git".
 	gitPath := GitPath()
 	if filepath.IsAbs(gitPath) {
 		gitDir := filepath.Dir(gitPath)
@@ -316,6 +321,11 @@ func buildCommandEnv(commandPath string) []string {
 	ghPath := GhPath()
 	if filepath.IsAbs(ghPath) {
 		addDir(filepath.Dir(ghPath))
+	}
+
+	lfsPath := LfsPath()
+	if filepath.IsAbs(lfsPath) {
+		addDir(filepath.Dir(lfsPath))
 	}
 
 	if len(prependDirs) == 0 {

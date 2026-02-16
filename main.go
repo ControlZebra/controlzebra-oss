@@ -36,6 +36,7 @@ func init() {
 	// File menu events
 	application.RegisterEvent[string]("file:reveal-in-finder")
 	application.RegisterEvent[string]("file:open-in-terminal")
+	application.RegisterEvent[services.LocalBinProgress]("local-bin:progress")
 
 	// Terminal events - dynamic event names based on session ID
 	// These are registered as patterns, actual events use session-specific suffixes
@@ -56,6 +57,7 @@ func main() {
 	authService := services.NewAuthService()
 	updaterService := services.NewUpdaterService(Version, "https://controlzebra.github.io/controlzebra-releases/desktop/beta/")
 	debugService := services.NewDebugService()
+	localBinService := services.NewLocalBinService()
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -79,6 +81,7 @@ func main() {
 			application.NewService(authService),
 			application.NewService(updaterService),
 			application.NewService(debugService),
+			application.NewService(localBinService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -95,6 +98,15 @@ func main() {
 	repoSettingsService.SetApp(app)
 	fileWatcherService.SetApp(app)
 	updaterService.SetApp(app)
+	localBinService.SetApp(app)
+
+	if runtime.GOOS == "windows" {
+		go func() {
+			if result := localBinService.EnsurePortableToolchainIfNeeded(); !result.Success {
+				log.Printf("[LocalBinService] failed to prepare portable toolchain: %s", result.Error)
+			}
+		}()
+	}
 
 	// Initialize debug logger with app reference and clean old exports
 	services.GetDebugLogger().SetApp(app)
