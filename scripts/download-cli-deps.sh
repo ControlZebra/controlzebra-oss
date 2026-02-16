@@ -12,6 +12,7 @@
 #   --all                 Download deps for all supported platforms
 #   --platform <os-arch>  Download deps for a specific platform (e.g. darwin-arm64, windows-amd64)
 #   --git-version <ver>   Override Git for Windows version (default: 2.47.1.2)
+#   --git-lfs-version <ver> Override Git LFS version for Windows bundles (default: 3.7.0)
 #   --gh-version <ver>    Override gh CLI version (default: 2.65.0)
 #   --clean               Remove existing deps before downloading
 #
@@ -23,6 +24,7 @@ set -euo pipefail
 # ─── Version pins ──────────────────────────────────────────────────────────────
 
 GIT_WIN_VERSION="2.47.1.2"          # MinGit for Windows
+GIT_LFS_VERSION="3.7.0"            # Git LFS for Windows (bundled alongside MinGit)
 GH_VERSION="2.65.0"                 # GitHub CLI
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
@@ -59,6 +61,8 @@ while [[ $# -gt 0 ]]; do
             PLATFORMS+=("$2"); shift 2 ;;
         --git-version)
             GIT_WIN_VERSION="$2"; shift 2 ;;
+        --git-lfs-version)
+            GIT_LFS_VERSION="$2"; shift 2 ;;
         --gh-version)
             GH_VERSION="$2"; shift 2 ;;
         --clean)
@@ -149,6 +153,49 @@ download_mingit() {
     mkdir -p "${dest_dir}/git"
     unzip -qo "$archive" -d "${dest_dir}/git"
     ok "MinGit ${GIT_WIN_VERSION} (${arch}) ready"
+}
+
+download_windows_git_lfs() {
+    local arch="$1"   # amd64 or arm64
+    local dest_dir="$2"
+
+    local lfs_arch
+    case "$arch" in
+        amd64) lfs_arch="amd64" ;;
+        arm64) lfs_arch="arm64" ;;
+        *)     die "Unsupported Windows architecture for git-lfs: $arch" ;;
+    esac
+
+    local filename="git-lfs-windows-${lfs_arch}-v${GIT_LFS_VERSION}.zip"
+    local url="https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/${filename}"
+    local archive="${CACHE_DIR}/${filename}"
+
+    download "$url" "$archive"
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    unzip -qo "$archive" -d "$tmpdir"
+
+    local lfs_exe
+    lfs_exe=$(find "$tmpdir" -type f -name "git-lfs.exe" | head -1 || true)
+    if [[ -z "$lfs_exe" ]]; then
+        rm -rf "$tmpdir"
+        die "git-lfs.exe not found in ${filename}"
+    fi
+
+    # Place git-lfs where bundled PATH can find it on Windows.
+    mkdir -p "${dest_dir}/git/cmd"
+    cp "$lfs_exe" "${dest_dir}/git/cmd/git-lfs.exe"
+
+    if [[ -d "${dest_dir}/git/mingw64/bin" ]]; then
+        cp "$lfs_exe" "${dest_dir}/git/mingw64/bin/git-lfs.exe"
+    fi
+    if [[ -d "${dest_dir}/git/clangarm64/bin" ]]; then
+        cp "$lfs_exe" "${dest_dir}/git/clangarm64/bin/git-lfs.exe"
+    fi
+
+    rm -rf "$tmpdir"
+    ok "git-lfs ${GIT_LFS_VERSION} (${arch}) ready"
 }
 
 # ─── gh CLI ────────────────────────────────────────────────────────────────────
@@ -295,6 +342,7 @@ for platform in "${PLATFORMS[@]}"; do
             ;;
         windows)
             download_mingit "$arch_part" "$dest_dir"
+            download_windows_git_lfs "$arch_part" "$dest_dir"
             download_gh "windows" "$arch_part" "$dest_dir"
             ;;
         *)
