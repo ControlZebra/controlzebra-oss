@@ -15,6 +15,7 @@ import { useLayout, useRepo } from '../../context';
 import { Button } from '../ui';
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover';
 import { cn } from '../../lib/utils';
+import { getFolderNameFromPath } from '../../lib/pathUtils';
 import { RevealInFinder } from '../../../bindings/controlzebra/services/filesystemservice';
 import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
 import { Browser } from '@wailsio/runtime';
@@ -67,7 +68,7 @@ function RepoSwitcher(): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
 
   // Derive repo display values
-  const repoName = repoPath ? repoPath.split('/').pop() : 'No repository';
+  const repoName = repoPath ? getFolderNameFromPath(repoPath) : 'No repository';
 
   const handleOpenInFileManager = useCallback(async () => {
     if (!repoPath) {

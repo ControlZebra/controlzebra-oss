@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ICON_STYLES } from '../../../lib/gitHelpers';
+import { getFolderNameFromPath } from '../../../lib/pathUtils';
 import { 
   Button, 
 } from '../../ui';
@@ -269,7 +270,7 @@ function ExplorerStatusPanel({
 
     case 'synced':
     default: {
-      const displayName = repoPath?.split('/').pop() || 'Repository';
+      const displayName = repoPath ? getFolderNameFromPath(repoPath) : 'Repository';
       return (
         <PanelLayout
           type="synced"

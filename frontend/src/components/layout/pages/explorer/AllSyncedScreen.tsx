@@ -4,6 +4,7 @@
 import { memo, type CSSProperties } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { ICON_STYLES } from '../../../../lib/gitHelpers';
+import { getFolderNameFromPath } from '../../../../lib/pathUtils';
 
 // ============================================================================
 // Types
@@ -18,7 +19,7 @@ interface AllSyncedScreenProps {
 // ============================================================================
 
 function AllSyncedScreen({ repoPath }: AllSyncedScreenProps): JSX.Element {
-  const folderName = repoPath?.split('/').pop() || 'Repository';
+  const folderName = repoPath ? getFolderNameFromPath(repoPath) : 'Repository';
   
   return (
     <div className="flex-1 flex items-center justify-center p-8 animate-screen-enter overflow-y-auto">
