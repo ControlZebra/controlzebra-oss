@@ -182,24 +182,10 @@ func waitForProcessExit(pid int, timeout time.Duration) error {
 }
 
 // isProcessRunning checks whether a process with the given PID is alive.
-// On Unix, we send signal 0 which doesn't actually kill the process but
-// returns an error if it doesn't exist. On Windows, we use OpenProcess.
+// Platform-specific implementations live in applier_unix.go and
+// applier_windows.go.
 func isProcessRunning(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// On Unix, FindProcess always succeeds — we need to send signal 0 to check.
-	// On Windows, FindProcess checks if the handle is valid.
-	if runtime.GOOS == "windows" {
-		// On Windows, if FindProcess succeeds the process exists.
-		// We release the handle and check via a signal.
-		proc.Release()
-	}
-
-	// Signal 0: no signal sent, but error checking is performed
-	err = proc.Signal(os.Signal(signalZero()))
-	return err == nil
+	return isProcessRunningPlatform(pid)
 }
 
 // moveOrCopy first tries an os.Rename (atomic on same filesystem). If that fails

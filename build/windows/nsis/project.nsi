@@ -35,8 +35,8 @@ Unicode true
 !include "wails_tools.nsh"
 
 # The version information for this two must consist of 4 parts
-VIProductVersion "${INFO_PRODUCTVERSION}.0"
-VIFileVersion    "${INFO_PRODUCTVERSION}.0"
+VIProductVersion "0.3.0.0"
+VIFileVersion    "0.3.0.0"
 
 VIAddVersionKey "CompanyName"     "${INFO_COMPANYNAME}"
 VIAddVersionKey "FileDescription" "${INFO_PRODUCTNAME} Installer"
@@ -58,6 +58,8 @@ ManifestDPIAware true
 !define MUI_LICENSEPAGE_RADIOBUTTONS
 !define MUI_LICENSEPAGE_RADIOBUTTONS_TEXT_ACCEPT "I accept the terms of the Beta Software License Agreement"
 !define MUI_LICENSEPAGE_RADIOBUTTONS_TEXT_DECLINE "I do not accept the terms"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch ControlZebra"
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
 !insertmacro MUI_PAGE_LICENSE "resources\license.txt" # Requires explicit acceptance before continuing

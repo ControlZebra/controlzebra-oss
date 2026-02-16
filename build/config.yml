@@ -11,7 +11,7 @@ info:
   description: "A simplified Git client for industrial automation users" # The application description
   copyright: "(c) 2025, ControlZebra" # Copyright text
   comments: "Democratizing git for everyone" # Comments
-  version: "0.1.0" # The application version
+  version: "v0.3.0-beta" # The application version
 
 # Dev mode configuration
 dev_mode:

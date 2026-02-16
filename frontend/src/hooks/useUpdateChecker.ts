@@ -14,7 +14,7 @@
  *                       ↘ [error] → [idle] (retry)
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Events } from '@wailsio/runtime';
+import { Application, Events } from '@wailsio/runtime';
 import {
   CheckForUpdate,
   DownloadUpdate,
@@ -150,7 +150,7 @@ export function useUpdateChecker(): UseUpdateCheckerReturn {
 
       // Give user a moment to see the "restarting" message, then close
       setTimeout(() => {
-        window.close();
+        void Application.Quit();
       }, 1500);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -168,10 +168,21 @@ export function useUpdateChecker(): UseUpdateCheckerReturn {
       'updater:progress',
       (event: { data?: UpdateProgress }) => {
         if (event.data) {
+          const downloaded = Math.max(0, Number(event.data.downloaded) || 0);
+          const reportedTotal = Number(event.data.total) || 0;
+          const fallbackTotal = updateInfo?.size && updateInfo.size > 0 ? updateInfo.size : 0;
+          const total = reportedTotal > 0 ? reportedTotal : fallbackTotal;
+
+          let percent = Number(event.data.percent);
+          if (!Number.isFinite(percent) || percent <= 0) {
+            percent = total > 0 ? (downloaded / total) * 100 : 0;
+          }
+          percent = Math.max(0, Math.min(100, percent));
+
           setProgress({
-            downloaded: event.data.downloaded,
-            total: event.data.total,
-            percent: event.data.percent,
+            downloaded,
+            total,
+            percent,
           });
         }
       },
@@ -180,7 +191,7 @@ export function useUpdateChecker(): UseUpdateCheckerReturn {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [updateInfo?.size]);
 
   // ── Listen for manual check from Help menu ─────────────────────────────
 
