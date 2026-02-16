@@ -116,7 +116,8 @@ export function IsLFSEnabled(repoPath: string): $CancellablePromise<$models.LFSI
 
 /**
  * IsLFSInstalled checks if git-lfs is installed on the system.
- * Result is cached after the first check for efficiency.
+ * Positive result is cached, but a negative result is retried so runtime
+ * installation (portable toolchain setup) is picked up automatically.
  */
 export function IsLFSInstalled(): $CancellablePromise<boolean> {
     return $Call.ByID(1238983738);

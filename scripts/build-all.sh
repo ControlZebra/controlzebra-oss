@@ -3,9 +3,9 @@
 # build-all.sh — Build ControlZebra for macOS & Windows (ARM64 + AMD64)
 #
 # This script orchestrates a full multi-platform release build:
-#   1. Downloads portable git & gh CLI for each target
+#   1. Downloads optional macOS CLI deps for app-bundle embedding
 #   2. Builds the Wails v3 app binary for each target
-#   3. Packages installers (macOS .app, Windows NSIS) with bundled CLIs
+#   3. Packages installers (macOS .app, Windows NSIS)
 #
 # Prerequisites:
 #   - Go 1.24+ (with GOPATH configured)
@@ -22,7 +22,7 @@
 # Options:
 #   --version, -v <semver>   Set app version (default: 0.0.0-dev)
 #   --platforms <list>        Comma-separated: darwin-arm64,darwin-amd64,windows-amd64,windows-arm64
-#   --skip-deps               Skip downloading CLI dependencies (git, gh)
+#   --skip-deps               Skip downloading optional macOS CLI dependencies (git, gh)
 #   --skip-build              Skip building (just package)
 #   --skip-package            Skip packaging (just build binaries)
 #   --universal               Build macOS universal binary (arm64 + amd64)
@@ -186,19 +186,26 @@ fi
 
 mkdir -p "$BIN_DIR"
 
-# ─── Step 1: Download CLI dependencies ─────────────────────────────────────────
+# ─── Step 1: Download optional macOS CLI dependencies ─────────────────────────
 
 TOTAL_STEPS=4
 if ! $SKIP_DEPS; then
     TOTAL_STEPS=5
-    step "Downloading CLI dependencies (git, gh)"
+    step "Downloading optional macOS CLI dependencies (git, gh)"
 
     dep_args=()
     for plat in "${PLATFORMS[@]}"; do
-        dep_args+=(--platform "$plat")
+        # Windows no longer embeds git/gh in the installer.
+        if [[ "${plat%-*}" == "darwin" ]]; then
+            dep_args+=(--platform "$plat")
+        fi
     done
 
-    bash "${SCRIPT_DIR}/download-cli-deps.sh" "${dep_args[@]}"
+    if [[ ${#dep_args[@]} -gt 0 ]]; then
+        bash "${SCRIPT_DIR}/download-cli-deps.sh" "${dep_args[@]}"
+    else
+        info "No macOS targets selected; skipping CLI dependency download"
+    fi
 fi
 
 # ─── Step 2: Build frontend (shared across all targets) ────────────────────────
@@ -274,10 +281,10 @@ if ! $SKIP_BUILD; then
     done
 fi
 
-# ─── Step 4: Package installers with bundled CLIs ──────────────────────────────
+# ─── Step 4: Package installers ────────────────────────────────────────────────
 
 if ! $SKIP_PACKAGE; then
-    step "Packaging installers with bundled CLIs"
+    step "Packaging installers"
 
     # ── macOS .app bundles ──
 
@@ -396,7 +403,7 @@ if ! $SKIP_PACKAGE; then
             ok "Signed binary → ${src_exe}"
         fi
 
-        # Stage deps alongside the binary for NSIS to pick up
+        # Stage required artifacts for NSIS
         staging_dir="${BIN_DIR}/windows-${arch}-staging"
         rm -rf "$staging_dir"
         mkdir -p "$staging_dir"
@@ -408,24 +415,6 @@ if ! $SKIP_PACKAGE; then
         updater_src="${BIN_DIR}/cz-updater-windows-${arch}.exe"
         if [[ -f "$updater_src" ]]; then
             cp "$updater_src" "${staging_dir}/cz-updater.exe"
-        fi
-
-        # Copy bundled git (MinGit)
-        dep_dir="${DEPS_DIR}/windows-${arch}"
-        if [[ -d "${dep_dir}/git" ]]; then
-            info "Bundling MinGit..."
-            cp -R "${dep_dir}/git" "${staging_dir}/git"
-        else
-            warn "No bundled MinGit for windows-${arch}"
-        fi
-
-        # Copy bundled gh
-        if [[ -d "${dep_dir}/gh" ]]; then
-            info "Bundling gh CLI..."
-            mkdir -p "${staging_dir}/gh"
-            cp "${dep_dir}/gh/bin/gh.exe" "${staging_dir}/gh/gh.exe" 2>/dev/null || \
-                cp "${dep_dir}/gh/gh.exe" "${staging_dir}/gh/gh.exe" 2>/dev/null || \
-                warn "Could not find gh.exe in deps"
         fi
 
         # Create NSIS installer
@@ -448,8 +437,6 @@ if ! $SKIP_PACKAGE; then
             makensis \
                 -DARG_WAILS_${NSIS_ARCH_FLAG}_BINARY="${ROOT_DIR}/${staging_dir}/${APP_NAME}.exe" \
                 -DARG_UPDATER_BINARY="${ROOT_DIR}/${staging_dir}/cz-updater.exe" \
-                -DARG_GIT_DIR="${ROOT_DIR}/${staging_dir}/git" \
-                -DARG_GH_DIR="${ROOT_DIR}/${staging_dir}/gh" \
                 build/windows/nsis/project.nsi
 
             ok "Windows ${arch} installer → bin/${APP_NAME}-${arch}-installer.exe"

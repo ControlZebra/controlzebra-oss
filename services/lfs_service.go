@@ -8,14 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 // LFSService provides Git LFS operations via CLI
 type LFSService struct {
 	runner       *CommandRunner
 	lfsInstalled bool
-	lfsCheckOnce sync.Once
 }
 
 // NewLFSService creates a new LFSService instance
@@ -34,12 +32,15 @@ type LFSInfo struct {
 }
 
 // IsLFSInstalled checks if git-lfs is installed on the system.
-// Result is cached after the first check for efficiency.
+// Positive result is cached, but a negative result is retried so runtime
+// installation (portable toolchain setup) is picked up automatically.
 func (l *LFSService) IsLFSInstalled() bool {
-	l.lfsCheckOnce.Do(func() {
-		result := l.runner.Run(".", GitPath(), "lfs", "version")
-		l.lfsInstalled = result.Success
-	})
+	if l.lfsInstalled {
+		return true
+	}
+
+	result := l.runner.Run(".", GitPath(), "lfs", "version")
+	l.lfsInstalled = result.Success
 	return l.lfsInstalled
 }
 

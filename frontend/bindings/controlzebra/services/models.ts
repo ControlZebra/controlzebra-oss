@@ -1918,6 +1918,103 @@ export class LFSSettings {
 }
 
 /**
+ * LocalBinProgress is emitted to the frontend while portable tools are being prepared.
+ */
+export class LocalBinProgress {
+    "component": string;
+    "phase": string;
+    "message": string;
+    "downloaded": number;
+    "total": number;
+    "percent": number;
+    "success": boolean;
+    "error"?: string;
+
+    /** Creates a new LocalBinProgress instance. */
+    constructor($$source: Partial<LocalBinProgress> = {}) {
+        if (!("component" in $$source)) {
+            this["component"] = "";
+        }
+        if (!("phase" in $$source)) {
+            this["phase"] = "";
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+        if (!("downloaded" in $$source)) {
+            this["downloaded"] = 0;
+        }
+        if (!("total" in $$source)) {
+            this["total"] = 0;
+        }
+        if (!("percent" in $$source)) {
+            this["percent"] = 0;
+        }
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LocalBinProgress instance from a string or object.
+     */
+    static createFrom($$source: any = {}): LocalBinProgress {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LocalBinProgress($$parsedSource as Partial<LocalBinProgress>);
+    }
+}
+
+/**
+ * LocalBinStatus reports the current local portable tool availability.
+ */
+export class LocalBinStatus {
+    "binRoot": string;
+    "gitPath": string;
+    "ghPath": string;
+    "lfsPath": string;
+    "hasGit": boolean;
+    "hasGh": boolean;
+    "hasLfs": boolean;
+
+    /** Creates a new LocalBinStatus instance. */
+    constructor($$source: Partial<LocalBinStatus> = {}) {
+        if (!("binRoot" in $$source)) {
+            this["binRoot"] = "";
+        }
+        if (!("gitPath" in $$source)) {
+            this["gitPath"] = "";
+        }
+        if (!("ghPath" in $$source)) {
+            this["ghPath"] = "";
+        }
+        if (!("lfsPath" in $$source)) {
+            this["lfsPath"] = "";
+        }
+        if (!("hasGit" in $$source)) {
+            this["hasGit"] = false;
+        }
+        if (!("hasGh" in $$source)) {
+            this["hasGh"] = false;
+        }
+        if (!("hasLfs" in $$source)) {
+            this["hasLfs"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LocalBinStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): LocalBinStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LocalBinStatus($$parsedSource as Partial<LocalBinStatus>);
+    }
+}
+
+/**
  * LockFileInfo contains information about Git lock files in the repository
  */
 export class LockFileInfo {

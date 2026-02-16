@@ -6,9 +6,17 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as services$0 from "../../../../../controlzebra/services/models.js";
+
 function configure() {
     Object.freeze(Object.assign($Create.Events, {
+        "local-bin:progress": $$createType0,
     }));
 }
+
+// Private type creation functions
+const $$createType0 = services$0.LocalBinProgress.createFrom;
 
 configure();

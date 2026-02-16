@@ -5,6 +5,10 @@
 // @ts-ignore: Unused imports
 import type { Events } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as services$0 from "../../../../../controlzebra/services/models.js";
+
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
@@ -12,6 +16,7 @@ declare module "@wailsio/runtime" {
             "file:reveal-in-finder": string;
             "folder-closed": string;
             "folder-selected": string;
+            "local-bin:progress": services$0.LocalBinProgress;
             "time": string;
         }
     }
