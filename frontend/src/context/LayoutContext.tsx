@@ -80,7 +80,8 @@ interface LayoutProviderProps {
 const LayoutContext = createContext<LayoutContextValue | null>(null);
 
 // Default layout values
-const DEFAULT_SIDEBAR_WIDTH = 224;  // 14rem
+// Keep startup width at the current maximum allowed by Sidebar constraints.
+const DEFAULT_SIDEBAR_WIDTH = 400;
 
 // Global UI events emitted by RepoContext to keep explorer previews in sync
 const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
