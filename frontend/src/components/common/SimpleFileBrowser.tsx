@@ -263,6 +263,38 @@ function getFileIcon(fileName: string, isDirectory: boolean): LucideIcon {
   return (ext && EXTENSION_ICONS[ext]) || File;
 }
 
+function normalizePathSeparators(path: string): string {
+  return path.replace(/\\/g, '/');
+}
+
+function getPathBaseName(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, '');
+  if (!trimmed) return path;
+  const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1) : trimmed;
+}
+
+function getPathParent(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, '');
+  const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  if (separatorIndex <= 0) return '';
+  return trimmed.slice(0, separatorIndex);
+}
+
+function getRelativePathFromRoot(path: string | null | undefined, rootPath: string | null | undefined): string {
+  if (!path || !rootPath) return '';
+
+  const normalizedPath = normalizePathSeparators(path);
+  const normalizedRoot = normalizePathSeparators(rootPath).replace(/\/+$/, '');
+
+  if (normalizedPath === normalizedRoot) return '';
+  if (normalizedPath.startsWith(`${normalizedRoot}/`)) {
+    return normalizedPath.slice(normalizedRoot.length + 1);
+  }
+
+  return '';
+}
+
 /**
  * Build git status map for current directory
  */
@@ -270,9 +302,7 @@ function buildGitStatusMap(repoStatus: RepoStatus | null, currentPath: string | 
   const statusMap: Record<string, string> = {};
   if (!repoStatus?.changedFiles || !repoPath) return statusMap;
   
-  const relativeCurrentPath = currentPath?.startsWith(repoPath) 
-    ? currentPath.slice(repoPath.length + 1)
-    : '';
+  const relativeCurrentPath = getRelativePathFromRoot(currentPath, repoPath);
   
   for (const file of repoStatus.changedFiles) {
     const filePath = file.path;
@@ -356,12 +386,12 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }: BreadcrumbsProps) {
     let path = currentPath;
     
     while (path && path.length >= rootPath.length) {
-      const name = path.split('/').pop() || path;
+      const name = getPathBaseName(path) || path;
       segments.unshift({ path, name });
       
       if (path === rootPath) break;
       
-      const parentPath = path.substring(0, path.lastIndexOf('/'));
+      const parentPath = getPathParent(path);
       if (parentPath === path || !parentPath) break;
       path = parentPath;
     }
@@ -459,9 +489,7 @@ function Toolbar({
       }
       
       // Calculate relative path from repo root
-      const relativePath = currentPath.startsWith(repoPath)
-        ? currentPath.slice(repoPath.length)
-        : '';
+      const relativePath = getRelativePathFromRoot(currentPath, repoPath);
       
       // URL-encode the path segments to handle special characters:
       // - Spaces → %20
@@ -1485,10 +1513,14 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
     if (!currentPath) return;
     
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const normalizedCurrentPath = normalizePathSeparators(currentPath);
     
     const handleFileChanged = (ev: { data?: { path?: string } }) => {
-      const path = ev.data?.path;
-      if (path?.startsWith(currentPath) || path === currentPath) {
+      const changedPathRaw = ev.data?.path;
+      if (!changedPathRaw) return;
+
+      const changedPath = normalizePathSeparators(changedPathRaw);
+      if (changedPath === normalizedCurrentPath || changedPath.startsWith(`${normalizedCurrentPath}/`)) {
         // Reset debounce timer on each event — only the last one fires
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
@@ -1529,9 +1561,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         // LFSLsFiles returns paths relative to repo root
         // Extract just the file names for files in the current directory
         const lfsSet = new Set<string>();
-        const relCurrentPath = currentPath?.startsWith(repoPath)
-          ? currentPath.slice(repoPath.length + 1)
-          : '';
+        const relCurrentPath = getRelativePathFromRoot(currentPath, repoPath);
         for (const filePath of fileList) {
           const dir = filePath.includes('/')
             ? filePath.substring(0, filePath.lastIndexOf('/'))
@@ -1563,9 +1593,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         const locks = await LFSLocks(repoPath);
         if (aborted) return;
 
-        const relCurrentPath = currentPath?.startsWith(repoPath)
-          ? currentPath.slice(repoPath.length + 1)
-          : '';
+        const relCurrentPath = getRelativePathFromRoot(currentPath, repoPath);
 
         const map: Record<string, string> = {};
         for (const lock of locks) {
@@ -1588,10 +1616,9 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   }, [repoPath, currentPath, lockRefreshKey]);
 
   const getRepoRelativePath = useCallback((absPath: string): string => {
-    if (!repoPath) return absPath;
-    return absPath.startsWith(repoPath)
-      ? absPath.slice(repoPath.length + 1)
-      : absPath;
+    if (!repoPath) return normalizePathSeparators(absPath);
+    const relative = getRelativePathFromRoot(absPath, repoPath);
+    return relative || normalizePathSeparators(absPath);
   }, [repoPath]);
 
   // Track the last successfully loaded path so we can distinguish
@@ -1820,9 +1847,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
         }
 
         try {
-          const relPath = file.path.startsWith(repoPath)
-            ? file.path.slice(repoPath.length + 1)
-            : file.name;
+          const relPath = getRepoRelativePath(file.path) || file.name;
 
           const result = await LFSLock(repoPath, relPath);
           if (result.success) {
