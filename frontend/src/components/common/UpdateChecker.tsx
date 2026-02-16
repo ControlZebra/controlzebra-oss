@@ -40,6 +40,12 @@ import type { UpdateStatus } from '../../hooks/useUpdateChecker';
 
 const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
+function formatDisplayVersion(version: string | undefined): string {
+  const value = (version ?? '').trim();
+  if (!value) return 'unknown';
+  return value.toLowerCase().startsWith('v') ? value : `v${value}`;
+}
+
 // ── Toast notification (shown when update is available) ─────────────────
 
 /** Show a toast when an update is first detected */
@@ -54,7 +60,7 @@ function useUpdateToast(
     if (status === 'available' && version && !hasShownToast.current) {
       hasShownToast.current = true;
 
-      toast.info(`Update available: v${version}`, {
+      toast.info(`Update available: ${formatDisplayVersion(version)}`, {
         description: 'A new version of ControlZebra is ready.',
         duration: 12_000,
         action: {
@@ -106,7 +112,7 @@ function ModalBody({ status, updateInfo, progress, error, currentVersion }: Moda
         <div className="flex flex-col items-center gap-3 py-6">
           <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
           <p className="text-sm text-theme-secondary">Checking for updates…</p>
-          <p className="text-xs text-theme-tertiary">Current version: v{currentVersion}</p>
+          <p className="text-xs text-theme-tertiary">Current version: {formatDisplayVersion(currentVersion)}</p>
         </div>
       );
 
@@ -115,7 +121,7 @@ function ModalBody({ status, updateInfo, progress, error, currentVersion }: Moda
         <div className="flex flex-col items-center gap-3 py-6">
           <CheckCircle className="h-8 w-8 text-green-400" />
           <p className="text-sm text-theme-primary font-medium">You're up to date!</p>
-          <p className="text-xs text-theme-tertiary">Version v{currentVersion} is the latest.</p>
+          <p className="text-xs text-theme-tertiary">Version {formatDisplayVersion(currentVersion)} is the latest.</p>
         </div>
       );
 
@@ -126,7 +132,7 @@ function ModalBody({ status, updateInfo, progress, error, currentVersion }: Moda
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2.5 py-1 text-xs font-medium text-blue-400">
               <Sparkles style={iconSm} />
-              v{updateInfo?.version}
+              {formatDisplayVersion(updateInfo?.version)}
             </span>
             {updateInfo?.mandatory && (
               <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-400">
@@ -152,7 +158,7 @@ function ModalBody({ status, updateInfo, progress, error, currentVersion }: Moda
 
           {/* Current version */}
           <p className="text-xs text-theme-tertiary">
-            Current version: v{currentVersion}
+            Current version: {formatDisplayVersion(currentVersion)}
           </p>
         </div>
       );

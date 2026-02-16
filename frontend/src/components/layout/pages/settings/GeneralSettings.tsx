@@ -20,6 +20,12 @@ import {
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const LAST_UPDATE_CHECKED_KEY = 'cz_last_update_checked_at';
 
+function formatDisplayVersion(version: string | undefined): string {
+  const value = (version ?? '').trim();
+  if (!value) return 'unknown';
+  return value.toLowerCase().startsWith('v') ? value : `v${value}`;
+}
+
 interface ThemeOption {
   id: Theme;
   label: string;
@@ -102,7 +108,7 @@ function GeneralSettings(): JSX.Element {
       localStorage.setItem(LAST_UPDATE_CHECKED_KEY, checkedAt);
 
       if (updateInfo) {
-        toast.info(`Update available: v${updateInfo.version}`, {
+        toast.info(`Update available: ${formatDisplayVersion(updateInfo.version)}`, {
           description: 'Use Help → Check for Updates to review and install.',
         });
       } else {
@@ -249,7 +255,7 @@ function GeneralSettings(): JSX.Element {
         <div className="space-y-2 mb-4 text-sm">
           <p className="text-theme-secondary">
             <span className="text-theme-muted">Current app version:</span>{' '}
-            <span className="text-theme-primary font-medium">v{currentVersion}</span>
+            <span className="text-theme-primary font-medium">{formatDisplayVersion(currentVersion)}</span>
           </p>
           <p className="text-theme-secondary">
             <span className="text-theme-muted">Last checked:</span>{' '}

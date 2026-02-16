@@ -87,6 +87,14 @@ FunctionEnd
 Section
     !insertmacro wails.setShellContext
 
+    # Best effort: close running processes that can lock files in $INSTDIR during upgrade/reinstall.
+    # This avoids common "Error opening file for writing" failures.
+    nsExec::ExecToLog 'taskkill /F /T /IM "${PRODUCT_EXECUTABLE}"'
+    Pop $0
+    nsExec::ExecToLog 'taskkill /F /T /IM "cz-updater.exe"'
+    Pop $0
+    Sleep 800
+
     !insertmacro wails.webview2runtime
 
     SetOutPath $INSTDIR
