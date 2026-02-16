@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "0.1.0"
+		"file_version": "0.3.0"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "0.1.0",
+			"ProductVersion": "v0.3.0-beta",
 			"CompanyName": "ControlZebra",
 			"FileDescription": "A simplified Git client for industrial automation",
 			"LegalCopyright": "© 2025, ControlZebra",

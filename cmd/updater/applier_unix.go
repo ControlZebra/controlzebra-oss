@@ -7,10 +7,14 @@ import (
 	"syscall"
 )
 
-// signalZero returns the Unix "signal 0" used to check if a process is alive.
-// Sending signal 0 to a PID doesn't deliver any signal, but the kernel still
-// performs permission and existence checks — returning an error if the process
-// doesn't exist.
-func signalZero() os.Signal {
-	return syscall.Signal(0)
+// isProcessRunningPlatform checks process liveness on Unix platforms via
+// signal 0 (existence/permission check without delivering a signal).
+func isProcessRunningPlatform(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	err = proc.Signal(syscall.Signal(0))
+	return err == nil
 }

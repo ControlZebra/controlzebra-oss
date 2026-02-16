@@ -3,15 +3,31 @@
 package main
 
 import (
-	"os"
 	"syscall"
 )
 
-// signalZero returns a signal used to probe process existence on Windows.
-// On Windows, os.Process.Signal only supports os.Kill and os.Interrupt.
-// We use signal 0 (which Go will translate to a process existence check).
-// Note: On Windows, isProcessRunning uses a different strategy (OpenProcess),
-// but this is here for compilation compatibility.
-func signalZero() os.Signal {
-	return syscall.Signal(0)
+const (
+	processQueryLimitedInformation = 0x1000
+	stillActiveExitCode            = 259 // STILL_ACTIVE
+)
+
+// isProcessRunningPlatform checks process liveness on Windows by opening a
+// process handle and reading its exit code.
+func isProcessRunningPlatform(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+
+	h, err := syscall.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
+	if err != nil {
+		return false
+	}
+	defer syscall.CloseHandle(h)
+
+	var exitCode uint32
+	if err := syscall.GetExitCodeProcess(h, &exitCode); err != nil {
+		return false
+	}
+
+	return exitCode == stillActiveExitCode
 }
