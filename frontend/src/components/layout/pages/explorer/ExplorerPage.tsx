@@ -36,12 +36,16 @@ function ExplorerPage(): JSX.Element {
     repoStatus,
     openFolder,
     startTracking,
+    installRequiredPackages,
     publishToGitHub,
     startGitHubLogin,
     loadUserOrganizations,
     refreshRemotes,
     hasRemote,
     isLoading,
+    gitInstalled,
+    lfsInstalled,
+    isInstallingPackages,
     ghInstalled,
     ghAuthStatus,
   } = useRepo();
@@ -284,10 +288,14 @@ function ExplorerPage(): JSX.Element {
           repoPath={repoPath}
           fileCount={repoStatus?.changedFiles?.length}
           onEnableVersionControl={startTracking}
+          onInstallRequiredPackages={installRequiredPackages}
           onPublishToGitHub={handlePublishFromBanner}
           onConnectGitHub={handleConnectGitHub}
           onLoadOrganizations={loadUserOrganizations}
           isLoading={isLoading}
+          gitInstalled={gitInstalled}
+          lfsInstalled={lfsInstalled}
+          isInstallingPackages={isInstallingPackages}
           isPublishing={isPublishing}
           ghInstalled={ghInstalled}
           ghAuthStatus={ghAuthStatus}

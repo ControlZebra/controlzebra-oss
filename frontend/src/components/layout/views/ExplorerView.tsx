@@ -45,6 +45,7 @@ function ExplorerView(): JSX.Element {
     repoInfo,
     repoStatus, 
     startTracking,
+    installRequiredPackages,
     commitChanges,
     branchAndCommit,
     discardFileChanges,
@@ -57,6 +58,9 @@ function ExplorerView(): JSX.Element {
     hasRemote,
     refreshRemotes,
     // GitHub state
+    gitInstalled,
+    lfsInstalled,
+    isInstallingPackages,
     ghInstalled,
     ghAuthStatus,
     startGitHubLogin,
@@ -191,6 +195,7 @@ function ExplorerView(): JSX.Element {
         hasRemote={hasRemote}
         totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
         onInitialize={startTracking}
+        onInstallRequiredPackages={installRequiredPackages}
         onSync={syncRepo}
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
@@ -199,6 +204,9 @@ function ExplorerView(): JSX.Element {
         isLoading={isLoading}
         isSyncing={isSyncing}
         isPublishing={isPublishing}
+        gitInstalled={gitInstalled}
+        lfsInstalled={lfsInstalled}
+        isInstallingPackages={isInstallingPackages}
         ghInstalled={ghInstalled}
         ghAuthStatus={ghAuthStatus}
       />

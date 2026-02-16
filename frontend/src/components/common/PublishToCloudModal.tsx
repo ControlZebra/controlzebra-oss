@@ -23,6 +23,8 @@ interface PublishToCloudModalProps {
   onLoadOrganizations?: () => Promise<GitHubOrganizationsResult>;
   isPublishing?: boolean;
   ghInstalled?: boolean;
+  onInstallRequiredPackages?: () => Promise<boolean>;
+  isInstallingPackages?: boolean;
   ghAuthStatus?: GitHubAuthStatus | null;
   repoPath?: string;
 }
@@ -35,6 +37,8 @@ function PublishToCloudModal({
   onLoadOrganizations,
   isPublishing = false,
   ghInstalled = false,
+  onInstallRequiredPackages,
+  isInstallingPackages = false,
   ghAuthStatus,
   repoPath,
 }: PublishToCloudModalProps): JSX.Element {
@@ -115,13 +119,27 @@ function PublishToCloudModal({
               <Button
                 size="sm"
                 onClick={onConnectGitHub}
-                disabled={!ghInstalled}
+                disabled={!ghInstalled || isInstallingPackages}
               >
                 <Github size={ICON_SIZES.xs} />
                 Connect GitHub
               </Button>
               {!ghInstalled && (
-                <p className="text-yellow-400 text-xs mt-2">GitHub CLI not installed</p>
+                <div className="mt-2 space-y-2">
+                  <p className="text-yellow-400 text-xs">
+                    {isInstallingPackages ? 'Installing GitHub CLI… Please wait.' : 'GitHub CLI is required to publish.'}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={onInstallRequiredPackages}
+                    loading={isInstallingPackages}
+                    disabled={!onInstallRequiredPackages || isInstallingPackages}
+                  >
+                    <Github size={ICON_SIZES.xs} />
+                    {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
+                  </Button>
+                </div>
               )}
             </div>
           ) : (

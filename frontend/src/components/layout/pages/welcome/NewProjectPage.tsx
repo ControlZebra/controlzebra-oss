@@ -208,6 +208,8 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
   const {
     openRepo,
     ghInstalled,
+    isInstallingPackages,
+    installRequiredPackages,
     ghAuthStatus,
     isCheckingGhAuth,
     startGitHubLogin,
@@ -695,9 +697,27 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
                       GitHub Account
                     </label>
                     {!ghInstalled ? (
-                      <div className="flex items-center gap-2 text-yellow-400 text-xs p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
-                        <AlertTriangle size={14} />
-                        <span>GitHub CLI not installed. <a href="https://cli.github.com" target="_blank" rel="noreferrer" className="underline">Install it</a> to enable cloud backup.</span>
+                      <div className="text-yellow-400 text-xs p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={14} />
+                          <span>
+                            {isInstallingPackages
+                              ? 'Installing GitHub CLI… Please wait.'
+                              : 'GitHub CLI is required to enable cloud backup.'}
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={installRequiredPackages}
+                            loading={isInstallingPackages}
+                            disabled={isInstallingPackages || isCreating}
+                          >
+                            <Github size={ICON_SIZES.xs} />
+                            {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
+                          </Button>
+                        </div>
                       </div>
                     ) : isLoggedIn ? (
                       <div className="flex items-center gap-2 bg-theme-hover border border-theme-default rounded px-3 py-2">
@@ -710,7 +730,7 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
                         variant="secondary"
                         size="sm"
                         onClick={handleGitHubConnect}
-                        disabled={isCheckingGhAuth || isCreating}
+                        disabled={isCheckingGhAuth || isCreating || isInstallingPackages}
                       >
                         {isCheckingGhAuth ? (
                           <Loader2 className="animate-spin" size={14} />

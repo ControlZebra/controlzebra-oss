@@ -163,6 +163,8 @@ function CloneProjectPage(): JSX.Element {
   const {
     openRepo,
     ghInstalled,
+    isInstallingPackages,
+    installRequiredPackages,
     ghAuthStatus,
     isCheckingGhAuth,
     startGitHubLogin,
@@ -502,20 +504,27 @@ function CloneProjectPage(): JSX.Element {
                   GitHub Account
                 </label>
                 {!ghInstalled ? (
-                  <div className="flex items-center gap-2 text-yellow-400 text-xs p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
-                    <AlertTriangle size={14} />
-                    <span>
-                      GitHub CLI not installed.{' '}
-                      <a
-                        href="https://cli.github.com"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline"
+                  <div className="text-yellow-400 text-xs p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={14} />
+                      <span>
+                        {isInstallingPackages
+                          ? 'Installing GitHub CLI… Please wait.'
+                          : 'GitHub CLI is required to browse repositories.'}
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={installRequiredPackages}
+                        loading={isInstallingPackages}
+                        disabled={isInstallingPackages}
                       >
-                        Install it
-                      </a>{' '}
-                      to browse repositories.
-                    </span>
+                        <Github size={ICON_SIZES.xs} />
+                        {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
+                      </Button>
+                    </div>
                   </div>
                 ) : isLoggedIn ? (
                   <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded px-3 py-2">
@@ -528,7 +537,7 @@ function CloneProjectPage(): JSX.Element {
                     variant="secondary"
                     size="sm"
                     onClick={handleGitHubConnect}
-                    disabled={isCheckingGhAuth || isCloning}
+                    disabled={isCheckingGhAuth || isCloning || isInstallingPackages}
                   >
                     {isCheckingGhAuth ? (
                       <Loader2 className="animate-spin" size={14} />
