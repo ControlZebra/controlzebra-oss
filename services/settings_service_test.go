@@ -182,3 +182,35 @@ func TestSetUserProfile_PartialUpdate(t *testing.T) {
 		t.Errorf("Expected email 'original@example.com', got '%s'", loadedProfile.Email)
 	}
 }
+
+func TestGetUserProfile_Global(t *testing.T) {
+	// Isolate global git config for this test.
+	tmpHome, err := os.MkdirTemp("", "git-home-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp home dir: %v", err)
+	}
+	defer os.RemoveAll(tmpHome)
+
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("USERPROFILE", tmpHome)
+	t.Setenv("HOMEDRIVE", "")
+	t.Setenv("HOMEPATH", "")
+
+	svc := NewSettingsService()
+
+	setResult := svc.SetUserProfile("", UserProfile{
+		Name:  "Global User",
+		Email: "global@example.com",
+	}, true)
+	if !setResult.Success {
+		t.Fatalf("Expected SetUserProfile to succeed, got error: %s", setResult.Error)
+	}
+
+	profile := svc.GetUserProfile("")
+	if profile.Name != "Global User" {
+		t.Errorf("Expected name 'Global User', got '%s'", profile.Name)
+	}
+	if profile.Email != "global@example.com" {
+		t.Errorf("Expected email 'global@example.com', got '%s'", profile.Email)
+	}
+}

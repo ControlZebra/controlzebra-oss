@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,20 +121,16 @@ func createStagingDir(base string) (string, error) {
 // downloadWithProgress performs the HTTP download, streams progress to stdout,
 // computes a SHA-256 hash inline, and returns the path to the staged file.
 func downloadWithProgress(url, stagingDir, expectedHash string) (string, error) {
-	resp, err := http.Get(url)
+	resp, finalURL, err := fetchDownloadResponse(url)
 	if err != nil {
-		return "", fmt.Errorf("download request failed: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download returned HTTP %d", resp.StatusCode)
-	}
 
 	totalSize := resp.ContentLength // -1 if unknown
 
 	// Determine the output filename from the URL path
-	filename := filepath.Base(url)
+	filename := filepath.Base(finalURL)
 	if filename == "" || filename == "." || filename == "/" {
 		filename = "cz-update-download"
 	}
@@ -193,6 +190,72 @@ func downloadWithProgress(url, stagingDir, expectedHash string) (string, error) 
 	}
 
 	return stagedPath, nil
+}
+
+// fetchDownloadResponse fetches the update artifact and returns an open HTTP response.
+// If the primary URL is a GitHub Releases URL that returns 404, it retries once
+// against the GitHub Pages mirror path:
+//
+//	https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>
+//	→ https://<owner>.github.io/<repo>/releases/download/<tag>/<asset>
+func fetchDownloadResponse(downloadURL string) (*http.Response, string, error) {
+	attempts := []string{downloadURL}
+	if fallback, ok := githubPagesFallbackURL(downloadURL); ok {
+		attempts = append(attempts, fallback)
+	}
+
+	for i, candidate := range attempts {
+		resp, err := http.Get(candidate)
+		if err != nil {
+			if i == len(attempts)-1 {
+				return nil, "", fmt.Errorf("download request failed for %s: %w", candidate, err)
+			}
+			continue
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			return resp, candidate, nil
+		}
+
+		resp.Body.Close()
+
+		if i == len(attempts)-1 {
+			return nil, "", fmt.Errorf("download returned HTTP %d for %s", resp.StatusCode, candidate)
+		}
+	}
+
+	return nil, "", fmt.Errorf("download failed: no valid URL candidate")
+}
+
+// githubPagesFallbackURL converts a GitHub Releases URL to a GitHub Pages mirror URL.
+// Returns false when the URL does not match the expected releases/download format.
+func githubPagesFallbackURL(downloadURL string) (string, bool) {
+	u, err := url.Parse(downloadURL)
+	if err != nil {
+		return "", false
+	}
+
+	if !strings.EqualFold(u.Scheme, "https") || !strings.EqualFold(u.Host, "github.com") {
+		return "", false
+	}
+
+	parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+	if len(parts) < 6 {
+		return "", false
+	}
+
+	owner := parts[0]
+	repo := parts[1]
+	if parts[2] != "releases" || parts[3] != "download" {
+		return "", false
+	}
+
+	u.Host = owner + ".github.io"
+	u.Path = "/" + repo + "/" + strings.Join(parts[2:], "/")
+	u.RawQuery = ""
+	u.Fragment = ""
+
+	return u.String(), true
 }
 
 // emitProgress writes a JSON progress line to stdout.

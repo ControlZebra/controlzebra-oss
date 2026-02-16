@@ -156,38 +156,67 @@ func (s *SettingsService) ClearRecentFolders() error {
 func (s *SettingsService) GetUserProfile(repoPath string) UserProfile {
 	profile := UserProfile{}
 
-	// If repoPath is provided, try to get local config first
-	workDir := "."
-	if repoPath != "" {
-		workDir = repoPath
+	// No repository path means "global profile" (used by Settings > Git Identity).
+	// Avoid plain `git config user.name` here because it can behave like a local
+	// lookup and fail outside a repository on Windows packaged builds.
+	if repoPath == "" {
+		var wg sync.WaitGroup
+		var nameResult, emailResult CommandResult
+
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			nameResult = s.runner.RunGit(".", "config", "--global", "user.name")
+		}()
+		go func() {
+			defer wg.Done()
+			emailResult = s.runner.RunGit(".", "config", "--global", "user.email")
+		}()
+		wg.Wait()
+
+		if nameResult.Success {
+			profile.Name = strings.TrimSpace(nameResult.Stdout)
+		}
+		if emailResult.Success {
+			profile.Email = strings.TrimSpace(emailResult.Stdout)
+		}
+
+		return profile
 	}
 
+	// Repo profile: prefer local values, then fall back to global.
 	var wg sync.WaitGroup
-	var nameResult, emailResult CommandResult
+	var localName, localEmail, globalName, globalEmail CommandResult
 
-	// Run both git config commands concurrently
-	wg.Add(2)
-
-	// Get user name
+	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		nameResult = s.runner.RunGit(workDir, "config", "user.name")
+		localName = s.runner.RunGit(repoPath, "config", "--local", "user.name")
 	}()
-
-	// Get user email
 	go func() {
 		defer wg.Done()
-		emailResult = s.runner.RunGit(workDir, "config", "user.email")
+		localEmail = s.runner.RunGit(repoPath, "config", "--local", "user.email")
 	}()
-
+	go func() {
+		defer wg.Done()
+		globalName = s.runner.RunGit(repoPath, "config", "--global", "user.name")
+	}()
+	go func() {
+		defer wg.Done()
+		globalEmail = s.runner.RunGit(repoPath, "config", "--global", "user.email")
+	}()
 	wg.Wait()
 
-	// Process results
-	if nameResult.Success {
-		profile.Name = strings.TrimSpace(nameResult.Stdout)
+	if localName.Success && strings.TrimSpace(localName.Stdout) != "" {
+		profile.Name = strings.TrimSpace(localName.Stdout)
+	} else if globalName.Success {
+		profile.Name = strings.TrimSpace(globalName.Stdout)
 	}
-	if emailResult.Success {
-		profile.Email = strings.TrimSpace(emailResult.Stdout)
+
+	if localEmail.Success && strings.TrimSpace(localEmail.Stdout) != "" {
+		profile.Email = strings.TrimSpace(localEmail.Stdout)
+	} else if globalEmail.Success {
+		profile.Email = strings.TrimSpace(globalEmail.Stdout)
 	}
 
 	return profile
