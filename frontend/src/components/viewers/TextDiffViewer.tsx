@@ -68,6 +68,10 @@ function normalizeStatus(status?: string): TextDiffStatus {
   return 'modified';
 }
 
+function normalizePathSeparators(path: string): string {
+  return path.replace(/\\/g, '/');
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -84,13 +88,17 @@ function TextDiffViewer({
 }: TextDiffViewerProps): JSX.Element {
   const repoRelativePath = useMemo((): string => {
     if (!filePath) return '';
+
+    const normalizedFilePath = normalizePathSeparators(filePath);
+    const normalizedRepoPath = normalizePathSeparators(repoPath || '').replace(/\/+$/, '');
+
     // Some callers may pass an absolute path (e.g., explorer tabs store absoluteFilePath).
     // GitService diff APIs expect repo-relative paths.
-    const prefix = repoPath ? `${repoPath}/` : '';
-    if (prefix && filePath.startsWith(prefix)) {
-      return filePath.slice(prefix.length);
+    const prefix = normalizedRepoPath ? `${normalizedRepoPath}/` : '';
+    if (prefix && normalizedFilePath.startsWith(prefix)) {
+      return normalizedFilePath.slice(prefix.length);
     }
-    return filePath;
+    return normalizedFilePath;
   }, [repoPath, filePath]);
 
   const [diff, setDiff] = useState<RawDiffResult | null>(fileDiff ?? null);

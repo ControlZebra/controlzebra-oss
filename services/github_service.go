@@ -6,7 +6,10 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -803,6 +806,41 @@ func (g *GitHubService) RepoListForOrg(org string, limit int) GitHubRepoListResu
 // Repository Clone
 // ============================================================================
 
+func inferRepoNameFromIdentifier(repo string) string {
+	cleaned := strings.TrimSpace(repo)
+	if cleaned == "" {
+		return ""
+	}
+
+	cleaned = strings.TrimSuffix(cleaned, "/")
+	cleaned = strings.TrimSuffix(cleaned, ".git")
+
+	if strings.Contains(cleaned, "://") {
+		if parsed, err := url.Parse(cleaned); err == nil {
+			path := strings.Trim(parsed.Path, "/")
+			if path != "" {
+				parts := strings.Split(path, "/")
+				return strings.TrimSuffix(parts[len(parts)-1], ".git")
+			}
+		}
+	}
+
+	// Handle SCP-like SSH URLs: git@github.com:owner/repo(.git)
+	if strings.Contains(cleaned, "@") {
+		if idx := strings.LastIndex(cleaned, ":"); idx >= 0 && idx < len(cleaned)-1 {
+			cleaned = cleaned[idx+1:]
+		}
+	}
+
+	cleaned = strings.Trim(cleaned, "/")
+	if cleaned == "" {
+		return ""
+	}
+
+	parts := strings.Split(cleaned, "/")
+	return strings.TrimSuffix(parts[len(parts)-1], ".git")
+}
+
 // RepoClone clones a GitHub repository to the specified directory
 // repo: repository in "owner/repo" format or full URL
 // destPath: local directory to clone into (will be created)
@@ -819,30 +857,35 @@ func (g *GitHubService) RepoClone(repo string, destPath string, shallow bool) Gi
 	}
 
 	args := []string{"repo", "clone", repo}
-	if destPath != "" {
-		args = append(args, destPath)
-	}
 	if shallow {
 		args = append(args, "--", "--depth=1")
 	}
 
-	result := g.runner.Run("", GhPath(), args...)
+	repoName := inferRepoNameFromIdentifier(repo)
+	cloneDir := repoName
+	workDir := ""
+
+	if destPath != "" {
+		if err := os.MkdirAll(destPath, 0755); err != nil {
+			return GitHubCloneResult{
+				Success: false,
+				Error:   "Failed to create destination folder: " + err.Error(),
+			}
+		}
+
+		workDir = destPath
+		if repoName != "" {
+			cloneDir = filepath.Join(destPath, repoName)
+		} else {
+			cloneDir = destPath
+		}
+	}
+
+	result := g.runner.Run(workDir, GhPath(), args...)
 	if !result.Success {
 		return GitHubCloneResult{
 			Success: false,
 			Error:   getGHErrorMessage(result),
-		}
-	}
-
-	// Determine the actual clone directory
-	cloneDir := destPath
-	if cloneDir == "" {
-		// gh clones to a folder named after the repo
-		parts := strings.Split(repo, "/")
-		if len(parts) > 0 {
-			cloneDir = parts[len(parts)-1]
-			// Remove .git suffix if present
-			cloneDir = strings.TrimSuffix(cloneDir, ".git")
 		}
 	}
 
@@ -936,7 +979,7 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 	if options.Clone {
 		createResult.CloneDir = options.Name
 		if options.ClonePath != "" {
-			createResult.CloneDir = options.ClonePath + "/" + options.Name
+			createResult.CloneDir = filepath.Join(options.ClonePath, options.Name)
 		}
 	}
 
