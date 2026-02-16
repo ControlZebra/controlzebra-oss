@@ -41,6 +41,7 @@ import { ICON_SIZES } from '../../constants';
 import { GetFileAtRevisionBase64 } from '../../../bindings/controlzebra/services/gitservice';
 import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
 import { base64ToFile } from './model3d-utils';
+import { getPathFileName } from './path-utils';
 
 // ============================================================================
 // Types
@@ -562,7 +563,7 @@ function Model3DDiffViewer({
   const mountedRef = useRef(true);
 
   const fileName = useMemo(
-    () => filePath.split('/').pop() ?? filePath,
+    () => getPathFileName(filePath),
     [filePath],
   );
 

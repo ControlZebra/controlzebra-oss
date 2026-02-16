@@ -21,6 +21,7 @@ import { ReadTextFile } from '../../../bindings/controlzebra/services/filesystem
 import { ICON_SIZES } from '../../constants';
 import type { ViewerProps } from '../../lib/viewers';
 import { useCachedContent } from '../../lib/viewer-cache';
+import { getPathFileName } from './path-utils';
 
 /**
  * TextViewer component for displaying text-based files.
@@ -44,7 +45,7 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
   );
 
   // Extract filename from path
-  const fileName = filePath.split('/').pop() || filePath;
+  const fileName = getPathFileName(filePath);
 
   // Memoize line splitting to avoid re-computation on re-renders
   // IMPORTANT: Must be called before any conditional returns to follow Rules of Hooks

@@ -28,6 +28,7 @@ import { ReadFileAtRevision } from '../../../../bindings/controlzebra/services/g
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../../constants';
 import { useLayout } from '../../../context/LayoutContext';
+import { getPathFileName } from '../path-utils';
 
 import DiffChangeStream from './DiffChangeStream';
 
@@ -243,7 +244,7 @@ function L5XWorkingDiffViewer({
         <div className="text-center">
           <p className="text-sm font-medium">{phaseLabel}</p>
           <p className="text-xs text-theme-muted mt-1">
-            {filePath.split('/').pop()}
+            {getPathFileName(filePath)}
           </p>
         </div>
       </div>

@@ -43,6 +43,7 @@ import {
 import { ICON_SIZES } from '../../constants';
 import { GetFileAtRevisionBase64 } from '../../../bindings/controlzebra/services/gitservice';
 import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
+import { getPathFileName } from './path-utils';
 import {
   loadPdfFromBase64,
   renderPageToImageData,
@@ -798,7 +799,7 @@ function PDFDiffViewer({
     );
   }
 
-  const fileName = filePath.split('/').pop() || filePath;
+  const fileName = getPathFileName(filePath);
 
   return (
     <div className="flex flex-col h-full min-h-0">

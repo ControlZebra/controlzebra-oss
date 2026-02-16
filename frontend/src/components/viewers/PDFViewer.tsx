@@ -31,6 +31,7 @@ import {
 import { ICON_SIZES } from '../../constants';
 import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../lib/viewers';
+import { getPathFileName } from './path-utils';
 
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -101,7 +102,7 @@ function PDFViewer({ filePath }: ViewerProps): JSX.Element {
   const parentRef = useRef<HTMLDivElement>(null);
   const currentPageRef = useRef(1);
 
-  const fileName = useMemo(() => filePath.split('/').pop() || filePath, [filePath]);
+  const fileName = useMemo(() => getPathFileName(filePath), [filePath]);
   const scale = ZOOM_LEVELS[zoomIndex];
   const zoomPercent = Math.round(scale * 100);
 
