@@ -18,7 +18,7 @@
         PublisherName="CN=ControlZebra"
         PublisherDisplayName="ControlZebra"
         Version="0.1.0.0"
-        PackageDescription="A simplified Git client for industrial automation">
+        PackageDescription="ControlZebra">
         <Capabilities>
             <Capability Name="runFullTrust" />
             
@@ -26,7 +26,7 @@
         <Applications>
             <Application
                 Id="com.controlzebra.controlzebra"
-                Description="A simplified Git client for industrial automation"
+                Description="ControlZebra"
                 DisplayName="ControlZebra"
                 ExecutableName="control-zebra"
                 EntryPoint="Windows.FullTrustApplication">
@@ -43,7 +43,7 @@
             <Framework>false</Framework>
             <DisplayName>ControlZebra</DisplayName>
             <PublisherDisplayName>ControlZebra</PublisherDisplayName>
-            <Description>A simplified Git client for industrial automation</Description>
+            <Description>ControlZebra</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>

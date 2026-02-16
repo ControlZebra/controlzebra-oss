@@ -66,7 +66,7 @@ func main() {
 	// 'Mac' options tailor the application when running an macOS.
 	app := application.New(application.Options{
 		Name:        "control-zebra",
-		Description: "A simplified Git client for industrial automation users",
+		Description: "ControlZebra",
 		Services: []application.Service{
 			application.NewService(services.NewGitService()),
 			application.NewService(services.NewLFSService()),
@@ -256,7 +256,7 @@ h1 { font-size: 24px; margin: 0 0 8px 0; color: #fff; }
 <body>
 <h1>ControlZebra</h1>
 <div class="version">Version %s</div>
-<div class="description">A simplified Git client for industrial automation users. Manage version control without the complexity.</div>
+<div class="description">ControlZebra. Manage version control without the complexity.</div>
 <div class="copyright">© 2026 ControlZebra</div>
 </body>
 </html>
