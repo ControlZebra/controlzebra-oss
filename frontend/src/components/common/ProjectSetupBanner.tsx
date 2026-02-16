@@ -59,6 +59,14 @@ interface ProjectSetupBannerProps {
   ghInstalled?: boolean;
   /** GitHub auth status */
   ghAuthStatus?: GitHubAuthStatus | null;
+  /** Git installed and available */
+  gitInstalled?: boolean;
+  /** Git LFS installed and available */
+  lfsInstalled?: boolean;
+  /** Package installation state */
+  isInstallingPackages?: boolean;
+  /** Callback to install required packages */
+  onInstallRequiredPackages?: () => Promise<boolean>;
   /** Repo path (for deriving default repo name) */
   repoPath?: string;
 }
@@ -128,6 +136,10 @@ function ProjectSetupBanner({
   isPublishing = false,
   ghInstalled = false,
   ghAuthStatus,
+  gitInstalled = true,
+  lfsInstalled = true,
+  isInstallingPackages = false,
+  onInstallRequiredPackages,
   repoPath,
 }: ProjectSetupBannerProps): JSX.Element | null {
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
@@ -143,13 +155,20 @@ function ProjectSetupBanner({
   }, [projectState]);
 
   const handleEnableVC = useCallback(async () => {
+    const needsPackages = !gitInstalled || !lfsInstalled;
+
+    if (needsPackages && onInstallRequiredPackages) {
+      await onInstallRequiredPackages();
+      return;
+    }
+
     if (onEnableVersionControl) {
       const success = await onEnableVersionControl();
       if (success) {
         setIsPublishModalOpen(false);
       }
     }
-  }, [onEnableVersionControl]);
+  }, [gitInstalled, lfsInstalled, onInstallRequiredPackages, onEnableVersionControl]);
 
   // Don't render for fully set up projects, nested repos, or dismissed banners
   if (projectState === PROJECT_STATES.TRACKED_WITH_REMOTE || projectState === PROJECT_STATES.NESTED_REPO || dismissed) {
@@ -172,6 +191,18 @@ function ProjectSetupBanner({
 
   const isPublishState = projectState === PROJECT_STATES.TRACKED_NO_REMOTE;
   const showSubtitle = !isPublishState;
+  const needsTrackingPackages = !gitInstalled || !lfsInstalled;
+
+  let untrackedActionLabel = config.actionLabel;
+  if (needsTrackingPackages) {
+    if (!gitInstalled && !lfsInstalled) {
+      untrackedActionLabel = 'Install Git & LFS';
+    } else if (!gitInstalled) {
+      untrackedActionLabel = 'Install Git';
+    } else {
+      untrackedActionLabel = 'Install Git LFS';
+    }
+  }
 
   return (
     <div
@@ -192,9 +223,9 @@ function ProjectSetupBanner({
 
         {/* Primary CTA (compact, in the header row) */}
         {isUntrackedState && (
-          <Button size="sm" onClick={handleEnableVC} loading={isLoading}>
+          <Button size="sm" onClick={handleEnableVC} loading={isLoading || isInstallingPackages}>
             <GitBranch size={ICON_SIZES.xs} />
-            {config.actionLabel}
+            {isInstallingPackages ? 'Installing Packages...' : untrackedActionLabel}
           </Button>
         )}
 
@@ -230,6 +261,8 @@ function ProjectSetupBanner({
           onLoadOrganizations={onLoadOrganizations}
           isPublishing={isPublishing}
           ghInstalled={ghInstalled}
+          onInstallRequiredPackages={onInstallRequiredPackages}
+          isInstallingPackages={isInstallingPackages}
           ghAuthStatus={ghAuthStatus}
           repoPath={repoPath}
         />

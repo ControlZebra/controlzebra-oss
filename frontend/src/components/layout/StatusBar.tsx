@@ -124,7 +124,18 @@ function getProjectStateIndicator(state: ProjectState | null): ProjectStateIndic
 // ============================================================================
 
 function StatusBar(): JSX.Element {
-  const { repoPath, repoInfo, repoStatus, isSyncing, hasRemote, startTracking } = useRepo();
+  const {
+    repoPath,
+    repoInfo,
+    repoStatus,
+    isSyncing,
+    hasRemote,
+    startTracking,
+    installRequiredPackages,
+    gitInstalled,
+    lfsInstalled,
+    isInstallingPackages,
+  } = useRepo();
   const { setActiveView, setSidebarCollapsed } = useLayout();
 
   // ---------------------------------------------------------------------------
@@ -195,8 +206,13 @@ function StatusBar(): JSX.Element {
 
   // Handle "Enable version control" nudge click
   const handleNudgeClick = useCallback(async () => {
+    if (!gitInstalled || !lfsInstalled) {
+      await installRequiredPackages();
+      return;
+    }
+
     await startTracking('status_bar_nudge');
-  }, [startTracking]);
+  }, [startTracking, gitInstalled, lfsInstalled, installRequiredPackages]);
 
   return (
     <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">
@@ -234,10 +250,13 @@ function StatusBar(): JSX.Element {
                 {stateIndicator.showNudge && (
                   <button
                     onClick={handleNudgeClick}
+                    disabled={isInstallingPackages}
                     className="text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1 hidden md:inline"
-                    title="Enable version control for this folder"
+                    title={(!gitInstalled || !lfsInstalled)
+                      ? 'Install required packages to enable version control'
+                      : 'Enable version control for this folder'}
                   >
-                    Enable
+                    {isInstallingPackages ? 'Installing…' : ((!gitInstalled || !lfsInstalled) ? 'Install' : 'Enable')}
                   </button>
                 )}
               </div>

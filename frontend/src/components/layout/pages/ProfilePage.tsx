@@ -4,7 +4,6 @@
  */
 import { memo, useState, useCallback, type CSSProperties, type JSX } from 'react';
 import { UserCircle, Github, Check, AlertCircle, Loader2, LogOut } from 'lucide-react';
-import { Browser } from '@wailsio/runtime';
 import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
 import { GitLabIcon, GitHubDeviceFlowModal } from '../../common';
@@ -22,6 +21,8 @@ function ProfilePage(): JSX.Element {
 
   const { 
     ghInstalled, 
+    isInstallingPackages,
+    installRequiredPackages,
     ghAuthStatus, 
     isCheckingGhAuth,
     startGitHubLogin,
@@ -85,7 +86,9 @@ function ProfilePage(): JSX.Element {
       return (
         <div className="flex items-center gap-2 text-yellow-400">
           <AlertCircle size={16} />
-          <span className="text-sm">GitHub CLI not installed</span>
+          <span className="text-sm">
+            {isInstallingPackages ? 'Installing GitHub CLI… Please wait.' : 'GitHub CLI is required'}
+          </span>
         </div>
       );
     }
@@ -113,10 +116,12 @@ function ProfilePage(): JSX.Element {
         <Button 
           variant="secondary" 
           size="sm"
-          onClick={() => Browser.OpenURL('https://cli.github.com')}
+          onClick={installRequiredPackages}
+          loading={isInstallingPackages}
+          disabled={isInstallingPackages}
         >
           <Github style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
-          <span className="ml-1.5">Install CLI</span>
+          <span className="ml-1.5">{isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}</span>
         </Button>
       );
     }

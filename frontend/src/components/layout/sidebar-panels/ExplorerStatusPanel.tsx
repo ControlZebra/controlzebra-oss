@@ -60,6 +60,7 @@ interface ExplorerStatusPanelProps {
   hasRemote?: boolean;
   totalLocalCommits?: number;
   onInitialize?: () => void;
+  onInstallRequiredPackages?: () => Promise<boolean>;
   onSync?: () => void;
   onConnectGitHub?: () => void;
   onPublishToGitHub?: (name: string, isPrivate: boolean, owner: string) => Promise<void>;
@@ -69,6 +70,9 @@ interface ExplorerStatusPanelProps {
   isSyncing?: boolean;
   isPublishing?: boolean;
   ghInstalled?: boolean;
+  gitInstalled?: boolean;
+  lfsInstalled?: boolean;
+  isInstallingPackages?: boolean;
   ghAuthStatus?: GitHubAuthStatus | null;
 }
 
@@ -136,6 +140,7 @@ function ExplorerStatusPanel({
   hasRemote = true,
   totalLocalCommits = 0,
   onInitialize,
+  onInstallRequiredPackages,
   onSync,
   onConnectGitHub,
   onPublishToGitHub,
@@ -145,9 +150,26 @@ function ExplorerStatusPanel({
   isSyncing = false,
   isPublishing = false,
   ghInstalled = false,
+  gitInstalled = true,
+  lfsInstalled = true,
+  isInstallingPackages = false,
   ghAuthStatus = null,
 }: ExplorerStatusPanelProps): JSX.Element {
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const needsTrackingPackages = !gitInstalled || !lfsInstalled;
+
+  const trackingButtonLabel = needsTrackingPackages
+    ? (!gitInstalled && !lfsInstalled ? 'Install Git & LFS' : (!gitInstalled ? 'Install Git' : 'Install Git LFS'))
+    : 'Start Tracking';
+
+  const handleNoRepoAction = useCallback((): void => {
+    if (needsTrackingPackages) {
+      void onInstallRequiredPackages?.();
+      return;
+    }
+
+    onInitialize?.();
+  }, [needsTrackingPackages, onInstallRequiredPackages, onInitialize]);
 
   const handleOpenCombineChanges = useCallback((): void => {
     onOpenCombineChanges?.();
@@ -162,13 +184,13 @@ function ExplorerStatusPanel({
           subtitle={<><span className="font-medium">{folderName}</span> is not tracked</>}
         >
           <Button 
-            onClick={onInitialize} 
-            loading={isLoading}
+            onClick={handleNoRepoAction}
+            loading={isLoading || isInstallingPackages}
             size="sm"
             className="w-full"
           >
             <GitBranch style={ICON_STYLES.sm as CSSProperties} />
-            Start Tracking
+            {isInstallingPackages ? 'Installing Packages...' : trackingButtonLabel}
           </Button>
         </PanelLayout>
       );
@@ -243,6 +265,8 @@ function ExplorerStatusPanel({
             onLoadOrganizations={onLoadOrganizations}
             isPublishing={isPublishing}
             ghInstalled={ghInstalled}
+            onInstallRequiredPackages={onInstallRequiredPackages}
+            isInstallingPackages={isInstallingPackages}
             ghAuthStatus={ghAuthStatus}
             repoPath={repoPath}
           />

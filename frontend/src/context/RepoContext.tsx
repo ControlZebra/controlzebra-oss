@@ -65,6 +65,7 @@ import {
   SkipAMPatch,
   CreateBranchFromDetached,
   RemoveAllStaleLocks,
+  GetGitVersion,
 } from '../../bindings/controlzebra/services/gitservice';
 import {
   IsGHInstalled,
@@ -82,9 +83,13 @@ import {
 } from '../../bindings/controlzebra/services/githubservice';
 import {
   InitializeLFS,
+  IsLFSInstalled,
   GetPresetPatterns,
   TrackPattern,
 } from '../../bindings/controlzebra/services/lfsservice';
+import {
+  EnsurePortableToolchainIfNeeded,
+} from '../../bindings/controlzebra/services/localbinservice';
 import { SyncWithProgress } from '../../bindings/controlzebra/services/progressservice';
 import { GetAppSettings, SaveAppSettings, EnsureIdentity } from '../../bindings/controlzebra/services/settingsservice';
 import { useAuth } from './AuthContext';
@@ -210,6 +215,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [hasRemote, setHasRemote] = useState(false);
   
   // ===== GitHub State (Phase 2) =====
+  const [gitInstalled, setGitInstalled] = useState(true);
+  const [lfsInstalled, setLfsInstalled] = useState(true);
+  const [isInstallingPackages, setIsInstallingPackages] = useState(false);
+  const [packagesInstallMessage, setPackagesInstallMessage] = useState('');
+  const [packagesInstallPercent, setPackagesInstallPercent] = useState<number | null>(null);
+
   const [ghInstalled, setGhInstalled] = useState(false);
   const [ghVersion, setGhVersion] = useState('');
   const [ghAuthStatus, setGhAuthStatus] = useState<GitHubAuthStatus | null>(null);
@@ -229,6 +240,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const operationIdCounter = useRef(0);
   const repoOpenTimeRef = useRef<number>(0);
   const syncStartTimeRef = useRef<number | null>(null);
+
+  const isWindowsPlatform = useCallback((): boolean => {
+    return navigator.userAgent.toLowerCase().includes('win');
+  }, []);
 
   // ===== Core Handlers =====
 
@@ -260,6 +275,65 @@ export function RepoProvider({ children }: RepoProviderProps) {
       detail: { relativePath },
     }));
   }, []);
+
+  const refreshToolchainStatus = useCallback(async (): Promise<{ hasGit: boolean; hasGh: boolean; hasLfs: boolean }> => {
+    let hasGit = false;
+    let hasGh = false;
+    let hasLfs = false;
+
+    try {
+      const gitVersion = await GetGitVersion();
+      hasGit = !!gitVersion;
+    } catch {
+      hasGit = false;
+    }
+
+    try {
+      hasGh = await IsGHInstalled();
+    } catch {
+      hasGh = false;
+    }
+
+    try {
+      hasLfs = await IsLFSInstalled();
+    } catch {
+      hasLfs = false;
+    }
+
+    setGitInstalled(hasGit);
+    setGhInstalled(hasGh);
+    setLfsInstalled(hasLfs);
+
+    return { hasGit, hasGh, hasLfs };
+  }, []);
+
+  const installRequiredPackages = useCallback(async (): Promise<boolean> => {
+    if (!isWindowsPlatform()) {
+      showMessage('error', 'Required packages are missing. Please install Git, Git LFS, and GitHub CLI manually.');
+      return false;
+    }
+
+    setIsInstallingPackages(true);
+    setPackagesInstallMessage('Additional packages are being downloaded...');
+    setPackagesInstallPercent(null);
+
+    try {
+      const result = await EnsurePortableToolchainIfNeeded();
+      if (!result.success) {
+        showMessage('error', result.error || result.message || 'Failed to install required packages');
+        return false;
+      }
+
+      await refreshToolchainStatus();
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      showMessage('error', `Failed to install required packages: ${error.message || err}`);
+      return false;
+    } finally {
+      setIsInstallingPackages(false);
+    }
+  }, [isWindowsPlatform, refreshToolchainStatus, showMessage]);
 
   // Fetch repo status from Git
   const refreshStatus = useCallback(async (): Promise<void> => {
@@ -495,6 +569,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', 'No folder open');
       return false;
     }
+
+    if (!gitInstalled || !lfsInstalled) {
+      const installed = await installRequiredPackages();
+      if (!installed) {
+        return false;
+      }
+    }
     
     if (repoInfo?.isRepo) {
       showMessage('info', 'Folder is already being tracked');
@@ -606,7 +687,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage]);
+  }, [repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage, gitInstalled, lfsInstalled, installRequiredPackages]);
 
   // Close the current repository
   const closeRepo = useCallback(async (): Promise<void> => {
@@ -2149,6 +2230,16 @@ export function RepoProvider({ children }: RepoProviderProps) {
     const { path, remote, onStepChange, gitignoreTemplateId } = options;
     const createStartTime = Date.now();
 
+    if (!gitInstalled || !lfsInstalled || (!remote.skip && !ghInstalled)) {
+      const installed = await installRequiredPackages();
+      if (!installed) {
+        return {
+          success: false,
+          error: 'Required packages are still being installed. Please wait and try again.',
+        };
+      }
+    }
+
     // Track setup started (Phase 13.2)
     trackProjectSetupStarted({
       projectState: 'new-project',
@@ -2303,9 +2394,81 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to create project: ${msg}`);
       return { success: false, error: msg };
     }
-  }, [userName, userEmail, openRepo, showMessage]);
+  }, [userName, userEmail, openRepo, showMessage, gitInstalled, lfsInstalled, ghInstalled, installRequiredPackages]);
 
   // ===== Effects =====
+
+  // Track local portable toolchain progress emitted by backend.
+  useEffect(() => {
+    const unsubscribe = Events.On('local-bin:progress', (event: any) => {
+      const payload = (event?.data?.[0] ?? event?.data ?? event) as {
+        component?: string;
+        phase?: string;
+        message?: string;
+        percent?: number;
+        error?: string;
+      };
+
+      if (!payload || typeof payload !== 'object') return;
+
+      if (payload.message) {
+        setPackagesInstallMessage(payload.message);
+      }
+
+      if (typeof payload.percent === 'number' && Number.isFinite(payload.percent)) {
+        setPackagesInstallPercent(Math.max(0, Math.min(100, payload.percent)));
+      }
+
+      if (payload.phase === 'error') {
+        setIsInstallingPackages(false);
+        if (payload.error) {
+          showMessage('error', payload.error);
+        }
+        return;
+      }
+
+      if (payload.component === 'toolchain' && payload.phase === 'done') {
+        setIsInstallingPackages(false);
+        setPackagesInstallMessage(payload.message || 'Additional packages are ready');
+        return;
+      }
+
+      setIsInstallingPackages(true);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [showMessage]);
+
+  // Prevent app shutdown while package download is in progress.
+  useEffect(() => {
+    if (!isInstallingPackages) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = 'Additional packages are being downloaded. Please wait.';
+      return event.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isInstallingPackages]);
+
+  // Validate required CLI packages at startup and install if missing.
+  useEffect(() => {
+    const initializeToolchain = async () => {
+      const status = await refreshToolchainStatus();
+      const hasMissing = !status.hasGit || !status.hasGh || !status.hasLfs;
+
+      if (hasMissing && isWindowsPlatform()) {
+        await installRequiredPackages();
+        await refreshToolchainStatus();
+      }
+    };
+
+    initializeToolchain();
+  }, [refreshToolchainStatus, installRequiredPackages, isWindowsPlatform]);
 
   // Check GitHub auth status on mount
   useEffect(() => {
@@ -2501,6 +2664,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
     isSyncing,
     isCommitting,
     isDiffLoading,
+    gitInstalled,
+    lfsInstalled,
+    isInstallingPackages,
+    packagesInstallMessage,
+    packagesInstallPercent,
     
     // Remote state
     hasRemote,
@@ -2526,6 +2694,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     openFolder,
     closeRepo,
     startTracking,
+    installRequiredPackages,
     commitChanges,
     syncRepo,
     refreshStatus,
@@ -2621,12 +2790,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
     repoPath, repoInfo, repoStatus, graphCommits, branches, selectedFileIndex,
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
+    gitInstalled, lfsInstalled, isInstallingPackages, packagesInstallMessage, packagesInstallPercent,
     hasRemote, refreshRemotes,
     repoSettings, refreshRepoSettings,
     progressModal, handleProgressComplete,
     showMessage,
     nonGitFolderPromptPath, dismissNonGitFolderPrompt,
-    openRepo, openFolder, closeRepo, startTracking, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
+    openRepo, openFolder, closeRepo, startTracking, installRequiredPackages, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, renameBranch, deleteBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,

@@ -474,6 +474,13 @@ export interface RepoContextValue {
   isCommitting: boolean;
   isDiffLoading: boolean;
 
+  // CLI/package availability state
+  gitInstalled: boolean;
+  lfsInstalled: boolean;
+  isInstallingPackages: boolean;
+  packagesInstallMessage: string;
+  packagesInstallPercent: number | null;
+
   // Remote state
   hasRemote: boolean;
   refreshRemotes: () => Promise<boolean>;
@@ -501,6 +508,7 @@ export interface RepoContextValue {
   openFolder: (path: string) => Promise<boolean>;
   closeRepo: () => Promise<void>;
   startTracking: (source?: ProjectSetupStartSource) => Promise<boolean>;
+  installRequiredPackages: () => Promise<boolean>;
   commitChanges: (message: string, force?: boolean) => Promise<boolean>;
   syncRepo: () => Promise<boolean>;
   refreshStatus: () => Promise<void>;
