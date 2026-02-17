@@ -14,10 +14,17 @@ SettingsService
 
 ## Settings Storage
 
-App settings are stored in the user's config directory:
-- **macOS:** `~/Library/Application Support/control-zebra/settings.json`
-- **Windows:** `%APPDATA%\control-zebra\settings.json`
-- **Linux:** `~/.config/control-zebra/settings.json`
+App settings follow the centralized data policy:
+- **Roaming config root:**
+    - **Windows:** `%APPDATA%\ControlZebra\config`
+    - **macOS:** `~/Library/Application Support/ControlZebra/config`
+    - **Linux:** `~/.config/ControlZebra/config`
+- **Settings file:** `<roaming config root>/settings.json`
+- **Per-repo app settings:** `<roaming config root>/repositories/*.json`
+
+Runtime-heavy local machine data is kept outside roaming config:
+- **Windows:** `%LOCALAPPDATA%\ControlZebra\...`
+- **macOS/Linux:** user cache directory under `ControlZebra`
 
 ## Methods
 
@@ -37,6 +44,13 @@ Persists application settings to disk.
 - **Input:** `AppSettings` struct with values to save
 - **Output:** Error if save fails (e.g., permission denied)
 - **Behavior:** Creates settings directory if it doesn't exist
+
+### GetDataLocations() DataLocations
+
+Returns resolved active + legacy data locations for diagnostics and support.
+
+- **Output:** `DataLocations` containing app config, logs, cache, tools, and migration marker paths
+- **Use case:** UI "where is my data" diagnostics and support triage
 
 ### GetUserProfile(repoPath string) UserProfile
 

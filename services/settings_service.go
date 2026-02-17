@@ -14,21 +14,18 @@ import (
 type SettingsService struct {
 	runner      *CommandRunner
 	settingsDir string
+	legacyDir   string
 	app         *application.App
 }
 
 // NewSettingsService creates a new SettingsService
 func NewSettingsService() *SettingsService {
-	// Get user config directory
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		configDir = "."
-	}
-	settingsDir := filepath.Join(configDir, "control-zebra")
+	locations := GetDataLocationsSnapshot()
 
 	return &SettingsService{
 		runner:      NewCommandRunner(),
-		settingsDir: settingsDir,
+		settingsDir: locations.RoamingConfigDir,
+		legacyDir:   locations.LegacyRoamingConfigDir,
 	}
 }
 
@@ -72,11 +69,22 @@ func (s *SettingsService) GetAppSettings() AppSettings {
 	settingsPath := filepath.Join(s.settingsDir, "settings.json")
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
+		legacySettingsPath := filepath.Join(s.legacyDir, "settings.json")
+		legacyData, legacyErr := os.ReadFile(legacySettingsPath)
+		if legacyErr != nil {
+			return settings
+		}
+		_ = json.Unmarshal(legacyData, &settings)
 		return settings
 	}
 
 	_ = json.Unmarshal(data, &settings)
 	return settings
+}
+
+// GetDataLocations returns the active and legacy data locations for diagnostics.
+func (s *SettingsService) GetDataLocations() DataLocations {
+	return GetDataLocationsSnapshot()
 }
 
 // SaveAppSettings saves the app settings

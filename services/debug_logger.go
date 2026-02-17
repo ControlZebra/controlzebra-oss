@@ -104,7 +104,6 @@ type DebugStats struct {
 const (
 	defaultMaxEntries = 5000
 	maxFieldLen       = 2048 // Truncation limit for stdout/stderr
-	exportDirName     = "logs"
 	maxExportAgeDays  = 7
 )
 
@@ -369,7 +368,7 @@ func (dl *DebugLogger) GetStats() DebugStats {
 // ---------------------------------------------------------------------------
 
 // Export writes all current buffer entries to a JSON file and returns the path.
-// Files are stored in ~/.config/control-zebra/logs/.
+// Files are stored in the policy-managed local logs directory.
 func (dl *DebugLogger) Export() (string, error) {
 	dl.mu.RLock()
 	entries := dl.chronologicalEntries()
@@ -426,13 +425,13 @@ func (dl *DebugLogger) CleanOldExports() {
 	}
 }
 
-// configLogsDir returns the path to ~/.config/control-zebra/logs/.
+// configLogsDir returns the policy-managed local logs directory.
 func configLogsDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	dir := GetDataLocationsSnapshot().LogsDir
+	if strings.TrimSpace(dir) == "" {
+		return "", fmt.Errorf("empty logs directory path")
 	}
-	return filepath.Join(home, ".config", "control-zebra", exportDirName), nil
+	return dir, nil
 }
 
 // ---------------------------------------------------------------------------

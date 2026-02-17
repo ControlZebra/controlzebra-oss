@@ -67,6 +67,8 @@ ManifestDPIAware true
 !insertmacro MUI_PAGE_INSTFILES # Installing page.
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
 
+!insertmacro MUI_UNPAGE_CONFIRM # Confirm uninstall page
+!insertmacro MUI_UNPAGE_COMPONENTS # Optional uninstall components
 !insertmacro MUI_UNPAGE_INSTFILES # Uninstalling page
 
 !insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
@@ -113,6 +115,17 @@ Section
     !insertmacro wails.associateCustomProtocols
     
     !insertmacro wails.writeUninstaller
+SectionEnd
+
+Section /o "un.Remove user data (settings, logs, cache, tools)" un.RemoveUserData
+    !insertmacro wails.setShellContext
+
+    # Roaming config (canonical + legacy)
+    RMDir /r "$AppData\ControlZebra"
+    RMDir /r "$AppData\control-zebra"
+
+    # Local machine data (logs, cache, webview2, tools)
+    RMDir /r "$LocalAppData\ControlZebra"
 SectionEnd
 
 Section "uninstall" 

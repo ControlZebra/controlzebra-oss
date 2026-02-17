@@ -69,6 +69,7 @@ function Model3DViewer({ filePath }: ViewerProps): JSX.Element {
   const ovModuleRef = useRef<any>(null);
 
   const fileName = useMemo(() => getPathFileName(filePath), [filePath]);
+  const normalizedFilePath = useMemo(() => filePath.replace(/\\/g, '/'), [filePath]);
 
   // -----------------------------------------------------------------------
   // Format file size for display
@@ -84,7 +85,27 @@ function Model3DViewer({ filePath }: ViewerProps): JSX.Element {
   // File change subscription – refresh when file changes on disk
   // -----------------------------------------------------------------------
   useEffect(() => {
-    const handleFilesChanged = () => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+
+      // On Windows paths are case-insensitive; compare in lowercase.
+      const samePath =
+        changedPath === normalizedFilePath ||
+        changedPath.toLowerCase() === normalizedFilePath.toLowerCase();
+
+      if (!samePath) return;
+
       modelCache.delete(filePath);
       setRefreshCounter((c) => c + 1);
     };
@@ -96,7 +117,7 @@ function Model3DViewer({ filePath }: ViewerProps): JSX.Element {
         unsubscribe();
       }
     };
-  }, [filePath]);
+  }, [filePath, normalizedFilePath]);
 
   // -----------------------------------------------------------------------
   // Destroy viewer on unmount or file change

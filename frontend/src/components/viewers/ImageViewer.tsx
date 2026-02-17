@@ -82,13 +82,37 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
   const mountedRef = useRef(true);
 
   const fileName = useMemo(() => getPathFileName(filePath), [filePath]);
+  const normalizedFilePath = useMemo(() => {
+    const normalized = filePath.replace(/\\/g, '/');
+    return normalized;
+  }, [filePath]);
 
   // -----------------------------------------------------------------------
   // File change subscription – refresh when file changes on disk
   // -----------------------------------------------------------------------
 
   useEffect(() => {
-    const handleFilesChanged = () => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+
+      // On Windows paths are case-insensitive; compare in lowercase.
+      const samePath =
+        changedPath === normalizedFilePath ||
+        changedPath.toLowerCase() === normalizedFilePath.toLowerCase();
+
+      if (!samePath) return;
+
       // Invalidate this file's cache entry and bump counter to trigger re-fetch
       imageCache.delete(filePath);
       setRefreshCounter((c) => c + 1);
@@ -101,7 +125,7 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
         unsubscribe();
       }
     };
-  }, [filePath]);
+  }, [filePath, normalizedFilePath]);
 
   // -----------------------------------------------------------------------
   // Load image from backend

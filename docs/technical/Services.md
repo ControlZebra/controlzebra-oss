@@ -4,6 +4,8 @@
 
 The ControlZebra backend is built with Go and provides services that are exposed to the React frontend via Wails v3 bindings. All services are designed for simplicity and reliability, targeting non-technical users in industrial automation.
 
+Data storage classes and canonical paths are documented in [DataPolicy.md](DataPolicy.md).
+
 ## Architecture
 
 ```
