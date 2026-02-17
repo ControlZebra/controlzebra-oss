@@ -486,6 +486,34 @@ func getErrorMessage(result CommandResult) string {
 	return errMsg
 }
 
+// ensureGitHubHTTPSCredentials attempts to configure git credential helper via
+// `gh auth setup-git` when the preferred remote is GitHub over HTTPS.
+// This keeps non-interactive git operations (GIT_TERMINAL_PROMPT=0) working
+// after users authenticate with GitHub CLI.
+func (g *GitService) ensureGitHubHTTPSCredentials(repoPath string) {
+	remoteURL := strings.ToLower(strings.TrimSpace(g.GetRemoteURL(repoPath)))
+	if remoteURL == "" {
+		return
+	}
+
+	// Only relevant for GitHub HTTPS remotes.
+	if !strings.Contains(remoteURL, "github.com") {
+		return
+	}
+	if !strings.HasPrefix(remoteURL, "https://") && !strings.HasPrefix(remoteURL, "http://") {
+		return
+	}
+
+	// Only attempt setup when gh is authenticated.
+	authStatus := g.runner.Run("", GhPath(), "auth", "status", "--hostname", "github.com")
+	if !authStatus.Success {
+		return
+	}
+
+	// Best-effort self-heal. Ignore failures and allow the git command to proceed.
+	g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+}
+
 // ============================================================================
 // Helper Functions - Operation Results & Common Checks
 // ============================================================================
@@ -944,6 +972,7 @@ func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
 		opResult = failedOp("No remote repository configured. Publish to cloud first.")
 		return
 	}
+	g.ensureGitHubHTTPSCredentials(repoPath)
 	result := g.runner.RunGit(repoPath, "pull")
 	if !result.Success {
 		opResult = OperationResult{
@@ -973,6 +1002,7 @@ func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 		opResult = failedOp("No remote repository configured. Publish to cloud first.")
 		return
 	}
+	g.ensureGitHubHTTPSCredentials(repoPath)
 
 	// First, try a regular push
 	result := g.runner.RunGit(repoPath, "push")
@@ -1054,6 +1084,7 @@ func (g *GitService) Sync(repoPath string) OperationResult {
 	if !g.hasAnyRemote(repoPath) {
 		return failedOp("No remote repository configured. Publish to cloud first.")
 	}
+	g.ensureGitHubHTTPSCredentials(repoPath)
 
 	// First, pull with merge (not rebase)
 	pullResult := g.runner.RunGit(repoPath, "pull", "--no-rebase")
