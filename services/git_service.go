@@ -297,10 +297,12 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		statusResult = g.runner.RunGit(repoPath, "status", "--porcelain")
 	}()
 
-	// Get total local commit count (useful when no upstream to detect if there are commits to push)
+	// Get local commit count not present on any remote-tracking ref.
+	// This is used when the current branch has no upstream to detect whether
+	// there are commits that still need publishing.
 	go func() {
 		defer wg.Done()
-		commitCountResult = g.runner.RunGit(repoPath, "rev-list", "--count", "HEAD")
+		commitCountResult = g.runner.RunGit(repoPath, "rev-list", "--count", "HEAD", "--not", "--remotes")
 	}()
 
 	wg.Wait()
@@ -340,7 +342,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		result.HasUpstream = false
 	}
 
-	// Process total commit count
+	// Process local-not-on-remote commit count
 	if commitCountResult.Success {
 		if n, err := strconv.Atoi(trimOutput(commitCountResult.Stdout)); err == nil {
 			result.TotalLocalCommits = n
