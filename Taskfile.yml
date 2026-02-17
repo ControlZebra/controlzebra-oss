@@ -8,7 +8,10 @@ includes:
 
 vars:
   APP_NAME: "control-zebra"
-  APP_VERSION: '{{.APP_VERSION | default (env "APP_VERSION") | default "0.0.0-dev"}}'
+  APP_VERSION_FROM_CONFIG:
+    sh: |
+      awk -F'"' '/^  version:/ { if (NF >= 2) { print $2; exit } }' build/config.yml
+  APP_VERSION: '{{.APP_VERSION | default (env "APP_VERSION") | default .APP_VERSION_FROM_CONFIG | default "0.0.0-dev"}}'
   BIN_DIR: "bin"
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
   # Base64-encoded Ed25519 public key for manifest signature verification.
