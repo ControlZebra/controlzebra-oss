@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "v0.8.0-beta"
+		"file_version": "v0.9.0-beta"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "v0.8.0-beta",
+			"ProductVersion": "v0.9.0-beta",
 			"CompanyName": "ControlZebra",
 			"FileDescription": "ControlZebra",
 			"LegalCopyright": "(c) 2025, ControlZebra",
