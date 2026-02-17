@@ -273,6 +273,9 @@ function CommitScreen({
         <p className="text-center text-sm text-theme-muted mb-6">
           New changes are detected. Make a quick save, your future self will thank you!
         </p>
+        <p className="text-center text-xs text-theme-muted mb-6">
+          Current branch: <span className="text-theme-secondary">{currentBranch}</span>
+        </p>
 
         {/* Commit message input */}
         <div className="mb-4">
@@ -341,6 +344,15 @@ function CommitScreen({
                 size="lg"
               >
                 Save Snapshot
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleBranchAndSaveClick}
+                disabled={!message.trim() || isCommitting || isSyncing}
+                size="lg"
+              >
+                <GitBranch style={ICON_STYLES.sm as CSSProperties} />
+                Branch & Save
               </Button>
               <Button
                 variant="outline"
