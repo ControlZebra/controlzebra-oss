@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,7 +18,12 @@ import (
 )
 
 const (
-	defaultPortableGitURL = "https://github.com/git-for-windows/git/releases/download/v2.48.1.windows.1/MinGit-2.48.1-busybox-64-bit.zip"
+	// IMPORTANT: Use the regular (non-busybox) MinGit variant.
+	// The busybox variant replaces standard shell utilities with BusyBox applets
+	// which breaks credential helpers that use shell execution (e.g. `!gh auth git-credential`).
+	// BusyBox's `sh` misinterprets `sh -c "..."` because `-c` is not a recognised applet,
+	// producing the error: "-c: applet not found".
+	defaultPortableGitURL = "https://github.com/git-for-windows/git/releases/download/v2.48.1.windows.1/MinGit-2.48.1-64-bit.zip"
 	defaultPortableGhURL  = "https://github.com/cli/cli/releases/download/v2.71.2/gh_2.71.2_windows_amd64.zip"
 	defaultPortableLfsURL = "https://github.com/git-lfs/git-lfs/releases/download/v3.7.1/git-lfs-windows-amd64-v3.7.1.zip"
 )
@@ -105,8 +111,20 @@ func (s *LocalBinService) GetStatus() LocalBinStatus {
 }
 
 // EnsurePortableToolchainIfNeeded installs missing portable tools for Windows.
+// Also detects and replaces the BusyBox MinGit variant which breaks credential helpers.
 func (s *LocalBinService) EnsurePortableToolchainIfNeeded() OperationResult {
 	status := s.GetStatus()
+
+	// Detect BusyBox MinGit and force replacement with the regular variant.
+	// BusyBox's shell misinterprets `sh -c "..."` (the `-c` flag) as an applet
+	// name, breaking credential helpers like `!gh auth git-credential`.
+	if status.HasGit && isBusyBoxGit() {
+		log.Println("[LocalBinService] BusyBox MinGit detected – replacing with regular MinGit for credential helper compatibility")
+		gitDir := filepath.Join(LocalBinRootPath(), "git")
+		_ = os.RemoveAll(gitDir)
+		status.HasGit = false
+	}
+
 	if status.HasGit && status.HasGh && status.HasLfs {
 		return successOp("Portable toolchain is ready")
 	}
@@ -446,6 +464,36 @@ func percent(downloaded, total int64) float64 {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+// isBusyBoxGit returns true if the managed portable Git directory contains a
+// BusyBox-based MinGit installation. The BusyBox variant ships a busybox.exe
+// in the mingw64/bin (or top-level) directory instead of individual MSYS2 utilities.
+func isBusyBoxGit() bool {
+	gitRoot := filepath.Join(LocalBinRootPath(), "git")
+	candidates := []string{
+		filepath.Join(gitRoot, "mingw64", "bin", "busybox.exe"),
+		filepath.Join(gitRoot, "clangarm64", "bin", "busybox.exe"),
+		filepath.Join(gitRoot, "bin", "busybox.exe"),
+		filepath.Join(gitRoot, "usr", "bin", "busybox.exe"),
+	}
+	for _, p := range candidates {
+		if fileExists(p) {
+			return true
+		}
+	}
+
+	// Also check: if usr/bin/sh.exe is missing, this is likely BusyBox MinGit
+	// (the regular variant includes usr/bin/sh.exe as a proper MSYS2 shell).
+	shPath := filepath.Join(gitRoot, "usr", "bin", "sh.exe")
+	if !fileExists(shPath) {
+		// Only flag as BusyBox if the git directory actually exists.
+		if _, err := os.Stat(gitRoot); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 func envOrDefault(key, fallback string) string {
