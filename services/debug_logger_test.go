@@ -22,6 +22,27 @@ func freshLogger(size int) *DebugLogger {
 	return dl
 }
 
+// withTestGlobalLogger temporarily overrides the logger singleton for a test
+// without copying sync.Once values (which is flagged by go vet/staticcheck).
+func withTestGlobalLogger(t *testing.T, dl *DebugLogger) {
+	t.Helper()
+
+	origLogger := globalLogger
+	origHadLogger := origLogger != nil
+
+	globalLogger = dl
+	globalLoggerOnce = sync.Once{}
+	globalLoggerOnce.Do(func() {}) // mark as initialised
+
+	t.Cleanup(func() {
+		globalLogger = origLogger
+		globalLoggerOnce = sync.Once{}
+		if origHadLogger {
+			globalLoggerOnce.Do(func() {})
+		}
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Ring buffer basics
 // ---------------------------------------------------------------------------
@@ -412,16 +433,7 @@ func TestLogMethod_NoOpWhenDisabled(t *testing.T) {
 	dl := freshLogger(10)
 	dl.enabled.Store(false)
 
-	// Override singleton temporarily for this test
-	origLogger := globalLogger
-	origOnce := globalLoggerOnce
-	globalLogger = dl
-	globalLoggerOnce = sync.Once{}
-	globalLoggerOnce.Do(func() {}) // mark as done
-	defer func() {
-		globalLogger = origLogger
-		globalLoggerOnce = origOnce
-	}()
+	withTestGlobalLogger(t, dl)
 
 	done := LogMethod("TestService.Method", nil)
 	done(nil, nil)
@@ -435,15 +447,7 @@ func TestLogMethod_NoOpWhenDisabled(t *testing.T) {
 func TestLogMethod_LogsCallAndCompletion(t *testing.T) {
 	dl := freshLogger(10)
 
-	origLogger := globalLogger
-	origOnce := globalLoggerOnce
-	globalLogger = dl
-	globalLoggerOnce = sync.Once{}
-	globalLoggerOnce.Do(func() {})
-	defer func() {
-		globalLogger = origLogger
-		globalLoggerOnce = origOnce
-	}()
+	withTestGlobalLogger(t, dl)
 
 	done := LogMethod("GitService.Commit", map[string]interface{}{"msg": "fix"})
 	time.Sleep(5 * time.Millisecond) // small delay so duration > 0
@@ -468,15 +472,7 @@ func TestLogMethod_LogsCallAndCompletion(t *testing.T) {
 func TestLogMethod_DetectsOperationResultFailure(t *testing.T) {
 	dl := freshLogger(10)
 
-	origLogger := globalLogger
-	origOnce := globalLoggerOnce
-	globalLogger = dl
-	globalLoggerOnce = sync.Once{}
-	globalLoggerOnce.Do(func() {})
-	defer func() {
-		globalLogger = origLogger
-		globalLoggerOnce = origOnce
-	}()
+	withTestGlobalLogger(t, dl)
 
 	done := LogMethod("GitService.Push", nil)
 	result := OperationResult{Success: false, Error: "rejected"}
