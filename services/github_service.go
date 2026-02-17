@@ -197,6 +197,15 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 		}
 	}
 
+	// Best-effort: wire gh auth to git credential helper for HTTPS operations.
+	// This is especially important for non-interactive app-launched git commands.
+	if setupResult := g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com"); !setupResult.Success {
+		return GitHubAuthResult{
+			Success: true,
+			Message: "Authentication successful (Git credential setup may need attention)",
+		}
+	}
+
 	return GitHubAuthResult{
 		Success: true,
 		Message: "Authentication successful",
@@ -347,6 +356,9 @@ func (g *GitHubService) AuthLoginComplete() GitHubAuthResult {
 
 		status := g.AuthStatus()
 		if status.LoggedIn {
+			// Best-effort: wire gh auth to git credential helper for HTTPS operations.
+			g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+
 			// Clean up the auth process references
 			g.authMu.Lock()
 			// Save references before clearing to avoid race
@@ -1020,6 +1032,10 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 			Error:   "Invalid repository name: must contain only alphanumeric characters, hyphens, underscores, and periods",
 		}
 	}
+
+	// Best-effort: ensure git HTTPS credential helper is configured before
+	// `gh repo create --push` triggers git operations.
+	g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
 
 	args := []string{"repo", "create"}
 
