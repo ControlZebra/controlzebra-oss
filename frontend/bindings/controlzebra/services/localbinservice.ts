@@ -30,6 +30,7 @@ export function EnsurePortableToolchain(): $CancellablePromise<$models.Operation
 
 /**
  * EnsurePortableToolchainIfNeeded installs missing portable tools for Windows.
+ * Also detects and replaces the BusyBox MinGit variant which breaks credential helpers.
  */
 export function EnsurePortableToolchainIfNeeded(): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(692575198).then(($result: any) => {

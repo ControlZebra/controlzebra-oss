@@ -11,7 +11,7 @@ info:
   description: "ControlZebra" # The application description
   copyright: "(c) 2025, ControlZebra" # Copyright text
   comments: "Democratizing git for everyone" # Comments
-  version: "v0.7.0-beta" # The application version
+  version: "v0.8.0-beta" # The application version
 
 # Dev mode configuration
 dev_mode:
