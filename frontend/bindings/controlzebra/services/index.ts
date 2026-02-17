@@ -48,6 +48,7 @@ export {
     ConflictCommitInfo,
     ConflictSidesInfo,
     ConflictedFile,
+    DataLocations,
     DebugStats,
     DetectedIdentity,
     DirectoryContents,

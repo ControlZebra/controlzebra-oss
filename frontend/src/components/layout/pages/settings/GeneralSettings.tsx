@@ -2,7 +2,7 @@
  * GeneralSettings - App preferences including theme selection and analytics consent.
  */
 import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
-import { Sun, Moon, Monitor, BarChart3, LogOut, RefreshCw, Info, type LucideIcon } from 'lucide-react';
+import { Sun, Moon, Monitor, BarChart3, LogOut, RefreshCw, Info, FolderTree, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLayout, useAuth, type Theme } from '../../../../context';
 import { ICON_SIZES } from '../../../../constants';
@@ -16,6 +16,10 @@ import {
   CheckForUpdate,
   GetCurrentVersion,
 } from '../../../../../bindings/controlzebra/services/updaterservice';
+import {
+  GetDataLocations,
+} from '../../../../../bindings/controlzebra/services/settingsservice';
+import type { DataLocations } from '../../../../../bindings/controlzebra/services/models';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const LAST_UPDATE_CHECKED_KEY = 'cz_last_update_checked_at';
@@ -72,6 +76,7 @@ function GeneralSettings(): JSX.Element {
   const [lastCheckedAt, setLastCheckedAt] = useState<string>(() => (
     localStorage.getItem(LAST_UPDATE_CHECKED_KEY) || ''
   ));
+  const [dataLocations, setDataLocations] = useState<DataLocations | null>(null);
 
   // Handle analytics consent change
   const handleAnalyticsChange = (level: AnalyticsConsent) => {
@@ -88,7 +93,25 @@ function GeneralSettings(): JSX.Element {
       .catch(() => {
         // Non-fatal; keep fallback value
       });
+
+    GetDataLocations()
+      .then((locations) => {
+        setDataLocations(locations);
+      })
+      .catch(() => {
+        // Non-fatal diagnostics panel fallback
+      });
   }, []);
+
+  const DATA_LOCATION_ITEMS: Array<{ label: string; path: string | undefined }> = [
+    { label: 'Roaming config', path: dataLocations?.roamingConfigDir },
+    { label: 'Repository settings', path: dataLocations?.repositorySettingsDir },
+    { label: 'Settings file', path: dataLocations?.settingsFile },
+    { label: 'Local logs', path: dataLocations?.logsDir },
+    { label: 'Local cache', path: dataLocations?.cacheDir },
+    { label: 'Portable tools bin', path: dataLocations?.toolsBinDir },
+    { label: 'WebView2 data', path: dataLocations?.webView2Dir },
+  ];
 
   const formatLastChecked = (iso: string): string => {
     if (!iso) return 'Never';
@@ -271,6 +294,28 @@ function GeneralSettings(): JSX.Element {
           <RefreshCw style={iconStyle} />
           <span className="ml-1.5">Check for Updates</span>
         </Button>
+      </div>
+
+      {/* Data Paths */}
+      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
+        <div className="flex items-center gap-2 mb-3">
+          <FolderTree style={iconStyle} className="text-theme-secondary" />
+          <label className="block text-theme-primary text-sm font-medium">
+            Data Locations
+          </label>
+        </div>
+        <p className="text-theme-muted text-sm mb-4">
+          Active storage paths used by ControlZebra on this machine.
+        </p>
+
+        <div className="space-y-2 text-sm">
+          {DATA_LOCATION_ITEMS.map(({ label, path }) => (
+            <div key={label} className="grid grid-cols-[180px_1fr] gap-2 items-start">
+              <span className="text-theme-muted">{label}:</span>
+              <span className="text-theme-primary break-all">{path || 'Unavailable'}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

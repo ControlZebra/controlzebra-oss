@@ -1,35 +1,13 @@
 package services
 
 import (
-	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 )
 
-const localBinAppDirName = "ControlZebra"
-
-func localToolsRootPath() string {
-	if runtime.GOOS == "windows" {
-		if localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); localAppData != "" {
-			return filepath.Join(localAppData, localBinAppDirName)
-		}
-		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
-			return filepath.Join(home, "AppData", "Local", localBinAppDirName)
-		}
-	}
-
-	if configDir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
-		return filepath.Join(configDir, strings.ToLower(localBinAppDirName))
-	}
-
-	return filepath.Join(".", strings.ToLower(localBinAppDirName))
-}
-
 // LocalBinRootPath returns the managed user-level bin directory.
-// On Windows this resolves to: %LOCALAPPDATA%\ControlZebra\bin
+// On Windows this resolves to: %LOCALAPPDATA%\ControlZebra\tools\bin
 func LocalBinRootPath() string {
-	return filepath.Join(localToolsRootPath(), "bin")
+	return GetDataLocationsSnapshot().ToolsBinDir
 }
 
 func localManagedGitPathCandidates() []string {

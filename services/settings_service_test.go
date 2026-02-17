@@ -16,6 +16,7 @@ func TestGetAppSettings_Default(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 	svc.settingsDir = tmpDir
+	svc.legacyDir = tmpDir
 
 	settings := svc.GetAppSettings()
 
@@ -37,6 +38,7 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 	svc.settingsDir = tmpDir
+	svc.legacyDir = tmpDir
 
 	// Save settings
 	settings := AppSettings{

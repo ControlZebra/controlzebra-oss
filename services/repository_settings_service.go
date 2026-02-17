@@ -131,6 +131,7 @@ type BackgroundTaskStatus struct {
 type RepositorySettingsService struct {
 	runner      *CommandRunner
 	settingsDir string
+	legacyDir   string
 	app         *application.App
 
 	// Background task management
@@ -143,16 +144,12 @@ type RepositorySettingsService struct {
 
 // NewRepositorySettingsService creates a new RepositorySettingsService
 func NewRepositorySettingsService() *RepositorySettingsService {
-	// Get user config directory
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		configDir = "."
-	}
-	settingsDir := filepath.Join(configDir, "control-zebra", "repositories")
+	locations := GetDataLocationsSnapshot()
 
 	return &RepositorySettingsService{
 		runner:       NewCommandRunner(),
-		settingsDir:  settingsDir,
+		settingsDir:  locations.RepositorySettingsDir,
+		legacyDir:    locations.LegacyRepoSettingsDir,
 		taskStatuses: make(map[BackgroundTaskType]*BackgroundTaskStatus),
 		taskCancels:  make(map[string]context.CancelFunc),
 		taskContexts: make(map[string]context.Context),
@@ -230,10 +227,17 @@ func (r *RepositorySettingsService) GetSettings(repoPath string) (RepositorySett
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Return default settings if file doesn't exist
-			return r.GetDefaultSettings(repoPath), nil
+			legacyPath := filepath.Join(r.legacyDir, generateRepoID(repoPath)+".json")
+			legacyData, legacyErr := os.ReadFile(legacyPath)
+			if legacyErr == nil {
+				data = legacyData
+			} else {
+				// Return default settings if file doesn't exist
+				return r.GetDefaultSettings(repoPath), nil
+			}
+		} else {
+			return RepositorySettings{}, fmt.Errorf("failed to read settings: %w", err)
 		}
-		return RepositorySettings{}, fmt.Errorf("failed to read settings: %w", err)
 	}
 
 	var settings RepositorySettings

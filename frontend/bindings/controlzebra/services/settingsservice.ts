@@ -60,11 +60,20 @@ export function GetAppSettings(): $CancellablePromise<$models.AppSettings> {
 }
 
 /**
+ * GetDataLocations returns the active and legacy data locations for diagnostics.
+ */
+export function GetDataLocations(): $CancellablePromise<$models.DataLocations> {
+    return $Call.ByID(939056653).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+/**
  * GetRecentFolders returns the list of recently opened folders
  */
 export function GetRecentFolders(): $CancellablePromise<string[]> {
     return $Call.ByID(4002401493).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -74,7 +83,7 @@ export function GetRecentFolders(): $CancellablePromise<string[]> {
  */
 export function GetUserProfile(repoPath: string): $CancellablePromise<$models.UserProfile> {
     return $Call.ByID(1258519717, repoPath).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -97,13 +106,14 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
  */
 export function SetUserProfile(repoPath: string, profile: $models.UserProfile, global: boolean): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(3284937681, repoPath, profile, global).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = $models.DetectedIdentity.createFrom;
 const $$createType1 = $models.AppSettings.createFrom;
-const $$createType2 = $Create.Array($Create.Any);
-const $$createType3 = $models.UserProfile.createFrom;
-const $$createType4 = $models.OperationResult.createFrom;
+const $$createType2 = $models.DataLocations.createFrom;
+const $$createType3 = $Create.Array($Create.Any);
+const $$createType4 = $models.UserProfile.createFrom;
+const $$createType5 = $models.OperationResult.createFrom;

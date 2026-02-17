@@ -54,7 +54,7 @@ type LocalBinStatus struct {
 }
 
 // LocalBinService installs and manages user-level portable binaries.
-// On Windows, binaries are installed under %LOCALAPPDATA%\ControlZebra\bin.
+// On Windows, binaries are installed under %LOCALAPPDATA%\ControlZebra\tools\bin.
 type LocalBinService struct {
 	app    *application.App
 	client *http.Client

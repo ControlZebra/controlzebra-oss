@@ -679,6 +679,82 @@ export class ConflictedFile {
 }
 
 /**
+ * DataLocations describes where ControlZebra stores app data by class.
+ */
+export class DataLocations {
+    "roamingConfigDir": string;
+    "settingsFile": string;
+    "repositorySettingsDir": string;
+    "localDataDir": string;
+    "logsDir": string;
+    "cacheDir": string;
+    "toolsBinDir": string;
+    "webView2Dir": string;
+    "migrationMarkerFile": string;
+    "legacyRoamingConfigDir": string;
+    "legacySettingsFile": string;
+    "legacyRepoSettingsDir": string;
+    "legacyLogsDir": string;
+    "legacyToolsBinDir": string;
+
+    /** Creates a new DataLocations instance. */
+    constructor($$source: Partial<DataLocations> = {}) {
+        if (!("roamingConfigDir" in $$source)) {
+            this["roamingConfigDir"] = "";
+        }
+        if (!("settingsFile" in $$source)) {
+            this["settingsFile"] = "";
+        }
+        if (!("repositorySettingsDir" in $$source)) {
+            this["repositorySettingsDir"] = "";
+        }
+        if (!("localDataDir" in $$source)) {
+            this["localDataDir"] = "";
+        }
+        if (!("logsDir" in $$source)) {
+            this["logsDir"] = "";
+        }
+        if (!("cacheDir" in $$source)) {
+            this["cacheDir"] = "";
+        }
+        if (!("toolsBinDir" in $$source)) {
+            this["toolsBinDir"] = "";
+        }
+        if (!("webView2Dir" in $$source)) {
+            this["webView2Dir"] = "";
+        }
+        if (!("migrationMarkerFile" in $$source)) {
+            this["migrationMarkerFile"] = "";
+        }
+        if (!("legacyRoamingConfigDir" in $$source)) {
+            this["legacyRoamingConfigDir"] = "";
+        }
+        if (!("legacySettingsFile" in $$source)) {
+            this["legacySettingsFile"] = "";
+        }
+        if (!("legacyRepoSettingsDir" in $$source)) {
+            this["legacyRepoSettingsDir"] = "";
+        }
+        if (!("legacyLogsDir" in $$source)) {
+            this["legacyLogsDir"] = "";
+        }
+        if (!("legacyToolsBinDir" in $$source)) {
+            this["legacyToolsBinDir"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DataLocations instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DataLocations {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DataLocations($$parsedSource as Partial<DataLocations>);
+    }
+}
+
+/**
  * DebugStats summarises the current state of the logger.
  */
 export class DebugStats {
