@@ -567,6 +567,14 @@ function Model3DDiffViewer({
     () => getPathFileName(filePath),
     [filePath],
   );
+  const normalizedTargetPath = useMemo(() => {
+    const normalizedFilePath = filePath.replace(/\\/g, '/');
+    if (/^([a-zA-Z]:)?\//.test(normalizedFilePath)) {
+      return normalizedFilePath;
+    }
+    const normalizedRepoPath = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    return `${normalizedRepoPath}/${normalizedFilePath}`;
+  }, [repoPath, filePath]);
 
   // ---------------------------------------------------------------------------
   // File change subscription (for working tree diffs)
@@ -575,7 +583,26 @@ function Model3DDiffViewer({
   useEffect(() => {
     if (!isWorkingTree && commitHash) return;
 
-    const handleFilesChanged = () => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+
+      const samePath =
+        changedPath === normalizedTargetPath ||
+        changedPath.toLowerCase() === normalizedTargetPath.toLowerCase();
+
+      if (!samePath) return;
+
       modelDiffCache.delete(key);
       setRefreshCounter((c) => c + 1);
     };
@@ -587,7 +614,7 @@ function Model3DDiffViewer({
         unsubscribe();
       }
     };
-  }, [key, isWorkingTree, commitHash]);
+  }, [key, isWorkingTree, commitHash, normalizedTargetPath]);
 
   // ---------------------------------------------------------------------------
   // Mode change handler — persist to localStorage
