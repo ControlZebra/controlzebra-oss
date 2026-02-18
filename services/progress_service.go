@@ -111,6 +111,73 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 	return "", -1, line
 }
 
+// ensureGitHubHTTPSCredentials configures the git credential helper via
+// `gh auth setup-git` when the remote is GitHub over HTTPS. This mirrors
+// GitService.ensureGitHubHTTPSCredentials so that progress-tracked operations
+// also benefit from automatic credential setup.
+func (p *ProgressService) ensureGitHubHTTPSCredentials(repoPath string) {
+	// First, clean up any stale credential helper entries pointing to
+	// non-existent gh.exe paths (e.g. from a data-layout migration).
+	p.cleanStaleCredentialHelper(repoPath)
+
+	remoteResult := p.runner.RunGit(repoPath, "remote", "get-url", "origin")
+	remoteURL := strings.ToLower(strings.TrimSpace(remoteResult.Stdout))
+	if remoteURL == "" {
+		return
+	}
+	if !strings.Contains(remoteURL, "github.com") {
+		return
+	}
+	if !strings.HasPrefix(remoteURL, "https://") && !strings.HasPrefix(remoteURL, "http://") {
+		return
+	}
+
+	// Only attempt setup when gh is authenticated.
+	authStatus := p.runner.Run("", GhPath(), "auth", "status", "--hostname", "github.com")
+	if !authStatus.Success {
+		return
+	}
+
+	// Best-effort: configure credential helper to point at the current gh path.
+	p.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+}
+
+// cleanStaleCredentialHelper removes credential.helper entries that reference
+// a gh.exe path that no longer exists on disk. This can happen after the
+// data-layout migration moves binaries from the legacy path to the canonical one.
+func (p *ProgressService) cleanStaleCredentialHelper(repoPath string) {
+	result := p.runner.RunGit(repoPath, "config", "--global", "--get-all", "credential.helper")
+	if !result.Success {
+		return
+	}
+
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Credential helpers set by gh look like:
+		//   !/path/to/gh.exe auth git-credential
+		if !strings.Contains(line, "auth git-credential") {
+			continue
+		}
+		// Extract the path: strip leading '!' and the trailing " auth git-credential"
+		ghPath := strings.TrimPrefix(line, "!")
+		if idx := strings.Index(ghPath, " auth"); idx > 0 {
+			ghPath = strings.TrimSpace(ghPath[:idx])
+		}
+		// Remove surrounding quotes if present
+		ghPath = strings.Trim(ghPath, "\"'")
+		if ghPath == "" {
+			continue
+		}
+		// If the referenced file doesn't exist, remove this stale entry.
+		if !fileExists(ghPath) {
+			p.runner.RunGit(repoPath, "config", "--global", "--unset", "credential.helper", line)
+		}
+	}
+}
+
 // SyncWithProgress performs git pull + push with progress updates
 // For branches without an upstream, it skips pull and just pushes with --set-upstream
 // prune: if true, adds --prune to remove stale remote-tracking branches
@@ -124,6 +191,8 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
 		return failedOp(errMsg)
 	}
+
+	p.ensureGitHubHTTPSCredentials(repoPath)
 
 	hasUpstream := p.checkHasUpstream(repoPath)
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Starting sync..."})
@@ -258,6 +327,7 @@ func (p *ProgressService) PullWithProgress(repoPath, operationID string) Operati
 		return failedOp(errMsg)
 	}
 
+	p.ensureGitHubHTTPSCredentials(repoPath)
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Fetching from remote..."})
 
 	// Using merge strategy (not rebase) for safer conflict resolution
@@ -282,6 +352,7 @@ func (p *ProgressService) PushWithProgress(repoPath, operationID string) Operati
 		return failedOp(errMsg)
 	}
 
+	p.ensureGitHubHTTPSCredentials(repoPath)
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Pushing to remote..."})
 
 	result := p.runGitWithProgress(repoPath, operationID, "push", []string{"push", "--progress"})

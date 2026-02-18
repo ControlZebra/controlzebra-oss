@@ -36,6 +36,7 @@ interface SidebarCommitPanelProps {
   repoPath?: string;
   isCommitting: boolean;
   isRewinding: boolean;
+  operationInProgress?: boolean;
 }
 
 interface ChangedFileItemProps {
@@ -159,6 +160,7 @@ function SidebarCommitPanel({
   repoPath,
   isCommitting,
   isRewinding,
+  operationInProgress = false,
 }: SidebarCommitPanelProps): JSX.Element {
   const { openExplorerTab } = useLayout();
   const { ghAuthStatus } = useRepo();
@@ -317,7 +319,7 @@ function SidebarCommitPanel({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Describe changes..."
-          disabled={isCommitting}
+          disabled={isCommitting || operationInProgress}
           rows={3}
           className="text-sm"
         />
@@ -326,7 +328,7 @@ function SidebarCommitPanel({
         <div className="flex gap-2">
           <Button 
             onClick={handleSave} 
-            disabled={!message.trim() || isDiscardingFile}
+            disabled={!message.trim() || isDiscardingFile || operationInProgress}
             loading={isCommitting}
             size="sm"
             variant="default"

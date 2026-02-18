@@ -204,6 +204,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   const [nonGitFolderPromptPath, setNonGitFolderPromptPath] = useState<string | null>(null);
+
+  // ===== Global Operation Lock =====
+  // Prevents concurrent mutating git operations and provides UI feedback.
+  const [operationInProgress, setOperationInProgress] = useState(false);
+  const [operationLabel, setOperationLabel] = useState<string | null>(null);
   
   // ===== Repository Settings State =====
   const [repoSettings, setRepoSettings] = useState<{
@@ -268,6 +273,35 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const closeAllExplorerPreviews = useCallback(() => {
     window.dispatchEvent(new CustomEvent(CLOSE_ALL_PREVIEW_TABS_EVENT));
   }, []);
+
+  /**
+   * withOperationLock — wraps a mutating git operation so that:
+   *  1. If another operation is already running, shows a toast and returns early.
+   *  2. Sets operationInProgress + operationLabel for the duration.
+   *  3. Resets them in a finally-block regardless of success/failure.
+   *
+   * Usage: const result = await withOperationLock('Pushing...', async () => { ... });
+   */
+  const operationInProgressRef = useRef(false);
+  const withOperationLock = useCallback(
+    async <T,>(label: string, fn: () => Promise<T>): Promise<T | null> => {
+      if (operationInProgressRef.current) {
+        toast.info(`Please wait — ${operationLabel || 'an operation'} is in progress`);
+        return null;
+      }
+      operationInProgressRef.current = true;
+      setOperationInProgress(true);
+      setOperationLabel(label);
+      try {
+        return await fn();
+      } finally {
+        operationInProgressRef.current = false;
+        setOperationInProgress(false);
+        setOperationLabel(null);
+      }
+    },
+    [operationLabel],
+  );
 
   const closeExplorerPreviewsForFile = useCallback((relativePath: string) => {
     if (!relativePath) return;
@@ -756,16 +790,46 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    const currentBranch = repoInfo?.branch || 'unknown';
-    
-    setIsCommitting(true);
-    const startTime = Date.now();
-    const filesChanged = repoStatus?.changedFiles?.length ?? 0;
-    
-    try {
-      const result = await CommitAll(repoPath, message);
+    const result = await withOperationLock('Saving changes', async () => {
+      const currentBranch = repoInfo?.branch || 'unknown';
       
-      if (!result.success) {
+      setIsCommitting(true);
+      const startTime = Date.now();
+      const filesChanged = repoStatus?.changedFiles?.length ?? 0;
+      
+      try {
+        const result = await CommitAll(repoPath, message);
+        
+        if (!result.success) {
+          trackCommitCreated({
+            success: false,
+            filesChanged,
+            branchName: currentBranch,
+            messageLength: message.length,
+            isProtectedBranch: false,
+            durationMs: Date.now() - startTime,
+            errorType: 'git_error',
+          });
+          showMessage('error', result.error || 'Failed to save changes');
+          return false;
+        }
+        
+        trackCommitCreated({
+          success: true,
+          filesChanged,
+          branchName: currentBranch,
+          messageLength: message.length,
+          isProtectedBranch: false,
+          durationMs: Date.now() - startTime,
+        });
+
+        closeAllExplorerPreviews();
+        
+        showMessage('success', 'Changes saved successfully');
+        await refreshAll();
+        return true;
+      } catch (err) {
+        const error = err as Error;
         trackCommitCreated({
           success: false,
           filesChanged,
@@ -773,44 +837,16 @@ export function RepoProvider({ children }: RepoProviderProps) {
           messageLength: message.length,
           isProtectedBranch: false,
           durationMs: Date.now() - startTime,
-          errorType: 'git_error',
+          errorType: 'exception',
         });
-        showMessage('error', result.error || 'Failed to save changes');
-        setIsCommitting(false);
+        showMessage('error', `Failed to save: ${error.message || err}`);
         return false;
+      } finally {
+        setIsCommitting(false);
       }
-      
-      trackCommitCreated({
-        success: true,
-        filesChanged,
-        branchName: currentBranch,
-        messageLength: message.length,
-        isProtectedBranch: false,
-        durationMs: Date.now() - startTime,
-      });
-
-      closeAllExplorerPreviews();
-      
-      showMessage('success', 'Changes saved successfully');
-      await refreshAll();
-      setIsCommitting(false);
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      trackCommitCreated({
-        success: false,
-        filesChanged,
-        branchName: currentBranch,
-        messageLength: message.length,
-        isProtectedBranch: false,
-        durationMs: Date.now() - startTime,
-        errorType: 'exception',
-      });
-      showMessage('error', `Failed to save: ${error.message || err}`);
-      setIsCommitting(false);
-      return false;
-    }
-  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll, closeAllExplorerPreviews]);
+    });
+    return result ?? false;
+  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll, closeAllExplorerPreviews, withOperationLock]);
 
   // Generate unique operation ID
   const generateOperationId = useCallback((): string => {
@@ -855,50 +891,53 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    const operationId = generateOperationId();
-    const currentBranch = repoInfo?.branch || 'unknown';
-    const localAhead = repoStatus?.ahead ?? 0;
-    const localBehind = repoStatus?.behind ?? 0;
-    syncStartTimeRef.current = Date.now();
-    
-    // Track sync started
-    trackSyncStarted({
-      branchName: currentBranch,
-      localAhead,
-      localBehind,
-    });
-    
-    setIsSyncing(true);
-    setProgressModal({
-      isOpen: true,
-      operationId,
-      title: 'Syncing with remote',
-    });
-    
-    try {
-      // Apply fetch settings from repo configuration (prune stale branches, fetch tags)
-      const prune = repoSettings?.fetchPrune ?? true;
-      const tags = repoSettings?.fetchTags ?? true;
-      const result = await SyncWithProgress(repoPath, operationId, prune, tags);
+    const result = await withOperationLock('Syncing', async () => {
+      const operationId = generateOperationId();
+      const currentBranch = repoInfo?.branch || 'unknown';
+      const localAhead = repoStatus?.ahead ?? 0;
+      const localBehind = repoStatus?.behind ?? 0;
+      syncStartTimeRef.current = Date.now();
       
-      if (!result.success) {
+      // Track sync started
+      trackSyncStarted({
+        branchName: currentBranch,
+        localAhead,
+        localBehind,
+      });
+      
+      setIsSyncing(true);
+      setProgressModal({
+        isOpen: true,
+        operationId,
+        title: 'Syncing with remote',
+      });
+      
+      try {
+        // Apply fetch settings from repo configuration (prune stale branches, fetch tags)
+        const prune = repoSettings?.fetchPrune ?? true;
+        const tags = repoSettings?.fetchTags ?? true;
+        const syncResult = await SyncWithProgress(repoPath, operationId, prune, tags);
+        
+        if (!syncResult.success) {
+          return false;
+        }
+        
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        syncStartTimeRef.current = null;
+        trackSyncFailed({
+          errorType: 'exception',
+          hadConflicts: false,
+        });
+        closeProgressModal();
+        setIsSyncing(false);
+        showMessage('error', `Sync failed: ${error.message || err}`);
         return false;
       }
-      
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      syncStartTimeRef.current = null;
-      trackSyncFailed({
-        errorType: 'exception',
-        hadConflicts: false,
-      });
-      closeProgressModal();
-      setIsSyncing(false);
-      showMessage('error', `Sync failed: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal]);
+    });
+    return result ?? false;
+  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal, withOperationLock]);
 
   // ===== Diff Operations =====
 
@@ -1008,35 +1047,38 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    const fromBranch = repoInfo?.branch || 'unknown';
-    
-    try {
-      const result = await CheckoutBranch(repoPath, branchName);
+    const result = await withOperationLock('Switching branch', async () => {
+      const fromBranch = repoInfo?.branch || 'unknown';
       
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to switch branch');
+      try {
+        const result = await CheckoutBranch(repoPath, branchName);
+        
+        if (!result.success) {
+          showMessage('error', result.error || 'Failed to switch branch');
+          return false;
+        }
+        
+        trackBranchSwitched({
+          fromBranch,
+          toBranch: branchName,
+          usedStash: false,
+        });
+
+        closeAllExplorerPreviews();
+        
+        showMessage('success', result.message || `Switched to ${branchName}`);
+        clearSelection();
+        await refreshAll();
+        await refreshBranches();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed to switch branch: ${error.message || err}`);
         return false;
       }
-      
-      trackBranchSwitched({
-        fromBranch,
-        toBranch: branchName,
-        usedStash: false,
-      });
-
-      closeAllExplorerPreviews();
-      
-      showMessage('success', result.message || `Switched to ${branchName}`);
-      clearSelection();
-      await refreshAll();
-      await refreshBranches();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to switch branch: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
+    });
+    return result ?? false;
+  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews, withOperationLock]);
 
   // Create new branch and switch to it
   const createBranch = useCallback(async (branchName: string): Promise<boolean> => {
@@ -1045,35 +1087,38 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    const fromBranch = repoInfo?.branch || 'unknown';
-    
-    try {
-      const result = await CreateBranchAndCheckout(repoPath, branchName);
+    const result = await withOperationLock('Creating branch', async () => {
+      const fromBranch = repoInfo?.branch || 'unknown';
       
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to create branch');
+      try {
+        const result = await CreateBranchAndCheckout(repoPath, branchName);
+        
+        if (!result.success) {
+          showMessage('error', result.error || 'Failed to create branch');
+          return false;
+        }
+        
+        trackBranchCreated({
+          branchName,
+          fromBranch,
+          movedUncommittedChanges: false,
+        });
+
+        closeAllExplorerPreviews();
+        
+        showMessage('success', result.message || `Created branch ${branchName}`);
+        clearSelection();
+        await refreshAll();
+        await refreshBranches();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed to create branch: ${error.message || err}`);
         return false;
       }
-      
-      trackBranchCreated({
-        branchName,
-        fromBranch,
-        movedUncommittedChanges: false,
-      });
-
-      closeAllExplorerPreviews();
-      
-      showMessage('success', result.message || `Created branch ${branchName}`);
-      clearSelection();
-      await refreshAll();
-      await refreshBranches();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to create branch: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
+    });
+    return result ?? false;
+  }, [repoPath, repoInfo, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews, withOperationLock]);
 
   // Rename an existing branch (local + remote when upstream exists)
   const renameBranch = useCallback(async (oldName: string, newName: string): Promise<boolean> => {
@@ -1142,44 +1187,47 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    const fromBranch = repoInfo?.branch || 'unknown';
-    const wasOnProtectedBranch = fromBranch === 'main' || fromBranch === 'master';
-    const filesChanged = repoStatus?.changedFiles?.length ?? 0;
-    
-    try {
-      const switchResult = await StashAndSwitchBranch(repoPath, branchName.trim(), true);
+    const result = await withOperationLock('Saving to new branch', async () => {
+      const fromBranch = repoInfo?.branch || 'unknown';
+      const wasOnProtectedBranch = fromBranch === 'main' || fromBranch === 'master';
+      const filesChanged = repoStatus?.changedFiles?.length ?? 0;
       
-      if (!switchResult.success) {
-        showMessage('error', switchResult.error || 'Failed to create branch and move changes');
-        return false;
-      }
-      
-      const commitResult = await CommitAll(repoPath, message.trim());
-      
-      if (!commitResult.success) {
-        showMessage('error', commitResult.error || 'Branch created but failed to save changes');
-        return false;
-      }
-      
-      trackCommitBranchAndSave({
-        newBranchName: branchName,
-        filesChanged,
-        wasOnProtectedBranch,
-      });
+      try {
+        const switchResult = await StashAndSwitchBranch(repoPath, branchName.trim(), true);
+        
+        if (!switchResult.success) {
+          showMessage('error', switchResult.error || 'Failed to create branch and move changes');
+          return false;
+        }
+        
+        const commitResult = await CommitAll(repoPath, message.trim());
+        
+        if (!commitResult.success) {
+          showMessage('error', commitResult.error || 'Branch created but failed to save changes');
+          return false;
+        }
+        
+        trackCommitBranchAndSave({
+          newBranchName: branchName,
+          filesChanged,
+          wasOnProtectedBranch,
+        });
 
-      closeAllExplorerPreviews();
-      
-      showMessage('success', `Created branch "${branchName}" and saved changes`);
-      clearSelection();
-      await refreshAll();
-      await refreshBranches();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews]);
+        closeAllExplorerPreviews();
+        
+        showMessage('success', `Created branch "${branchName}" and saved changes`);
+        clearSelection();
+        await refreshAll();
+        await refreshBranches();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed: ${error.message || err}`);
+        return false;
+      }
+    });
+    return result ?? false;
+  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews, withOperationLock]);
 
   // ===== Recovery Operations =====
 
@@ -1190,26 +1238,29 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    try {
-      const result = await ResetSoftHead(repoPath, 1, true);
-      
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to undo last commit');
+    const result = await withOperationLock('Undoing last commit', async () => {
+      try {
+        const result = await ResetSoftHead(repoPath, 1, true);
+        
+        if (!result.success) {
+          showMessage('error', result.error || 'Failed to undo last commit');
+          return false;
+        }
+        
+        trackCommitUndone({ commitsResetCount: 1 });
+        
+        showMessage('success', result.message || 'Undid last commit');
+        clearSelection();
+        await refreshAll();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed to undo: ${error.message || err}`);
         return false;
       }
-      
-      trackCommitUndone({ commitsResetCount: 1 });
-      
-      showMessage('success', result.message || 'Undid last commit');
-      clearSelection();
-      await refreshAll();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to undo: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, showMessage, clearSelection, refreshAll]);
+    });
+    return result ?? false;
+  }, [repoPath, showMessage, clearSelection, refreshAll, withOperationLock]);
 
   // Discard all changes
   const discardAllChanges = useCallback(async (): Promise<boolean> => {
@@ -1218,31 +1269,34 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    const filesDiscarded = repoStatus?.changedFiles?.length ?? 0;
-    
-    try {
-      const result = await DiscardAll(repoPath, true);
+    const result = await withOperationLock('Discarding changes', async () => {
+      const filesDiscarded = repoStatus?.changedFiles?.length ?? 0;
       
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to discard changes');
+      try {
+        const result = await DiscardAll(repoPath, true);
+        
+        if (!result.success) {
+          showMessage('error', result.error || 'Failed to discard changes');
+          return false;
+        }
+        
+        trackChangesDiscarded({
+          filesDiscarded,
+          wasPartial: false,
+        });
+        
+        showMessage('success', result.message || 'All changes discarded');
+        clearSelection();
+        await refreshAll();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed to discard: ${error.message || err}`);
         return false;
       }
-      
-      trackChangesDiscarded({
-        filesDiscarded,
-        wasPartial: false,
-      });
-      
-      showMessage('success', result.message || 'All changes discarded');
-      clearSelection();
-      await refreshAll();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to discard: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, repoStatus, showMessage, clearSelection, refreshAll]);
+    });
+    return result ?? false;
+  }, [repoPath, repoStatus, showMessage, clearSelection, refreshAll, withOperationLock]);
 
   // Rewind to last snapshot
   const rewindToLastSnapshot = useCallback(async (): Promise<boolean> => {
@@ -1251,24 +1305,27 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    try {
-      const result = await ResetHardHead(repoPath, true);
-      
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to rewind');
+    const result = await withOperationLock('Rewinding', async () => {
+      try {
+        const result = await ResetHardHead(repoPath, true);
+        
+        if (!result.success) {
+          showMessage('error', result.error || 'Failed to rewind');
+          return false;
+        }
+        
+        showMessage('success', result.message || 'Rewound to last snapshot');
+        clearSelection();
+        await refreshAll();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed to rewind: ${error.message || err}`);
         return false;
       }
-      
-      showMessage('success', result.message || 'Rewound to last snapshot');
-      clearSelection();
-      await refreshAll();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to rewind: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, showMessage, clearSelection, refreshAll]);
+    });
+    return result ?? false;
+  }, [repoPath, showMessage, clearSelection, refreshAll, withOperationLock]);
 
   // Discard changes to a single file
   const discardFileChanges = useCallback(async (filePath: string): Promise<boolean> => {
@@ -1277,30 +1334,33 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
-    try {
-      const result = await DiscardFile(repoPath, filePath, true);
-      
-      if (!result.success) {
-        showMessage('error', result.error || 'Failed to discard file changes');
+    const result = await withOperationLock('Discarding file changes', async () => {
+      try {
+        const result = await DiscardFile(repoPath, filePath, true);
+        
+        if (!result.success) {
+          showMessage('error', result.error || 'Failed to discard file changes');
+          return false;
+        }
+        
+        trackChangesDiscarded({
+          filesDiscarded: 1,
+          wasPartial: true,
+        });
+        
+        showMessage('success', result.message || `Discarded changes to ${filePath}`);
+        setSelectedFileIndex(null);
+        setCurrentDiff(null);
+        await refreshStatus();
+        return true;
+      } catch (err) {
+        const error = err as Error;
+        showMessage('error', `Failed to discard: ${error.message || err}`);
         return false;
       }
-      
-      trackChangesDiscarded({
-        filesDiscarded: 1,
-        wasPartial: true,
-      });
-      
-      showMessage('success', result.message || `Discarded changes to ${filePath}`);
-      setSelectedFileIndex(null);
-      setCurrentDiff(null);
-      await refreshStatus();
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to discard: ${error.message || err}`);
-      return false;
-    }
-  }, [repoPath, showMessage, refreshStatus]);
+    });
+    return result ?? false;
+  }, [repoPath, showMessage, refreshStatus, withOperationLock]);
 
   // ===== Conflict Checking Operations =====
 
@@ -2669,6 +2729,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     isInstallingPackages,
     packagesInstallMessage,
     packagesInstallPercent,
+
+    // Global operation lock
+    operationInProgress,
+    operationLabel,
     
     // Remote state
     hasRemote,
@@ -2791,6 +2855,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     selectedCommit, selectedCommitFile, currentDiff,
     isLoading, isSyncing, isCommitting, isDiffLoading,
     gitInstalled, lfsInstalled, isInstallingPackages, packagesInstallMessage, packagesInstallPercent,
+    operationInProgress, operationLabel,
     hasRemote, refreshRemotes,
     repoSettings, refreshRepoSettings,
     progressModal, handleProgressComplete,
