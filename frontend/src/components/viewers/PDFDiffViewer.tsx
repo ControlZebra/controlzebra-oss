@@ -28,6 +28,7 @@ import {
 import {
   AlertCircle,
   Loader2,
+  RefreshCw,
   ChevronLeft,
   ChevronRight,
   Columns2,
@@ -436,6 +437,7 @@ function PDFDiffViewer({
   const [pageResult, setPageResult] = useState<PageDiffResult | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [summary, setSummary] = useState<PdfDiffSummary | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   // Per-page diff cache (lives for the lifetime of this mount)
   const pageCacheRef = useRef<Map<number, PageDiffResult>>(new Map());
@@ -449,6 +451,15 @@ function PDFDiffViewer({
 
   // ── Total pages ────────────────────────────────────────────────────────
   const totalPages = pdfPair ? Math.max(pdfPair.oldPageCount, pdfPair.newPageCount) : 0;
+  const activeCacheKey = useMemo(() => cacheKey(repoPath, filePath, commitHash), [repoPath, filePath, commitHash]);
+
+  const handleReload = useCallback(() => {
+    pdfDiffCache.delete(activeCacheKey);
+    pageCacheRef.current.clear();
+    setPageResult(null);
+    setSummary(null);
+    setReloadNonce((n) => n + 1);
+  }, [activeCacheKey]);
 
   // ── Load PDF pair on mount or when props change ────────────────────────
   useEffect(() => {
@@ -585,7 +596,7 @@ function PDFDiffViewer({
 
     load();
     return () => { cancelled = true; };
-  }, [repoPath, filePath, commitHash, isWorkingTree]);
+  }, [repoPath, filePath, commitHash, isWorkingTree, reloadNonce]);
 
   // ── Compare current page whenever it changes ──────────────────────────
   useEffect(() => {
@@ -843,6 +854,10 @@ function PDFDiffViewer({
               <SlidersHorizontal size={14} />
             </ToolbarBtn>
           </div>
+
+          <ToolbarBtn onClick={handleReload} title="Reload diff">
+            <RefreshCw size={14} />
+          </ToolbarBtn>
         </div>
       </div>
 

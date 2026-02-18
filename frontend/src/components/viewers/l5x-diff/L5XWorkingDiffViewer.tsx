@@ -131,6 +131,10 @@ function L5XWorkingDiffViewer({
     setRetryCount(prev => prev + 1);
   }, []);
 
+  const handleReload = useCallback(() => {
+    setRetryCount(prev => prev + 1);
+  }, []);
+
   // ========================================================================
   // Load, parse, and diff
   // ========================================================================
@@ -290,14 +294,24 @@ function L5XWorkingDiffViewer({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-theme-surface border-b border-theme-default">
-        <Cpu size={ICON_SIZES.sm} className="text-theme-secondary" />
-        <span className="text-sm text-theme-primary font-medium">
-          L5X Working Changes
-        </span>
-        <span className="text-xs text-theme-muted truncate">
-          {filePath}
-        </span>
+      <div className="flex items-center justify-between px-4 py-2 bg-theme-surface border-b border-theme-default">
+        <div className="flex items-center gap-2 min-w-0">
+          <Cpu size={ICON_SIZES.sm} className="text-theme-secondary shrink-0" />
+          <span className="text-sm text-theme-primary font-medium shrink-0">
+            L5X Working Changes
+          </span>
+          <span className="text-xs text-theme-muted truncate">
+            {filePath}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={handleReload}
+          title="Reload diff"
+          className="p-1.5 rounded text-theme-muted hover:text-theme-primary hover:bg-theme-elevated transition-colors"
+        >
+          <RefreshCw size={ICON_SIZES.sm} />
+        </button>
       </div>
 
       {/* Change stream */}
