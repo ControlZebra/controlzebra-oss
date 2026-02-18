@@ -28,6 +28,7 @@ import {
 import {
   AlertCircle,
   Loader2,
+  RefreshCw,
   Columns2,
   Layers,
   FileText,
@@ -597,6 +598,11 @@ function Model3DDiffViewer({
     localStorage.setItem('3d-diff-mode', m);
   }, []);
 
+  const handleReload = useCallback(() => {
+    modelDiffCache.delete(key);
+    setRefreshCounter((c) => c + 1);
+  }, [key]);
+
   // ---------------------------------------------------------------------------
   // Keyboard shortcuts: 1/2 to switch modes
   // ---------------------------------------------------------------------------
@@ -795,6 +801,13 @@ function Model3DDiffViewer({
               <Layers size={14} />
             </ToolbarBtn>
           </div>
+
+          <ToolbarBtn
+            onClick={handleReload}
+            title="Reload diff"
+          >
+            <RefreshCw size={14} />
+          </ToolbarBtn>
 
           {/* Controls hint */}
           <span className="text-xs text-theme-muted/60 hidden sm:inline">

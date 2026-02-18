@@ -26,6 +26,7 @@ import { PhotoProvider, PhotoView } from 'react-photo-view';
 import {
   AlertCircle,
   Loader2,
+  RefreshCw,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -554,6 +555,14 @@ function ImageDiffViewer({
     () => getPathFileName(filePath),
     [filePath],
   );
+  const normalizedTargetPath = useMemo(() => {
+    const normalizedFilePath = filePath.replace(/\\/g, '/');
+    if (/^([a-zA-Z]:)?\//.test(normalizedFilePath)) {
+      return normalizedFilePath;
+    }
+    const normalizedRepoPath = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    return `${normalizedRepoPath}/${normalizedFilePath}`;
+  }, [repoPath, filePath]);
 
   // ---------------------------------------------------------------------------
   // File change subscription (for working tree diffs)
@@ -564,7 +573,26 @@ function ImageDiffViewer({
     // Only subscribe for working tree diffs
     if (!isWorkingTree && commitHash) return;
 
-    const handleFilesChanged = () => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+
+      const samePath =
+        changedPath === normalizedTargetPath ||
+        changedPath.toLowerCase() === normalizedTargetPath.toLowerCase();
+
+      if (!samePath) return;
+
       // Invalidate this file's cache entry and bump counter to trigger re-fetch
       imageDiffCache.delete(key);
       setRefreshCounter((c) => c + 1);
@@ -577,7 +605,12 @@ function ImageDiffViewer({
         unsubscribe();
       }
     };
-  }, [key, isWorkingTree, commitHash]);
+  }, [key, isWorkingTree, commitHash, normalizedTargetPath]);
+
+  const handleReload = useCallback(() => {
+    imageDiffCache.delete(key);
+    setRefreshCounter((c) => c + 1);
+  }, [key]);
 
   // ---------------------------------------------------------------------------
   // Mode change handler — persist to localStorage
@@ -773,6 +806,13 @@ function ImageDiffViewer({
               <SlidersHorizontal size={14} />
             </ToolbarBtn>
           </div>
+
+          <ToolbarBtn
+            onClick={handleReload}
+            title="Reload diff"
+          >
+            <RefreshCw size={14} />
+          </ToolbarBtn>
         </div>
       </div>
 

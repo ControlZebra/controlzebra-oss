@@ -1815,24 +1815,47 @@ func (g *GitService) readFileAtRevisionWithTimeout(repoPath string, filePath str
 
 	showArg := revision + ":" + relPath
 
-	var result CommandResult
-	if timeout > 0 {
+	// Prefer `git cat-file --filters` so smudge filters (including Git LFS)
+	// are applied. This avoids returning LFS pointer text for tracked files.
+	// Fall back to `git show` for compatibility.
+	objectRef := showArg
+
+	readRawWithTimeout := func(args ...string) ([]byte, error) {
+		if timeout <= 0 {
+			return g.runner.RunGitRaw(repoPath, args...)
+		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		result = g.runner.RunWithContext(ctx, repoPath, GitPath(), "show", showArg)
-	} else {
-		result = g.runner.RunGit(repoPath, "show", showArg)
-	}
 
-	if !result.Success {
-		errMsg := result.Stderr
-		if errMsg == "" {
-			errMsg = result.Error
+		result := g.runner.RunWithContext(ctx, repoPath, GitPath(), args...)
+		if !result.Success {
+			errMsg := result.Stderr
+			if errMsg == "" {
+				errMsg = result.Error
+			}
+			return nil, fmt.Errorf("%s", errMsg)
 		}
-		return buildFileContentError(errMsg, filePath, revision)
+		return []byte(result.Stdout), nil
 	}
 
-	return FileContentResult{Content: result.Stdout}
+	data, err := readRawWithTimeout("cat-file", "--filters", objectRef)
+	if err != nil {
+		data, err = readRawWithTimeout("show", showArg)
+		if err != nil {
+			return buildFileContentError(err.Error(), filePath, revision)
+		}
+	}
+
+	// Clearer message when LFS object resolution failed and only pointer is present.
+	if isLFSPointer(data) {
+		return FileContentResult{
+			HasError: true,
+			Error:    fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved. Ensure git-lfs is installed and run 'git lfs pull'.", relPath),
+		}
+	}
+
+	return FileContentResult{Content: string(data)}
 }
 
 func toRepoRelativePath(repoPath string, filePath string) (string, error) {
