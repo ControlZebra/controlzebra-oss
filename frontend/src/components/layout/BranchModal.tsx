@@ -22,6 +22,7 @@ interface BranchItemProps {
   branch: BranchInfo;
   isCurrent: boolean;
   onSelect: (name: string) => void;
+  disabled?: boolean;
 }
 
 // ============================================================================
@@ -37,11 +38,11 @@ const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm }
 /**
  * BranchItem - Single branch in the list.
  */
-const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect }: BranchItemProps): JSX.Element {
+const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect, disabled = false }: BranchItemProps): JSX.Element {
   return (
     <button
       onClick={() => onSelect(branch.name)}
-      disabled={isCurrent}
+      disabled={isCurrent || disabled}
       className={cn(
         "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors",
         isCurrent 
@@ -60,7 +61,7 @@ const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect }: Bra
 });
 
 function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
-  const { branches, repoInfo, switchBranch, createBranch, refreshBranches } = useRepo();
+  const { branches, repoInfo, switchBranch, createBranch, refreshBranches, operationInProgress } = useRepo();
   const [mode, setMode] = useState<'switch' | 'create'>('switch');
   const [newBranchName, setNewBranchName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -180,7 +181,7 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
                 <Button
                   className="w-full"
                   onClick={handleCreate}
-                  disabled={!newBranchName.trim()}
+                  disabled={!newBranchName.trim() || operationInProgress}
                   loading={isLoading}
                 >
                   Create Branch
@@ -217,6 +218,7 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
                         branch={branch}
                         isCurrent={branch.name === repoInfo?.branch}
                         onSelect={handleSwitch}
+                        disabled={isLoading || operationInProgress}
                       />
                     ))
                   )}

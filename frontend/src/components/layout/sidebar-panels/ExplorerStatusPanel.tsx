@@ -69,6 +69,8 @@ interface ExplorerStatusPanelProps {
   isLoading?: boolean;
   isSyncing?: boolean;
   isPublishing?: boolean;
+  /** True when any mutating git operation is running anywhere in the app */
+  operationInProgress?: boolean;
   ghInstalled?: boolean;
   gitInstalled?: boolean;
   lfsInstalled?: boolean;
@@ -149,6 +151,7 @@ function ExplorerStatusPanel({
   isLoading = false,
   isSyncing = false,
   isPublishing = false,
+  operationInProgress = false,
   ghInstalled = false,
   gitInstalled = true,
   lfsInstalled = true,
@@ -186,6 +189,7 @@ function ExplorerStatusPanel({
           <Button 
             onClick={handleNoRepoAction}
             loading={isLoading || isInstallingPackages}
+            disabled={operationInProgress}
             size="sm"
             className="w-full"
           >
@@ -209,6 +213,7 @@ function ExplorerStatusPanel({
             <Button 
               onClick={onSync} 
               loading={isSyncing} 
+              disabled={operationInProgress && !isSyncing}
               size="sm"
               className="w-full"
             >
@@ -283,6 +288,7 @@ function ExplorerStatusPanel({
         >
           <Button 
             onClick={handleOpenCombineChanges}
+            disabled={operationInProgress}
             size="sm"
             className="w-full"
           >

@@ -474,6 +474,11 @@ export interface RepoContextValue {
   isCommitting: boolean;
   isDiffLoading: boolean;
 
+  // Global operation lock — true when any mutating git operation is running
+  operationInProgress: boolean;
+  /** Human-readable label of the current operation, e.g. "Syncing" */
+  operationLabel: string | null;
+
   // CLI/package availability state
   gitInstalled: boolean;
   lfsInstalled: boolean;

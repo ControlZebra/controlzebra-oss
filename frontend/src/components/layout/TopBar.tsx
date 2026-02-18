@@ -62,6 +62,7 @@ function TopBar(): JSX.Element {
     commits,
     undoLastCommit,
     discardAllChanges,
+    operationInProgress,
   } = useRepo();
   const { sidebarCollapsed, sidebarWidth, toggleSidebar, setActiveView } = useLayout();
 
@@ -134,7 +135,7 @@ function TopBar(): JSX.Element {
                   {/* Undo Last Save */}
                   <button 
                     onClick={() => setUndoDialogOpen(true)}
-                    disabled={!hasCommits}
+                    disabled={!hasCommits || operationInProgress}
                     title="Undo Last Save"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
@@ -144,7 +145,7 @@ function TopBar(): JSX.Element {
                   {/* Discard Changes */}
                   <button 
                     onClick={() => setDiscardDialogOpen(true)}
-                    disabled={!hasChanges}
+                    disabled={!hasChanges || operationInProgress}
                     title="Discard All Changes"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
@@ -195,14 +196,14 @@ function TopBar(): JSX.Element {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
                   onClick={() => setUndoDialogOpen(true)}
-                  disabled={!hasCommits}
+                  disabled={!hasCommits || operationInProgress}
                 >
                   <Undo2 style={iconStyle} className="mr-2" />
                   Undo Last Save
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setDiscardDialogOpen(true)}
-                  disabled={!hasChanges}
+                  disabled={!hasChanges || operationInProgress}
                 >
                   <Trash2 style={iconStyle} className="mr-2" />
                   Discard All Changes

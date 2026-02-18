@@ -493,6 +493,11 @@ func getErrorMessage(result CommandResult) string {
 // This keeps non-interactive git operations (GIT_TERMINAL_PROMPT=0) working
 // after users authenticate with GitHub CLI.
 func (g *GitService) ensureGitHubHTTPSCredentials(repoPath string) {
+	// First, clean stale credential helper entries that may reference a gh.exe
+	// path from before the data-layout migration (e.g. ControlZebra\bin\gh.exe
+	// vs ControlZebra\tools\bin\gh.exe).
+	g.cleanStaleCredentialHelper(repoPath)
+
 	remoteURL := strings.ToLower(strings.TrimSpace(g.GetRemoteURL(repoPath)))
 	if remoteURL == "" {
 		return
@@ -514,6 +519,42 @@ func (g *GitService) ensureGitHubHTTPSCredentials(repoPath string) {
 
 	// Best-effort self-heal. Ignore failures and allow the git command to proceed.
 	g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+}
+
+// cleanStaleCredentialHelper removes credential.helper entries that reference
+// a gh.exe path that no longer exists on disk. This can happen after the
+// data-layout migration moves binaries from the legacy path to the canonical one.
+func (g *GitService) cleanStaleCredentialHelper(repoPath string) {
+	result := g.runner.RunGit(repoPath, "config", "--global", "--get-all", "credential.helper")
+	if !result.Success {
+		return
+	}
+
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Credential helpers set by gh look like:
+		//   !/path/to/gh.exe auth git-credential
+		if !strings.Contains(line, "auth git-credential") {
+			continue
+		}
+		// Extract the path: strip leading '!' and the trailing " auth git-credential"
+		ghPath := strings.TrimPrefix(line, "!")
+		if idx := strings.Index(ghPath, " auth"); idx > 0 {
+			ghPath = strings.TrimSpace(ghPath[:idx])
+		}
+		// Remove surrounding quotes if present
+		ghPath = strings.Trim(ghPath, "\"'")
+		if ghPath == "" {
+			continue
+		}
+		// If the referenced file doesn't exist, remove this stale entry.
+		if !fileExists(ghPath) {
+			g.runner.RunGit(repoPath, "config", "--global", "--unset", "credential.helper", line)
+		}
+	}
 }
 
 // ============================================================================

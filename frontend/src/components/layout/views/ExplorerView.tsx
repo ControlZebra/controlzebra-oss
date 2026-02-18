@@ -54,6 +54,8 @@ function ExplorerView(): JSX.Element {
     isLoading,
     isCommitting,
     isSyncing,
+    // Global operation lock
+    operationInProgress,
     // Remote state
     hasRemote,
     refreshRemotes,
@@ -178,6 +180,7 @@ function ExplorerView(): JSX.Element {
         repoPath={repoPath || undefined}
         isCommitting={isCommitting}
         isRewinding={isRewinding}
+        operationInProgress={operationInProgress}
       />
     );
   }
@@ -204,6 +207,7 @@ function ExplorerView(): JSX.Element {
         isLoading={isLoading}
         isSyncing={isSyncing}
         isPublishing={isPublishing}
+        operationInProgress={operationInProgress}
         gitInstalled={gitInstalled}
         lfsInstalled={lfsInstalled}
         isInstallingPackages={isInstallingPackages}
