@@ -347,6 +347,10 @@ func (f *FileSystemService) OpenFile(path string) OpenFileResult {
 		}
 	}
 
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = hideWindowAttr()
+	}
+
 	err := cmd.Start()
 	if err != nil {
 		return OpenFileResult{
@@ -531,6 +535,10 @@ func (f *FileSystemService) OpenURL(url string) OpenFileResult {
 		}
 	}
 
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = hideWindowAttr()
+	}
+
 	err := cmd.Start()
 	if err != nil {
 		return OpenFileResult{
@@ -577,6 +585,7 @@ func (f *FileSystemService) CopyToClipboard(text string) OpenFileResult {
 	case "windows":
 		// Windows: use clip command
 		cmd = exec.Command("cmd", "/c", "echo|set /p="+text+"|clip")
+		cmd.SysProcAttr = hideWindowAttr()
 		// For Windows, we can just run directly without stdin
 		err := cmd.Run()
 		if err != nil {
@@ -703,6 +712,10 @@ func (f *FileSystemService) MoveToTrash(path string) OpenFileResult {
 			Success: false,
 			Error:   "Unsupported operating system",
 		}
+	}
+
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = hideWindowAttr()
 	}
 
 	if output, err := cmd.CombinedOutput(); err != nil {

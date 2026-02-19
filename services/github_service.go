@@ -197,9 +197,9 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 		}
 	}
 
-	// Best-effort: wire gh auth to git credential helper for HTTPS operations.
-	// This is especially important for non-interactive app-launched git commands.
-	if setupResult := g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com"); !setupResult.Success {
+	// Best-effort: preconfigure token-based credentials for non-interactive
+	// app-launched git operations.
+	if !configureGitHubHTTPSCredentials(g.runner) {
 		return GitHubAuthResult{
 			Success: true,
 			Message: "Authentication successful (Git credential setup may need attention)",
@@ -356,8 +356,8 @@ func (g *GitHubService) AuthLoginComplete() GitHubAuthResult {
 
 		status := g.AuthStatus()
 		if status.LoggedIn {
-			// Best-effort: wire gh auth to git credential helper for HTTPS operations.
-			g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+			// Best-effort: preconfigure token-based credentials for HTTPS operations.
+			configureGitHubHTTPSCredentials(g.runner)
 
 			// Clean up the auth process references
 			g.authMu.Lock()
@@ -870,10 +870,32 @@ func (g *GitHubService) RepoClone(repo string, destPath string, shallow bool) Gi
 		}
 	}
 
-	args := []string{"repo", "clone", repo}
-	if shallow {
-		args = append(args, "--", "--depth=1")
+	cloneTarget := strings.TrimSpace(repo)
+	if cloneTarget == "" {
+		return GitHubCloneResult{
+			Success: false,
+			Error:   "Repository name or URL is required",
+		}
 	}
+	if !strings.Contains(cloneTarget, "://") && !strings.Contains(cloneTarget, "@") {
+		if strings.Count(cloneTarget, "/") != 1 {
+			return GitHubCloneResult{
+				Success: false,
+				Error:   "Repository must be in owner/repo format or a valid URL",
+			}
+		}
+		cloneTarget = "https://github.com/" + strings.TrimSuffix(cloneTarget, ".git") + ".git"
+	}
+
+	// Best effort. If gh auth is available, configure token-based credentials so
+	// private HTTPS clone works without shelling out to gh credential helper.
+	configureGitHubHTTPSCredentials(g.runner)
+
+	args := []string{"clone"}
+	if shallow {
+		args = append(args, "--depth=1")
+	}
+	args = append(args, cloneTarget)
 
 	repoName := inferRepoNameFromIdentifier(repo)
 	cloneDir := repoName
@@ -895,11 +917,11 @@ func (g *GitHubService) RepoClone(repo string, destPath string, shallow bool) Gi
 		}
 	}
 
-	result := g.runner.Run(workDir, GhPath(), args...)
+	result := g.runner.Run(workDir, GitPath(), args...)
 	if !result.Success {
 		return GitHubCloneResult{
 			Success: false,
-			Error:   getGHErrorMessage(result),
+			Error:   getErrorMessage(result),
 		}
 	}
 
