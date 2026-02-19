@@ -382,6 +382,7 @@ func normalizeWindowsPromptEnv(env []string) []string {
 	// Force non-interactive credential behavior for background CLI calls.
 	env = setEnvCaseInsensitive(env, "GIT_TERMINAL_PROMPT", "0")
 	env = setEnvCaseInsensitive(env, "GCM_INTERACTIVE", "never")
+	env = setEnvCaseInsensitive(env, "GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
 
 	return env
 }

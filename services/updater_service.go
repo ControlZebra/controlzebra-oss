@@ -172,6 +172,8 @@ func (u *UpdaterService) CheckForUpdate() (*UpdateInfo, error) {
 	}
 
 	cmd := exec.CommandContext(ctx, u.sidecarPath, args...)
+	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(u.sidecarPath)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -236,6 +238,8 @@ func (u *UpdaterService) DownloadUpdate(downloadURL, checksum string) (string, e
 		"--url", downloadURL,
 		"--checksum", checksum,
 	)
+	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(u.sidecarPath)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
