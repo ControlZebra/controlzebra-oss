@@ -921,6 +921,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
         if (!syncResult.success) {
           return false;
         }
+
+        // Refresh immediately on successful backend completion so sidebar status
+        // does not remain in a stale "Push Changes" state if completion events
+        // are delayed on some platforms.
+        await refreshAll();
         
         return true;
       } catch (err) {
@@ -937,7 +942,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
     });
     return result ?? false;
-  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal, withOperationLock]);
+  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal, withOperationLock, refreshAll]);
 
   // ===== Diff Operations =====
 
