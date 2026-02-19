@@ -274,7 +274,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	var branchResult, aheadBehindResult, statusResult, commitCountResult, remoteListResult CommandResult
+	var branchResult, aheadBehindResult, upstreamResult, statusResult, commitCountResult, remoteListResult CommandResult
 
 	// Run independent local commands concurrently
 	wg.Add(4)
@@ -309,9 +309,14 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 
 	hasRemote := remoteListResult.Success && trimOutput(remoteListResult.Stdout) != ""
 	if hasRemote {
-		// Only attempt upstream math when a remote exists.
-		// This avoids noisy "no upstream configured" errors for local-only repositories.
-		aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
+		// Detect upstream explicitly so transient failures in ahead/behind math do not
+		// incorrectly mark the branch as "no upstream".
+		upstreamResult = g.runner.RunGit(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+
+		if upstreamResult.Success {
+			// Only attempt upstream math when upstream exists.
+			aheadBehindResult = g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
+		}
 	}
 
 	// Process branch result
@@ -323,10 +328,10 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		result.Branch = "HEAD"
 	}
 
+	result.HasUpstream = hasRemote && upstreamResult.Success
+
 	// Process ahead/behind result
-	// If this succeeds, we have an upstream
-	if hasRemote && aheadBehindResult.Success {
-		result.HasUpstream = true
+	if result.HasUpstream && aheadBehindResult.Success {
 		parts := strings.Fields(trimOutput(aheadBehindResult.Stdout))
 		if len(parts) == 2 {
 			// First is behind (upstream ahead), second is ahead (local ahead)
@@ -337,13 +342,10 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 				result.Ahead = n
 			}
 		}
-	} else {
-		// No upstream tracking branch
-		result.HasUpstream = false
 	}
 
-	// Process local-not-on-remote commit count
-	if commitCountResult.Success {
+	// Process local-not-on-remote commit count only when no upstream exists.
+	if !result.HasUpstream && commitCountResult.Success {
 		if n, err := strconv.Atoi(trimOutput(commitCountResult.Stdout)); err == nil {
 			result.TotalLocalCommits = n
 		}

@@ -317,6 +317,41 @@ func TestStatus_WithChanges(t *testing.T) {
 	}
 }
 
+func TestStatus_AfterPushWithUpstream_NoPendingSnapshots(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+
+	testFile := filepath.Join(repoPath, "test.txt")
+	if err := os.WriteFile(testFile, []byte("hello world"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	svc := NewGitService()
+	commitResult := svc.CommitAll(repoPath, "Initial commit")
+	if !commitResult.Success {
+		t.Fatalf("Expected commit to succeed, got: %s", commitResult.Error)
+	}
+
+	runGitCmd(t, repoPath, "push", "-u", "origin", "HEAD")
+
+	status := svc.Status(repoPath)
+	if status.HasError {
+		t.Fatalf("Expected no status error, got: %s", status.Error)
+	}
+	if !status.HasUpstream {
+		t.Fatalf("Expected HasUpstream=true after push -u")
+	}
+	if status.Ahead != 0 {
+		t.Fatalf("Expected Ahead=0 after push, got %d", status.Ahead)
+	}
+	if status.TotalLocalCommits != 0 {
+		t.Fatalf("Expected TotalLocalCommits=0 with upstream, got %d", status.TotalLocalCommits)
+	}
+}
+
 func TestCommitAll_Success(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
