@@ -209,6 +209,14 @@ func TestInitRepo_Success(t *testing.T) {
 	if !info.IsRepo {
 		t.Error("Expected directory to be a valid git repo after init")
 	}
+
+	branch, err := svc.GetCurrentBranch(targetPath)
+	if err != nil {
+		t.Fatalf("Expected to read current branch, got error: %v", err)
+	}
+	if branch != "main" {
+		t.Errorf("Expected default branch 'main', got '%s'", branch)
+	}
 }
 
 func TestInitRepo_AlreadyExists(t *testing.T) {

@@ -8,7 +8,7 @@
 #
 # Prerequisites:
 #   - Build platform binaries first (see examples below)
-#   - python3 (for JSON generation — available on macOS/Linux)
+#   - node (for JSON generation/validation)
 #   - gh CLI (optional, only for --upload)
 #
 # Usage:
@@ -135,9 +135,9 @@ if [[ "$CHANNEL" != "stable" && "$CHANNEL" != "beta" ]]; then
     die "Invalid --channel value: $CHANNEL (expected 'stable' or 'beta')"
 fi
 
-# python3 is required for JSON generation
-if ! command -v python3 &>/dev/null; then
-    die "python3 is required (used for JSON generation)"
+# node is required for JSON generation
+if ! command -v node &>/dev/null; then
+    die "node is required (used for JSON generation/validation)"
 fi
 
 # Resolve release notes from @file reference
@@ -309,7 +309,7 @@ while [[ $i -lt ${#FOUND_PLATFORMS[@]} ]]; do
 
     ok "$platform: ${BOLD}$dest_name${NC} (${size_mb} MB, sha256:${checksum:0:16}…)"
 
-    # Write to records file for Python to parse
+    # Write to records file for Node to parse
     echo "$platform|$download_url|$size|$checksum" >> "$RECORDS_TMPFILE"
 
     # Write to checksums file (standard sha256sum format)
@@ -334,65 +334,65 @@ info "Generating ${BOLD}update.json${NC} manifest..."
 NOTES_TMPFILE=$(mktemp)
 printf '%s' "$RELEASE_NOTES" > "$NOTES_TMPFILE"
 
-# Resolve mandatory flag to Python boolean string
-MANDATORY_PY="False"
+# Resolve mandatory flag to JavaScript boolean string
+MANDATORY_JS="false"
 if $MANDATORY; then
-    MANDATORY_PY="True"
+    MANDATORY_JS="true"
 fi
 
 RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Use Python for reliable, correctly-escaped JSON generation
-python3 - "$RECORDS_TMPFILE" "$NOTES_TMPFILE" "$VERSION" "$RELEASE_DATE" "$MIN_VERSION" "$MANDATORY_PY" "$OUTPUT_DIR/update.json" << 'PYEOF'
-import json
-import sys
+# Use Node for reliable, correctly-escaped JSON generation
+node - "$RECORDS_TMPFILE" "$NOTES_TMPFILE" "$VERSION" "$RELEASE_DATE" "$MIN_VERSION" "$MANDATORY_JS" "$OUTPUT_DIR/update.json" << 'JSEOF'
+const fs = require('fs');
 
-records_file = sys.argv[1]
-notes_file = sys.argv[2]
-version = sys.argv[3]
-release_date = sys.argv[4]
-min_version = sys.argv[5]
-mandatory_str = sys.argv[6]
-output_file = sys.argv[7]
+const recordsFile = process.argv[2];
+const notesFile = process.argv[3];
+const version = process.argv[4];
+const releaseDate = process.argv[5];
+const minVersion = process.argv[6];
+const mandatoryStr = process.argv[7];
+const outputFile = process.argv[8];
 
-# Parse platform records
-platforms = {}
-with open(records_file) as f:
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("|")
-        key, url, size, checksum_hex = parts[0], parts[1], int(parts[2]), parts[3]
-        platforms[key] = {
-            "url": url,
-            "size": size,
-            "checksum": f"sha256:{checksum_hex}",
-        }
+const records = fs.readFileSync(recordsFile, 'utf8').split(/\r?\n/);
+const platforms = {};
 
-# Read release notes
-with open(notes_file) as f:
-    notes = f.read().strip()
-
-# Build manifest
-manifest = {
-    "version": version,
-    "releaseDate": release_date,
-    "releaseNotes": notes,
-    "platforms": platforms,
+for (const line of records) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+        continue;
+    }
+    const parts = trimmed.split('|');
+    const key = parts[0];
+    const url = parts[1];
+    const size = Number.parseInt(parts[2], 10);
+    const checksumHex = parts[3];
+    platforms[key] = {
+        url,
+        size,
+        checksum: `sha256:${checksumHex}`,
+    };
 }
 
-if min_version:
-    manifest["minimumVersion"] = min_version
+const notes = fs.readFileSync(notesFile, 'utf8').trim();
 
-if mandatory_str == "True":
-    manifest["mandatory"] = True
+const manifest = {
+    version,
+    releaseDate,
+    releaseNotes: notes,
+    platforms,
+};
 
-# Write manifest
-with open(output_file, "w") as f:
-    json.dump(manifest, f, indent=2)
-    f.write("\n")
-PYEOF
+if (minVersion) {
+    manifest.minimumVersion = minVersion;
+}
+
+if (mandatoryStr === 'true') {
+    manifest.mandatory = true;
+}
+
+fs.writeFileSync(outputFile, `${JSON.stringify(manifest, null, 2)}\n`);
+JSEOF
 
 # Clean up temp files
 rm -f "$RECORDS_TMPFILE" "$NOTES_TMPFILE"
@@ -435,7 +435,7 @@ ls -lh "$OUTPUT_DIR/"
 echo ""
 
 # Verify the manifest is valid JSON
-if python3 -c "import json; json.load(open('$OUTPUT_DIR/update.json'))" 2>/dev/null; then
+if node -e "JSON.parse(require('fs').readFileSync('$OUTPUT_DIR/update.json', 'utf8'))" 2>/dev/null; then
     ok "Manifest JSON validated"
 else
     err "Manifest JSON validation failed!"
@@ -444,7 +444,7 @@ fi
 # Show manifest contents
 echo ""
 echo -e "${BOLD}═══ update.json ═══${NC}"
-python3 -m json.tool "$OUTPUT_DIR/update.json" 2>/dev/null || cat "$OUTPUT_DIR/update.json"
+node -e "const fs=require('fs'); console.log(JSON.stringify(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')), null, 2));" "$OUTPUT_DIR/update.json" 2>/dev/null || cat "$OUTPUT_DIR/update.json"
 echo -e "${BOLD}════════════════════${NC}"
 echo ""
 
@@ -516,6 +516,6 @@ else
     echo ""
     echo "  3. Verify the manifest is accessible:"
     echo ""
-    echo "     curl -s https://releases.controlzebra.com/desktop/stable/update.json | python3 -m json.tool"
+    echo "     curl -s https://releases.controlzebra.com/desktop/stable/update.json | node -e \"let d=''; process.stdin.on('data', c => d += c); process.stdin.on('end', () => console.log(JSON.stringify(JSON.parse(d), null, 2)));\""
     echo ""
 fi

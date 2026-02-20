@@ -138,11 +138,32 @@ func (g *GitService) InitRepo(path string) (opResult OperationResult) {
 		return
 	}
 
-	// Run git init
-	result := g.runner.RunGit(path, "init")
+	// Prefer explicit main default branch when supported.
+	result := g.runner.RunGit(path, "init", "-b", "main")
 	if !result.Success {
-		opResult = failedOp("Failed to initialize repository: " + getErrorMessage(result))
-		return
+		initErr := getErrorMessage(result)
+		lowerInitErr := strings.ToLower(initErr)
+
+		// Fallback for older Git versions that don't support -b/--initial-branch.
+		if strings.Contains(lowerInitErr, "unknown switch") ||
+			strings.Contains(lowerInitErr, "unknown option") ||
+			strings.Contains(lowerInitErr, "unrecognized option") ||
+			strings.Contains(lowerInitErr, "initial-branch") {
+			legacyInitResult := g.runner.RunGit(path, "init")
+			if !legacyInitResult.Success {
+				opResult = failedOp("Failed to initialize repository: " + getErrorMessage(legacyInitResult))
+				return
+			}
+
+			setHeadResult := g.runner.RunGit(path, "symbolic-ref", "HEAD", "refs/heads/main")
+			if !setHeadResult.Success {
+				opResult = failedOp("Failed to set default branch to main: " + getErrorMessage(setHeadResult))
+				return
+			}
+		} else {
+			opResult = failedOp("Failed to initialize repository: " + initErr)
+			return
+		}
 	}
 
 	opResult = successOp("Repository initialized successfully")
