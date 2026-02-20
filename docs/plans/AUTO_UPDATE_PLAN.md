@@ -931,7 +931,7 @@ Not needed for v1. Same concept — use `bsdiff` to generate patches from old→
 
 1. **Build the sidecar:** `go build -o bin/cz-updater ./cmd/updater`
 2. **Create a test manifest** at `test-updates/update.json` with a version higher than current.
-3. **Serve locally:** `cd test-updates && python3 -m http.server 8080`
+3. **Serve locally:** `node scripts/serve-static.js 8080 test-updates`
 4. **Configure update URL** to `http://localhost:8080/` during development.
 
 ### Test Cases

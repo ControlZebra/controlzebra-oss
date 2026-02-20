@@ -1,6 +1,8 @@
 package services
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -77,6 +79,10 @@ func removeGhCredentialHelpers(runner *CommandRunner) {
 }
 
 func ensureWindowsCredentialHelper(runner *CommandRunner) {
+	// Resolve search roots once instead of per-helper to avoid repeated
+	// git --exec-path subprocess spawns.
+	searchRoots := credentialHelperSearchRoots(runner)
+
 	result := runner.Run("", GitPath(), "config", "--global", "--get-all", "credential.helper")
 	if result.Success {
 		for _, line := range strings.Split(result.Stdout, "\n") {
@@ -84,16 +90,74 @@ func ensureWindowsCredentialHelper(runner *CommandRunner) {
 			if helper == "" || strings.Contains(helper, "auth git-credential") {
 				continue
 			}
-			if helper == "manager" || helper == "manager-core" || helper == "wincred" || strings.Contains(helper, "manager") {
+			if isSupportedWindowsCredentialHelper(helper, searchRoots) {
 				return
 			}
+			runner.Run("", GitPath(), "config", "--global", "--unset", "credential.helper", line)
 		}
 	}
 
 	// Best effort fallback chain for Git for Windows variants.
-	for _, helper := range []string{"manager-core", "manager", "wincred"} {
+	for _, helper := range []string{"manager", "manager-core", "wincred"} {
+		if !isSupportedWindowsCredentialHelper(helper, searchRoots) {
+			continue
+		}
 		if setResult := runner.Run("", GitPath(), "config", "--global", "credential.helper", helper); setResult.Success {
 			return
 		}
 	}
+}
+
+// credentialHelperSearchRoots returns the directories where credential helper
+// executables may reside. Resolved once per ensureWindowsCredentialHelper call.
+func credentialHelperSearchRoots(runner *CommandRunner) []string {
+	var roots []string
+	execPathResult := runner.Run("", GitPath(), "--exec-path")
+	if execPathResult.Success {
+		if p := strings.TrimSpace(execPathResult.Stdout); p != "" {
+			roots = append(roots, p)
+		}
+	}
+	if gitDir := filepath.Dir(GitPath()); gitDir != "" {
+		roots = append(roots, gitDir)
+	}
+	return roots
+}
+
+// isSupportedWindowsCredentialHelper returns true when the named helper is a
+// known Git for Windows credential helper whose executable can be located in
+// searchRoots. When searchRoots is empty (i.e. git --exec-path failed), all
+// known helpers are assumed valid to avoid breaking a working configuration.
+func isSupportedWindowsCredentialHelper(helper string, searchRoots []string) bool {
+	helper = strings.ToLower(strings.TrimSpace(helper))
+	if helper == "" {
+		return false
+	}
+
+	if helper != "manager" && helper != "manager-core" && helper != "wincred" {
+		return false
+	}
+
+	// When we cannot determine search paths, assume all known helpers
+	// are available rather than arbitrarily rejecting some.
+	if len(searchRoots) == 0 {
+		return true
+	}
+
+	fileCandidates := []string{
+		"git-credential-" + helper,
+		"git-credential-" + helper + ".exe",
+		"git-credential-" + helper + ".cmd",
+		"git-credential-" + helper + ".bat",
+	}
+
+	for _, root := range searchRoots {
+		for _, candidate := range fileCandidates {
+			if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
+				return true
+			}
+		}
+	}
+
+	return false
 }

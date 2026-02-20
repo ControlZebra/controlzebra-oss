@@ -127,7 +127,7 @@ echo ""
 # ─── Display manifest ─────────────────────────────────────────────────────────
 
 echo "═══ update.json ═══"
-python3 -m json.tool "$TEST_DIR/update.json" 2>/dev/null || cat "$TEST_DIR/update.json"
+node -e "const fs=require('fs'); console.log(JSON.stringify(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')), null, 2));" "$TEST_DIR/update.json" 2>/dev/null || cat "$TEST_DIR/update.json"
 echo "════════════════════"
 echo ""
 
@@ -159,5 +159,4 @@ echo ""
 
 # ─── Start HTTP server ────────────────────────────────────────────────────────
 
-cd "$TEST_DIR"
-python3 -m http.server "$PORT"
+node scripts/serve-static.js "$PORT" "$TEST_DIR"

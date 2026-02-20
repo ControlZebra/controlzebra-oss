@@ -62,7 +62,7 @@ The sidecar binary is output to `bin/cz-updater`. In dev mode (`task dev`), it's
 ### Tools needed
 
 - **Go 1.24+** — for building and running tests
-- **Python 3** — used by `scripts/create-release.sh` to generate manifests
+- **Node.js** — used by release/testing scripts for manifest JSON and local static serving
 - **`gh` CLI** — only if testing GitHub Releases upload (`--upload` flag)
 - **`task`** (go-task) — task runner (`brew install go-task`)
 
@@ -152,7 +152,7 @@ Create `test-updates/update.json`:
 ### Step 2: Start a local HTTP server
 
 ```bash
-cd test-updates && python3 -m http.server 8091
+node scripts/serve-static.js 8091 test-updates
 ```
 
 Keep this running in a separate terminal.
@@ -272,7 +272,7 @@ export CZ_UPDATE_URL=http://localhost:8091/
 ### Step 2: Start the local server
 
 ```bash
-cd test-updates && python3 -m http.server 8091
+node scripts/serve-static.js 8091 test-updates
 ```
 
 ### Step 3: Run the app in dev mode
@@ -380,7 +380,7 @@ This creates `release-test/99.0.0/update.json` with correct SHA-256 checksums.
 ### Step 3: Serve the release locally
 
 ```bash
-cd release-test/99.0.0 && python3 -m http.server 8091
+node scripts/serve-static.js 8091 release-test/99.0.0
 ```
 
 ### Step 4: Run the app and trigger the update
@@ -504,7 +504,7 @@ If the sidecar wasn't built, run `task build:updater`.
 ### Update check returns nothing / silent failure
 
 1. Verify the local server is running: `curl http://localhost:8091/update.json`
-2. Check the manifest JSON is valid: `python3 -m json.tool test-updates/update.json`
+2. Check the manifest JSON is valid: `node -e "JSON.parse(require('fs').readFileSync('test-updates/update.json', 'utf8')); console.log('valid JSON')"`
 3. Ensure the platform key matches your machine (e.g., `darwin-arm64` for Apple Silicon)
 4. Run the sidecar directly to see stderr output: `./bin/cz-updater check --url ... 2>&1`
 
@@ -550,7 +550,7 @@ task build:updater && task build
 go test ./cmd/updater/... -v
 
 # Start local update server
-cd test-updates && python3 -m http.server 8091
+node scripts/serve-static.js 8091 test-updates
 
 # Test check (update available)
 ./bin/cz-updater check --url http://localhost:8091/ --current 0.0.0-dev --os darwin --arch arm64
