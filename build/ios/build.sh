@@ -4,8 +4,8 @@ set -e
 # Build configuration
 APP_NAME="control-zebra"
 BUNDLE_ID="com.controlzebra.controlzebra"
-VERSION="v0.12.0-beta"
-BUILD_NUMBER="v0.12.0-beta"
+VERSION="v0.13.0-beta"
+BUILD_NUMBER="v0.13.0-beta"
 BUILD_DIR="build/ios"
 TARGET="simulator"
 
