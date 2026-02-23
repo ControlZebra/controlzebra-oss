@@ -1624,13 +1624,21 @@ func (g *GitService) parseNameStatus(output string) map[string]string {
 
 // RawDiffResult contains raw unified diff text for react-diff-view parsing
 type RawDiffResult struct {
-	Path     string `json:"path"`
-	OldPath  string `json:"oldPath,omitempty"`
-	Status   string `json:"status"` // "added", "modified", "deleted", "renamed"
-	Binary   bool   `json:"binary"`
-	RawDiff  string `json:"rawDiff"` // Raw unified diff text
-	HasError bool   `json:"hasError"`
-	Error    string `json:"error,omitempty"`
+	Path      string `json:"path"`
+	OldPath   string `json:"oldPath,omitempty"`
+	Status    string `json:"status"` // "added", "modified", "deleted", "renamed"
+	Binary    bool   `json:"binary"`
+	RawDiff   string `json:"rawDiff"` // Raw unified diff text
+	HasError  bool   `json:"hasError"`
+	Error     string `json:"error,omitempty"`
+	TargetRef string `json:"targetRef,omitempty"` // Resolved target ref (for merge review)
+	SourceRef string `json:"sourceRef,omitempty"` // Resolved source ref (for merge review)
+}
+
+type MergeReviewFile struct {
+	Path    string `json:"path"`
+	Status  string `json:"status,omitempty"`
+	OldPath string `json:"oldPath,omitempty"`
 }
 
 // DiffWorkingRaw returns the raw unified diff text of a file in the working tree vs HEAD
@@ -1649,11 +1657,11 @@ func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffRes
 		result.Status = "deleted"
 	}
 
-	// Get the diff
-	diffResult := g.runner.RunGit(repoPath, "diff", "--", filePath)
+	// Get the diff (use --textconv so filters like Git LFS can provide real content)
+	diffResult := g.runner.RunGit(repoPath, "diff", "--textconv", "--", filePath)
 	if !diffResult.Success {
 		// Try diff for untracked files (compare with /dev/null)
-		diffResult = g.runner.RunGit(repoPath, "diff", "--no-index", "/dev/null", filePath)
+		diffResult = g.runner.RunGit(repoPath, "diff", "--textconv", "--no-index", "/dev/null", filePath)
 		if !diffResult.Success && diffResult.ExitCode != 1 {
 			result.HasError = true
 			result.Error = "Failed to get diff: " + diffResult.Stderr
@@ -1664,7 +1672,7 @@ func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffRes
 
 	// Also try staged diff if working tree diff is empty
 	if diffResult.Stdout == "" {
-		stagedResult := g.runner.RunGit(repoPath, "diff", "--cached", "--", filePath)
+		stagedResult := g.runner.RunGit(repoPath, "diff", "--textconv", "--cached", "--", filePath)
 		if stagedResult.Success && stagedResult.Stdout != "" {
 			diffResult = stagedResult
 		}
@@ -1686,8 +1694,14 @@ func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffRes
 	}
 
 	// Check for binary file
-	if strings.Contains(diffResult.Stdout, "Binary files") {
+	if strings.Contains(diffResult.Stdout, "Binary files") || strings.Contains(diffResult.Stdout, "GIT binary patch") {
 		result.Binary = true
+		return result
+	}
+
+	if containsLFSPointerDiff(diffResult.Stdout) {
+		result.HasError = true
+		result.Error = g.lfsContentUnavailableError(repoPath, filePath)
 		return result
 	}
 
@@ -1708,8 +1722,8 @@ func (g *GitService) DiffCommitFileRaw(repoPath string, hash string, filePath st
 		return result
 	}
 
-	// Use git show to get the diff for this file in the commit
-	args := []string{"show", "--pretty=format:", hash, "--", filePath}
+	// Use git show with --textconv so filters like Git LFS can provide real content.
+	args := []string{"show", "--textconv", "--pretty=format:", hash, "--", filePath}
 	diffResult := g.runner.RunGit(repoPath, args...)
 	if !diffResult.Success {
 		result.HasError = true
@@ -1722,8 +1736,205 @@ func (g *GitService) DiffCommitFileRaw(repoPath string, hash string, filePath st
 	}
 
 	// Check for binary file
-	if strings.Contains(diffResult.Stdout, "Binary files") {
+	if strings.Contains(diffResult.Stdout, "Binary files") || strings.Contains(diffResult.Stdout, "GIT binary patch") {
 		result.Binary = true
+		return result
+	}
+
+	if containsLFSPointerDiff(diffResult.Stdout) {
+		result.HasError = true
+		result.Error = g.lfsContentUnavailableError(repoPath, filePath)
+		return result
+	}
+
+	result.RawDiff = diffResult.Stdout
+	return result
+}
+
+func (g *GitService) ListMergeReviewFiles(repoPath string, targetBranch string, sourceBranch string) []MergeReviewFile {
+	files := []MergeReviewFile{}
+
+	if targetBranch == "" || sourceBranch == "" {
+		return files
+	}
+
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return files
+	}
+
+	targetRef, err := g.resolveBranchRef(repoPath, targetBranch, true)
+	if err != nil {
+		return files
+	}
+
+	sourceRef, err := g.resolveBranchRef(repoPath, sourceBranch, false)
+	if err != nil {
+		return files
+	}
+
+	result := g.runner.RunGit(repoPath, "diff", "--name-status", "-M", targetRef+".."+sourceRef)
+	if !result.Success {
+		return files
+	}
+
+	for _, line := range strings.Split(strings.TrimSpace(result.Stdout), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Split(line, "\t")
+		if len(parts) < 2 {
+			continue
+		}
+
+		statusCode := strings.TrimSpace(parts[0])
+		status := "modified"
+		switch {
+		case strings.HasPrefix(statusCode, "A"):
+			status = "added"
+		case strings.HasPrefix(statusCode, "D"):
+			status = "deleted"
+		case strings.HasPrefix(statusCode, "R"):
+			status = "renamed"
+		case strings.HasPrefix(statusCode, "C"):
+			status = "copied"
+		case strings.HasPrefix(statusCode, "M"):
+			status = "modified"
+		}
+
+		file := MergeReviewFile{Status: status}
+		if strings.HasPrefix(statusCode, "R") || strings.HasPrefix(statusCode, "C") {
+			if len(parts) < 3 {
+				continue
+			}
+			file.OldPath = unquoteGitPath(parts[1])
+			file.Path = unquoteGitPath(parts[2])
+		} else {
+			file.Path = unquoteGitPath(parts[1])
+		}
+
+		if file.Path == "" {
+			continue
+		}
+
+		files = append(files, file)
+	}
+
+	return files
+}
+
+func (g *GitService) DiffMergeReviewFileRaw(repoPath string, targetBranch string, sourceBranch string, filePath string) RawDiffResult {
+	result := RawDiffResult{
+		Path:   filePath,
+		Status: "modified",
+	}
+
+	if targetBranch == "" || sourceBranch == "" {
+		result.HasError = true
+		result.Error = "Both target and source branches are required"
+		return result
+	}
+
+	if strings.TrimSpace(filePath) == "" {
+		result.HasError = true
+		result.Error = "File path is required"
+		return result
+	}
+
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		result.HasError = true
+		result.Error = "Not a valid git repository"
+		return result
+	}
+
+	targetRef, err := g.resolveBranchRef(repoPath, targetBranch, true)
+	if err != nil {
+		result.HasError = true
+		result.Error = err.Error()
+		return result
+	}
+
+	sourceRef, err := g.resolveBranchRef(repoPath, sourceBranch, false)
+	if err != nil {
+		result.HasError = true
+		result.Error = err.Error()
+		return result
+	}
+
+	statusResult := g.runner.RunGit(repoPath, "diff", "--name-status", "-M", targetRef+".."+sourceRef, "--", filePath)
+	if statusResult.Success {
+		for _, line := range strings.Split(strings.TrimSpace(statusResult.Stdout), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "\t")
+			if len(parts) < 2 {
+				continue
+			}
+			statusCode := strings.TrimSpace(parts[0])
+			switch {
+			case strings.HasPrefix(statusCode, "A"):
+				result.Status = "added"
+			case strings.HasPrefix(statusCode, "D"):
+				result.Status = "deleted"
+			case strings.HasPrefix(statusCode, "R"):
+				result.Status = "renamed"
+				if len(parts) >= 3 {
+					result.OldPath = unquoteGitPath(parts[1])
+					result.Path = unquoteGitPath(parts[2])
+				}
+			case strings.HasPrefix(statusCode, "C"):
+				result.Status = "copied"
+				if len(parts) >= 3 {
+					result.OldPath = unquoteGitPath(parts[1])
+					result.Path = unquoteGitPath(parts[2])
+				}
+			default:
+				result.Status = "modified"
+			}
+			break
+		}
+	}
+
+	// Store resolved refs so the frontend can use them for specialized viewers.
+	result.TargetRef = targetRef
+	result.SourceRef = sourceRef
+
+	diffResult := g.runner.RunGit(repoPath, "diff", "--textconv", targetRef+".."+sourceRef, "--", filePath)
+	if !diffResult.Success && diffResult.ExitCode != 1 {
+		result.HasError = true
+		result.Error = "Failed to get diff: " + getErrorMessage(diffResult)
+		return result
+	}
+
+	if strings.Contains(diffResult.Stdout, "Binary files") || strings.Contains(diffResult.Stdout, "GIT binary patch") {
+		result.Binary = true
+		return result
+	}
+
+	if containsLFSPointerDiff(diffResult.Stdout) {
+		// Auto-fetch LFS objects for both refs and retry the diff.
+		if g.tryFetchLFSForFile(repoPath, filePath, targetRef, sourceRef) {
+			retryResult := g.runner.RunGit(repoPath, "diff", "--textconv", targetRef+".."+sourceRef, "--", filePath)
+			if retryResult.Success || retryResult.ExitCode == 1 {
+				if !containsLFSPointerDiff(retryResult.Stdout) &&
+					!strings.Contains(retryResult.Stdout, "Binary files") &&
+					!strings.Contains(retryResult.Stdout, "GIT binary patch") {
+					result.RawDiff = retryResult.Stdout
+					return result
+				}
+				if strings.Contains(retryResult.Stdout, "Binary files") || strings.Contains(retryResult.Stdout, "GIT binary patch") {
+					result.Binary = true
+					return result
+				}
+			}
+		}
+		result.HasError = true
+		result.Error = g.lfsContentUnavailableError(repoPath, filePath)
 		return result
 	}
 
@@ -1962,6 +2173,127 @@ func isLFSPointer(data []byte) bool {
 		return false // LFS pointers are always small (<200 bytes)
 	}
 	return bytes.HasPrefix(data, []byte("version https://git-lfs"))
+}
+
+func containsLFSPointerDiff(rawDiff string) bool {
+	if rawDiff == "" {
+		return false
+	}
+
+	// Direct pointer-line changes.
+	hasVersionAddOrRemove := strings.Contains(rawDiff, "\n+version https://git-lfs") ||
+		strings.Contains(rawDiff, "\n-version https://git-lfs") ||
+		strings.HasPrefix(rawDiff, "+version https://git-lfs") ||
+		strings.HasPrefix(rawDiff, "-version https://git-lfs")
+	if hasVersionAddOrRemove {
+		return true
+	}
+
+	// Common LFS pointer update case: version line is unchanged context,
+	// while oid/size lines are changed (+/-). In this scenario we still want
+	// to surface the explicit LFS content-unavailable error.
+	hasLfsVersionContext := strings.Contains(rawDiff, "\n version https://git-lfs") ||
+		strings.Contains(rawDiff, "\n+version https://git-lfs") ||
+		strings.Contains(rawDiff, "\n-version https://git-lfs") ||
+		strings.HasPrefix(rawDiff, "version https://git-lfs") ||
+		strings.HasPrefix(rawDiff, "+version https://git-lfs") ||
+		strings.HasPrefix(rawDiff, "-version https://git-lfs")
+
+	hasPointerPayloadChange := strings.Contains(rawDiff, "\n+oid sha256:") ||
+		strings.Contains(rawDiff, "\n-oid sha256:") ||
+		strings.HasPrefix(rawDiff, "+oid sha256:") ||
+		strings.HasPrefix(rawDiff, "-oid sha256:") ||
+		strings.Contains(rawDiff, "\n+size ") ||
+		strings.Contains(rawDiff, "\n-size ") ||
+		strings.HasPrefix(rawDiff, "+size ") ||
+		strings.HasPrefix(rawDiff, "-size ")
+
+	return hasLfsVersionContext && hasPointerPayloadChange
+}
+
+func (g *GitService) lfsContentUnavailableError(repoPath string, filePath string) string {
+	lfsVersionResult := g.runner.RunGit(repoPath, "lfs", "version")
+	if !lfsVersionResult.Success {
+		return fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved for diff because git-lfs is unavailable in this environment. Install git-lfs and run 'git lfs pull'.", filePath)
+	}
+
+	return fmt.Sprintf("File '%s' is stored in Git LFS but the actual content for this revision is not available locally for diff. Run 'git lfs pull' and try again.", filePath)
+}
+
+// tryFetchLFSForFile attempts to fetch LFS objects for a specific file at the
+// given refs. Returns true if the fetch completed without error (objects may
+// now be available). Returns false when git-lfs is not installed or the fetch
+// failed.
+func (g *GitService) tryFetchLFSForFile(repoPath string, filePath string, refs ...string) bool {
+	// Verify git-lfs is available
+	lfsCheck := g.runner.RunGit(repoPath, "lfs", "version")
+	if !lfsCheck.Success {
+		return false
+	}
+
+	// Normalise the path for the --include glob (forward slashes, no leading ./).
+	includePath := filepath.ToSlash(strings.TrimPrefix(filePath, "./"))
+
+	for _, ref := range refs {
+		if ref == "" {
+			continue
+		}
+		args := []string{"lfs", "fetch", "--include=" + includePath, "origin", ref}
+		result := g.runner.RunGit(repoPath, args...)
+		if !result.Success {
+			// Non-fatal: log and continue. Best-effort fetch.
+			continue
+		}
+	}
+	return true
+}
+
+// EnsureLFSForRefs fetches LFS objects for a specific file at the given branch
+// refs. This is exposed to the frontend so specialized diff viewers (image,
+// PDF, L5X, 3D) can ensure LFS content is available before attempting to load
+// file contents at those revisions.
+func (g *GitService) EnsureLFSForRefs(repoPath string, filePath string, refs ...string) OperationResult {
+	done := LogMethod("GitService.EnsureLFSForRefs", map[string]interface{}{"repoPath": repoPath, "filePath": filePath, "refs": refs})
+	defer func() { done(nil, nil) }()
+
+	if repoPath == "" {
+		return failedOp("Repository path is required")
+	}
+	if filePath == "" {
+		return failedOp("File path is required")
+	}
+
+	lfsCheck := g.runner.RunGit(repoPath, "lfs", "version")
+	if !lfsCheck.Success {
+		return failedOp("Git LFS is not installed")
+	}
+
+	includePath := filepath.ToSlash(strings.TrimPrefix(filePath, "./"))
+	var lastError string
+
+	for _, ref := range refs {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		// Resolve the ref (handles plain branch names → origin/<branch>).
+		resolved, err := g.resolveBranchRef(repoPath, ref, true)
+		if err != nil {
+			resolved = ref // Use as-is if resolution fails
+		}
+		args := []string{"lfs", "fetch", "--include=" + includePath, "origin", resolved}
+		result := g.runner.RunGit(repoPath, args...)
+		if !result.Success {
+			lastError = getErrorMessage(result)
+		}
+	}
+
+	if lastError != "" {
+		// Return success anyway — best-effort. The viewer will show its own error
+		// if objects are still missing.
+		return successOp("LFS fetch completed with warnings")
+	}
+	return successOp("LFS objects fetched")
 }
 
 // Branches returns all branches in the repository
@@ -3159,7 +3491,9 @@ func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBran
 
 // MergeOptions contains options for StartMergeWithOptions
 type MergeOptions struct {
-	Squash bool `json:"squash"` // If true, uses --squash for a squash merge
+	Squash        bool     `json:"squash"`
+	Selective     bool     `json:"selective"`
+	SelectedFiles []string `json:"selectedFiles"`
 }
 
 // StartMergeWithOptions begins a merge with configurable options.
@@ -3182,6 +3516,9 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 	}
 	if sourceBranch == "" {
 		return failedOp("Source branch is required")
+	}
+	if options.Selective && len(options.SelectedFiles) == 0 {
+		return failedOp("At least one selected file is required when selective merge is enabled")
 	}
 
 	// Verify repo exists
@@ -3252,23 +3589,85 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 		}
 	}
 
+	selectedSet := make(map[string]struct{})
+	if options.Selective {
+		for _, selected := range options.SelectedFiles {
+			normalized := normalizeMergePath(selected)
+			if normalized == "" {
+				continue
+			}
+			selectedSet[normalized] = struct{}{}
+		}
+		if len(selectedSet) == 0 {
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
+			return failedOp("At least one selected file is required when selective merge is enabled")
+		}
+	}
+
+	unselectedPaths := []string{}
+	if options.Selective {
+		allChangedPaths, err := g.listChangedPathsForMerge(repoPath, targetBranch, sourceRef)
+		if err != nil {
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
+			return failedOp(err.Error())
+		}
+
+		for _, changedPath := range allChangedPaths {
+			normalized := normalizeMergePath(changedPath)
+			if normalized == "" {
+				continue
+			}
+			if _, selected := selectedSet[normalized]; !selected {
+				unselectedPaths = append(unselectedPaths, normalized)
+			}
+		}
+	}
+
 	// Step 3: Build merge command based on options
 	var mergeArgs []string
 	if options.Squash {
-		// Squash merge: combines all commits into staged changes
-		// No merge commit created - user commits manually
 		mergeArgs = []string{"merge", "--squash", sourceRef}
 	} else {
-		// Regular merge with --no-commit for conflict resolution
 		mergeArgs = []string{"merge", "--no-commit", "--no-ff", sourceRef}
 	}
 
 	result := g.runner.RunGit(repoPath, mergeArgs...)
 
+	postMergeState := g.GetMergeState(repoPath)
+	mergeStarted := postMergeState.InMerge || postMergeState.InSquashMerge || options.Squash
+	if options.Selective && mergeStarted {
+		if err := g.neutralizeUnselectedPaths(repoPath, unselectedPaths); err != nil {
+			return failedOp("Selective merge failed: " + err.Error())
+		}
+
+		conflictedAfterNeutralize, _ := g.GetConflictedFiles(repoPath)
+		remainingUnselectedConflicts := []string{}
+		for _, conflictedFile := range conflictedAfterNeutralize {
+			normalized := normalizeMergePath(conflictedFile.Path)
+			if _, selected := selectedSet[normalized]; !selected {
+				remainingUnselectedConflicts = append(remainingUnselectedConflicts, conflictedFile.Path)
+			}
+		}
+
+		if len(remainingUnselectedConflicts) > 0 {
+			return failedOp("Selective merge failed: unselected conflicts remain: " + strings.Join(remainingUnselectedConflicts, ", "))
+		}
+	}
+
 	// Handle merge result
 	if !result.Success {
-		// Check for conflicts (expected in some cases)
 		conflicted, _ := g.GetConflictedFiles(repoPath)
+		if options.Selective {
+			filtered := make([]ConflictedFile, 0, len(conflicted))
+			for _, conflictedFile := range conflicted {
+				normalized := normalizeMergePath(conflictedFile.Path)
+				if _, selected := selectedSet[normalized]; selected {
+					filtered = append(filtered, conflictedFile)
+				}
+			}
+			conflicted = filtered
+		}
+
 		if len(conflicted) > 0 {
 			mergeType := "Merge"
 			if options.Squash {
@@ -3310,7 +3709,6 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 
 	// For squash merge, we're not in "merge" state but have staged changes
 	if options.Squash {
-		// Verify we have staged changes
 		statusAfter := g.Status(repoPath)
 		if statusAfter.HasChanges {
 			return OperationResult{
@@ -3337,6 +3735,135 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 	}
 
 	return successOp("Merge started - no conflicts detected")
+}
+
+func (g *GitService) resolveBranchRef(repoPath string, branch string, preferRemote bool) (string, error) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", fmt.Errorf("branch name is required")
+	}
+
+	if preferRemote {
+		remoteRef := "origin/" + branch
+		if g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef).Success {
+			return remoteRef, nil
+		}
+		if g.runner.RunGit(repoPath, "rev-parse", "--verify", branch).Success {
+			return branch, nil
+		}
+		return "", fmt.Errorf("branch '%s' not found locally or on remote", branch)
+	}
+
+	if g.runner.RunGit(repoPath, "rev-parse", "--verify", branch).Success {
+		return branch, nil
+	}
+	remoteRef := "origin/" + branch
+	if g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef).Success {
+		return remoteRef, nil
+	}
+
+	return "", fmt.Errorf("branch '%s' not found locally or on remote", branch)
+}
+
+func (g *GitService) listChangedPathsForMerge(repoPath string, targetRef string, sourceRef string) ([]string, error) {
+	result := g.runner.RunGit(repoPath, "diff", "--name-only", targetRef+".."+sourceRef)
+	if !result.Success {
+		return nil, fmt.Errorf("failed to list changed files for selective merge: %s", getErrorMessage(result))
+	}
+
+	paths := []string{}
+	for _, line := range strings.Split(strings.TrimSpace(result.Stdout), "\n") {
+		normalized := normalizeMergePath(line)
+		if normalized == "" {
+			continue
+		}
+		paths = append(paths, normalized)
+	}
+
+	return paths, nil
+}
+
+func (g *GitService) neutralizeUnselectedPaths(repoPath string, paths []string) error {
+	for _, path := range paths {
+		normalizedPath := normalizeMergePath(path)
+		if normalizedPath == "" {
+			continue
+		}
+
+		if g.isPathUnmerged(repoPath, normalizedPath) {
+			checkoutOurs := g.runner.RunGit(repoPath, "checkout", "--ours", "--", normalizedPath)
+			if !checkoutOurs.Success {
+				return fmt.Errorf("failed to keep target version for '%s': %s", normalizedPath, getErrorMessage(checkoutOurs))
+			}
+
+			stageResult := g.runner.RunGit(repoPath, "add", "-A", "--", normalizedPath)
+			if !stageResult.Success {
+				return fmt.Errorf("failed to stage neutralized file '%s': %s", normalizedPath, getErrorMessage(stageResult))
+			}
+			continue
+		}
+
+		if g.isPathTracked(repoPath, normalizedPath) {
+			restoreResult := g.runner.RunGit(repoPath, "restore", "--source=HEAD", "--staged", "--worktree", "--", normalizedPath)
+			if !restoreResult.Success {
+				return fmt.Errorf("failed to reset unselected file '%s': %s", normalizedPath, getErrorMessage(restoreResult))
+			}
+			continue
+		}
+
+		rmResult := g.runner.RunGit(repoPath, "rm", "--cached", "--ignore-unmatch", "--", normalizedPath)
+		if !rmResult.Success {
+			return fmt.Errorf("failed to unstage merge-introduced file '%s': %s", normalizedPath, getErrorMessage(rmResult))
+		}
+
+		worktreePath, err := safeRepoRelativePath(repoPath, normalizedPath)
+		if err != nil {
+			return fmt.Errorf("failed to normalize path '%s': %w", normalizedPath, err)
+		}
+		_ = os.RemoveAll(worktreePath)
+	}
+
+	return nil
+}
+
+func (g *GitService) isPathUnmerged(repoPath string, filePath string) bool {
+	result := g.runner.RunGit(repoPath, "ls-files", "-u", "--", filePath)
+	if !result.Success {
+		return false
+	}
+	return strings.TrimSpace(result.Stdout) != ""
+}
+
+func (g *GitService) isPathTracked(repoPath string, filePath string) bool {
+	result := g.runner.RunGit(repoPath, "ls-files", "--error-unmatch", "--", filePath)
+	return result.Success
+}
+
+func normalizeMergePath(path string) string {
+	normalized := filepath.ToSlash(filepath.Clean(strings.TrimSpace(path)))
+	if normalized == "." {
+		return ""
+	}
+	normalized = strings.TrimPrefix(normalized, "./")
+	return normalized
+}
+
+func safeRepoRelativePath(repoPath string, relativePath string) (string, error) {
+	cleanRelative := filepath.Clean(filepath.FromSlash(relativePath))
+	if cleanRelative == "." || cleanRelative == "" || filepath.IsAbs(cleanRelative) || strings.HasPrefix(cleanRelative, "..") {
+		return "", fmt.Errorf("invalid relative path")
+	}
+
+	fullPath := filepath.Join(repoPath, cleanRelative)
+	rel, err := filepath.Rel(repoPath, fullPath)
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("path escapes repository")
+	}
+
+	return fullPath, nil
 }
 
 // CompleteSquashMerge commits a squash merge.
