@@ -54,6 +54,17 @@ func runGitCmd(t *testing.T, dir string, args ...string) {
 	}
 }
 
+func runGitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
+	}
+	return string(output)
+}
+
 func createBareRemoteAndLink(t *testing.T, repoPath string) string {
 	t.Helper()
 
@@ -748,6 +759,120 @@ func TestDiffCommitFileRaw_InvalidHash(t *testing.T) {
 	diff := svc.DiffCommitFileRaw(repoPath, "", "test.txt")
 	if !diff.HasError {
 		t.Error("Expected error for empty hash")
+	}
+}
+
+func TestDiffWorkingRaw_ReturnsLFSPointerError(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	filePath := "asset.bin"
+	absolute := filepath.Join(repoPath, filePath)
+	if err := os.WriteFile(absolute, []byte("plain content"), 0644); err != nil {
+		t.Fatalf("Failed to write initial file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	lfsPointer := "version https://git-lfs.github.com/spec/v1\noid sha256:1111111111111111111111111111111111111111111111111111111111111111\nsize 123\n"
+	if err := os.WriteFile(absolute, []byte(lfsPointer), 0644); err != nil {
+		t.Fatalf("Failed to write lfs pointer file: %v", err)
+	}
+
+	diff := svc.DiffWorkingRaw(repoPath, filePath)
+	if !diff.HasError {
+		t.Fatalf("Expected HasError for LFS pointer diff")
+	}
+	if !strings.Contains(diff.Error, "stored in Git LFS") {
+		t.Fatalf("Expected LFS error message, got: %s", diff.Error)
+	}
+}
+
+func TestDiffCommitFileRaw_ReturnsLFSPointerError(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	filePath := "asset.bin"
+	absolute := filepath.Join(repoPath, filePath)
+	if err := os.WriteFile(absolute, []byte("plain content"), 0644); err != nil {
+		t.Fatalf("Failed to write initial file: %v", err)
+	}
+	svc.CommitAll(repoPath, "Initial commit")
+
+	lfsPointer := "version https://git-lfs.github.com/spec/v1\noid sha256:2222222222222222222222222222222222222222222222222222222222222222\nsize 456\n"
+	if err := os.WriteFile(absolute, []byte(lfsPointer), 0644); err != nil {
+		t.Fatalf("Failed to write lfs pointer file: %v", err)
+	}
+	svc.CommitAll(repoPath, "LFS pointer commit")
+
+	hash := strings.TrimSpace(runGitOutput(t, repoPath, "rev-parse", "HEAD"))
+	diff := svc.DiffCommitFileRaw(repoPath, hash, filePath)
+
+	if !diff.HasError {
+		t.Fatalf("Expected HasError for LFS pointer diff")
+	}
+	if !strings.Contains(diff.Error, "stored in Git LFS") {
+		t.Fatalf("Expected LFS error message, got: %s", diff.Error)
+	}
+}
+
+func TestContainsLFSPointerDiff(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{
+			name: "detects added lfs pointer line",
+			raw: `diff --git a/file.l5x b/file.l5x
+index 111..222 100644
+--- a/file.l5x
++++ b/file.l5x
+@@ -1,3 +1,3 @@
+-version https://git-lfs.github.com/spec/v1
++version https://git-lfs.github.com/spec/v1
+ oid sha256:abc
+ size 123`,
+			want: true,
+		},
+		{
+			name: "ignores regular text diff",
+			raw: `diff --git a/file.txt b/file.txt
+@@ -1 +1 @@
+-hello
++world`,
+			want: false,
+		},
+		{
+			name: "detects pointer when oid changes but version line is unchanged",
+			raw: `diff --git a/file.bin b/file.bin
+index 111..222 100644
+--- a/file.bin
++++ b/file.bin
+@@ -1,3 +1,3 @@
+ version https://git-lfs.github.com/spec/v1
+-oid sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
++oid sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+ size 123`,
+			want: true,
+		},
+		{
+			name: "handles empty diff",
+			raw:  "",
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := containsLFSPointerDiff(tc.raw)
+			if got != tc.want {
+				t.Fatalf("containsLFSPointerDiff() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -2468,6 +2593,244 @@ func TestStartMergeWithOptions_UsesUpdatedOriginTargetForConflicts(t *testing.T)
 	abortResult := svc.AbortMerge(repoPath)
 	if !abortResult.Success {
 		t.Fatalf("AbortMerge failed during cleanup: %s", abortResult.Error)
+	}
+}
+
+func TestListMergeReviewFiles_ReturnsStatusesAndRename(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+	os.WriteFile(filepath.Join(repoPath, "modified.txt"), []byte("base"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "deleted.txt"), []byte("delete me"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "rename_me.txt"), []byte("rename me"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/review")
+	os.WriteFile(filepath.Join(repoPath, "modified.txt"), []byte("feature change"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "added.txt"), []byte("new file"), 0644)
+	os.Remove(filepath.Join(repoPath, "deleted.txt"))
+	runGitCmd(t, repoPath, "mv", "rename_me.txt", "renamed.txt")
+	svc.CommitAll(repoPath, "Feature branch changes")
+
+	files := svc.ListMergeReviewFiles(repoPath, "main", "feature/review")
+	if len(files) != 4 {
+		t.Fatalf("Expected 4 merge review files, got %d", len(files))
+	}
+
+	byPath := map[string]MergeReviewFile{}
+	for _, file := range files {
+		byPath[file.Path] = file
+	}
+
+	if byPath["modified.txt"].Status != "modified" {
+		t.Fatalf("Expected modified.txt status 'modified', got '%s'", byPath["modified.txt"].Status)
+	}
+	if byPath["added.txt"].Status != "added" {
+		t.Fatalf("Expected added.txt status 'added', got '%s'", byPath["added.txt"].Status)
+	}
+	if byPath["deleted.txt"].Status != "deleted" {
+		t.Fatalf("Expected deleted.txt status 'deleted', got '%s'", byPath["deleted.txt"].Status)
+	}
+	renameEntry, ok := byPath["renamed.txt"]
+	if !ok {
+		t.Fatalf("Expected renamed.txt in merge review files")
+	}
+	if renameEntry.Status != "renamed" {
+		t.Fatalf("Expected renamed.txt status 'renamed', got '%s'", renameEntry.Status)
+	}
+	if renameEntry.OldPath != "rename_me.txt" {
+		t.Fatalf("Expected renamed.txt oldPath 'rename_me.txt', got '%s'", renameEntry.OldPath)
+	}
+}
+
+func TestDiffMergeReviewFileRaw_ReturnsDiff(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "diffme.txt"), []byte("line1\nbase\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/diff")
+	os.WriteFile(filepath.Join(repoPath, "diffme.txt"), []byte("line1\nchanged\n"), 0644)
+	svc.CommitAll(repoPath, "Diff commit")
+
+	diff := svc.DiffMergeReviewFileRaw(repoPath, "main", "feature/diff", "diffme.txt")
+	if diff.HasError {
+		t.Fatalf("Expected no error, got: %s", diff.Error)
+	}
+	if diff.Binary {
+		t.Fatalf("Expected text diff, got binary")
+	}
+	if !strings.Contains(diff.RawDiff, "-line1") && !strings.Contains(diff.RawDiff, "-base") {
+		t.Fatalf("Expected raw diff content, got: %s", diff.RawDiff)
+	}
+}
+
+func TestDiffMergeReviewFileRaw_ReturnsLFSPointerError(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	filePath := "asset.bin"
+	os.WriteFile(filepath.Join(repoPath, filePath), []byte("base content\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/lfs")
+	lfsPointer := "version https://git-lfs.github.com/spec/v1\noid sha256:3333333333333333333333333333333333333333333333333333333333333333\nsize 789\n"
+	os.WriteFile(filepath.Join(repoPath, filePath), []byte(lfsPointer), 0644)
+	svc.CommitAll(repoPath, "Pointer change")
+
+	diff := svc.DiffMergeReviewFileRaw(repoPath, "main", "feature/lfs", filePath)
+	if !diff.HasError {
+		t.Fatalf("Expected HasError for LFS pointer diff")
+	}
+	if !strings.Contains(diff.Error, "stored in Git LFS") {
+		t.Fatalf("Expected LFS error message, got: %s", diff.Error)
+	}
+}
+
+func TestStartMergeWithOptions_Selective_EmptySelectionFails(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "file.txt"), []byte("base"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/empty")
+	os.WriteFile(filepath.Join(repoPath, "file.txt"), []byte("feature"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	result := svc.StartMergeWithOptions(repoPath, "main", "feature/empty", MergeOptions{
+		Selective:     true,
+		SelectedFiles: []string{},
+	})
+
+	if result.Success {
+		t.Fatalf("Expected selective merge with empty selection to fail")
+	}
+	if !strings.Contains(result.Error, "At least one selected file") {
+		t.Fatalf("Expected validation error, got: %s", result.Error)
+	}
+}
+
+func TestStartMergeWithOptions_SelectiveFalse_BackwardCompatible(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "file.txt"), []byte("base"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/backward")
+	os.WriteFile(filepath.Join(repoPath, "file.txt"), []byte("feature"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	result := svc.StartMergeWithOptions(repoPath, "main", "feature/backward", MergeOptions{Squash: true})
+	if !result.Success {
+		t.Fatalf("Expected backward-compatible non-selective merge to succeed, got: %s", result.Error)
+	}
+
+	abortResult := svc.AbortMerge(repoPath)
+	if !abortResult.Success {
+		t.Fatalf("Expected abort cleanup to succeed, got: %s", abortResult.Error)
+	}
+}
+
+func TestStartMergeWithOptions_Selective_CleanMergeKeepsOnlySelectedFiles(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "selected.txt"), []byte("base selected"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "unselected.txt"), []byte("base unselected"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/selective-clean")
+	os.WriteFile(filepath.Join(repoPath, "selected.txt"), []byte("feature selected"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "unselected.txt"), []byte("feature unselected"), 0644)
+	svc.CommitAll(repoPath, "Feature changes")
+
+	result := svc.StartMergeWithOptions(repoPath, "main", "feature/selective-clean", MergeOptions{
+		Squash:        true,
+		Selective:     true,
+		SelectedFiles: []string{"selected.txt"},
+	})
+	if !result.Success {
+		t.Fatalf("Expected selective merge to succeed, got: %s", result.Error)
+	}
+
+	cachedNames := runGitOutput(t, repoPath, "diff", "--cached", "--name-only")
+	if !strings.Contains(cachedNames, "selected.txt") {
+		t.Fatalf("Expected selected.txt to be staged, staged files: %s", cachedNames)
+	}
+	if strings.Contains(cachedNames, "unselected.txt") {
+		t.Fatalf("Expected unselected.txt not to be staged, staged files: %s", cachedNames)
+	}
+
+	abortResult := svc.AbortMerge(repoPath)
+	if !abortResult.Success {
+		t.Fatalf("Expected abort cleanup to succeed, got: %s", abortResult.Error)
+	}
+}
+
+func TestStartMergeWithOptions_Selective_ConflictMergeKeepsOnlySelectedConflicts(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "selected-conflict.txt"), []byte("line\nbase\n"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "unselected-conflict.txt"), []byte("line\nbase\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/selective-conflict")
+	os.WriteFile(filepath.Join(repoPath, "selected-conflict.txt"), []byte("line\nfeature-selected\n"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "unselected-conflict.txt"), []byte("line\nfeature-unselected\n"), 0644)
+	svc.CommitAll(repoPath, "Feature conflicting changes")
+
+	runGitCmd(t, repoPath, "checkout", "main")
+	os.WriteFile(filepath.Join(repoPath, "selected-conflict.txt"), []byte("line\nmain-selected\n"), 0644)
+	os.WriteFile(filepath.Join(repoPath, "unselected-conflict.txt"), []byte("line\nmain-unselected\n"), 0644)
+	svc.CommitAll(repoPath, "Main conflicting changes")
+
+	result := svc.StartMergeWithOptions(repoPath, "main", "feature/selective-conflict", MergeOptions{
+		Selective:     true,
+		SelectedFiles: []string{"selected-conflict.txt"},
+	})
+	if !result.Success {
+		t.Fatalf("Expected selective conflict merge start to succeed, got: %s", result.Error)
+	}
+
+	conflicted, err := svc.GetConflictedFiles(repoPath)
+	if err != nil {
+		t.Fatalf("Failed to get conflicted files: %v", err)
+	}
+	if len(conflicted) != 1 {
+		t.Fatalf("Expected exactly 1 selected conflict, got %d", len(conflicted))
+	}
+	if conflicted[0].Path != "selected-conflict.txt" {
+		t.Fatalf("Expected selected-conflict.txt conflict, got %s", conflicted[0].Path)
+	}
+
+	abortResult := svc.AbortMerge(repoPath)
+	if !abortResult.Success {
+		t.Fatalf("Expected abort cleanup to succeed, got: %s", abortResult.Error)
 	}
 }
 

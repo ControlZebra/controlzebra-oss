@@ -41,6 +41,8 @@ import {
   DiscardFile,
   InitRepo,
   CheckBranchConflicts,
+  ListMergeReviewFiles,
+  DiffMergeReviewFileRaw,
   GetParentBranch,
   GetMergeState,
   GetConflictedFiles,
@@ -135,6 +137,8 @@ import type {
   CommitDetail,
   BranchList,
   FileDiff,
+  MergeReviewFile,
+  MergeReviewDiffResult,
   ConflictedFile,
   BranchConflictCheckResult,
   MergeState,
@@ -192,6 +196,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [conflictedFiles, setConflictedFiles] = useState<ConflictedFile[]>([]);
   const [selectedConflictFile, setSelectedConflictFile] = useState<string | null>(null);
   const [conflictCheckResult, setConflictCheckResult] = useState<BranchConflictCheckResult | null>(null);
+  const [mergeReviewFiles, setMergeReviewFiles] = useState<MergeReviewFile[]>([]);
+  const [isLoadingMergeReviewFiles, setIsLoadingMergeReviewFiles] = useState(false);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
   const [detectedParentBranch, setDetectedParentBranch] = useState<DetectedParentBranch | null>(null);
   const [fileResolutions, setFileResolutions] = useState<FileResolutionsMap>({});
@@ -1398,6 +1404,64 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // ===== Conflict Checking Operations =====
 
+  const loadMergeReviewFiles = useCallback(async (
+    targetBranch = '',
+    sourceBranch = '',
+  ): Promise<MergeReviewFile[]> => {
+    if (!repoPath) {
+      return [];
+    }
+
+    const target = targetBranch || conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name;
+    const source = sourceBranch || conflictCheckResult?.sourceBranch || repoInfo?.branch;
+
+    if (!target || !source) {
+      setMergeReviewFiles([]);
+      return [];
+    }
+
+    setIsLoadingMergeReviewFiles(true);
+    try {
+      const files = await ListMergeReviewFiles(repoPath, target, source);
+      const normalized = (files || []) as MergeReviewFile[];
+      setMergeReviewFiles(normalized);
+      return normalized;
+    } catch (err) {
+      const error = err as Error;
+      console.error('Failed to load merge review files:', error.message || err);
+      setMergeReviewFiles([]);
+      return [];
+    } finally {
+      setIsLoadingMergeReviewFiles(false);
+    }
+  }, [repoPath, conflictCheckResult, detectedParentBranch, repoInfo?.branch]);
+
+  const loadMergeReviewFileDiff = useCallback(async (
+    filePath: string,
+    targetBranch = '',
+    sourceBranch = '',
+  ): Promise<MergeReviewDiffResult | null> => {
+    if (!repoPath || !filePath) {
+      return null;
+    }
+
+    const target = targetBranch || conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name;
+    const source = sourceBranch || conflictCheckResult?.sourceBranch || repoInfo?.branch;
+
+    if (!target || !source) {
+      return null;
+    }
+
+    try {
+      const result = await DiffMergeReviewFileRaw(repoPath, target, source, filePath);
+      return result as MergeReviewDiffResult;
+    } catch (err) {
+      const error = err as Error;
+      console.error('Failed to load merge review diff:', error.message || err);
+      return null;
+    }
+  }, [repoPath, conflictCheckResult, detectedParentBranch, repoInfo?.branch]);
+
   // Check for merge conflicts (DRY-RUN ONLY)
   const checkConflictsOnly = useCallback(async (
     targetBranch = '', 
@@ -1416,6 +1480,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedConflictFile(null);
     setConflictCheckResult(null);
     setConflictSidesInfo(null);
+    setMergeReviewFiles([]);
     
     try {
       const result = await CheckBranchConflicts(repoPath, targetBranch, sourceBranch);
@@ -1444,6 +1509,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
         setIsCheckingConflicts(false);
         return resultWithSquash;
       }
+
+      await loadMergeReviewFiles(result.targetBranch || result.parentBranch, result.sourceBranch || repoInfo?.branch || '');
       
       const target = result.targetBranch || result.parentBranch;
       const source = result.sourceBranch || repoInfo?.branch;
@@ -1468,7 +1535,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsCheckingConflicts(false);
       return null;
     }
-  }, [repoPath, showMessage, isSquashMerge, repoInfo?.branch]);
+  }, [repoPath, showMessage, isSquashMerge, repoInfo?.branch, loadMergeReviewFiles]);
 
   // Start the actual merge process
   const startMerge = useCallback(async (
@@ -1476,7 +1543,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
     sourceBranch = '', 
     options: MergeOptions = {}
   ): Promise<StartMergeResult | null> => {
-    const { squash = isSquashMerge } = options;
+    const {
+      squash = isSquashMerge,
+      selective = false,
+      selectedFiles = [],
+    } = options;
     
     if (!repoPath) {
       showMessage('error', 'No repository open');
@@ -1495,7 +1566,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setIsCheckingConflicts(true);
     
     try {
-      const mergeResult = await StartMergeWithOptions(repoPath, target, source || '', { squash });
+      const mergeResult = await StartMergeWithOptions(repoPath, target, source || '', {
+        squash,
+        selective,
+        selectedFiles,
+      });
       
       if (!mergeResult.success) {
         const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
@@ -1584,11 +1659,18 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setConflictedFiles([]);
     setSelectedConflictFile(null);
     setConflictCheckResult(null);
+    setMergeReviewFiles([]);
+    setIsLoadingMergeReviewFiles(false);
     setDetectedParentBranch(null);
     setFileResolutions({});
     setMergeState(null);
     setConflictSidesInfo(null);
   }, []);
+
+  useEffect(() => {
+    setMergeReviewFiles([]);
+    setIsLoadingMergeReviewFiles(false);
+  }, [repoInfo?.branch]);
 
   // Set resolution strategy for a file
   const setFileResolution = useCallback((filePath: string, strategy: ResolutionStrategy) => {
@@ -2842,7 +2924,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
     selectedConflictFile,
     setSelectedConflictFile,
     conflictCheckResult,
+    mergeReviewFiles,
+    isLoadingMergeReviewFiles,
     isCheckingConflicts,
+    loadMergeReviewFiles,
+    loadMergeReviewFileDiff,
     checkConflictsOnly,
     startMerge,
     checkBranchConflicts,
@@ -2918,6 +3004,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     refreshBranches, switchBranch, createBranch, renameBranch, deleteBranch, branchAndCommit,
     undoLastCommit, discardAllChanges, discardFileChanges, rewindToLastSnapshot,
     conflictedFiles, selectedConflictFile, conflictCheckResult, isCheckingConflicts, 
+    mergeReviewFiles, isLoadingMergeReviewFiles,
+    loadMergeReviewFiles, loadMergeReviewFileDiff,
     checkConflictsOnly, startMerge, checkBranchConflicts, clearConflicts,
     detectedParentBranch, fetchParentBranch, conflictSidesInfo,
     isSquashMerge,
