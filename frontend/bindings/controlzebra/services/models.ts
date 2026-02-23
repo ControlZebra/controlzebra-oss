@@ -2396,15 +2396,20 @@ export class MaintenanceSettings {
  * MergeOptions contains options for StartMergeWithOptions
  */
 export class MergeOptions {
-    /**
-     * If true, uses --squash for a squash merge
-     */
     "squash": boolean;
+    "selective": boolean;
+    "selectedFiles": string[];
 
     /** Creates a new MergeOptions instance. */
     constructor($$source: Partial<MergeOptions> = {}) {
         if (!("squash" in $$source)) {
             this["squash"] = false;
+        }
+        if (!("selective" in $$source)) {
+            this["selective"] = false;
+        }
+        if (!("selectedFiles" in $$source)) {
+            this["selectedFiles"] = [];
         }
 
         Object.assign(this, $$source);
@@ -2414,8 +2419,35 @@ export class MergeOptions {
      * Creates a new MergeOptions instance from a string or object.
      */
     static createFrom($$source: any = {}): MergeOptions {
+        const $$createField2_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("selectedFiles" in $$parsedSource) {
+            $$parsedSource["selectedFiles"] = $$createField2_0($$parsedSource["selectedFiles"]);
+        }
         return new MergeOptions($$parsedSource as Partial<MergeOptions>);
+    }
+}
+
+export class MergeReviewFile {
+    "path": string;
+    "status"?: string;
+    "oldPath"?: string;
+
+    /** Creates a new MergeReviewFile instance. */
+    constructor($$source: Partial<MergeReviewFile> = {}) {
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MergeReviewFile instance from a string or object.
+     */
+    static createFrom($$source: any = {}): MergeReviewFile {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MergeReviewFile($$parsedSource as Partial<MergeReviewFile>);
     }
 }
 
@@ -2723,6 +2755,16 @@ export class RawDiffResult {
     "rawDiff": string;
     "hasError": boolean;
     "error"?: string;
+
+    /**
+     * Resolved target ref (for merge review)
+     */
+    "targetRef"?: string;
+
+    /**
+     * Resolved source ref (for merge review)
+     */
+    "sourceRef"?: string;
 
     /** Creates a new RawDiffResult instance. */
     constructor($$source: Partial<RawDiffResult> = {}) {

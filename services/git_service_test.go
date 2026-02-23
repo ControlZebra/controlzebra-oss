@@ -2596,6 +2596,115 @@ func TestStartMergeWithOptions_UsesUpdatedOriginTargetForConflicts(t *testing.T)
 	}
 }
 
+func TestStartMergeWithOptions_PreflightUpdatesStaleTargetFromOrigin(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "shared.txt"), []byte("base\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/fresh")
+	os.WriteFile(filepath.Join(repoPath, "feature.txt"), []byte("feature branch change\n"), 0644)
+	svc.CommitAll(repoPath, "Feature change")
+
+	runGitCmd(t, repoPath, "checkout", "main")
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "feature/fresh")
+
+	remoteWorktree, err := os.MkdirTemp("", "control-zebra-origin-preflight-update-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp clone directory: %v", err)
+	}
+	defer os.RemoveAll(remoteWorktree)
+
+	runGitCmd(t, remoteWorktree, "clone", remotePath, ".")
+	runGitCmd(t, remoteWorktree, "config", "user.name", "Test User")
+	runGitCmd(t, remoteWorktree, "config", "user.email", "test@example.com")
+	runGitCmd(t, remoteWorktree, "checkout", "main")
+	os.WriteFile(filepath.Join(remoteWorktree, "remote.txt"), []byte("from origin main\n"), 0644)
+	runGitCmd(t, remoteWorktree, "add", "remote.txt")
+	runGitCmd(t, remoteWorktree, "commit", "-m", "Remote main update")
+	runGitCmd(t, remoteWorktree, "push", "origin", "main")
+
+	runGitCmd(t, repoPath, "checkout", "feature/fresh")
+
+	startResult := svc.StartMergeWithOptions(repoPath, "main", "feature/fresh", MergeOptions{Squash: true})
+	if !startResult.Success {
+		t.Fatalf("StartMergeWithOptions failed: %s", startResult.Error)
+	}
+
+	currentBranch := strings.TrimSpace(runGitOutput(t, repoPath, "rev-parse", "--abbrev-ref", "HEAD"))
+	if currentBranch != "main" {
+		t.Fatalf("Expected current branch to be main after preflight checkout, got %s", currentBranch)
+	}
+
+	remoteFileContent, err := os.ReadFile(filepath.Join(repoPath, "remote.txt"))
+	if err != nil {
+		t.Fatalf("Expected remote.txt from origin/main after preflight update: %v", err)
+	}
+	if string(remoteFileContent) != "from origin main\n" {
+		t.Fatalf("Unexpected remote.txt content after preflight update: %q", string(remoteFileContent))
+	}
+}
+
+func TestStartMergeWithOptions_PreflightDivergedTargetFailsAndRestoresBranch(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "diverge.txt"), []byte("base\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/diverged")
+	os.WriteFile(filepath.Join(repoPath, "feature-only.txt"), []byte("feature\n"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	runGitCmd(t, repoPath, "checkout", "main")
+	os.WriteFile(filepath.Join(repoPath, "local-main.txt"), []byte("local divergence\n"), 0644)
+	svc.CommitAll(repoPath, "Local main divergence")
+
+	remoteWorktree, err := os.MkdirTemp("", "control-zebra-origin-diverge-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp clone directory: %v", err)
+	}
+	defer os.RemoveAll(remoteWorktree)
+
+	runGitCmd(t, remoteWorktree, "clone", remotePath, ".")
+	runGitCmd(t, remoteWorktree, "config", "user.name", "Test User")
+	runGitCmd(t, remoteWorktree, "config", "user.email", "test@example.com")
+	runGitCmd(t, remoteWorktree, "checkout", "main")
+	os.WriteFile(filepath.Join(remoteWorktree, "origin-main.txt"), []byte("origin divergence\n"), 0644)
+	runGitCmd(t, remoteWorktree, "add", "origin-main.txt")
+	runGitCmd(t, remoteWorktree, "commit", "-m", "Origin main divergence")
+	runGitCmd(t, remoteWorktree, "push", "origin", "main")
+
+	runGitCmd(t, repoPath, "checkout", "feature/diverged")
+
+	startResult := svc.StartMergeWithOptions(repoPath, "main", "feature/diverged", MergeOptions{Squash: true})
+	if startResult.Success {
+		t.Fatalf("Expected merge preflight to fail for diverged target branch")
+	}
+	if !strings.Contains(strings.ToLower(startResult.Error), "fast-forwardable") {
+		t.Fatalf("Expected fast-forwardable guidance in error, got: %s", startResult.Error)
+	}
+
+	currentBranch := strings.TrimSpace(runGitOutput(t, repoPath, "rev-parse", "--abbrev-ref", "HEAD"))
+	if currentBranch != "feature/diverged" {
+		t.Fatalf("Expected to be restored to original branch feature/diverged, got %s", currentBranch)
+	}
+}
+
 func TestListMergeReviewFiles_ReturnsStatusesAndRename(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
@@ -2734,6 +2843,10 @@ func TestStartMergeWithOptions_SelectiveFalse_BackwardCompatible(t *testing.T) {
 	os.WriteFile(filepath.Join(repoPath, "file.txt"), []byte("base"), 0644)
 	svc.CommitAll(repoPath, "Initial commit")
 
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
 	runGitCmd(t, repoPath, "checkout", "-b", "feature/backward")
 	os.WriteFile(filepath.Join(repoPath, "file.txt"), []byte("feature"), 0644)
 	svc.CommitAll(repoPath, "Feature commit")
@@ -2759,6 +2872,10 @@ func TestStartMergeWithOptions_Selective_CleanMergeKeepsOnlySelectedFiles(t *tes
 	os.WriteFile(filepath.Join(repoPath, "selected.txt"), []byte("base selected"), 0644)
 	os.WriteFile(filepath.Join(repoPath, "unselected.txt"), []byte("base unselected"), 0644)
 	svc.CommitAll(repoPath, "Initial commit")
+
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
 
 	runGitCmd(t, repoPath, "checkout", "-b", "feature/selective-clean")
 	os.WriteFile(filepath.Join(repoPath, "selected.txt"), []byte("feature selected"), 0644)
@@ -2799,6 +2916,10 @@ func TestStartMergeWithOptions_Selective_ConflictMergeKeepsOnlySelectedConflicts
 	os.WriteFile(filepath.Join(repoPath, "unselected-conflict.txt"), []byte("line\nbase\n"), 0644)
 	svc.CommitAll(repoPath, "Initial commit")
 
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
 	runGitCmd(t, repoPath, "checkout", "-b", "feature/selective-conflict")
 	os.WriteFile(filepath.Join(repoPath, "selected-conflict.txt"), []byte("line\nfeature-selected\n"), 0644)
 	os.WriteFile(filepath.Join(repoPath, "unselected-conflict.txt"), []byte("line\nfeature-unselected\n"), 0644)
@@ -2808,6 +2929,7 @@ func TestStartMergeWithOptions_Selective_ConflictMergeKeepsOnlySelectedConflicts
 	os.WriteFile(filepath.Join(repoPath, "selected-conflict.txt"), []byte("line\nmain-selected\n"), 0644)
 	os.WriteFile(filepath.Join(repoPath, "unselected-conflict.txt"), []byte("line\nmain-unselected\n"), 0644)
 	svc.CommitAll(repoPath, "Main conflicting changes")
+	runGitCmd(t, repoPath, "push", "origin", "main")
 
 	result := svc.StartMergeWithOptions(repoPath, "main", "feature/selective-conflict", MergeOptions{
 		Selective:     true,

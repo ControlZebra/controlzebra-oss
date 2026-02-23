@@ -15,6 +15,7 @@ import { memo, useCallback, useState, useEffect, useMemo, type CSSProperties, ty
 import {
   Merge,
   Search,
+  Eye,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -38,8 +39,12 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
-import { Button, Badge, Card, CardHeader, CardContent } from '../../ui';
-import { useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy } from '../../../context';
+import {
+  Button, Badge, Card, CardHeader, CardContent,
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
+} from '../../ui';
+import DiffViewer from '../../common/DiffViewer';
+import { useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy, type MergeReviewFile, type MergeReviewDiffResult } from '../../../context';
 
 // ============================================================================
 // Types
@@ -74,7 +79,12 @@ interface ConflictCheckResultPanelProps {
   targetBranch: string;
   hasConflicts: boolean;
   conflictCount: number;
-  conflictedFiles: ConflictedFile[];
+  mergeReviewFiles: MergeReviewFile[];
+  selectedReviewFiles: string[];
+  onToggleReviewFile: (filePath: string) => void;
+  onToggleAllReviewFiles: () => void;
+  onReviewFile: (filePath: string) => void;
+  isLoadingMergeReviewFiles: boolean;
   onStartMerge: () => void;
   onCancel: () => void;
   isProcessing: boolean;
@@ -351,15 +361,23 @@ const CheckPanel = memo(function CheckPanel({
 const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
   hasConflicts,
   conflictCount,
-  conflictedFiles = [],
+  mergeReviewFiles,
+  selectedReviewFiles,
+  onToggleReviewFile,
+  onToggleAllReviewFiles,
+  onReviewFile,
+  isLoadingMergeReviewFiles,
   onStartMerge,
   onCancel,
   isProcessing,
   isSquashMerge,
 }: ConflictCheckResultPanelProps): JSX.Element {
+  const allSelected = mergeReviewFiles.length > 0 && selectedReviewFiles.length === mergeReviewFiles.length;
+  const canStartMerge = mergeReviewFiles.length === 0 || selectedReviewFiles.length > 0;
+
   return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center max-w-md w-full">
+    <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
+      <div className="text-center max-w-xl w-full">
         {hasConflicts ? (
           <>
             <AlertTriangle style={iconLg} className="text-theme-warning mx-auto mb-4" />
@@ -371,41 +389,6 @@ const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
             <p className="text-theme-secondary text-sm mb-6">
               Both branches changed the same files. You'll choose which version to keep for each one.
             </p>
-            
-            {/* Preview of conflicted files */}
-            <Card className="mb-6 text-left">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-theme-warning text-xs uppercase tracking-wide font-medium">Files with conflicts</p>
-                  <Badge variant="outline">{conflictCount} file{conflictCount !== 1 ? 's' : ''}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="max-h-48 overflow-y-auto -mx-1">
-                  {conflictedFiles.map((file) => {
-                    const fileName = file.path.split('/').pop() || file.path;
-                    const dirPath = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';
-                    return (
-                      <div
-                        key={file.path}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-theme-muted/10 transition-colors"
-                      >
-                        <div className="shrink-0 w-8 h-8 rounded-md bg-theme-warning border border-theme-warning flex items-center justify-center">
-                          <FileWarning style={iconSm} className="text-theme-warning" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-theme-primary text-sm font-medium truncate">{fileName}</p>
-                          {dirPath && (
-                            <p className="text-theme-muted text-[11px] truncate">{dirPath}/</p>
-                          )}
-                        </div>
-                        <Badge variant="warning">Needs review</Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
           </>
         ) : (
           <>
@@ -427,13 +410,74 @@ const ConflictCheckResultPanel = memo(function ConflictCheckResultPanel({
           </>
         )}
 
+        <Card className="mb-6 text-left">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <p className="text-theme-muted text-xs uppercase tracking-wide font-medium">Files to merge</p>
+              <Badge variant="outline">{selectedReviewFiles.length}/{mergeReviewFiles.length} selected</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {isLoadingMergeReviewFiles ? (
+              <div className="py-8 flex items-center justify-center text-theme-muted text-sm gap-2">
+                <Loader2 style={iconSm} className="animate-spin" />
+                Loading files...
+              </div>
+            ) : mergeReviewFiles.length === 0 ? (
+              <p className="text-theme-muted text-sm py-3">No changed files available for review.</p>
+            ) : (
+              <>
+                <label className="flex items-center gap-2 px-2 py-2 border-b border-theme-default mb-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={onToggleAllReviewFiles}
+                    className="rounded border-theme-default bg-theme-base"
+                  />
+                  <span className="text-theme-secondary text-sm">Select all files</span>
+                </label>
+                <div className="max-h-52 overflow-y-auto -mx-1 space-y-1">
+                  {mergeReviewFiles.map((file) => {
+                    const checked = selectedReviewFiles.includes(file.path);
+                    const fileName = file.path.split('/').pop() || file.path;
+                    const fileStatus = file.status || 'modified';
+                    return (
+                      <div key={file.path} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-theme-muted/10">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => onToggleReviewFile(file.path)}
+                          className="rounded border-theme-default bg-theme-base shrink-0"
+                        />
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="text-theme-primary text-sm truncate">
+                            {file.oldPath && file.oldPath !== file.path ? `${file.oldPath} → ${file.path}` : fileName}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="shrink-0">{fileStatus}</Badge>
+                        <button
+                          onClick={() => onReviewFile(file.path)}
+                          className="shrink-0 text-theme-muted hover:text-theme-primary transition-colors p-1 rounded hover:bg-theme-muted/10"
+                          title={`Review changes in ${fileName}`}
+                        >
+                          <Eye style={iconSm} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Actions */}
         <div className="flex gap-3 justify-center">
           <Button onClick={onCancel} variant="outline" disabled={isProcessing}>
             <X style={iconSm} className="mr-2" />
             Cancel
           </Button>
-          <Button onClick={onStartMerge} disabled={isProcessing}>
+          <Button onClick={onStartMerge} disabled={isProcessing || !canStartMerge}>
             {isProcessing ? (
               <Loader2 style={iconSm} className="animate-spin mr-2" />
             ) : (
@@ -1067,11 +1111,14 @@ function MergeChangesPage(): JSX.Element {
     conflictedFiles = [],
     isCheckingConflicts,
     conflictCheckResult,
+    mergeReviewFiles,
+    isLoadingMergeReviewFiles,
     selectedConflictFile,
     setSelectedConflictFile,
     detectedParentBranch,
     fetchParentBranch,
     checkConflictsOnly,
+    loadMergeReviewFileDiff,
     startMerge,
     clearConflicts,
     fileResolutions = {},
@@ -1088,6 +1135,11 @@ function MergeChangesPage(): JSX.Element {
   const [targetBranch, setTargetBranch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedReviewFiles, setSelectedReviewFiles] = useState<string[]>([]);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewFilePath, setReviewFilePath] = useState<string | null>(null);
+  const [reviewDiff, setReviewDiff] = useState<MergeReviewDiffResult | null>(null);
+  const [isLoadingReviewDiff, setIsLoadingReviewDiff] = useState(false);
 
   // Current branch from repo info
   const currentBranch = repoInfo?.branch || 'current';
@@ -1127,11 +1179,60 @@ function MergeChangesPage(): JSX.Element {
   // Handle start merge (actually begins the merge process)
   const handleStartMerge = useCallback(async (): Promise<void> => {
     setError(null);
-    const result = await startMerge(targetBranch);
+    const shouldUseSelective = mergeReviewFiles.length > 0;
+    if (shouldUseSelective && selectedReviewFiles.length === 0) {
+      setError('Select at least one file to start merge.');
+      return;
+    }
+
+    const result = await startMerge(targetBranch, '', {
+      squash: isSquashMerge,
+      selective: shouldUseSelective,
+      selectedFiles: shouldUseSelective ? selectedReviewFiles : [],
+    });
     if (!result) {
       setError('Failed to start merge');
     }
-  }, [targetBranch, startMerge]);
+  }, [targetBranch, startMerge, mergeReviewFiles.length, selectedReviewFiles, isSquashMerge]);
+
+  const handleToggleReviewFile = useCallback((filePath: string): void => {
+    setSelectedReviewFiles((prev) =>
+      prev.includes(filePath)
+        ? prev.filter((path) => path !== filePath)
+        : [...prev, filePath]
+    );
+  }, []);
+
+  const handleToggleAllReviewFiles = useCallback((): void => {
+    setSelectedReviewFiles((prev) =>
+      prev.length === mergeReviewFiles.length ? [] : mergeReviewFiles.map((file) => file.path)
+    );
+  }, [mergeReviewFiles]);
+
+  const handleReviewFile = useCallback(async (filePath: string): Promise<void> => {
+    setReviewFilePath(filePath);
+    setReviewDiff(null);
+    setIsReviewModalOpen(true);
+    setIsLoadingReviewDiff(true);
+    const diffResult = await loadMergeReviewFileDiff(filePath, effectiveTarget, effectiveSource);
+    setReviewDiff(diffResult);
+    setIsLoadingReviewDiff(false);
+  }, [loadMergeReviewFileDiff, effectiveTarget, effectiveSource]);
+
+  const handleCloseReviewModal = useCallback((): void => {
+    setIsReviewModalOpen(false);
+    setReviewFilePath(null);
+    setReviewDiff(null);
+  }, []);
+
+  // Auto-select all files when review file list loads/changes
+  useEffect(() => {
+    if (mergeReviewFiles.length > 0) {
+      setSelectedReviewFiles(mergeReviewFiles.map((file) => file.path));
+    } else {
+      setSelectedReviewFiles([]);
+    }
+  }, [mergeReviewFiles]);
 
   // Handle file resolution
   const handleResolve = useCallback(async (filePath: string, strategy: ResolutionStrategy): Promise<void> => {
@@ -1146,6 +1247,10 @@ function MergeChangesPage(): JSX.Element {
     await abortMerge();
     setError(null);
     setShowSuccess(false);
+    setIsReviewModalOpen(false);
+    setReviewFilePath(null);
+    setReviewDiff(null);
+    setSelectedReviewFiles([]);
   }, [abortMerge]);
 
   // Handle complete
@@ -1162,6 +1267,10 @@ function MergeChangesPage(): JSX.Element {
     setError(null);
     setShowSuccess(false);
     setTargetBranch('');
+    setIsReviewModalOpen(false);
+    setReviewFilePath(null);
+    setReviewDiff(null);
+    setSelectedReviewFiles([]);
   }, [clearConflicts]);
 
   // ---- Compute the current merge step for the stepper ----
@@ -1237,7 +1346,12 @@ function MergeChangesPage(): JSX.Element {
         targetBranch={effectiveTarget}
         hasConflicts={conflictCheckResult?.hasConflicts || false}
         conflictCount={conflictCheckResult?.conflictedFiles?.length || conflictedFiles.length}
-        conflictedFiles={(conflictCheckResult?.conflictedFiles || conflictedFiles) as ConflictedFile[]}
+        mergeReviewFiles={mergeReviewFiles}
+        selectedReviewFiles={selectedReviewFiles}
+        onToggleReviewFile={handleToggleReviewFile}
+        onToggleAllReviewFiles={handleToggleAllReviewFiles}
+        onReviewFile={handleReviewFile}
+        isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
         onStartMerge={handleStartMerge}
         onCancel={handleDismiss}
         isProcessing={isCheckingConflicts}
@@ -1316,6 +1430,39 @@ function MergeChangesPage(): JSX.Element {
           targetBranch={effectiveTarget}
         />
       )}
+
+      {/* Merge review diff modal */}
+      <AlertDialog open={isReviewModalOpen} onOpenChange={(open) => { if (!open) handleCloseReviewModal(); }}>
+        <AlertDialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Review Changes
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {reviewFilePath || 'Select a file to review'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex-1 min-h-0 overflow-hidden border border-theme-default rounded-lg">
+            {isLoadingReviewDiff ? (
+              <div className="h-64 flex items-center justify-center text-theme-muted text-sm gap-2">
+                <Loader2 style={iconSm} className="animate-spin" />
+                Loading diff...
+              </div>
+            ) : reviewDiff ? (
+              <div className="h-full overflow-auto">
+                <DiffViewer fileDiff={reviewDiff} showHeader repoPath={undefined} />
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-theme-muted text-sm">
+                {reviewFilePath ? `Unable to load diff for ${reviewFilePath}` : 'No file selected'}
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
