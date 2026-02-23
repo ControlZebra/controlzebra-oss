@@ -86,6 +86,7 @@ export {
     LogLevel,
     MaintenanceSettings,
     MergeOptions,
+    MergeReviewFile,
     MergeState,
     OpenFileResult,
     OpenFolderDialogResult,

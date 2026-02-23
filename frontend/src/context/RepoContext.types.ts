@@ -316,6 +316,28 @@ export interface BranchConflictCheckResult {
 }
 
 /**
+ * MergeReviewFile - File shown in pre-merge review list
+ */
+export interface MergeReviewFile {
+  path: string;
+  status?: 'added' | 'modified' | 'deleted' | 'renamed' | 'copied';
+  oldPath?: string;
+}
+
+/**
+ * MergeReviewDiffResult - Raw diff payload for merge review file preview
+ */
+export interface MergeReviewDiffResult {
+  path: string;
+  oldPath?: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed';
+  binary?: boolean;
+  rawDiff?: string;
+  hasError?: boolean;
+  error?: string;
+}
+
+/**
  * MergeState - Current repository operation state
  */
 export interface MergeState {
@@ -395,6 +417,8 @@ export type FileResolutionsMap = Record<string, ResolutionStrategy>;
 
 export interface MergeOptions {
   squash?: boolean;
+  selective?: boolean;
+  selectedFiles?: string[];
 }
 
 // ============================================================================
@@ -545,7 +569,11 @@ export interface RepoContextValue {
   selectedConflictFile: string | null;
   setSelectedConflictFile: Dispatch<SetStateAction<string | null>>;
   conflictCheckResult: BranchConflictCheckResult | null;
+  mergeReviewFiles: MergeReviewFile[];
+  isLoadingMergeReviewFiles: boolean;
   isCheckingConflicts: boolean;
+  loadMergeReviewFiles: (targetBranch?: string, sourceBranch?: string) => Promise<MergeReviewFile[]>;
+  loadMergeReviewFileDiff: (filePath: string, targetBranch?: string, sourceBranch?: string) => Promise<MergeReviewDiffResult | null>;
   checkConflictsOnly: (targetBranch?: string, sourceBranch?: string, options?: MergeOptions) => Promise<BranchConflictCheckResult | null>;
   startMerge: (targetBranch?: string, sourceBranch?: string, options?: MergeOptions) => Promise<StartMergeResult | null>;
   checkBranchConflicts: (targetBranch?: string, sourceBranch?: string, options?: MergeOptions) => Promise<BranchConflictCheckResult | null>;

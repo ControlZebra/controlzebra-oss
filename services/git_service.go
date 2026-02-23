@@ -1700,6 +1700,27 @@ func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffRes
 	}
 
 	if containsLFSPointerDiff(diffResult.Stdout) {
+		if g.tryPullLFSForFile(repoPath, filePath) {
+			retryResult := g.runner.RunGit(repoPath, "diff", "--textconv", "--", filePath)
+			if retryResult.Success || retryResult.ExitCode == 1 {
+				if retryResult.Stdout == "" {
+					stagedResult := g.runner.RunGit(repoPath, "diff", "--textconv", "--cached", "--", filePath)
+					if stagedResult.Success && stagedResult.Stdout != "" {
+						retryResult = stagedResult
+					}
+				}
+
+				if !containsLFSPointerDiff(retryResult.Stdout) {
+					if strings.Contains(retryResult.Stdout, "Binary files") || strings.Contains(retryResult.Stdout, "GIT binary patch") {
+						result.Binary = true
+						return result
+					}
+					result.RawDiff = retryResult.Stdout
+					return result
+				}
+			}
+		}
+
 		result.HasError = true
 		result.Error = g.lfsContentUnavailableError(repoPath, filePath)
 		return result
@@ -1742,6 +1763,20 @@ func (g *GitService) DiffCommitFileRaw(repoPath string, hash string, filePath st
 	}
 
 	if containsLFSPointerDiff(diffResult.Stdout) {
+		if g.tryFetchLFSForFile(repoPath, filePath, hash, hash+"^") {
+			retryResult := g.runner.RunGit(repoPath, args...)
+			if retryResult.Success {
+				if strings.Contains(retryResult.Stdout, "Binary files") || strings.Contains(retryResult.Stdout, "GIT binary patch") {
+					result.Binary = true
+					return result
+				}
+				if !containsLFSPointerDiff(retryResult.Stdout) {
+					result.RawDiff = retryResult.Stdout
+					return result
+				}
+			}
+		}
+
 		result.HasError = true
 		result.Error = g.lfsContentUnavailableError(repoPath, filePath)
 		return result
@@ -1918,7 +1953,7 @@ func (g *GitService) DiffMergeReviewFileRaw(repoPath string, targetBranch string
 
 	if containsLFSPointerDiff(diffResult.Stdout) {
 		// Auto-fetch LFS objects for both refs and retry the diff.
-		if g.tryFetchLFSForFile(repoPath, filePath, targetRef, sourceRef) {
+		if g.tryFetchLFSForFile(repoPath, filePath, targetBranch, sourceBranch, targetRef, sourceRef) {
 			retryResult := g.runner.RunGit(repoPath, "diff", "--textconv", targetRef+".."+sourceRef, "--", filePath)
 			if retryResult.Success || retryResult.ExitCode == 1 {
 				if !containsLFSPointerDiff(retryResult.Stdout) &&
@@ -2025,9 +2060,19 @@ func (g *GitService) readFileAtRevisionWithTimeout(repoPath string, filePath str
 
 	// Clearer message when LFS object resolution failed and only pointer is present.
 	if isLFSPointer(data) {
+		if g.tryFetchLFSForFile(repoPath, relPath, revision) || g.tryPullLFSForFile(repoPath, relPath) {
+			data, err = readRawWithTimeout("cat-file", "--filters", objectRef)
+			if err != nil {
+				data, err = readRawWithTimeout("show", showArg)
+			}
+			if err == nil && !isLFSPointer(data) {
+				return FileContentResult{Content: string(data)}
+			}
+		}
+
 		return FileContentResult{
 			HasError: true,
-			Error:    fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved. Ensure git-lfs is installed and run 'git lfs pull'.", relPath),
+			Error:    fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved. The app attempted to fetch it automatically; ensure git-lfs is installed and run 'git lfs pull' if the issue persists.", relPath),
 		}
 	}
 
@@ -2149,9 +2194,26 @@ func (g *GitService) GetFileAtRevisionBase64(repoPath string, filePath string, r
 	// Safety check: detect Git LFS pointer that wasn't resolved by filters.
 	// This can happen if git-lfs is not installed or LFS objects aren't available.
 	if isLFSPointer(data) {
+		if g.tryFetchLFSForFile(repoPath, relPath, revision) || g.tryPullLFSForFile(repoPath, relPath) {
+			data, err = g.runner.RunGitRaw(repoPath, "cat-file", "--filters", objectRef)
+			if err != nil {
+				data, err = g.runner.RunGitRaw(repoPath, "show", objectRef)
+			}
+			if err == nil && len(data) > 0 && !isLFSPointer(data) {
+				ext := filepath.Ext(relPath)
+				mimeType := mimeTypeFromExt(ext)
+				return FileBase64Result{
+					Success:  true,
+					Data:     base64.StdEncoding.EncodeToString(data),
+					MimeType: mimeType,
+					Size:     int64(len(data)),
+				}
+			}
+		}
+
 		return FileBase64Result{
 			Success: false,
-			Error:   fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved. Ensure git-lfs is installed and run 'git lfs pull'.", relPath),
+			Error:   fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved. The app attempted to fetch it automatically; ensure git-lfs is installed and run 'git lfs pull' if the issue persists.", relPath),
 		}
 	}
 
@@ -2217,7 +2279,25 @@ func (g *GitService) lfsContentUnavailableError(repoPath string, filePath string
 		return fmt.Sprintf("File '%s' is stored in Git LFS but the actual content could not be retrieved for diff because git-lfs is unavailable in this environment. Install git-lfs and run 'git lfs pull'.", filePath)
 	}
 
-	return fmt.Sprintf("File '%s' is stored in Git LFS but the actual content for this revision is not available locally for diff. Run 'git lfs pull' and try again.", filePath)
+	return fmt.Sprintf("File '%s' is stored in Git LFS but the actual content for this revision is not available locally for diff. The app attempted to fetch it automatically; run 'git lfs pull' and try again if the issue persists.", filePath)
+}
+
+// tryPullLFSForFile attempts to hydrate LFS content for the current checkout
+// of a specific file path. Returns true when pull succeeds.
+func (g *GitService) tryPullLFSForFile(repoPath string, filePath string) bool {
+	lfsCheck := g.runner.RunGit(repoPath, "lfs", "version")
+	if !lfsCheck.Success {
+		return false
+	}
+
+	remote, ok := g.getPreferredRemote(repoPath)
+	if !ok {
+		return false
+	}
+
+	includePath := filepath.ToSlash(strings.TrimPrefix(filePath, "./"))
+	pullResult := g.runner.RunGit(repoPath, "lfs", "pull", "--include="+includePath, "--exclude=", remote)
+	return pullResult.Success
 }
 
 // tryFetchLFSForFile attempts to fetch LFS objects for a specific file at the
@@ -2231,21 +2311,71 @@ func (g *GitService) tryFetchLFSForFile(repoPath string, filePath string, refs .
 		return false
 	}
 
+	remote, ok := g.getPreferredRemote(repoPath)
+	if !ok {
+		return false
+	}
+
 	// Normalise the path for the --include glob (forward slashes, no leading ./).
 	includePath := filepath.ToSlash(strings.TrimPrefix(filePath, "./"))
+	hadSuccess := false
+
+	refCandidates := make([]string, 0, len(refs)*4)
+	seenRefs := map[string]struct{}{}
+	addRefCandidate := func(ref string) {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			return
+		}
+		if _, ok := seenRefs[ref]; ok {
+			return
+		}
+		seenRefs[ref] = struct{}{}
+		refCandidates = append(refCandidates, ref)
+	}
 
 	for _, ref := range refs {
+		ref = strings.TrimSpace(ref)
 		if ref == "" {
 			continue
 		}
-		args := []string{"lfs", "fetch", "--include=" + includePath, "origin", ref}
-		result := g.runner.RunGit(repoPath, args...)
-		if !result.Success {
-			// Non-fatal: log and continue. Best-effort fetch.
-			continue
+
+		addRefCandidate(ref)
+
+		if strings.HasPrefix(ref, "origin/") {
+			addRefCandidate(strings.TrimPrefix(ref, "origin/"))
+		}
+
+		if !strings.HasPrefix(ref, "refs/") {
+			addRefCandidate("refs/heads/" + ref)
+			addRefCandidate("refs/remotes/origin/" + ref)
 		}
 	}
-	return true
+
+	for _, ref := range refCandidates {
+		args := []string{"lfs", "fetch", "--include=" + includePath, remote, ref}
+		result := g.runner.RunGit(repoPath, args...)
+		if result.Success {
+			hadSuccess = true
+		}
+	}
+
+	if hadSuccess {
+		return true
+	}
+
+	fallback := g.runner.RunGit(repoPath, "lfs", "fetch", "--include="+includePath, remote)
+	if fallback.Success {
+		return true
+	}
+
+	pullFallback := g.runner.RunGit(repoPath, "lfs", "pull", "--include="+includePath, "--exclude=", remote)
+	if pullFallback.Success {
+		return true
+	}
+
+	allFallback := g.runner.RunGit(repoPath, "lfs", "fetch", "--all", remote)
+	return allFallback.Success
 }
 
 // EnsureLFSForRefs fetches LFS objects for a specific file at the given branch
@@ -2281,7 +2411,12 @@ func (g *GitService) EnsureLFSForRefs(repoPath string, filePath string, refs ...
 		if err != nil {
 			resolved = ref // Use as-is if resolution fails
 		}
-		args := []string{"lfs", "fetch", "--include=" + includePath, "origin", resolved}
+		remote, hasRemote := g.getPreferredRemote(repoPath)
+		if !hasRemote {
+			lastError = "No remote configured"
+			continue
+		}
+		args := []string{"lfs", "fetch", "--include=" + includePath, remote, resolved}
 		result := g.runner.RunGit(repoPath, args...)
 		if !result.Success {
 			lastError = getErrorMessage(result)
@@ -3294,35 +3429,70 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 	return successOp(fmt.Sprintf("Marked '%s' as resolved", filePath))
 }
 
-// fastForwardTargetToOrigin updates the checked-out target branch to match origin/<target>
-// when that remote ref exists. This keeps conflict checking (which uses origin/<target> when
-// available) consistent with the actual merge execution baseline.
-func (g *GitService) fastForwardTargetToOrigin(repoPath string, targetBranch string) error {
+// prepareMergeTargetBaseline enforces the merge preflight baseline sequence:
+// 1. git fetch origin --prune
+// 2. git checkout <target>
+// 3. git pull --ff-only origin <target>
+//
+// Returns the branch that was checked out before preflight started so callers can restore it
+// when a failure occurs.
+func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch string) (string, error) {
+	targetBranch = strings.TrimSpace(targetBranch)
 	if targetBranch == "" {
-		return nil
+		return "", fmt.Errorf("target branch is required")
+	}
+
+	repoInfo := g.DetectRepo(repoPath)
+	if !repoInfo.IsRepo {
+		return "", fmt.Errorf("not a valid git repository")
+	}
+
+	originalBranch := repoInfo.Branch
+	if strings.TrimSpace(originalBranch) == "" {
+		return "", fmt.Errorf("could not determine current branch (detached HEAD?)")
 	}
 
 	if !g.hasRemote(repoPath, "origin") {
-		return nil
+		return originalBranch, fmt.Errorf("merge preflight requires remote 'origin'. Configure 'origin' and retry")
 	}
 
-	remoteRef := "origin/" + targetBranch
-	refCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef)
-	if !refCheck.Success {
-		return nil
+	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", "--prune")
+	if !fetchResult.Success {
+		return originalBranch, fmt.Errorf("failed to fetch from origin before merge: %s", getErrorMessage(fetchResult))
 	}
 
-	ffResult := g.runner.RunGit(repoPath, "merge", "--ff-only", remoteRef)
-	if !ffResult.Success {
-		return fmt.Errorf(
-			"failed to update '%s' to latest '%s' before merge: %s",
-			targetBranch,
-			remoteRef,
-			getErrorMessage(ffResult),
-		)
+	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
+	if !checkoutResult.Success {
+		return originalBranch, fmt.Errorf("failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult))
 	}
 
-	return nil
+	pullResult := g.runner.RunGit(repoPath, "pull", "--ff-only", "origin", targetBranch)
+	if !pullResult.Success {
+		errMsg := getErrorMessage(pullResult)
+		errMsgLower := strings.ToLower(errMsg)
+		if strings.Contains(errMsgLower, "not possible to fast-forward") ||
+			strings.Contains(errMsgLower, "cannot fast-forward") ||
+			strings.Contains(errMsgLower, "divergent branches") ||
+			strings.Contains(errMsgLower, "non-fast-forward") {
+			return originalBranch, fmt.Errorf("target branch is not fast-forwardable to origin/%s. Resolve divergence first (rebase or manual merge), then retry", targetBranch)
+		}
+
+		return originalBranch, fmt.Errorf("failed to update target branch '%s' from origin/%s: %s", targetBranch, targetBranch, errMsg)
+	}
+
+	localHeadResult := g.runner.RunGit(repoPath, "rev-parse", "HEAD")
+	remoteHeadResult := g.runner.RunGit(repoPath, "rev-parse", "origin/"+targetBranch)
+	if !localHeadResult.Success || !remoteHeadResult.Success {
+		return originalBranch, fmt.Errorf("failed to validate target branch baseline against origin/%s", targetBranch)
+	}
+
+	localHead := strings.TrimSpace(localHeadResult.Stdout)
+	remoteHead := strings.TrimSpace(remoteHeadResult.Stdout)
+	if localHead == "" || remoteHead == "" || localHead != remoteHead {
+		return originalBranch, fmt.Errorf("target branch is not fast-forwardable to origin/%s. Resolve divergence first (rebase or manual merge), then retry", targetBranch)
+	}
+
+	return originalBranch, nil
 }
 
 // StartMerge begins an actual merge.
@@ -3392,43 +3562,20 @@ func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBran
 		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
 	}
 
-	// Store current branch so we know what we're merging from
-	originalBranch := repoInfo.Branch
-
-	// Step 1: Checkout the target branch
-	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
-	if !checkoutResult.Success {
-		// Try fetching and checking out if it's a remote branch
-		if g.hasRemote(repoPath, "origin") {
-			g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+	// Step 1: Run canonical target preflight to guarantee local target baseline.
+	originalBranch, err := g.prepareMergeTargetBaseline(repoPath, targetBranch)
+	if err != nil {
+		if originalBranch != "" {
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
 		}
-		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
-		if !checkoutResult.Success {
-			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
-		}
-	}
-
-	if err := g.fastForwardTargetToOrigin(repoPath, targetBranch); err != nil {
-		g.runner.RunGit(repoPath, "checkout", originalBranch)
 		return failedOp(err.Error())
 	}
 
 	// Step 2: Determine the source ref to merge
-	sourceRef := ""
-	// For local branches, use the branch name directly
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", source)
-	if refCheckResult.Success {
-		sourceRef = source
-	} else {
-		// Try origin/<branch>
-		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+source)
-		if refCheckResult.Success {
-			sourceRef = "origin/" + source
-		} else {
-			// Checkout back to original branch on failure
-			g.runner.RunGit(repoPath, "checkout", originalBranch)
-			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", source))
-		}
+	sourceRef, err := g.resolveBranchRef(repoPath, source, false)
+	if err != nil {
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
+		return failedOp(err.Error())
 	}
 
 	// Step 3: Start the merge with --no-commit so user can resolve conflicts
@@ -3554,39 +3701,20 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 		return failedOp("Cannot start merge: you have uncommitted changes. Please commit or stash your changes first.")
 	}
 
-	// Store current branch
-	originalBranch := repoInfo.Branch
-
-	// Step 1: Checkout the target branch
-	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
-	if !checkoutResult.Success {
-		if g.hasRemote(repoPath, "origin") {
-			g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+	// Step 1: Run canonical target preflight to guarantee local target baseline.
+	originalBranch, err := g.prepareMergeTargetBaseline(repoPath, targetBranch)
+	if err != nil {
+		if originalBranch != "" {
+			g.runner.RunGit(repoPath, "checkout", originalBranch)
 		}
-		checkoutResult = g.runner.RunGit(repoPath, "checkout", targetBranch)
-		if !checkoutResult.Success {
-			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
-		}
-	}
-
-	if err := g.fastForwardTargetToOrigin(repoPath, targetBranch); err != nil {
-		g.runner.RunGit(repoPath, "checkout", originalBranch)
 		return failedOp(err.Error())
 	}
 
 	// Step 2: Determine the source ref
-	sourceRef := ""
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", sourceBranch)
-	if refCheckResult.Success {
-		sourceRef = sourceBranch
-	} else {
-		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+sourceBranch)
-		if refCheckResult.Success {
-			sourceRef = "origin/" + sourceBranch
-		} else {
-			g.runner.RunGit(repoPath, "checkout", originalBranch)
-			return failedOp(fmt.Sprintf("Branch '%s' not found locally or on remote", sourceBranch))
-		}
+	sourceRef, err := g.resolveBranchRef(repoPath, sourceBranch, false)
+	if err != nil {
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
+		return failedOp(err.Error())
 	}
 
 	selectedSet := make(map[string]struct{})
@@ -4733,55 +4861,33 @@ func (g *GitService) CheckBranchConflicts(repoPath string, targetBranch string, 
 		}
 	}
 
-	// Step 1: Fetch the target branch from origin to ensure we have latest
+	// Step 1: Fetch from origin to refresh remote refs for conflict simulation.
 	if g.hasRemote(repoPath, "origin") {
-		fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", targetBranch)
+		fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", "--prune")
 		if !fetchResult.Success {
 			// Fetch might fail if branch doesn't exist on remote.
 			// We can still try merge-tree with local branches.
 		}
 	}
 
-	// Step 2: Determine the target ref to use
-	// Try origin/<targetBranch> first, then fall back to local branch
-	targetRef := ""
-
-	// Check if origin/<targetBranch> exists
-	refCheckResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+targetBranch)
-	if refCheckResult.Success {
-		targetRef = "origin/" + targetBranch
-	} else {
-		// Try local branch
-		localRefCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", targetBranch)
-		if localRefCheck.Success {
-			targetRef = targetBranch
-		} else {
-			return BranchConflictCheckResult{
-				Success: false,
-				Error:   fmt.Sprintf("Branch '%s' not found locally or on remote", targetBranch),
-			}
+	// Step 2: Resolve refs using the same canonical rules used by merge execution.
+	targetRef, err := g.resolveBranchRef(repoPath, targetBranch, true)
+	if err != nil {
+		return BranchConflictCheckResult{
+			Success: false,
+			Error:   err.Error(),
 		}
 	}
 
-	// Step 3: Determine the source ref
-	sourceRef := ""
-	refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", source)
-	if refCheckResult.Success {
-		sourceRef = source
-	} else {
-		// Try origin/<source>
-		refCheckResult = g.runner.RunGit(repoPath, "rev-parse", "--verify", "origin/"+source)
-		if refCheckResult.Success {
-			sourceRef = "origin/" + source
-		} else {
-			return BranchConflictCheckResult{
-				Success: false,
-				Error:   fmt.Sprintf("Source branch '%s' not found locally or on remote", source),
-			}
+	sourceRef, err := g.resolveBranchRef(repoPath, source, false)
+	if err != nil {
+		return BranchConflictCheckResult{
+			Success: false,
+			Error:   fmt.Sprintf("Source %s", strings.ToLower(err.Error())),
 		}
 	}
 
-	// Step 4: Run merge-tree with --name-only for cleaner output
+	// Step 3: Run merge-tree with --name-only for cleaner output
 	// Order is: git merge-tree <target> <source> to simulate merging source INTO target
 	mergeTreeResult := g.runner.RunGit(repoPath, "merge-tree", "--write-tree", "--name-only", targetRef, sourceRef)
 

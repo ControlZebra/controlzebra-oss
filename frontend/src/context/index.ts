@@ -13,6 +13,8 @@ export type {
   BranchInfo,
   FileDiff,
   ConflictedFile,
+  MergeReviewFile,
+  MergeReviewDiffResult,
   MergeState,
   FileResolutionsMap,
   ResolutionStrategy,

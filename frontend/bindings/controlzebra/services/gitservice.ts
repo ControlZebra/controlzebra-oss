@@ -335,6 +335,12 @@ export function DiffCommitFileRaw(repoPath: string, hash: string, filePath: stri
     });
 }
 
+export function DiffMergeReviewFileRaw(repoPath: string, targetBranch: string, sourceBranch: string, filePath: string): $CancellablePromise<$models.RawDiffResult> {
+    return $Call.ByID(2755065833, repoPath, targetBranch, sourceBranch, filePath).then(($result: any) => {
+        return $$createType6($result);
+    });
+}
+
 /**
  * DiffWorkingRaw returns the raw unified diff text of a file in the working tree vs HEAD
  * This is designed to be consumed by react-diff-view's parseDiff function
@@ -367,6 +373,18 @@ export function DiscardAll(repoPath: string, confirm: boolean): $CancellableProm
  */
 export function DiscardFile(repoPath: string, filePath: string, confirm: boolean): $CancellablePromise<$models.OperationResult> {
     return $Call.ByID(1158166522, repoPath, filePath, confirm).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
+ * EnsureLFSForRefs fetches LFS objects for a specific file at the given branch
+ * refs. This is exposed to the frontend so specialized diff viewers (image,
+ * PDF, L5X, 3D) can ensure LFS content is available before attempting to load
+ * file contents at those revisions.
+ */
+export function EnsureLFSForRefs(repoPath: string, filePath: string, ...refs: string[]): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(561837188, repoPath, filePath, refs).then(($result: any) => {
         return $$createType0($result);
     });
 }
@@ -546,6 +564,12 @@ export function IsDetachedHead(repoPath: string): $CancellablePromise<boolean> {
     return $Call.ByID(2286894754, repoPath);
 }
 
+export function ListMergeReviewFiles(repoPath: string, targetBranch: string, sourceBranch: string): $CancellablePromise<$models.MergeReviewFile[]> {
+    return $Call.ByID(2838372817, repoPath, targetBranch, sourceBranch).then(($result: any) => {
+        return $$createType20($result);
+    });
+}
+
 /**
  * MarkResolved marks a file as resolved after manual editing.
  * Runs: git add <path>
@@ -592,7 +616,7 @@ export function Push(repoPath: string): $CancellablePromise<$models.OperationRes
  */
 export function ReadFileAtRevision(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
     return $Call.ByID(2435261556, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType21($result);
     });
 }
 
@@ -603,7 +627,7 @@ export function ReadFileAtRevision(repoPath: string, filePath: string, revision:
  */
 export function ReadFileAtRevisionLarge(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
     return $Call.ByID(2397397827, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType19($result);
+        return $$createType21($result);
     });
 }
 
@@ -806,7 +830,7 @@ export function RevertCommitWithMessage(repoPath: string, commitHash: string, me
  */
 export function ShowCommit(repoPath: string, hash: string): $CancellablePromise<$models.CommitDetail> {
     return $Call.ByID(137660310, repoPath, hash).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType22($result);
     });
 }
 
@@ -912,7 +936,7 @@ export function StashDrop(repoPath: string, index: number, confirm: boolean): $C
  */
 export function StashList(repoPath: string): $CancellablePromise<$models.StashEntry[]> {
     return $Call.ByID(2553569151, repoPath).then(($result: any) => {
-        return $$createType22($result);
+        return $$createType24($result);
     });
 }
 
@@ -941,7 +965,7 @@ export function StashPush(repoPath: string, message: string): $CancellablePromis
  */
 export function Status(repoPath: string): $CancellablePromise<$models.RepoStatus> {
     return $Call.ByID(2928711956, repoPath).then(($result: any) => {
-        return $$createType23($result);
+        return $$createType25($result);
     });
 }
 
@@ -1001,8 +1025,10 @@ const $$createType15 = $models.MergeState.createFrom;
 const $$createType16 = $models.ParentBranchResult.createFrom;
 const $$createType17 = $models.CommitInfo.createFrom;
 const $$createType18 = $Create.Array($$createType17);
-const $$createType19 = $models.FileContentResult.createFrom;
-const $$createType20 = $models.CommitDetail.createFrom;
-const $$createType21 = $models.StashEntry.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = $models.RepoStatus.createFrom;
+const $$createType19 = $models.MergeReviewFile.createFrom;
+const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = $models.FileContentResult.createFrom;
+const $$createType22 = $models.CommitDetail.createFrom;
+const $$createType23 = $models.StashEntry.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = $models.RepoStatus.createFrom;
