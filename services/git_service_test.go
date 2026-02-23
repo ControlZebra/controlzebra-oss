@@ -2392,6 +2392,85 @@ func TestCheckBranchConflicts_NonExistentBranch(t *testing.T) {
 	}
 }
 
+func TestStartMergeWithOptions_UsesUpdatedOriginTargetForConflicts(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+
+	// Normalize default branch for deterministic behavior.
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	filePath := filepath.Join(repoPath, "test.txt")
+	os.WriteFile(filePath, []byte("line1\nbase\nline3\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	// Create source branch with local conflicting change.
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/conflict")
+	os.WriteFile(filePath, []byte("line1\nfeature-change\nline3\n"), 0644)
+	svc.CommitAll(repoPath, "Feature change")
+
+	// Go back to main and set up origin.
+	runGitCmd(t, repoPath, "checkout", "main")
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "feature/conflict")
+
+	// Advance origin/main in a separate clone with a conflicting change.
+	remoteWorktree, err := os.MkdirTemp("", "control-zebra-origin-main-update-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp clone directory: %v", err)
+	}
+	defer os.RemoveAll(remoteWorktree)
+
+	runGitCmd(t, remoteWorktree, "clone", remotePath, ".")
+	runGitCmd(t, remoteWorktree, "config", "user.name", "Test User")
+	runGitCmd(t, remoteWorktree, "config", "user.email", "test@example.com")
+	runGitCmd(t, remoteWorktree, "checkout", "main")
+	os.WriteFile(filepath.Join(remoteWorktree, "test.txt"), []byte("line1\norigin-main-change\nline3\n"), 0644)
+	runGitCmd(t, remoteWorktree, "add", "test.txt")
+	runGitCmd(t, remoteWorktree, "commit", "-m", "Remote main change")
+	runGitCmd(t, remoteWorktree, "push", "origin", "main")
+
+	// Switch back to source branch in local repo.
+	runGitCmd(t, repoPath, "checkout", "feature/conflict")
+
+	checkResult := svc.CheckBranchConflicts(repoPath, "main", "feature/conflict")
+	if !checkResult.Success {
+		t.Fatalf("CheckBranchConflicts failed: %s", checkResult.Error)
+	}
+	if !checkResult.HasConflicts {
+		t.Fatalf("Expected conflict check to detect conflicts against origin/main")
+	}
+
+	startResult := svc.StartMergeWithOptions(repoPath, "main", "feature/conflict", MergeOptions{Squash: true})
+	if !startResult.Success {
+		t.Fatalf("StartMergeWithOptions failed: %s", startResult.Error)
+	}
+
+	state := svc.GetMergeState(repoPath)
+	if !state.InSquashMerge {
+		t.Fatalf("Expected squash merge state after starting merge")
+	}
+	if !state.HasConflicts {
+		t.Fatalf("Expected conflicts to be present after starting squash merge")
+	}
+
+	conflictedFiles, conflictErr := svc.GetConflictedFiles(repoPath)
+	if conflictErr != nil {
+		t.Fatalf("Failed to read conflicted files: %v", conflictErr)
+	}
+	if len(conflictedFiles) == 0 {
+		t.Fatalf("Expected conflicted files after starting squash merge")
+	}
+
+	abortResult := svc.AbortMerge(repoPath)
+	if !abortResult.Success {
+		t.Fatalf("AbortMerge failed during cleanup: %s", abortResult.Error)
+	}
+}
+
 // NOTE: TestCheckBranchConflicts_RealRepo was removed - it was used for manual testing
 // with the actual control-zebra repository. The unit tests above cover the functionality.
 

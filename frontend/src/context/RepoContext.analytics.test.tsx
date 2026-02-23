@@ -12,12 +12,16 @@ const {
   GetMergeState,
   GetConflictedFiles,
   IsGHInstalled,
+  IsLFSInstalled,
   GetGHVersion,
+  GetGitVersion,
   AuthStatus,
   InitializeLFS,
   GetPresetPatterns,
   TrackPattern,
   SyncWithProgress,
+  Pull,
+  EnsurePortableToolchainIfNeeded,
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
@@ -61,12 +65,16 @@ const {
   GetMergeState: vi.fn(),
   GetConflictedFiles: vi.fn(),
   IsGHInstalled: vi.fn(),
+  IsLFSInstalled: vi.fn(),
   GetGHVersion: vi.fn(),
+  GetGitVersion: vi.fn(),
   AuthStatus: vi.fn(),
   InitializeLFS: vi.fn(),
   GetPresetPatterns: vi.fn(),
   TrackPattern: vi.fn(),
   SyncWithProgress: vi.fn(),
+  Pull: vi.fn(),
+  EnsurePortableToolchainIfNeeded: vi.fn(),
   GetAppSettings: vi.fn(),
   SaveAppSettings: vi.fn(),
   EnsureIdentity: vi.fn(),
@@ -130,6 +138,8 @@ vi.mock('../../bindings/controlzebra/services/gitservice', () => ({
   SkipAMPatch: vi.fn(),
   CreateBranchFromDetached: vi.fn(),
   RemoveAllStaleLocks: vi.fn(),
+  GetGitVersion,
+  Pull,
 }));
 
 vi.mock('../../bindings/controlzebra/services/githubservice', () => ({
@@ -149,8 +159,13 @@ vi.mock('../../bindings/controlzebra/services/githubservice', () => ({
 
 vi.mock('../../bindings/controlzebra/services/lfsservice', () => ({
   InitializeLFS,
+  IsLFSInstalled,
   GetPresetPatterns,
   TrackPattern,
+}));
+
+vi.mock('../../bindings/controlzebra/services/localbinservice', () => ({
+  EnsurePortableToolchainIfNeeded,
 }));
 
 vi.mock('../../bindings/controlzebra/services/progressservice', () => ({
@@ -195,11 +210,15 @@ vi.mock('../components/viewers/l5x', () => ({
   clearAllTabStates: vi.fn(),
 }));
 
-vi.mock('@wailsio/runtime', () => ({
-  Events: {
-    On: vi.fn(() => () => {}),
-  },
-}));
+vi.mock('@wailsio/runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wailsio/runtime')>();
+  return {
+    ...actual,
+    Events: {
+      On: vi.fn(() => () => {}),
+    },
+  };
+});
 
 vi.mock('sonner', () => ({
   toast: {
@@ -248,7 +267,9 @@ describe('RepoContext analytics validation', () => {
     GetConflictedFiles.mockResolvedValue([]);
 
     IsGHInstalled.mockResolvedValue(false);
+    IsLFSInstalled.mockResolvedValue(true);
     GetGHVersion.mockResolvedValue('');
+    GetGitVersion.mockResolvedValue('2.45.0');
     AuthStatus.mockResolvedValue(null);
 
     InitializeLFS.mockResolvedValue({ success: true });
@@ -256,6 +277,8 @@ describe('RepoContext analytics validation', () => {
     TrackPattern.mockResolvedValue({ success: true });
 
     SyncWithProgress.mockResolvedValue({ success: true });
+    Pull.mockResolvedValue({ success: true, message: 'Already up to date' });
+    EnsurePortableToolchainIfNeeded.mockResolvedValue({ success: true });
 
     GetAppSettings.mockResolvedValue({ lastRepoPath: '' });
     SaveAppSettings.mockResolvedValue({ success: true });
@@ -348,7 +371,9 @@ describe('RepoContext analytics validation', () => {
     });
 
     expect(analyticsMocks.trackSyncCompleted).toHaveBeenCalled();
-    const args = analyticsMocks.trackSyncCompleted.mock.calls.at(-1)?.[0] as { durationMs: number };
+    const calls = analyticsMocks.trackSyncCompleted.mock.calls;
+    const args = calls[calls.length - 1]?.[0] as { durationMs: number };
     expect(args.durationMs).toBeGreaterThan(0);
   });
+
 });

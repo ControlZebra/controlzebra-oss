@@ -2962,6 +2962,37 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 	return successOp(fmt.Sprintf("Marked '%s' as resolved", filePath))
 }
 
+// fastForwardTargetToOrigin updates the checked-out target branch to match origin/<target>
+// when that remote ref exists. This keeps conflict checking (which uses origin/<target> when
+// available) consistent with the actual merge execution baseline.
+func (g *GitService) fastForwardTargetToOrigin(repoPath string, targetBranch string) error {
+	if targetBranch == "" {
+		return nil
+	}
+
+	if !g.hasRemote(repoPath, "origin") {
+		return nil
+	}
+
+	remoteRef := "origin/" + targetBranch
+	refCheck := g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef)
+	if !refCheck.Success {
+		return nil
+	}
+
+	ffResult := g.runner.RunGit(repoPath, "merge", "--ff-only", remoteRef)
+	if !ffResult.Success {
+		return fmt.Errorf(
+			"failed to update '%s' to latest '%s' before merge: %s",
+			targetBranch,
+			remoteRef,
+			getErrorMessage(ffResult),
+		)
+	}
+
+	return nil
+}
+
 // StartMerge begins an actual merge.
 // Uses --no-commit to allow the user to resolve conflicts before committing.
 // This is called after CheckBranchConflicts confirms there will be conflicts.
@@ -3043,6 +3074,11 @@ func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBran
 		if !checkoutResult.Success {
 			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
 		}
+	}
+
+	if err := g.fastForwardTargetToOrigin(repoPath, targetBranch); err != nil {
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
+		return failedOp(err.Error())
 	}
 
 	// Step 2: Determine the source ref to merge
@@ -3194,6 +3230,11 @@ func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string,
 		if !checkoutResult.Success {
 			return failedOp(fmt.Sprintf("Failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult)))
 		}
+	}
+
+	if err := g.fastForwardTargetToOrigin(repoPath, targetBranch); err != nil {
+		g.runner.RunGit(repoPath, "checkout", originalBranch)
+		return failedOp(err.Error())
 	}
 
 	// Step 2: Determine the source ref
