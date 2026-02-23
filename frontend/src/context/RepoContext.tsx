@@ -66,6 +66,7 @@ import {
   CreateBranchFromDetached,
   RemoveAllStaleLocks,
   GetGitVersion,
+  Pull,
 } from '../../bindings/controlzebra/services/gitservice';
 import {
   IsGHInstalled,
@@ -161,6 +162,7 @@ import type {
 
 // Polling interval for status updates (in ms)
 const STATUS_POLL_INTERVAL = 30000;
+const STARTUP_AUTO_PULL_DELAY_MS = 10000;
 
 // Global UI events consumed by LayoutContext for explorer tab cleanup
 const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
@@ -245,6 +247,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const operationIdCounter = useRef(0);
   const repoOpenTimeRef = useRef<number>(0);
   const syncStartTimeRef = useRef<number | null>(null);
+  const startupAutoPullDueRef = useRef(false);
+  const startupAutoPullDoneRef = useRef(false);
+  const startupAutoPullDeadlineRef = useRef<number>(Date.now() + STARTUP_AUTO_PULL_DELAY_MS);
 
   const isWindowsPlatform = useCallback((): boolean => {
     return navigator.userAgent.toLowerCase().includes('win');
@@ -858,6 +863,30 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const closeProgressModal = useCallback(() => {
     setProgressModal({ isOpen: false, operationId: null, title: '' });
   }, []);
+
+  const runStartupAutoPull = useCallback(async (): Promise<void> => {
+    if (!startupAutoPullDueRef.current || startupAutoPullDoneRef.current) return;
+    if (!repoPath || !repoInfo?.isRepo || !hasRemote) return;
+
+    const lockResult = await withOperationLock('Pulling latest changes', async () => {
+      try {
+        const pullResult = await Pull(repoPath);
+        if (!pullResult.success) {
+          console.warn('Startup auto-pull failed:', pullResult.error || 'unknown error');
+          return false;
+        }
+        await refreshAll();
+        return true;
+      } catch (err) {
+        console.warn('Startup auto-pull failed:', err);
+        return false;
+      }
+    });
+
+    if (lockResult !== null) {
+      startupAutoPullDoneRef.current = true;
+    }
+  }, [repoPath, repoInfo?.isRepo, hasRemote, withOperationLock, refreshAll]);
 
   // Handle progress modal completion
   const handleProgressComplete = useCallback((success: boolean, error?: string) => {
@@ -2555,6 +2584,24 @@ export function RepoProvider({ children }: RepoProviderProps) {
     loadLastRepo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // One-time startup auto-pull after app boot delay.
+  useEffect(() => {
+    const delay = Math.max(0, startupAutoPullDeadlineRef.current - Date.now());
+    const timeoutId = setTimeout(() => {
+      startupAutoPullDueRef.current = true;
+      void runStartupAutoPull();
+    }, delay);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [runStartupAutoPull]);
+
+  // If the repository opens after the startup delay elapses, trigger pending auto-pull once.
+  useEffect(() => {
+    void runStartupAutoPull();
+  }, [runStartupAutoPull]);
 
   // Start polling when git repo is open
   useEffect(() => {
