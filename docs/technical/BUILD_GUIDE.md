@@ -426,7 +426,7 @@ task darwin:build
 ```
 
 The Docker image (`build/docker/Dockerfile.cross`) contains:
-- Go 1.25
+- Go 1.26
 - Zig 0.14 (C/C++ cross-compiler)
 - macOS SDK 14.5 (for darwin targets)
 - Pre-configured compiler wrappers for each target triple
