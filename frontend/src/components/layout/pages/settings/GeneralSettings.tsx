@@ -2,8 +2,7 @@
  * GeneralSettings - App preferences including theme selection and analytics consent.
  */
 import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
-import { Sun, Moon, Monitor, BarChart3, LogOut, RefreshCw, Info, FolderTree, type LucideIcon } from 'lucide-react';
-import { toast } from 'sonner';
+import { Sun, Moon, Monitor, BarChart3, LogOut, Info, FolderTree, type LucideIcon } from 'lucide-react';
 import { useLayout, useAuth, type Theme } from '../../../../context';
 import { ICON_SIZES } from '../../../../constants';
 import { 
@@ -13,16 +12,12 @@ import {
 } from '../../../../lib/analytics';
 import { Button } from '../../../ui';
 import {
-  CheckForUpdate,
-  GetCurrentVersion,
-} from '../../../../../bindings/controlzebra/services/updaterservice';
-import {
   GetDataLocations,
 } from '../../../../../bindings/controlzebra/services/settingsservice';
 import type { DataLocations } from '../../../../../bindings/controlzebra/services/models';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const LAST_UPDATE_CHECKED_KEY = 'cz_last_update_checked_at';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0-dev';
 
 function formatDisplayVersion(version: string | undefined): string {
   const value = (version ?? '').trim();
@@ -71,11 +66,6 @@ function GeneralSettings(): JSX.Element {
   const { isAuthenticated, userEmail, logout } = useAuth();
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(getAnalyticsConsent);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState<string>('0.0.0-dev');
-  const [lastCheckedAt, setLastCheckedAt] = useState<string>(() => (
-    localStorage.getItem(LAST_UPDATE_CHECKED_KEY) || ''
-  ));
   const [dataLocations, setDataLocations] = useState<DataLocations | null>(null);
 
   // Handle analytics consent change
@@ -84,16 +74,7 @@ function GeneralSettings(): JSX.Element {
     setAnalyticsConsentState(level);
   };
 
-  // Load current app version from backend
   useEffect(() => {
-    GetCurrentVersion()
-      .then((version) => {
-        setCurrentVersion(version || '0.0.0-dev');
-      })
-      .catch(() => {
-        // Non-fatal; keep fallback value
-      });
-
     GetDataLocations()
       .then((locations) => {
         setDataLocations(locations);
@@ -112,38 +93,6 @@ function GeneralSettings(): JSX.Element {
     { label: 'Portable tools bin', path: dataLocations?.toolsBinDir },
     { label: 'WebView2 data', path: dataLocations?.webView2Dir },
   ];
-
-  const formatLastChecked = (iso: string): string => {
-    if (!iso) return 'Never';
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return 'Never';
-    return date.toLocaleString();
-  };
-
-  const handleCheckForUpdates = async (): Promise<void> => {
-    if (isCheckingUpdates) return;
-
-    setIsCheckingUpdates(true);
-    try {
-      const updateInfo = await CheckForUpdate();
-      const checkedAt = new Date().toISOString();
-      setLastCheckedAt(checkedAt);
-      localStorage.setItem(LAST_UPDATE_CHECKED_KEY, checkedAt);
-
-      if (updateInfo) {
-        toast.info(`Update available: ${formatDisplayVersion(updateInfo.version)}`, {
-          description: 'Use Help → Check for Updates to review and install.',
-        });
-      } else {
-        toast.success('You are on the latest version.');
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to check for updates';
-      toast.error(message);
-    } finally {
-      setIsCheckingUpdates(false);
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -278,22 +227,13 @@ function GeneralSettings(): JSX.Element {
         <div className="space-y-2 mb-4 text-sm">
           <p className="text-theme-secondary">
             <span className="text-theme-muted">Current app version:</span>{' '}
-            <span className="text-theme-primary font-medium">{formatDisplayVersion(currentVersion)}</span>
+            <span className="text-theme-primary font-medium">{formatDisplayVersion(APP_VERSION)}</span>
           </p>
           <p className="text-theme-secondary">
-            <span className="text-theme-muted">Last checked:</span>{' '}
-            <span className="text-theme-primary">{formatLastChecked(lastCheckedAt)}</span>
+            <span className="text-theme-muted">Update channel:</span>{' '}
+            <span className="text-theme-primary">Disabled in beta builds</span>
           </p>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={isCheckingUpdates}
-          onClick={handleCheckForUpdates}
-        >
-          <RefreshCw style={iconStyle} />
-          <span className="ml-1.5">Check for Updates</span>
-        </Button>
       </div>
 
       {/* Data Paths */}

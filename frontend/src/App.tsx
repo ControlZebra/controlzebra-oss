@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AuthProvider, useAuth, RepoProvider } from './context';
 import { AppLayout } from './components/layout';
-import { UpdateChecker } from './components/common';
 import { initAnalytics, trackAppLaunched, trackAppClosed } from './lib/analytics';
 import LoginView from './components/layout/views/LoginView';
 import Spinner from './components/common/Spinner';
@@ -91,7 +90,6 @@ function AuthGate(): JSX.Element {
   return (
     <RepoProvider>
       <AppLayout />
-      <UpdateChecker />
     </RepoProvider>
   );
 }

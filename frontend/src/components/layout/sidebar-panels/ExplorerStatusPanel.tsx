@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { ICON_STYLES } from '../../../lib/gitHelpers';
 import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import { MAIN_BRANCHES } from '../../../constants';
 import { 
   Button, 
 } from '../../ui';
@@ -160,6 +161,7 @@ function ExplorerStatusPanel({
 }: ExplorerStatusPanelProps): JSX.Element {
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const needsTrackingPackages = !gitInstalled || !lfsInstalled;
+  const canShowMergeAction = Boolean(branchName && !MAIN_BRANCHES.includes(branchName.toLowerCase()));
 
   const trackingButtonLabel = needsTrackingPackages
     ? (!gitInstalled && !lfsInstalled ? 'Install Git & LFS' : (!gitInstalled ? 'Install Git' : 'Install Git LFS'))
@@ -228,14 +230,38 @@ function ExplorerStatusPanel({
         );
       }
       
-      // Case 2: No remote - show simple publish guidance + modal flow (same as setup banner)
+      // Case 2: No remote + feature branch - prioritize merge flow
+      if (canShowMergeAction) {
+        return (
+          <PanelLayout
+            type="featureBranch"
+            title="Branch synced"
+            subtitle={<><span>{branchName}</span> is up to date</>}
+          >
+            <Button
+              onClick={handleOpenCombineChanges}
+              disabled={operationInProgress}
+              size="sm"
+              className="w-full"
+            >
+              <Merge style={ICON_STYLES.sm as CSSProperties} />
+              I am ready to merge
+            </Button>
+            <p className="text-theme-muted text-xs mt-2">
+              Local only: publish later when you want backup or sharing.
+            </p>
+          </PanelLayout>
+        );
+      }
+
+      // Case 3: No remote - show simple publish guidance + modal flow (same as setup banner)
       return (
         <>
           <div className="p-4 text-center">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-500/10 mb-3">
               <Github style={ICON_STYLES.lg as CSSProperties} className="text-blue-400" />
             </div>
-            <p className="text-theme-primary text-sm font-medium mb-1">Ready to choose where to keep your work</p>
+            <p className="text-theme-primary text-sm font-medium mb-1">Ready to choose where to keep your work?</p>
             <p className="text-theme-muted text-xs mb-3">
               You currently have {pendingCount} snapshot{pendingCount !== 1 ? 's' : ''} saved on this computer only.
             </p>
@@ -245,7 +271,7 @@ function ExplorerStatusPanel({
                 <span className="text-theme-primary font-medium">Option 1:</span> Publish to a cloud repository host (e.g.,GitHub) for backup and sharing.
               </p>
               <p className="text-theme-muted text-xs">
-                <span className="text-theme-primary font-medium">Option 2:</span> Keep working locally on this computer and publish later.
+                <span className="text-theme-primary font-medium">Option 2:</span> Keep working locally on this computer. You can publish later with full change history.
               </p>
             </div>
             <Button 
@@ -258,7 +284,7 @@ function ExplorerStatusPanel({
               Publish to Cloud
             </Button>
             <p className="text-theme-muted text-xs mt-2">
-              If you choose not to publish now, no action is needed.
+              Share your progress with the team.
             </p>
           </div>
 

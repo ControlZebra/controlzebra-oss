@@ -38,13 +38,12 @@ import {
   Info,
   Trash2,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES, VIEWS } from '../../../constants';
 import {
   Button, Badge, Card, CardHeader, CardContent,
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from '../../ui';
-import DiffViewer from '../../common/DiffViewer';
-import { useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy, type MergeReviewFile, type MergeReviewDiffResult } from '../../../context';
+import { useLayout, useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy, type MergeReviewFile, type MergeReviewDiffResult } from '../../../context';
+import MergeReviewDiffModal from './merge/MergeReviewDiffModal';
 
 // ============================================================================
 // Types
@@ -136,6 +135,12 @@ interface ConflictsOverviewPanelProps {
 interface SuccessPanelProps {
   message?: string;
   onDismiss: () => void;
+  showDeleteMergedBranchCard?: boolean;
+  mergedBranchName?: string;
+  onDeleteMergedBranch?: () => void;
+  onSkipDelete?: () => void;
+  onOpenBranchManagement?: () => void;
+  isDeletingMergedBranch?: boolean;
 }
 
 interface AlreadyUpToDatePanelProps {
@@ -1014,10 +1019,19 @@ const ConflictsOverviewPanel = memo(function ConflictsOverviewPanel({
 // SUCCESS / SPECIAL STATES
 // ============================================================================
 
-const SuccessPanel = memo(function SuccessPanel({ message, onDismiss }: SuccessPanelProps): JSX.Element {
+const SuccessPanel = memo(function SuccessPanel({
+  message,
+  onDismiss,
+  showDeleteMergedBranchCard = false,
+  mergedBranchName,
+  onDeleteMergedBranch,
+  onSkipDelete,
+  onOpenBranchManagement,
+  isDeletingMergedBranch = false,
+}: SuccessPanelProps): JSX.Element {
   return (
     <div className="flex-1 flex items-center justify-center p-8">
-      <div className="text-center">
+      <div className="text-center max-w-md w-full">
         <CheckCircle2 style={iconLg} className="text-green-400 mx-auto mb-4" />
         <h2 className="text-theme-primary text-xl font-semibold mb-2">
           Merge Complete!
@@ -1025,9 +1039,50 @@ const SuccessPanel = memo(function SuccessPanel({ message, onDismiss }: SuccessP
         <p className="text-theme-muted text-sm mb-6">
           {message || 'Your changes have been successfully merged.'}
         </p>
-        <Button onClick={onDismiss}>
-          Done
-        </Button>
+
+        {showDeleteMergedBranchCard && mergedBranchName && onDeleteMergedBranch && onSkipDelete && onOpenBranchManagement ? (
+          <Card className="text-left">
+            <CardHeader className="pb-2">
+              <p className="text-theme-primary text-sm font-medium">Clean up merged branch</p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-theme-secondary text-sm mb-4">
+                Old branches can cause confusion and make it easier to save changes to the wrong place.
+              </p>
+
+              <div className="flex gap-2">
+                <Button onClick={onDeleteMergedBranch} disabled={isDeletingMergedBranch} className="flex-1">
+                  {isDeletingMergedBranch ? (
+                    <>
+                      <Loader2 style={iconSm} className="animate-spin mr-2" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 style={iconSm} className="mr-2" />
+                      Delete {mergedBranchName}
+                    </>
+                  )}
+                </Button>
+                <Button onClick={onSkipDelete} variant="outline" disabled={isDeletingMergedBranch} className="flex-1">
+                  Skip
+                </Button>
+              </div>
+
+              <button
+                type="button"
+                onClick={onOpenBranchManagement}
+                className="mt-3 text-xs text-theme-muted hover:text-theme-primary underline"
+              >
+                Open Branch Management
+              </button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Button onClick={onDismiss}>
+            Done
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -1104,6 +1159,8 @@ const BranchDirectionBanner = memo(function BranchDirectionBanner({
 // ============================================================================
 
 function MergeChangesPage(): JSX.Element {
+  const { setActiveView, setSelectedRepoSettingsCategory } = useLayout();
+
   const {
     repoPath,
     repoInfo,
@@ -1125,6 +1182,7 @@ function MergeChangesPage(): JSX.Element {
     resolveConflict,
     abortMerge,
     completeMerge,
+    deleteBranch,
     isResolvingConflict,
     conflictSidesInfo,
     refreshBranches,
@@ -1140,6 +1198,9 @@ function MergeChangesPage(): JSX.Element {
   const [reviewFilePath, setReviewFilePath] = useState<string | null>(null);
   const [reviewDiff, setReviewDiff] = useState<MergeReviewDiffResult | null>(null);
   const [isLoadingReviewDiff, setIsLoadingReviewDiff] = useState(false);
+  const [isDeletingMergedBranch, setIsDeletingMergedBranch] = useState(false);
+  const [mergedSourceBranch, setMergedSourceBranch] = useState<string>('');
+  const [isCompletingMerge, setIsCompletingMerge] = useState(false);
 
   // Current branch from repo info
   const currentBranch = repoInfo?.branch || 'current';
@@ -1166,6 +1227,8 @@ function MergeChangesPage(): JSX.Element {
   // Effective source branch - use conflictCheckResult.sourceBranch after merge starts
   // because currentBranch changes to target after StartMerge
   const effectiveSource = conflictCheckResult?.sourceBranch || currentBranch;
+  const branchToCleanUp = mergedSourceBranch || effectiveSource;
+  const canDeleteMergedBranch = branchToCleanUp !== 'current' && branchToCleanUp !== 'main' && branchToCleanUp !== 'master';
 
   // Handle check for conflicts (dry-run only - does NOT start merge)
   const handleCheck = useCallback(async (): Promise<void> => {
@@ -1192,8 +1255,14 @@ function MergeChangesPage(): JSX.Element {
     });
     if (!result) {
       setError('Failed to start merge');
+      return;
     }
-  }, [targetBranch, startMerge, mergeReviewFiles.length, selectedReviewFiles, isSquashMerge]);
+
+    if (result.autoCompleted) {
+      setMergedSourceBranch(effectiveSource);
+      setShowSuccess(true);
+    }
+  }, [targetBranch, startMerge, mergeReviewFiles.length, selectedReviewFiles, isSquashMerge, effectiveSource]);
 
   const handleToggleReviewFile = useCallback((filePath: string): void => {
     setSelectedReviewFiles((prev) =>
@@ -1247,6 +1316,8 @@ function MergeChangesPage(): JSX.Element {
     await abortMerge();
     setError(null);
     setShowSuccess(false);
+    setMergedSourceBranch('');
+    setIsCompletingMerge(false);
     setIsReviewModalOpen(false);
     setReviewFilePath(null);
     setReviewDiff(null);
@@ -1255,23 +1326,53 @@ function MergeChangesPage(): JSX.Element {
 
   // Handle complete
   const handleComplete = useCallback(async (message: string): Promise<void> => {
-    const success = await completeMerge(message);
-    if (success) {
-      setShowSuccess(true);
+    if (isCompletingMerge) return;
+
+    setIsCompletingMerge(true);
+    setMergedSourceBranch(effectiveSource);
+    try {
+      const success = await completeMerge(message);
+      if (success) {
+        setShowSuccess(true);
+      }
+    } finally {
+      setIsCompletingMerge(false);
     }
-  }, [completeMerge]);
+  }, [completeMerge, effectiveSource, isCompletingMerge]);
 
   // Handle dismiss (reset everything)
   const handleDismiss = useCallback((): void => {
     clearConflicts();
     setError(null);
     setShowSuccess(false);
+    setMergedSourceBranch('');
+    setIsCompletingMerge(false);
+    setIsDeletingMergedBranch(false);
     setTargetBranch('');
     setIsReviewModalOpen(false);
     setReviewFilePath(null);
     setReviewDiff(null);
     setSelectedReviewFiles([]);
   }, [clearConflicts]);
+
+  const handleDeleteMergedBranch = useCallback(async (): Promise<void> => {
+    if (!canDeleteMergedBranch || isDeletingMergedBranch) return;
+
+    setIsDeletingMergedBranch(true);
+    try {
+      const success = await deleteBranch(branchToCleanUp);
+      if (success) {
+        handleDismiss();
+      }
+    } finally {
+      setIsDeletingMergedBranch(false);
+    }
+  }, [canDeleteMergedBranch, isDeletingMergedBranch, deleteBranch, branchToCleanUp, handleDismiss]);
+
+  const handleOpenBranchManagement = useCallback((): void => {
+    setSelectedRepoSettingsCategory('branch-management');
+    setActiveView(VIEWS.REPO_SETTINGS);
+  }, [setSelectedRepoSettingsCategory, setActiveView]);
 
   // ---- Compute the current merge step for the stepper ----
   const resolvedCount = conflictedFiles.filter(f => fileResolutions[f.path]).length;
@@ -1314,7 +1415,19 @@ function MergeChangesPage(): JSX.Element {
 
   // Success state
   if (showSuccess) {
-    return <SuccessPanel onDismiss={handleDismiss} />;
+    return (
+      <SuccessPanel
+        onDismiss={handleDismiss}
+        showDeleteMergedBranchCard={canDeleteMergedBranch}
+        mergedBranchName={branchToCleanUp}
+        onDeleteMergedBranch={() => {
+          void handleDeleteMergedBranch();
+        }}
+        onSkipDelete={handleDismiss}
+        onOpenBranchManagement={handleOpenBranchManagement}
+        isDeletingMergedBranch={isDeletingMergedBranch}
+      />
+    );
   }
 
   // Already up to date
@@ -1329,7 +1442,20 @@ function MergeChangesPage(): JSX.Element {
 
   // Auto-completed merge
   if (conflictCheckResult?.success && conflictCheckResult?.autoCompleted) {
-    return <SuccessPanel message="Merge completed automatically." onDismiss={handleDismiss} />;
+    return (
+      <SuccessPanel
+        message="Merge completed automatically."
+        onDismiss={handleDismiss}
+        showDeleteMergedBranchCard={canDeleteMergedBranch}
+        mergedBranchName={branchToCleanUp}
+        onDeleteMergedBranch={() => {
+          void handleDeleteMergedBranch();
+        }}
+        onSkipDelete={handleDismiss}
+        onOpenBranchManagement={handleOpenBranchManagement}
+        isDeletingMergedBranch={isDeletingMergedBranch}
+      />
+    );
   }
 
   // Helper: whether we are past the initial check panel (i.e. user has committed to a merge direction)
@@ -1366,7 +1492,7 @@ function MergeChangesPage(): JSX.Element {
         targetBranch={effectiveTarget}
         onComplete={handleComplete}
         onAbort={handleAbort}
-        isProcessing={isResolvingConflict}
+        isProcessing={isResolvingConflict || isCompletingMerge}
         isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
@@ -1395,7 +1521,7 @@ function MergeChangesPage(): JSX.Element {
         onSelectFile={setSelectedConflictFile}
         onComplete={handleComplete}
         onAbort={handleAbort}
-        isProcessing={isResolvingConflict}
+        isProcessing={isResolvingConflict || isCompletingMerge}
         isSquashMerge={conflictCheckResult?.isSquashMerge ?? isSquashMerge}
       />
     );
@@ -1431,38 +1557,14 @@ function MergeChangesPage(): JSX.Element {
         />
       )}
 
-      {/* Merge review diff modal */}
-      <AlertDialog open={isReviewModalOpen} onOpenChange={(open) => { if (!open) handleCloseReviewModal(); }}>
-        <AlertDialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Review Changes
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {reviewFilePath || 'Select a file to review'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex-1 min-h-0 overflow-hidden border border-theme-default rounded-lg">
-            {isLoadingReviewDiff ? (
-              <div className="h-64 flex items-center justify-center text-theme-muted text-sm gap-2">
-                <Loader2 style={iconSm} className="animate-spin" />
-                Loading diff...
-              </div>
-            ) : reviewDiff ? (
-              <div className="h-full overflow-auto">
-                <DiffViewer fileDiff={reviewDiff} showHeader repoPath={undefined} />
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-theme-muted text-sm">
-                {reviewFilePath ? `Unable to load diff for ${reviewFilePath}` : 'No file selected'}
-              </div>
-            )}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <MergeReviewDiffModal
+        open={isReviewModalOpen}
+        onClose={handleCloseReviewModal}
+        reviewFilePath={reviewFilePath}
+        reviewDiff={reviewDiff}
+        isLoadingReviewDiff={isLoadingReviewDiff}
+        repoPath={repoPath}
+      />
     </div>
   );
 }

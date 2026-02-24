@@ -58,7 +58,6 @@ func main() {
 	fileWatcherService := services.NewFileWatcherService()
 	fileSystemService := services.NewFileSystemService()
 	authService := services.NewAuthService()
-	updaterService := services.NewUpdaterService(Version, "https://controlzebra.github.io/controlzebra-releases/desktop/beta/")
 	debugService := services.NewDebugService()
 	localBinService := services.NewLocalBinService()
 
@@ -82,7 +81,6 @@ func main() {
 			application.NewService(repoSettingsService),
 			application.NewService(fileWatcherService),
 			application.NewService(authService),
-			application.NewService(updaterService),
 			application.NewService(debugService),
 			application.NewService(localBinService),
 		},
@@ -100,7 +98,6 @@ func main() {
 	settingsService.SetApp(app)
 	repoSettingsService.SetApp(app)
 	fileWatcherService.SetApp(app)
-	updaterService.SetApp(app)
 	localBinService.SetApp(app)
 
 	if runtime.GOOS == "windows" {
@@ -207,10 +204,6 @@ func main() {
 
 	// Help menu
 	helpMenu := menu.AddSubmenu("Help")
-	helpMenu.Add("Check for Updates...").OnClick(func(ctx *application.Context) {
-		app.Event.Emit("updater:manual-check", "")
-	})
-	helpMenu.AddSeparator()
 	helpMenu.Add("Documentation").OnClick(func(ctx *application.Context) {
 		fileSystemService.OpenURL("https://controlzebra.com/docs")
 	})

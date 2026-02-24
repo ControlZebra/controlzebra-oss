@@ -1835,7 +1835,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
         resolutionStrategiesUsed: strategiesUsed,
       });
 
-      showMessage('success', result.message || 'Merge completed successfully');
+      showMessage('success', 'Branch is merged and available to the team');
       clearConflicts();
       clearSelection();
       await refreshAll();

@@ -67,6 +67,11 @@ func runGitOutput(t *testing.T, dir string, args ...string) string {
 
 func createBareRemoteAndLink(t *testing.T, repoPath string) string {
 	t.Helper()
+	return createBareRemoteAndLinkWithName(t, repoPath, "origin")
+}
+
+func createBareRemoteAndLinkWithName(t *testing.T, repoPath string, remoteName string) string {
+	t.Helper()
 
 	remoteDir, err := os.MkdirTemp("", "control-zebra-remote-*.git")
 	if err != nil {
@@ -74,7 +79,7 @@ func createBareRemoteAndLink(t *testing.T, repoPath string) string {
 	}
 
 	runGitCmd(t, remoteDir, "init", "--bare")
-	runGitCmd(t, repoPath, "remote", "add", "origin", remoteDir)
+	runGitCmd(t, repoPath, "remote", "add", remoteName, remoteDir)
 
 	return remoteDir
 }
@@ -2275,6 +2280,72 @@ func TestCompleteMerge_NoMergeInProgress(t *testing.T) {
 	}
 }
 
+func TestCompleteMerge_LocalOnlyBypassesPush_RegularMerge(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "base.txt"), []byte("base\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/local-regular")
+	os.WriteFile(filepath.Join(repoPath, "feature.txt"), []byte("feature change\n"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	runGitCmd(t, repoPath, "checkout", "main")
+	os.WriteFile(filepath.Join(repoPath, "main.txt"), []byte("main change\n"), 0644)
+	svc.CommitAll(repoPath, "Main commit")
+
+	mergeStart := svc.runner.RunGit(repoPath, "merge", "--no-commit", "--no-ff", "feature/local-regular")
+	if !mergeStart.Success {
+		t.Fatalf("Failed to start regular merge for test setup: %s", getErrorMessage(mergeStart))
+	}
+
+	result := svc.CompleteMerge(repoPath, "")
+	if !result.Success {
+		t.Fatalf("Expected CompleteMerge to succeed for local-only regular merge, got: %s", result.Error)
+	}
+
+	state := svc.GetMergeState(repoPath)
+	if state.InMerge {
+		t.Fatalf("Expected merge state to be cleared after completion")
+	}
+}
+
+func TestCompleteMerge_LocalOnlyBypassesPush_SquashMerge(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "base.txt"), []byte("base\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/local-squash")
+	os.WriteFile(filepath.Join(repoPath, "feature.txt"), []byte("feature change\n"), 0644)
+	svc.CommitAll(repoPath, "Feature commit")
+
+	runGitCmd(t, repoPath, "checkout", "main")
+
+	startResult := svc.StartMergeWithOptions(repoPath, "main", "feature/local-squash", MergeOptions{Squash: true})
+	if !startResult.Success {
+		t.Fatalf("Failed to start squash merge in local-only repo: %s", startResult.Error)
+	}
+
+	result := svc.CompleteMerge(repoPath, "Squash merge local-only")
+	if !result.Success {
+		t.Fatalf("Expected CompleteMerge to succeed for local-only squash merge, got: %s", result.Error)
+	}
+
+	state := svc.GetMergeState(repoPath)
+	if state.InSquashMerge || state.InMerge {
+		t.Fatalf("Expected squash/merge state to be cleared after completion")
+	}
+}
+
 func TestMarkResolved_EmptyPath(t *testing.T) {
 	repoPath := createTestRepo(t)
 	defer cleanupTestRepo(t, repoPath)
@@ -2649,6 +2720,94 @@ func TestStartMergeWithOptions_PreflightUpdatesStaleTargetFromOrigin(t *testing.
 	}
 	if string(remoteFileContent) != "from origin main\n" {
 		t.Fatalf("Unexpected remote.txt content after preflight update: %q", string(remoteFileContent))
+	}
+}
+
+func TestStartMergeWithOptions_PreflightBypassesRemoteForLocalOnlyRepo(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "shared.txt"), []byte("base\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/local-only")
+	os.WriteFile(filepath.Join(repoPath, "feature.txt"), []byte("feature branch change\n"), 0644)
+	svc.CommitAll(repoPath, "Feature change")
+
+	// Ensure this repository has no remotes configured.
+	remotes := strings.TrimSpace(runGitOutput(t, repoPath, "remote"))
+	if remotes != "" {
+		t.Fatalf("Expected local-only repository with no remotes, got: %q", remotes)
+	}
+
+	startResult := svc.StartMergeWithOptions(repoPath, "main", "feature/local-only", MergeOptions{Squash: true})
+	if !startResult.Success {
+		t.Fatalf("Expected StartMergeWithOptions to succeed for local-only repo, got: %s", startResult.Error)
+	}
+
+	currentBranch := strings.TrimSpace(runGitOutput(t, repoPath, "rev-parse", "--abbrev-ref", "HEAD"))
+	if currentBranch != "main" {
+		t.Fatalf("Expected current branch to be main after local-only preflight checkout, got %s", currentBranch)
+	}
+}
+
+func TestStartMergeWithOptions_PreflightUsesPreferredRemoteWhenOriginMissing(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	svc := NewGitService()
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+
+	os.WriteFile(filepath.Join(repoPath, "shared.txt"), []byte("base\n"), 0644)
+	svc.CommitAll(repoPath, "Initial commit")
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature/upstream")
+	os.WriteFile(filepath.Join(repoPath, "feature.txt"), []byte("feature branch change\n"), 0644)
+	svc.CommitAll(repoPath, "Feature change")
+
+	runGitCmd(t, repoPath, "checkout", "main")
+	remotePath := createBareRemoteAndLinkWithName(t, repoPath, "upstream")
+	defer os.RemoveAll(remotePath)
+	runGitCmd(t, repoPath, "push", "-u", "upstream", "main")
+	runGitCmd(t, repoPath, "push", "-u", "upstream", "feature/upstream")
+
+	// Validate there is no origin remote and only upstream is configured.
+	remotes := strings.TrimSpace(runGitOutput(t, repoPath, "remote"))
+	if remotes != "upstream" {
+		t.Fatalf("Expected only upstream remote, got: %q", remotes)
+	}
+
+	remoteWorktree, err := os.MkdirTemp("", "control-zebra-upstream-preflight-update-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp clone directory: %v", err)
+	}
+	defer os.RemoveAll(remoteWorktree)
+
+	runGitCmd(t, remoteWorktree, "clone", remotePath, ".")
+	runGitCmd(t, remoteWorktree, "config", "user.name", "Test User")
+	runGitCmd(t, remoteWorktree, "config", "user.email", "test@example.com")
+	runGitCmd(t, remoteWorktree, "checkout", "main")
+	os.WriteFile(filepath.Join(remoteWorktree, "remote.txt"), []byte("from upstream main\n"), 0644)
+	runGitCmd(t, remoteWorktree, "add", "remote.txt")
+	runGitCmd(t, remoteWorktree, "commit", "-m", "Upstream main update")
+	runGitCmd(t, remoteWorktree, "push", "origin", "main")
+
+	runGitCmd(t, repoPath, "checkout", "feature/upstream")
+
+	startResult := svc.StartMergeWithOptions(repoPath, "main", "feature/upstream", MergeOptions{Squash: true})
+	if !startResult.Success {
+		t.Fatalf("StartMergeWithOptions failed without origin remote: %s", startResult.Error)
+	}
+
+	remoteFileContent, err := os.ReadFile(filepath.Join(repoPath, "remote.txt"))
+	if err != nil {
+		t.Fatalf("Expected remote.txt from upstream/main after preflight update: %v", err)
+	}
+	if string(remoteFileContent) != "from upstream main\n" {
+		t.Fatalf("Unexpected remote.txt content after upstream preflight update: %q", string(remoteFileContent))
 	}
 }
 

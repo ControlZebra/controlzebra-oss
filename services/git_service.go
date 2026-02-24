@@ -3430,9 +3430,9 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 }
 
 // prepareMergeTargetBaseline enforces the merge preflight baseline sequence:
-// 1. git fetch origin --prune
+// 1. git fetch <preferred-remote> --prune (when a remote exists)
 // 2. git checkout <target>
-// 3. git pull --ff-only origin <target>
+// 3. git pull --ff-only <preferred-remote> <target> (when a remote exists)
 //
 // Returns the branch that was checked out before preflight started so callers can restore it
 // when a failure occurs.
@@ -3452,13 +3452,20 @@ func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch st
 		return "", fmt.Errorf("could not determine current branch (detached HEAD?)")
 	}
 
-	if !g.hasRemote(repoPath, "origin") {
-		return originalBranch, fmt.Errorf("merge preflight requires remote 'origin'. Configure 'origin' and retry")
+	preferredRemote, hasRemote := g.getPreferredRemote(repoPath)
+
+	// Local-only repositories intentionally bypass remote preflight.
+	if !hasRemote {
+		checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
+		if !checkoutResult.Success {
+			return originalBranch, fmt.Errorf("failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult))
+		}
+		return originalBranch, nil
 	}
 
-	fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", "--prune")
+	fetchResult := g.runner.RunGit(repoPath, "fetch", preferredRemote, "--prune")
 	if !fetchResult.Success {
-		return originalBranch, fmt.Errorf("failed to fetch from origin before merge: %s", getErrorMessage(fetchResult))
+		return originalBranch, fmt.Errorf("failed to fetch from remote '%s' before merge: %s", preferredRemote, getErrorMessage(fetchResult))
 	}
 
 	checkoutResult := g.runner.RunGit(repoPath, "checkout", targetBranch)
@@ -3466,7 +3473,7 @@ func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch st
 		return originalBranch, fmt.Errorf("failed to checkout target branch '%s': %s", targetBranch, getErrorMessage(checkoutResult))
 	}
 
-	pullResult := g.runner.RunGit(repoPath, "pull", "--ff-only", "origin", targetBranch)
+	pullResult := g.runner.RunGit(repoPath, "pull", "--ff-only", preferredRemote, targetBranch)
 	if !pullResult.Success {
 		errMsg := getErrorMessage(pullResult)
 		errMsgLower := strings.ToLower(errMsg)
@@ -3474,22 +3481,22 @@ func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch st
 			strings.Contains(errMsgLower, "cannot fast-forward") ||
 			strings.Contains(errMsgLower, "divergent branches") ||
 			strings.Contains(errMsgLower, "non-fast-forward") {
-			return originalBranch, fmt.Errorf("target branch is not fast-forwardable to origin/%s. Resolve divergence first (rebase or manual merge), then retry", targetBranch)
+			return originalBranch, fmt.Errorf("target branch is not fast-forwardable to %s/%s. Resolve divergence first (rebase or manual merge), then retry", preferredRemote, targetBranch)
 		}
 
-		return originalBranch, fmt.Errorf("failed to update target branch '%s' from origin/%s: %s", targetBranch, targetBranch, errMsg)
+		return originalBranch, fmt.Errorf("failed to update target branch '%s' from %s/%s: %s", targetBranch, preferredRemote, targetBranch, errMsg)
 	}
 
 	localHeadResult := g.runner.RunGit(repoPath, "rev-parse", "HEAD")
-	remoteHeadResult := g.runner.RunGit(repoPath, "rev-parse", "origin/"+targetBranch)
+	remoteHeadResult := g.runner.RunGit(repoPath, "rev-parse", preferredRemote+"/"+targetBranch)
 	if !localHeadResult.Success || !remoteHeadResult.Success {
-		return originalBranch, fmt.Errorf("failed to validate target branch baseline against origin/%s", targetBranch)
+		return originalBranch, fmt.Errorf("failed to validate target branch baseline against %s/%s", preferredRemote, targetBranch)
 	}
 
 	localHead := strings.TrimSpace(localHeadResult.Stdout)
 	remoteHead := strings.TrimSpace(remoteHeadResult.Stdout)
 	if localHead == "" || remoteHead == "" || localHead != remoteHead {
-		return originalBranch, fmt.Errorf("target branch is not fast-forwardable to origin/%s. Resolve divergence first (rebase or manual merge), then retry", targetBranch)
+		return originalBranch, fmt.Errorf("target branch is not fast-forwardable to %s/%s. Resolve divergence first (rebase or manual merge), then retry", preferredRemote, targetBranch)
 	}
 
 	return originalBranch, nil
@@ -3871,10 +3878,14 @@ func (g *GitService) resolveBranchRef(repoPath string, branch string, preferRemo
 		return "", fmt.Errorf("branch name is required")
 	}
 
+	preferredRemote, hasRemote := g.getPreferredRemote(repoPath)
+
 	if preferRemote {
-		remoteRef := "origin/" + branch
-		if g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef).Success {
-			return remoteRef, nil
+		if hasRemote {
+			remoteRef := preferredRemote + "/" + branch
+			if g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef).Success {
+				return remoteRef, nil
+			}
 		}
 		if g.runner.RunGit(repoPath, "rev-parse", "--verify", branch).Success {
 			return branch, nil
@@ -3885,9 +3896,11 @@ func (g *GitService) resolveBranchRef(repoPath string, branch string, preferRemo
 	if g.runner.RunGit(repoPath, "rev-parse", "--verify", branch).Success {
 		return branch, nil
 	}
-	remoteRef := "origin/" + branch
-	if g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef).Success {
-		return remoteRef, nil
+	if hasRemote {
+		remoteRef := preferredRemote + "/" + branch
+		if g.runner.RunGit(repoPath, "rev-parse", "--verify", remoteRef).Success {
+			return remoteRef, nil
+		}
 	}
 
 	return "", fmt.Errorf("branch '%s' not found locally or on remote", branch)
@@ -4635,9 +4648,40 @@ func (g *GitService) CompleteMerge(repoPath string, message string) OperationRes
 		return failedOp("No merge in progress")
 	}
 
+	// Capture current HEAD so we can rollback local history if push fails.
+	headBeforeResult := g.runner.RunGit(repoPath, "rev-parse", "HEAD")
+	if !headBeforeResult.Success {
+		return failedOp("Failed to determine current HEAD before completing merge: " + getErrorMessage(headBeforeResult))
+	}
+	headBefore := trimOutput(headBeforeResult.Stdout)
+	if headBefore == "" {
+		return failedOp("Failed to determine current HEAD before completing merge")
+	}
+
 	// If this is a squash merge (no MERGE_HEAD), delegate to CompleteSquashMerge
 	if state.InSquashMerge && !state.InMerge {
-		return g.CompleteSquashMerge(repoPath, message)
+		squashResult := g.CompleteSquashMerge(repoPath, message)
+		if !squashResult.Success {
+			return squashResult
+		}
+
+		if !g.hasAnyRemote(repoPath) {
+			return successOp("Merge completed successfully")
+		}
+
+		// Push the target branch after successful squash commit.
+		pushResult := g.runner.RunGit(repoPath, "push")
+		if !pushResult.Success {
+			pushErr := getErrorMessage(pushResult)
+			rollbackResult := g.runner.RunGit(repoPath, "reset", "--hard", headBefore)
+			if rollbackResult.Success {
+				return failedOp("Push failed after squash merge commit. Rolled back local merge commit: " + pushErr)
+			}
+
+			return failedOp("Push failed after squash merge commit and rollback also failed: " + pushErr + " | rollback error: " + getErrorMessage(rollbackResult))
+		}
+
+		return successOp("Merge completed and pushed successfully")
 	}
 
 	// Check if there are still conflicts
@@ -4662,7 +4706,23 @@ func (g *GitService) CompleteMerge(repoPath string, message string) OperationRes
 		return failedOp("Failed to complete merge: " + getErrorMessage(result))
 	}
 
-	return successOp("Merge completed successfully")
+	if !g.hasAnyRemote(repoPath) {
+		return successOp("Merge completed successfully")
+	}
+
+	// Push the target branch after successful merge commit.
+	pushResult := g.runner.RunGit(repoPath, "push")
+	if !pushResult.Success {
+		pushErr := getErrorMessage(pushResult)
+		rollbackResult := g.runner.RunGit(repoPath, "reset", "--hard", headBefore)
+		if rollbackResult.Success {
+			return failedOp("Push failed after merge commit. Rolled back local merge commit: " + pushErr)
+		}
+
+		return failedOp("Push failed after merge commit and rollback also failed: " + pushErr + " | rollback error: " + getErrorMessage(rollbackResult))
+	}
+
+	return successOp("Merge completed and pushed successfully")
 }
 
 // ParentBranchResult contains the detected parent branch information
@@ -4861,9 +4921,9 @@ func (g *GitService) CheckBranchConflicts(repoPath string, targetBranch string, 
 		}
 	}
 
-	// Step 1: Fetch from origin to refresh remote refs for conflict simulation.
-	if g.hasRemote(repoPath, "origin") {
-		fetchResult := g.runner.RunGit(repoPath, "fetch", "origin", "--prune")
+	// Step 1: Fetch from preferred remote (if present) to refresh refs for conflict simulation.
+	if preferredRemote, hasRemote := g.getPreferredRemote(repoPath); hasRemote {
+		fetchResult := g.runner.RunGit(repoPath, "fetch", preferredRemote, "--prune")
 		if !fetchResult.Success {
 			// Fetch might fail if branch doesn't exist on remote.
 			// We can still try merge-tree with local branches.
