@@ -93,8 +93,6 @@ Section
     # This avoids common "Error opening file for writing" failures.
     nsExec::ExecToLog 'taskkill /F /T /IM "${PRODUCT_EXECUTABLE}"'
     Pop $0
-    nsExec::ExecToLog 'taskkill /F /T /IM "cz-updater.exe"'
-    Pop $0
     Sleep 800
 
     !insertmacro wails.webview2runtime
@@ -102,11 +100,6 @@ Section
     SetOutPath $INSTDIR
     
     !insertmacro wails.files
-
-    # Install the updater sidecar binary alongside the main executable
-    !ifdef ARG_UPDATER_BINARY
-        File "/oname=cz-updater.exe" "${ARG_UPDATER_BINARY}"
-    !endif
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
@@ -131,9 +124,6 @@ SectionEnd
 Section "uninstall" 
     !insertmacro wails.setShellContext
 
-    # Clean up updater sidecar and any leftover backup from updates
-    Delete "$INSTDIR\cz-updater.exe"
-    Delete "$INSTDIR\${PRODUCT_EXECUTABLE}.old"
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
     RMDir /r $INSTDIR

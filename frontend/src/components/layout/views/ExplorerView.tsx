@@ -191,7 +191,7 @@ function ExplorerView(): JSX.Element {
       <ExplorerStatusPanel
         status={panelState.type}
         folderName={panelState.type === 'noRepo' ? panelState.folderName : undefined}
-        branchName={panelState.type === 'featureBranch' ? panelState.branchName : undefined}
+        branchName={repoStatus?.branch}
         repoPath={repoPath || undefined}
         ahead={panelState.type === 'push' ? panelState.ahead : undefined}
         hasUpstream={panelState.type === 'push' ? panelState.hasUpstream : undefined}

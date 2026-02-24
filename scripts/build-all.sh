@@ -253,15 +253,6 @@ if ! $SKIP_BUILD; then
         done
     fi
 
-    # ── macOS updater sidecar ──
-
-    if [[ ${#DARWIN_ARCHS[@]} -gt 0 ]]; then
-        for arch in ${DARWIN_ARCHS[@]+"${DARWIN_ARCHS[@]}"}; do
-            info "Building macOS updater (${arch})..."
-            APP_VERSION="$VERSION" task build:updater:cross TARGET_OS=darwin TARGET_ARCH="$arch"
-        done
-    fi
-
     # ── Windows builds (cross-compile from macOS using Go without CGO) ──
 
     for arch in ${WINDOWS_ARCHS[@]+"${WINDOWS_ARCHS[@]}"}; do
@@ -275,9 +266,6 @@ if ! $SKIP_BUILD; then
         mv "${BIN_DIR}/${APP_NAME}.exe" "${BIN_DIR}/${APP_NAME}-windows-${arch}.exe"
         ok "Renamed → ${BIN_DIR}/${APP_NAME}-windows-${arch}.exe"
 
-        # Build updater for Windows
-        info "Building Windows updater (${arch})..."
-        APP_VERSION="$VERSION" task build:updater:cross TARGET_OS=windows TARGET_ARCH="$arch"
     done
 fi
 
@@ -298,10 +286,6 @@ if ! $SKIP_PACKAGE; then
 
         # Copy main binary
         cp "${BIN_DIR}/${APP_NAME}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
-
-        # Copy updater
-        cp "${BIN_DIR}/cz-updater" "${APP_DIR}/Contents/MacOS/cz-updater" 2>/dev/null || \
-            cp "${BIN_DIR}/cz-updater-darwin-arm64" "${APP_DIR}/Contents/MacOS/cz-updater" 2>/dev/null || true
 
         # Copy icon and Info.plist
         cp build/darwin/icons.icns "${APP_DIR}/Contents/Resources/"
@@ -347,11 +331,6 @@ if ! $SKIP_PACKAGE; then
 
             # Copy binary
             cp "$src_bin" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
-
-            # Copy updater
-            if [[ -f "${BIN_DIR}/cz-updater-darwin-${arch}" ]]; then
-                cp "${BIN_DIR}/cz-updater-darwin-${arch}" "${APP_DIR}/Contents/MacOS/cz-updater"
-            fi
 
             # Copy icon and Info.plist
             cp build/darwin/icons.icns "${APP_DIR}/Contents/Resources/"
@@ -411,12 +390,6 @@ if ! $SKIP_PACKAGE; then
         # Copy main binary
         cp "$src_exe" "${staging_dir}/${APP_NAME}.exe"
 
-        # Copy updater
-        updater_src="${BIN_DIR}/cz-updater-windows-${arch}.exe"
-        if [[ -f "$updater_src" ]]; then
-            cp "$updater_src" "${staging_dir}/cz-updater.exe"
-        fi
-
         # Create NSIS installer
         if command -v makensis &>/dev/null; then
             # Ensure WebView2 bootstrapper is present (NSIS macro requires it)
@@ -436,7 +409,6 @@ if ! $SKIP_PACKAGE; then
             # Use absolute paths so makensis finds the staged files.
             makensis \
                 -DARG_WAILS_${NSIS_ARCH_FLAG}_BINARY="${ROOT_DIR}/${staging_dir}/${APP_NAME}.exe" \
-                -DARG_UPDATER_BINARY="${ROOT_DIR}/${staging_dir}/cz-updater.exe" \
                 build/windows/nsis/project.nsi
 
             ok "Windows ${arch} installer → bin/${APP_NAME}-${arch}-installer.exe"
