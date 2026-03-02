@@ -14,7 +14,6 @@ import * as LocalBinService from "./localbinservice.js";
 import * as ProgressService from "./progressservice.js";
 import * as RepositorySettingsService from "./repositorysettingsservice.js";
 import * as SettingsService from "./settingsservice.js";
-import * as UpdaterService from "./updaterservice.js";
 export {
     AuthService,
     DebugService,
@@ -28,8 +27,7 @@ export {
     LocalBinService,
     ProgressService,
     RepositorySettingsService,
-    SettingsService,
-    UpdaterService
+    SettingsService
 };
 
 export {
@@ -107,6 +105,5 @@ export {
     StashEntry,
     TrackedPattern,
     UntrackedLargeFile,
-    UpdateInfo,
     UserProfile
 } from "./models.js";
