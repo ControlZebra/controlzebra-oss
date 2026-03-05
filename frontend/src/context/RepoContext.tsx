@@ -22,14 +22,34 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import { 
-  DetectRepo, 
-  Status, 
-  CommitAll, 
+  DetectRepo,
+  Status,
   GetCommitGraph,
   ShowCommit,
   DiffWorkingRaw,
   DiffCommitFileRaw,
   Branches,
+  CheckBranchConflicts,
+  ListMergeReviewFiles,
+  DiffMergeReviewFileRaw,
+  GetParentBranch,
+  GetMergeState,
+  GetConflictedFiles,
+  GetConflictSidesInfo,
+  GetBisectState,
+  GetGitVersion,
+  IsGHInstalled,
+  GetGHVersion,
+  AuthStatus,
+  RepoList,
+  ListUserOrganizations,
+  IsLFSInstalled,
+  GetPresetPatterns,
+  GetRemotes,
+  GetSettings,
+} from '../domain/repo/services/repo-queries';
+import {
+  CommitAll,
   CheckoutBranch,
   CreateBranchAndCheckout,
   RenameBranch,
@@ -40,19 +60,12 @@ import {
   DiscardAll,
   DiscardFile,
   InitRepo,
-  CheckBranchConflicts,
-  ListMergeReviewFiles,
-  DiffMergeReviewFileRaw,
-  GetParentBranch,
-  GetMergeState,
-  GetConflictedFiles,
   StartMergeWithOptions,
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
   ResolveConflictKeepBoth,
   AbortMerge,
   CompleteMerge,
-  GetConflictSidesInfo,
   AbortCurrentOperation,
   AbortCherryPick,
   ContinueCherryPick,
@@ -62,43 +75,35 @@ import {
   SkipRevertCommit,
   RevertCommit,
   AbortBisect,
-  GetBisectState,
   AbortAM,
   SkipAMPatch,
   CreateBranchFromDetached,
   RemoveAllStaleLocks,
-  GetGitVersion,
   Pull,
-} from '../../bindings/controlzebra/services/gitservice';
-import {
-  IsGHInstalled,
-  GetGHVersion,
   AuthLogin,
   AuthLoginStart,
   AuthLoginComplete,
   AuthLoginCancel,
   AuthLogout,
-  AuthStatus,
-  RepoList,
   RepoClone,
   RepoCreateFromLocal,
-  ListUserOrganizations,
-} from '../../bindings/controlzebra/services/githubservice';
-import {
   InitializeLFS,
-  IsLFSInstalled,
-  GetPresetPatterns,
   TrackPattern,
-} from '../../bindings/controlzebra/services/lfsservice';
-import {
   EnsurePortableToolchainIfNeeded,
-} from '../../bindings/controlzebra/services/localbinservice';
-import { SyncWithProgress } from '../../bindings/controlzebra/services/progressservice';
-import { GetAppSettings, SaveAppSettings, EnsureIdentity } from '../../bindings/controlzebra/services/settingsservice';
+  SyncWithProgress,
+  GetAppSettings,
+  SaveAppSettings,
+  EnsureIdentity,
+  WriteRepoLocalConfig,
+  EnsureControlZebraDir,
+  StartBackgroundTasks,
+  StopBackgroundTasks,
+  ApplyGitignoreTemplate,
+  RevealInFinder,
+  OpenInTerminal,
+} from '../domain/repo/services/repo-commands';
 import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
-import { GetRemotes, WriteRepoLocalConfig, EnsureControlZebraDir, GetSettings, StartBackgroundTasks, StopBackgroundTasks, ApplyGitignoreTemplate } from '../../bindings/controlzebra/services/repositorysettingsservice';
-import { RevealInFinder, OpenInTerminal } from '../../bindings/controlzebra/services/filesystemservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
 import { clearViewerCache } from '../lib/viewer-cache';
