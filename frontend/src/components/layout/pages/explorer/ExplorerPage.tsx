@@ -10,24 +10,17 @@
  * - Non-git / no-remote folders: Shows ProjectSetupBanner with state-aware CTA
  * - All open tabs are kept mounted (but hidden) to preserve viewer state/cache
  */
-import { memo, useState, useCallback, useMemo, lazy, Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { useRepo, useLayout } from '../../../../context';
 import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
 import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../welcome';
 import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
-import { PROJECT_STATES, ICON_SIZES, type ProjectState, type ExplorerTab } from '../../../../constants';
-import { ViewerRenderer, TextDiffViewer, getViewerForFile, getViewerById } from '../../../viewers';
-import { isL5XFile, isImageFile, isPdfFile, is3DModelFile } from '../../../../lib/file-utils';
+import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../../constants';
+import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
+import { DiffRenderer } from '../../../../viewers/components/shared/DiffRenderer';
 import { getFolderNameFromPath } from '../../../../lib/pathUtils';
-
-// Lazy-load heavy diff viewers for code splitting
-const L5XWorkingDiffViewer = lazy(() => import('../../../viewers/l5x-diff/L5XWorkingDiffViewer'));
-const ImageDiffViewer = lazy(() => import('../../../viewers/ImageDiffViewer'));
-const PDFDiffViewer = lazy(() => import('../../../viewers/PDFDiffViewer'));
-const Model3DDiffViewer = lazy(() => import('../../../viewers/Model3DDiffViewer'));
 
 function ExplorerPage(): JSX.Element {
   const {
@@ -160,14 +153,7 @@ function ExplorerPage(): JSX.Element {
       const isActive = tab.id === activeExplorerTab;
       const { diffContext } = tab;
       const filePath = diffContext.relativePath || tab.filePath || '';
-      const isL5X = isL5XFile(filePath);
-      const isImage = isImageFile(filePath);
-      const isPdf = isPdfFile(filePath);
-      const is3DModel = is3DModelFile(filePath);
-
-      const commitHash = diffContext.type === 'commit' ? (diffContext.commitHash ?? null) : null;
-      const statusOverride = diffContext.status;
-      const oldPath = diffContext.type === 'commit' ? diffContext.oldPath : undefined;
+      const mode = diffContext.type;
 
       return (
         <div
@@ -175,78 +161,17 @@ function ExplorerPage(): JSX.Element {
           className="h-full"
           style={{ display: isActive ? 'block' : 'none' }}
         >
-          {diffContext.type === 'working' && isL5X && diffContext.absolutePath ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading L5X diff viewer…</span>
-                </div>
-              }
-            >
-              <L5XWorkingDiffViewer
-                repoPath={repoPath}
-                filePath={filePath}
-                absoluteFilePath={diffContext.absolutePath}
-                fileStatus={diffContext.status ?? 'modified'}
-              />
-            </Suspense>
-          ) : diffContext.type === 'working' && isImage ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading image diff viewer…</span>
-                </div>
-              }
-            >
-              <ImageDiffViewer
-                repoPath={repoPath}
-                filePath={filePath}
-                isWorkingTree
-              />
-            </Suspense>
-          ) : diffContext.type === 'working' && isPdf ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading PDF diff viewer…</span>
-                </div>
-              }
-            >
-              <PDFDiffViewer
-                repoPath={repoPath}
-                filePath={filePath}
-                isWorkingTree
-              />
-            </Suspense>
-          ) : diffContext.type === 'working' && is3DModel ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading 3D diff viewer…</span>
-                </div>
-              }
-            >
-              <Model3DDiffViewer
-                repoPath={repoPath}
-                filePath={filePath}
-                isWorkingTree
-              />
-            </Suspense>
-          ) : (
-            <TextDiffViewer
-              repoPath={repoPath}
-              filePath={filePath}
-              commitHash={commitHash}
-              isWorkingTree={diffContext.type === 'working'}
-              fileStatus={statusOverride}
-              oldPath={oldPath}
-              showHeader
-            />
-          )}
+          <DiffRenderer
+            repoPath={repoPath}
+            filePath={filePath}
+            mode={mode}
+            commitHash={mode === 'commit' ? (diffContext.commitHash ?? null) : null}
+            parentHash={mode === 'commit' ? (diffContext.parentHash ?? null) : null}
+            oldPath={mode === 'commit' ? diffContext.oldPath : undefined}
+            fileStatus={diffContext.status}
+            absoluteFilePath={mode === 'working' ? diffContext.absolutePath : undefined}
+            showHeader
+          />
         </div>
       );
     }).filter(Boolean) as JSX.Element[];
