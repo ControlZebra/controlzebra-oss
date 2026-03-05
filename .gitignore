@@ -21,3 +21,4 @@ test-updates/
 
 # Local Windows self-signed code-signing artifacts
 build/certs/
+.DS_Store

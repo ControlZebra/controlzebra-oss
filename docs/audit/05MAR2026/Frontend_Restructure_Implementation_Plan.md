@@ -169,7 +169,7 @@ Use small, reviewable PRs with isolated blast radius:
 3. `PR-3` migrate `HistoryPage` ✅
 4. `PR-4` migrate `ExplorerPage` ✅
 5. `PR-5` migrate `MergeReviewDiffModal` + `common/DiffViewer` ✅
-6. `PR-6` repo domain decomposition part 1 (queries/commands)
+6. `PR-6` repo domain decomposition part 1 (queries/commands) ✅
 7. `PR-7` polling extraction + context integration
 8. `PR-8` browser hardening + callsite migration
 9. `PR-9` lint/CI enforcement + cleanup + docs
