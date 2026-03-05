@@ -3,18 +3,13 @@
  * Displays unified (single column) diff view.
  * Parses raw unified diff text from git.
  */
-import { memo, useMemo, lazy, Suspense } from 'react';
+import { memo, useMemo } from 'react';
 import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../lib/utils';
-import { isImageFile, isPdfFile, is3DModelFile } from '../../lib/file-utils';
+import { DiffRenderer } from '../../viewers/components/shared/DiffRenderer';
 
-// Lazy-load ImageDiffViewer only when needed (binary image files)
-const ImageDiffViewer = lazy(() => import('../viewers/ImageDiffViewer'));
-// Lazy-load PDFDiffViewer only when needed (binary PDF files)
-const PDFDiffViewer = lazy(() => import('../viewers/PDFDiffViewer'));
-// Lazy-load Model3DDiffViewer only when needed (binary 3D model files)
-const Model3DDiffViewer = lazy(() => import('../viewers/Model3DDiffViewer'));
+
 
 interface FileDiff {
   path: string;
@@ -99,82 +94,23 @@ function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffV
     );
   }
 
-  // Binary file — render ImageDiffViewer for image files, PDFDiffViewer for PDFs, fallback message for others
+  // Binary file — route through shared diff registry/renderer
   if (fileDiff.binary) {
-    if (repoPath && isImageFile(fileDiff.path)) {
-      return (
-        <div className="flex flex-col h-full">
-          {showHeader && <DiffHeader fileDiff={fileDiff} />}
-          <div className="flex-1 min-h-0">
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full text-theme-secondary text-sm">
-                  Loading image diff viewer…
-                </div>
-              }
-            >
-              <ImageDiffViewer
-                repoPath={repoPath}
-                filePath={fileDiff.path}
-                commitHash={commitHash}
-                isWorkingTree={!commitHash}
-              />
-            </Suspense>
-          </div>
-        </div>
-      );
-    }
-    if (repoPath && isPdfFile(fileDiff.path)) {
-      return (
-        <div className="flex flex-col h-full">
-          {showHeader && <DiffHeader fileDiff={fileDiff} />}
-          <div className="flex-1 min-h-0">
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full text-theme-secondary text-sm">
-                  Loading PDF diff viewer…
-                </div>
-              }
-            >
-              <PDFDiffViewer
-                repoPath={repoPath}
-                filePath={fileDiff.path}
-                commitHash={commitHash}
-                isWorkingTree={!commitHash}
-              />
-            </Suspense>
-          </div>
-        </div>
-      );
-    }
-    if (repoPath && is3DModelFile(fileDiff.path)) {
-      return (
-        <div className="flex flex-col h-full">
-          {showHeader && <DiffHeader fileDiff={fileDiff} />}
-          <div className="flex-1 min-h-0">
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full text-theme-secondary text-sm">
-                  Loading 3D diff viewer…
-                </div>
-              }
-            >
-              <Model3DDiffViewer
-                repoPath={repoPath}
-                filePath={fileDiff.path}
-                commitHash={commitHash}
-                isWorkingTree={!commitHash}
-              />
-            </Suspense>
-          </div>
-        </div>
-      );
-    }
     return (
       <div className="flex flex-col h-full">
-        {showHeader && <DiffHeader fileDiff={fileDiff} />}
-        <div className="flex-1 flex items-center justify-center text-theme-muted text-sm">
-          Binary file - cannot display diff
+        <div className="flex-1 min-h-0">
+          <DiffRenderer
+            repoPath={repoPath || null}
+            filePath={fileDiff.path}
+            mode={commitHash ? 'commit' : 'working'}
+            commitHash={commitHash ?? null}
+            fileStatus={fileDiff.status}
+            oldPath={fileDiff.oldPath}
+            fileDiff={fileDiff as any}
+            binary
+            showHeader={showHeader}
+            loadingLabel="Loading diff viewer…"
+          />
         </div>
       </div>
     );
