@@ -57,8 +57,9 @@ import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../b
 import { FileEntry } from '../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../context';
 import { useWindowSize } from '../../hooks';
+import { openExternalUrl } from '../../shared/runtime/browser';
 import { toast } from 'sonner';
-import { Browser, Events } from '@wailsio/runtime';
+import { Events } from '@wailsio/runtime';
 import { type ExplorerTab } from '../../constants';
 import { getViewerForFile } from '../../lib/viewers';
 import {
@@ -537,7 +538,10 @@ function Toolbar({
         return;
       }
 
-      Browser.OpenURL(webUrl);
+      const didOpen = await openExternalUrl(webUrl);
+      if (!didOpen) {
+        toast.error('Could not open remote URL safely');
+      }
     } catch (err) {
       console.error('Failed to open remote repository URL:', err);
       toast.error('Failed to open remote repository URL');

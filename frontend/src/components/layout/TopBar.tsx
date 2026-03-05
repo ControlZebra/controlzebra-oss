@@ -19,7 +19,7 @@ import {
   Trash2,
   Menu,
 } from 'lucide-react';
-import { Browser } from '@wailsio/runtime';
+import { openExternalUrl } from '../../shared/runtime/browser';
 import { ICON_SIZES, VIEWS } from '../../constants';
 import { useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../hooks';
@@ -81,8 +81,8 @@ function TopBar(): JSX.Element {
     setActiveView(VIEWS.EXPLORER);
   }, [closeRepo, setActiveView]);
 
-  const handleOpenCommunity = useCallback((): void => {
-    Browser.OpenURL(COMMUNITY_DISCORD_URL);
+  const handleOpenCommunity = useCallback(async (): Promise<void> => {
+    await openExternalUrl(COMMUNITY_DISCORD_URL);
   }, []);
 
   const handleUndo = useCallback(async (): Promise<void> => {

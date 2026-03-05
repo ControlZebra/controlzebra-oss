@@ -4,8 +4,8 @@
  */
 import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { Github, Check, Loader2, Copy, ExternalLink } from 'lucide-react';
-import { Browser } from '@wailsio/runtime';
 import { useRepo } from '../../context';
+import { openExternalUrl } from '../../shared/runtime/browser';
 import { Button } from '../ui';
 import {
   AlertDialog,
@@ -65,8 +65,13 @@ function GitHubDeviceFlowModal({
   }, []);
 
   // Open GitHub and start polling
-  const handleOpenGitHub = useCallback(() => {
-    Browser.OpenURL(verificationUrl);
+  const handleOpenGitHub = useCallback(async () => {
+    const didOpen = await openExternalUrl(verificationUrl, { allowHttpLocalhost: true });
+    if (!didOpen) {
+      console.error('Blocked unsafe GitHub verification URL:', verificationUrl);
+      return;
+    }
+
     setIsWaiting(true);
   }, [verificationUrl]);
 
