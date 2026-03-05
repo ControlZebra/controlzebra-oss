@@ -18,7 +18,7 @@ import { cn } from '../../lib/utils';
 import { getFolderNameFromPath } from '../../lib/pathUtils';
 import { RevealInFinder } from '../../../bindings/controlzebra/services/filesystemservice';
 import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
-import { Browser } from '@wailsio/runtime';
+import { openExternalUrl } from '../../shared/runtime/browser';
 import { toast } from 'sonner';
 
 // ============================================================================
@@ -108,7 +108,12 @@ function RepoSwitcher(): JSX.Element {
         return;
       }
 
-      Browser.OpenURL(webUrl);
+      const didOpen = await openExternalUrl(webUrl);
+      if (!didOpen) {
+        toast.error('Could not open remote URL safely');
+        return;
+      }
+
       setIsOpen(false);
     } catch (error) {
       console.error('Failed to open repository in browser:', error);
