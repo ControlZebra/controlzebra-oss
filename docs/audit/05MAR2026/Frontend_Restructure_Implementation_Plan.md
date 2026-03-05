@@ -72,10 +72,10 @@ Primary outcomes:
    - Standardize error/fallback behavior
 
 5. **Migrate call sites to unified resolution path**
-   - `components/layout/pages/HistoryPage.tsx`
-   - `components/layout/pages/explorer/ExplorerPage.tsx`
-   - `components/layout/pages/merge/MergeReviewDiffModal.tsx`
-   - `components/common/DiffViewer.tsx`
+   - `components/layout/pages/HistoryPage.tsx` ✅
+   - `components/layout/pages/explorer/ExplorerPage.tsx` ✅
+   - `components/layout/pages/merge/MergeReviewDiffModal.tsx` ✅
+   - `components/common/DiffViewer.tsx` ✅
 
 6. **Cleanup hygiene tasks (first pass)**
    - Remove generated artifacts under `src/components/**/frontend/bindings`
@@ -142,8 +142,8 @@ Primary outcomes:
 
 ## Phase 2 — Viewer deduplication
 
-- Build diff registry and shared renderer
-- Migrate call sites one by one behind feature flag or guarded PR sequence
+- Build diff registry and shared renderer ✅
+- Migrate call sites one by one behind feature flag or guarded PR sequence ✅ (through PR-5 complete)
 
 ## Phase 3 — Repo state decomposition
 
@@ -166,9 +166,9 @@ Use small, reviewable PRs with isolated blast radius:
 
 1. `PR-1` scaffolding + file-types constants ✅
 2. `PR-2` diff registry + shared renderer ✅
-3. `PR-3` migrate `HistoryPage`
-4. `PR-4` migrate `ExplorerPage`
-5. `PR-5` migrate `MergeReviewDiffModal` + `common/DiffViewer`
+3. `PR-3` migrate `HistoryPage` ✅
+4. `PR-4` migrate `ExplorerPage` ✅
+5. `PR-5` migrate `MergeReviewDiffModal` + `common/DiffViewer` ✅
 6. `PR-6` repo domain decomposition part 1 (queries/commands)
 7. `PR-7` polling extraction + context integration
 8. `PR-8` browser hardening + callsite migration

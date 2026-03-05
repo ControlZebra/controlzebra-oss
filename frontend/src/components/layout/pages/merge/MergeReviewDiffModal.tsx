@@ -1,10 +1,9 @@
-import { memo, lazy, Suspense, useMemo, type CSSProperties } from 'react';
+import { memo, useMemo, type CSSProperties } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { ICON_SIZES } from '../../../../constants';
 import type { MergeReviewDiffResult } from '../../../../context';
-import { isL5XFile, isImageFile, isPdfFile, is3DModelFile } from '../../../../lib/file-utils';
-import TextDiffViewer from '../../../viewers/TextDiffViewer';
+import { DiffRenderer } from '../../../../viewers/components/shared/DiffRenderer';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -14,10 +13,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../../ui';
-
-const ImageDiffViewer = lazy(() => import('../../../viewers/ImageDiffViewer'));
-const PDFDiffViewer = lazy(() => import('../../../viewers/PDFDiffViewer'));
-const Model3DDiffViewer = lazy(() => import('../../../viewers/Model3DDiffViewer'));
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -57,26 +52,6 @@ function MergeReviewDiffModal({
     return selectedFilePath;
   }, [reviewDiff?.status, reviewDiff?.oldPath, selectedFilePath]);
 
-  const isL5XDiff = useMemo(
-    () => !!activeViewerPath && isL5XFile(activeViewerPath),
-    [activeViewerPath],
-  );
-
-  const isImageDiff = useMemo(
-    () => !!activeViewerPath && isImageFile(activeViewerPath),
-    [activeViewerPath],
-  );
-
-  const isPdfDiff = useMemo(
-    () => !!activeViewerPath && isPdfFile(activeViewerPath),
-    [activeViewerPath],
-  );
-
-  const is3DModelDiff = useMemo(
-    () => !!activeViewerPath && is3DModelFile(activeViewerPath),
-    [activeViewerPath],
-  );
-
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <AlertDialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
@@ -103,77 +78,18 @@ function MergeReviewDiffModal({
             <div className="h-64 flex items-center justify-center text-theme-muted text-sm">
               Unable to load diff for {selectedFilePath}
             </div>
-          ) : isImageDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="h-full flex items-center justify-center text-theme-secondary text-sm gap-2">
-                  <Loader2 style={iconSm} className="animate-spin" />
-                  Loading image diff viewer…
-                </div>
-              }
-            >
-              <ImageDiffViewer
-                repoPath={repoPath}
-                filePath={activeViewerPath}
-                isWorkingTree
-              />
-            </Suspense>
-          ) : isPdfDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="h-full flex items-center justify-center text-theme-secondary text-sm gap-2">
-                  <Loader2 style={iconSm} className="animate-spin" />
-                  Loading PDF diff viewer…
-                </div>
-              }
-            >
-              <PDFDiffViewer
-                repoPath={repoPath}
-                filePath={activeViewerPath}
-                isWorkingTree
-              />
-            </Suspense>
-          ) : is3DModelDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="h-full flex items-center justify-center text-theme-secondary text-sm gap-2">
-                  <Loader2 style={iconSm} className="animate-spin" />
-                  Loading 3D diff viewer…
-                </div>
-              }
-            >
-              <Model3DDiffViewer
-                repoPath={repoPath}
-                filePath={activeViewerPath}
-                isWorkingTree
-              />
-            </Suspense>
-          ) : reviewDiff.binary && !isImageDiff && !isPdfDiff && !is3DModelDiff ? (
-            <div className="h-64 flex items-center justify-center text-theme-muted text-sm">
-              Cannot preview this binary file
-            </div>
-          ) : isL5XDiff ? (
-            <div className="h-full overflow-auto">
-              <TextDiffViewer
-                repoPath={repoPath || ''}
-                filePath={activeViewerPath}
-                fileDiff={reviewDiff as any}
-                fileStatus={reviewDiff.status}
-                oldPath={reviewDiff.oldPath}
-                isWorkingTree
-                showHeader
-              />
-            </div>
           ) : (
             <div className="h-full overflow-auto">
-              <TextDiffViewer
-                repoPath={repoPath || ''}
+              <DiffRenderer
+                repoPath={repoPath || null}
                 filePath={activeViewerPath}
-                fileDiff={reviewDiff as any}
+                mode="working"
                 fileStatus={reviewDiff.status}
                 oldPath={reviewDiff.oldPath}
-                isWorkingTree
+                fileDiff={reviewDiff as any}
+                binary={reviewDiff.binary}
                 showHeader
+                loadingLabel="Loading diff viewer…"
               />
             </div>
           )}
