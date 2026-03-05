@@ -51,11 +51,11 @@ Primary outcomes:
 
 ### Work items
 
-1. **Create target directories (no moves yet)**
+1. **Create target directories (no moves yet)** ✅
    - Add scaffold folders under `app`, `shared`, `domain`, `features`, `viewers/registry`, `widgets`
    - Add `README.md` ownership notes per top-level folder
 
-2. **Introduce canonical file-type constants**
+2. **Introduce canonical file-type constants** ✅
    - Create `shared/constants/file-types.ts`
    - Define `IMAGE_EXTENSIONS`, `PDF_EXTENSIONS`, `MODEL_3D_EXTENSIONS`, `L5X_EXTENSIONS`
    - Add helper(s): `fileKindFromPath`, `isFileKind` style guards as needed
@@ -136,8 +136,8 @@ Primary outcomes:
 
 ## Phase 1 — No behavior changes
 
-- Scaffold folders + ownership docs
-- Move only constants/utilities first
+- Scaffold folders + ownership docs ✅
+- Move only constants/utilities first ✅
 - Add import aliases (optional; only if it reduces churn and path brittleness)
 
 ## Phase 2 — Viewer deduplication
@@ -164,7 +164,7 @@ Primary outcomes:
 
 Use small, reviewable PRs with isolated blast radius:
 
-1. `PR-1` scaffolding + file-types constants
+1. `PR-1` scaffolding + file-types constants ✅
 2. `PR-2` diff registry + shared renderer
 3. `PR-3` migrate `HistoryPage`
 4. `PR-4` migrate `ExplorerPage`

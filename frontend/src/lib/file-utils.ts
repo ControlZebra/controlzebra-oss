@@ -4,6 +4,12 @@
  * Shared across the app wherever routing decisions depend on file extension
  * (diff viewers, sidebar panels, explorer pages, etc.).
  */
+import {
+  IMAGE_EXTENSIONS,
+  L5X_EXTENSIONS,
+  MODEL_3D_EXTENSIONS,
+  PDF_EXTENSIONS,
+} from '../shared/constants/file-types';
 
 // ---------------------------------------------------------------------------
 // Image Files (diffable raster formats — SVG excluded)
@@ -14,9 +20,7 @@
  * SVG is intentionally excluded — it's XML text and better served by the
  * text DiffViewer. ICO is excluded because imgdiff doesn't decode it.
  */
-const IMAGE_DIFF_EXTENSIONS = new Set([
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'tif',
-]);
+const IMAGE_DIFF_EXTENSIONS = new Set(IMAGE_EXTENSIONS.filter(ext => ext !== 'svg' && ext !== 'ico' && ext !== 'avif'));
 
 /**
  * Check if a file path has a raster image extension suitable for visual diffing.
@@ -35,7 +39,7 @@ export function isImageFile(filePath: string): boolean {
 // Domain-specific files (L5X / L5K)
 // ---------------------------------------------------------------------------
 
-const DOMAIN_DIFF_EXTENSIONS = new Set(['l5x', 'l5k']);
+const DOMAIN_DIFF_EXTENSIONS = new Set(L5X_EXTENSIONS);
 
 /** Check if a file path is a Rockwell Automation ladder-logic file. */
 export function isL5XFile(filePath: string): boolean {
@@ -47,7 +51,7 @@ export function isL5XFile(filePath: string): boolean {
 // PDF Files
 // ---------------------------------------------------------------------------
 
-const PDF_EXTENSIONS = new Set(['pdf']);
+const PDF_EXTENSION_SET = new Set(PDF_EXTENSIONS);
 
 /**
  * Check if a file path is a PDF file suitable for visual page diffing.
@@ -58,23 +62,14 @@ const PDF_EXTENSIONS = new Set(['pdf']);
  */
 export function isPdfFile(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return PDF_EXTENSIONS.has(ext);
+  return PDF_EXTENSION_SET.has(ext);
 }
 
 // ---------------------------------------------------------------------------
 // 3D Model Files
 // ---------------------------------------------------------------------------
 
-const MODEL_3D_EXTENSIONS = new Set([
-  // Mesh / Print
-  'stl', 'obj', '3mf', 'ply', 'off', 'amf',
-  // CAD / Engineering
-  'step', 'stp', 'iges', 'igs', 'brep', '3dm', 'fcstd',
-  // Scene / Exchange
-  'gltf', 'glb', 'fbx', 'dae', '3ds', 'wrl',
-  // BIM
-  'bim', 'ifc',
-]);
+const MODEL_3D_EXTENSION_SET = new Set(MODEL_3D_EXTENSIONS);
 
 /**
  * Check if a file path has a 3D model extension.
@@ -86,7 +81,7 @@ const MODEL_3D_EXTENSIONS = new Set([
  */
 export function is3DModelFile(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return MODEL_3D_EXTENSIONS.has(ext);
+  return MODEL_3D_EXTENSION_SET.has(ext);
 }
 
 // ---------------------------------------------------------------------------
