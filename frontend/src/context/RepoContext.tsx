@@ -102,6 +102,7 @@ import {
   RevealInFinder,
   OpenInTerminal,
 } from '../domain/repo/services/repo-commands';
+import { useStatusPolling } from '../domain/repo/polling/useStatusPolling';
 import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
@@ -254,7 +255,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
   });
   
   // ===== Refs =====
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const operationIdCounter = useRef(0);
   const repoOpenTimeRef = useRef<number>(0);
   const syncStartTimeRef = useRef<number | null>(null);
@@ -776,11 +776,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       await StopWatching();
     } catch (err) {
       console.error('Failed to stop file watcher:', err);
-    }
-    
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
     }
     
     try {
@@ -2691,18 +2686,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   }, [runStartupAutoPull]);
 
   // Start polling when git repo is open
-  useEffect(() => {
-    if (repoPath && repoInfo?.isRepo) {
-      refreshAll();
-      pollIntervalRef.current = setInterval(refreshStatus, STATUS_POLL_INTERVAL);
-      
-      return () => {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-      };
-    }
-  }, [repoPath, repoInfo?.isRepo, refreshAll, refreshStatus]);
+  useStatusPolling({
+    enabled: Boolean(repoPath && repoInfo?.isRepo),
+    intervalMs: STATUS_POLL_INTERVAL,
+    onInitialRefresh: refreshAll,
+    onRefreshStatus: refreshStatus,
+  });
 
   // Event-based refresh for file changes
   useEffect(() => {
