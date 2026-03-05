@@ -32,7 +32,6 @@ function MainBranchSaveChoiceModal({
   currentBranch,
   mainBranchChoice,
   onChoiceChange,
-  defaultBranchName,
   rememberChoiceForSession,
   onToggleRememberChoice,
   isCommitting,

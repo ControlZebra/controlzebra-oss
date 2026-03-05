@@ -15,7 +15,7 @@ import { MODEL_3D_EXTENSIONS as MODEL_3D_EXTENSIONS_LIST } from '../../shared/co
  * All file extensions the 3D viewer can handle.
  * Sourced from Online3DViewer's supported import formats.
  */
-export const MODEL_3D_EXTENSIONS = new Set(MODEL_3D_EXTENSIONS_LIST);
+export const MODEL_3D_EXTENSIONS = new Set<string>(MODEL_3D_EXTENSIONS_LIST);
 
 /**
  * Check if a file path has a 3D model extension.
