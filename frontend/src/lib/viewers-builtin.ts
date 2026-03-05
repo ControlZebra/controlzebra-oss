@@ -75,7 +75,7 @@ registerViewer({
   icon: ImageIcon,
   priority: 0,
   builtIn: true,
-  canHandle: extMatch(IMAGE_EXTENSIONS),
+  canHandle: extMatch([...IMAGE_EXTENSIONS]),
   component: ImageViewer,
 });
 
@@ -92,7 +92,7 @@ registerViewer({
   priority: 10, // Higher priority than text for .l5x files
   builtIn: true,
   managesOwnHeader: true, // L5X viewer has its own header with navigator toggle
-  canHandle: extMatch(L5X_EXTENSIONS),
+  canHandle: extMatch([...L5X_EXTENSIONS]),
   component: lazy(() => import('../components/viewers/L5XViewer')),
 });
 
@@ -109,7 +109,7 @@ registerViewer({
   icon: Box,
   priority: 10, // Higher than text viewer to claim .obj files as 3D models
   builtIn: true,
-  canHandle: extMatch(MODEL_3D_EXTENSIONS),
+  canHandle: extMatch([...MODEL_3D_EXTENSIONS]),
   component: lazy(() => import('../components/viewers/Model3DViewer')),
 });
 

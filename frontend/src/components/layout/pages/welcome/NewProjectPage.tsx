@@ -34,7 +34,6 @@ import {
   Lock,
   Globe,
   Eye,
-  Info,
 } from 'lucide-react';
 import { ICON_SIZES } from '../../../../constants';
 import { ICON_STYLES } from '../../../../lib/gitHelpers';

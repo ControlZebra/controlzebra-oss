@@ -20,7 +20,9 @@ import {
  * SVG is intentionally excluded — it's XML text and better served by the
  * text DiffViewer. ICO is excluded because imgdiff doesn't decode it.
  */
-const IMAGE_DIFF_EXTENSIONS = new Set(IMAGE_EXTENSIONS.filter(ext => ext !== 'svg' && ext !== 'ico' && ext !== 'avif'));
+const IMAGE_DIFF_EXTENSIONS = new Set<string>(
+  IMAGE_EXTENSIONS.filter((ext) => ext !== 'svg' && ext !== 'ico' && ext !== 'avif'),
+);
 
 /**
  * Check if a file path has a raster image extension suitable for visual diffing.
@@ -39,7 +41,7 @@ export function isImageFile(filePath: string): boolean {
 // Domain-specific files (L5X / L5K)
 // ---------------------------------------------------------------------------
 
-const DOMAIN_DIFF_EXTENSIONS = new Set(L5X_EXTENSIONS);
+const DOMAIN_DIFF_EXTENSIONS = new Set<string>(L5X_EXTENSIONS);
 
 /** Check if a file path is a Rockwell Automation ladder-logic file. */
 export function isL5XFile(filePath: string): boolean {
@@ -51,7 +53,7 @@ export function isL5XFile(filePath: string): boolean {
 // PDF Files
 // ---------------------------------------------------------------------------
 
-const PDF_EXTENSION_SET = new Set(PDF_EXTENSIONS);
+const PDF_EXTENSION_SET = new Set<string>(PDF_EXTENSIONS);
 
 /**
  * Check if a file path is a PDF file suitable for visual page diffing.
@@ -69,7 +71,7 @@ export function isPdfFile(filePath: string): boolean {
 // 3D Model Files
 // ---------------------------------------------------------------------------
 
-const MODEL_3D_EXTENSION_SET = new Set(MODEL_3D_EXTENSIONS);
+const MODEL_3D_EXTENSION_SET = new Set<string>(MODEL_3D_EXTENSIONS);
 
 /**
  * Check if a file path has a 3D model extension.

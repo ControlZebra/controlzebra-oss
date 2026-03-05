@@ -2,6 +2,8 @@
 
 ControlZebra frontend built with **React 18**, **Vite**, and **Tailwind CSS v4**.
 
+> Canonical architecture and ownership boundaries now live in `frontend/src/ARCHITECTURE.md`. Use that file as the source of truth for placement and import-direction rules while this document is gradually refreshed.
+
 ## Architecture Overview
 
 ```
