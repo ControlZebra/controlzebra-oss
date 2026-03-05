@@ -2,7 +2,7 @@
  * HistoryPage - Main area content for Commit History view.
  * Shows commit details + file list, or file diff when viewing a specific file.
  */
-import { memo, useCallback, useMemo, useState, lazy, Suspense, type CSSProperties } from 'react';
+import { memo, useCallback, useMemo, useState, type CSSProperties } from 'react';
 import { 
   FileText, 
   User, 
@@ -13,19 +13,11 @@ import {
   GitBranch,
   ChevronLeft,
   RotateCcw,
-  Loader2,
 } from 'lucide-react';
 import { VIEWS, ICON_SIZES } from '../../../constants';
 import { useRepo, type CommitDetail } from '../../../context';
 import { EmptyState, LoadingState } from '../../common';
-import TextDiffViewer from '../../viewers/TextDiffViewer';
-import { isL5XFile, isImageFile, isPdfFile, is3DModelFile } from '../../../lib/file-utils';
-
-// Lazy-load heavy diff viewers for code splitting
-const L5XDiffViewer = lazy(() => import('../../viewers/l5x-diff/L5XDiffViewer'));
-const ImageDiffViewer = lazy(() => import('../../viewers/ImageDiffViewer'));
-const PDFDiffViewer = lazy(() => import('../../viewers/PDFDiffViewer'));
-const Model3DDiffViewer = lazy(() => import('../../viewers/Model3DDiffViewer'));
+import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
 import { 
   Button,
   AlertDialog,
@@ -309,27 +301,6 @@ function HistoryPage(): JSX.Element {
     return refs[0] || currentBranchName;
   }, [selectedCommit, graphCommits, branches, repoStatus?.branch, repoInfo?.branch, currentBranchName]);
 
-  // Determine if the currently selected file is an L5X file or image file
-  const isL5XDiff = useMemo(
-    () => selectedCommitFile ? isL5XFile(selectedCommitFile) : false,
-    [selectedCommitFile],
-  );
-
-  const isImageDiff = useMemo(
-    () => selectedCommitFile ? isImageFile(selectedCommitFile) : false,
-    [selectedCommitFile],
-  );
-
-  const isPdfDiff = useMemo(
-    () => selectedCommitFile ? isPdfFile(selectedCommitFile) : false,
-    [selectedCommitFile],
-  );
-
-  const is3DModelDiff = useMemo(
-    () => selectedCommitFile ? is3DModelFile(selectedCommitFile) : false,
-    [selectedCommitFile],
-  );
-
   // Find the file info for the selected file (needed for oldPath on renames)
   const selectedFileInfo = useMemo(
     () => selectedCommit?.files?.find(f => f.path === selectedCommitFile),
@@ -399,7 +370,7 @@ function HistoryPage(): JSX.Element {
   );
 
   // Viewing a file diff from a commit
-  if (selectedCommit && selectedCommitFile && (currentDiff || isL5XDiff || isImageDiff || isPdfDiff || is3DModelDiff)) {
+  if (selectedCommit && selectedCommitFile && (currentDiff || repoPath)) {
     return (
       <div className="flex flex-col h-full min-h-0">
         <CommitHeader 
@@ -410,80 +381,18 @@ function HistoryPage(): JSX.Element {
           isRestoring={isRestoring}
         />
         <div className="flex-1 overflow-hidden min-h-0">
-          {isL5XDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading L5X diff viewer…</span>
-                </div>
-              }
-            >
-              <L5XDiffViewer
-                repoPath={repoPath}
-                commitHash={selectedCommit.hash}
-                parentHash={selectedCommit.parentHashes?.[0]}
-                filePath={selectedCommitFile}
-                oldPath={selectedFileInfo?.oldPath}
-                fileStatus={selectedFileInfo?.status ?? 'modified'}
-              />
-            </Suspense>
-          ) : isImageDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading image diff viewer…</span>
-                </div>
-              }
-            >
-              <ImageDiffViewer
-                repoPath={repoPath}
-                filePath={selectedCommitFile}
-                commitHash={selectedCommit.hash}
-              />
-            </Suspense>
-          ) : isPdfDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading PDF diff viewer…</span>
-                </div>
-              }
-            >
-              <PDFDiffViewer
-                repoPath={repoPath}
-                filePath={selectedCommitFile}
-                commitHash={selectedCommit.hash}
-              />
-            </Suspense>
-          ) : is3DModelDiff && repoPath ? (
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-full gap-2 text-theme-secondary">
-                  <Loader2 size={ICON_SIZES.md} className="animate-spin" />
-                  <span className="text-sm">Loading 3D diff viewer…</span>
-                </div>
-              }
-            >
-              <Model3DDiffViewer
-                repoPath={repoPath}
-                filePath={selectedCommitFile}
-                commitHash={selectedCommit.hash}
-              />
-            </Suspense>
-          ) : (
-            <TextDiffViewer
-              repoPath={repoPath ?? ''}
-              filePath={selectedCommitFile}
-              commitHash={selectedCommit.hash}
-              fileDiff={currentDiff as any}
-              fileStatus={selectedFileInfo?.status}
-              oldPath={selectedFileInfo?.oldPath}
-              showHeader
-            />
-          )}
+          <DiffRenderer
+            repoPath={repoPath}
+            filePath={selectedCommitFile}
+            mode="commit"
+            commitHash={selectedCommit.hash}
+            parentHash={selectedCommit.parentHashes?.[0]}
+            oldPath={selectedFileInfo?.oldPath}
+            fileStatus={selectedFileInfo?.status}
+            fileDiff={currentDiff as any}
+            binary={(currentDiff as any)?.binary}
+            showHeader
+          />
         </div>
         {restoreConfirmModal}
       </div>

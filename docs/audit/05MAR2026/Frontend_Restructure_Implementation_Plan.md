@@ -60,13 +60,13 @@ Primary outcomes:
    - Define `IMAGE_EXTENSIONS`, `PDF_EXTENSIONS`, `MODEL_3D_EXTENSIONS`, `L5X_EXTENSIONS`
    - Add helper(s): `fileKindFromPath`, `isFileKind` style guards as needed
 
-3. **Implement diff registry stack**
+3. **Implement diff registry stack** ✅
    - `viewers/registry/diff-registry.ts`
    - `viewers/registry/diff-builtins.ts`
    - Register lazy diff components once (Image/PDF/3D/L5X/Text fallback)
    - Add deterministic priority ordering
 
-4. **Add shared diff renderer abstraction**
+4. **Add shared diff renderer abstraction** ✅
    - `viewers/components/shared/DiffRenderer.tsx` (or `renderDiffContent` utility)
    - Handle `Suspense` fallback in one place
    - Standardize error/fallback behavior
@@ -165,7 +165,7 @@ Primary outcomes:
 Use small, reviewable PRs with isolated blast radius:
 
 1. `PR-1` scaffolding + file-types constants ✅
-2. `PR-2` diff registry + shared renderer
+2. `PR-2` diff registry + shared renderer ✅
 3. `PR-3` migrate `HistoryPage`
 4. `PR-4` migrate `ExplorerPage`
 5. `PR-5` migrate `MergeReviewDiffModal` + `common/DiffViewer`
