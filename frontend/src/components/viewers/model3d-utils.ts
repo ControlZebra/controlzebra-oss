@@ -5,6 +5,7 @@
  * - base64→File conversion (OV requires browser File objects)
  * - Extension set + helper for 3D model detection
  */
+import { MODEL_3D_EXTENSIONS as MODEL_3D_EXTENSIONS_LIST } from '../../shared/constants/file-types';
 
 // ---------------------------------------------------------------------------
 // Supported 3D extensions
@@ -14,16 +15,7 @@
  * All file extensions the 3D viewer can handle.
  * Sourced from Online3DViewer's supported import formats.
  */
-export const MODEL_3D_EXTENSIONS = new Set([
-  // Mesh / Print
-  'stl', 'obj', '3mf', 'ply', 'off', 'amf',
-  // CAD / Engineering
-  'step', 'stp', 'iges', 'igs', 'brep', '3dm', 'fcstd',
-  // Scene / Exchange
-  'gltf', 'glb', 'fbx', 'dae', '3ds', 'wrl',
-  // BIM
-  'bim', 'ifc',
-]);
+export const MODEL_3D_EXTENSIONS = new Set(MODEL_3D_EXTENSIONS_LIST);
 
 /**
  * Check if a file path has a 3D model extension.
