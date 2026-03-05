@@ -8,6 +8,7 @@ import 'react-photo-view/dist/react-photo-view.css';
 // Register built-in viewers before app renders
 // This must be imported early so viewers are available when components mount
 import './lib/viewers-builtin';
+import './viewers/registry/diff-builtins';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
