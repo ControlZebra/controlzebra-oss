@@ -18,7 +18,7 @@ import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
 import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
 import { ProjectSetupBanner } from '../../../common';
 import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../../constants';
-import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers';
+import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../../viewers/components/shared/ViewerRenderer';
 import { DiffRenderer } from '../../../../viewers/components/shared/DiffRenderer';
 import { getFolderNameFromPath } from '../../../../lib/pathUtils';
 

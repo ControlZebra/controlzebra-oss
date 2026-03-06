@@ -18,9 +18,9 @@
  */
 import { memo } from 'react';
 import { FileQuestion } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
-import type { ViewerProps } from '../../lib/viewers';
-import { getPathFileName } from './path-utils';
+import { ICON_SIZES } from '../../../constants';
+import type { ViewerProps } from '../../registry/viewer-registry';
+import { getPathFileName } from '../shared/path-utils';
 
 /**
  * Extract file extension from a file path.

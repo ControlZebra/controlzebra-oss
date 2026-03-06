@@ -29,10 +29,10 @@ import {
   type NormalizedController,
   type L5XDiff,
 } from 'ladder-visualizer';
-import { ReadFileAtRevisionLarge } from '../../../../bindings/controlzebra/services/gitservice';
-import { ICON_SIZES } from '../../../constants';
-import { useLayout } from '../../../context/LayoutContext';
-import { getPathFileName } from '../path-utils';
+import { ReadFileAtRevisionLarge } from '../../../../../bindings/controlzebra/services/gitservice';
+import { ICON_SIZES } from '../../../../constants';
+import { useLayout } from '../../../../context/LayoutContext';
+import { getPathFileName } from '../../shared/path-utils';
 
 import DiffChangeStream from './DiffChangeStream';
 

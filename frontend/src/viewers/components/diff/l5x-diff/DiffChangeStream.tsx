@@ -19,7 +19,7 @@ import {
   Code,
 } from 'lucide-react';
 import type { L5XDiff, ProgramDiff, RoutineDiff, LadderDiagramTheme } from 'ladder-visualizer';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../../constants';
 
 import RoutineDiffSection from './RoutineDiffSection';
 import TagDiffSection from './TagDiffSection';

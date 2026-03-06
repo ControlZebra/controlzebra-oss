@@ -12,7 +12,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { ChevronDown, ChevronRight, Tag, Plus, Minus, RefreshCw } from 'lucide-react';
 import type { TagDiff, PropertyChange, NormalizedTag } from 'ladder-visualizer';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../../constants';
 
 // ============================================================================
 // Types

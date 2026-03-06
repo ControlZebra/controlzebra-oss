@@ -107,8 +107,8 @@ import { useAuth } from './AuthContext';
 import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
 import { addRecentFolder } from '../lib/recentFolders';
-import { clearViewerCache } from '../lib/viewer-cache';
-import { clearAllTabStates } from '../components/viewers/l5x';
+import { clearViewerCache } from '../viewers/registry/viewer-cache';
+import { clearAllTabStates } from '../viewers/components/file/l5x';
 import {
   trackRepoOpened,
   trackRepoClosed,

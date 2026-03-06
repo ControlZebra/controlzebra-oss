@@ -14,7 +14,7 @@
  */
 import { Component, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
+import { ICON_SIZES } from '../../../constants';
 import { getPathFileName } from './path-utils';
 
 interface ViewerErrorBoundaryProps {

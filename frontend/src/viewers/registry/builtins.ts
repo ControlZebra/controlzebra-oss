@@ -13,12 +13,12 @@
  */
 import { lazy } from 'react';
 import { FileText, Image as ImageIcon, FileQuestion, Cpu, Box } from 'lucide-react';
-import { registerViewer, extMatch, nameMatch, anyMatch, magicMatch, matchAll } from './viewers';
-import { TEXT_VIEWER_EXTENSIONS } from './text-viewer-patterns';
-import { IMAGE_EXTENSIONS, L5X_EXTENSIONS, MODEL_3D_EXTENSIONS, PDF_EXTENSIONS } from '../shared/constants/file-types';
-import TextViewer from '../components/viewers/TextViewer';
-import ImageViewer from '../components/viewers/ImageViewer';
-import UnsupportedViewer from '../components/viewers/UnsupportedViewer';
+import { registerViewer, extMatch, nameMatch, anyMatch, magicMatch, matchAll } from './viewer-registry';
+import { TEXT_VIEWER_EXTENSIONS } from '../components/file/text-viewer-patterns';
+import { IMAGE_EXTENSIONS, L5X_EXTENSIONS, MODEL_3D_EXTENSIONS, PDF_EXTENSIONS } from '../../shared/constants/file-types';
+import TextViewer from '../components/file/TextViewer';
+import ImageViewer from '../components/file/ImageViewer';
+import UnsupportedViewer from '../components/file/UnsupportedViewer';
 
 // ============================================================================
 // Text Viewer
@@ -93,7 +93,7 @@ registerViewer({
   builtIn: true,
   managesOwnHeader: true, // L5X viewer has its own header with navigator toggle
   canHandle: extMatch([...L5X_EXTENSIONS]),
-  component: lazy(() => import('../components/viewers/L5XViewer')),
+  component: lazy(() => import('../components/file/L5XViewer')),
 });
 
 // ============================================================================
@@ -110,7 +110,7 @@ registerViewer({
   priority: 10, // Higher than text viewer to claim .obj files as 3D models
   builtIn: true,
   canHandle: extMatch([...MODEL_3D_EXTENSIONS]),
-  component: lazy(() => import('../components/viewers/Model3DViewer')),
+  component: lazy(() => import('../components/file/Model3DViewer')),
 });
 
 // ============================================================================
@@ -146,7 +146,7 @@ registerViewer({
     // Magic bytes: %PDF (25 50 44 46)
     magicMatch([[0x25, 0x50, 0x44, 0x46]]),
   ]),
-  component: lazy(() => import('../components/viewers/PDFViewer')),
+  component: lazy(() => import('../components/file/PDFViewer')),
 });
 
 // Log that viewers have been registered (helpful for debugging)

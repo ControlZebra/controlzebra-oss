@@ -5,15 +5,15 @@
  * - ViewerRenderer: The main component that renders viewers with Suspense + ErrorBoundary
  * - ViewerHeader: Common header bar with file path and "Open in Default App" button
  * - ViewerErrorBoundary: Exported for custom error boundary usage
- * - Re-exports of types from lib/viewers
+ * - Re-exports of types from viewer-registry
  */
 import { memo, Suspense, type ReactElement } from 'react';
 import { Loader2 } from 'lucide-react';
 import ViewerErrorBoundary from './ViewerErrorBoundary';
 import { ViewerHeader } from './ViewerHeader';
 import { getPathFileName } from './path-utils';
-import type { ViewerConfig, ViewerProps } from '../../lib/viewers';
-import { ICON_SIZES } from '../../constants';
+import type { ViewerConfig, ViewerProps } from '../../registry/viewer-registry';
+import { ICON_SIZES } from '../../../constants';
 
 // ============================================================================
 // Loading Fallback
@@ -126,14 +126,14 @@ export { ViewerHeader } from './ViewerHeader';
 export type { ViewerHeaderProps } from './ViewerHeader';
 
 // Export viewer components
-export { default as TextViewer } from './TextViewer';
-export { default as TextDiffViewer } from './TextDiffViewer';
-export { default as ImageViewer } from './ImageViewer';
-export { default as UnsupportedViewer } from './UnsupportedViewer';
+export { default as TextViewer } from '../file/TextViewer';
+export { default as TextDiffViewer } from '../diff/TextDiffViewer';
+export { default as ImageViewer } from '../file/ImageViewer';
+export { default as UnsupportedViewer } from '../file/UnsupportedViewer';
 // PDFViewer is lazy-loaded via the registry, not eagerly exported
 
-// Re-export types from lib/viewers for convenience
-export type { ViewerProps, ViewerConfig } from '../../lib/viewers';
+// Re-export types from viewer-registry for convenience
+export type { ViewerProps, ViewerConfig } from '../../registry/viewer-registry';
 
 // Re-export registry functions for components that need them
 export { 
@@ -141,7 +141,7 @@ export {
   getViewerById, 
   getAllViewers,
   registerViewer,
-} from '../../lib/viewers';
+} from '../../registry/viewer-registry';
 
 // Re-export cache utilities for viewers that need them
 export {
@@ -152,4 +152,4 @@ export {
   invalidateCachedContent,
   clearViewerCache,
   getCacheStats,
-} from '../../lib/viewer-cache';
+} from '../../registry/viewer-cache';
