@@ -3,10 +3,8 @@
 Business-domain logic and contracts.
 
 ## Ownership
-- Domain services and models
-- Domain hooks and state logic
-- Domain-specific transformations
+- Domain services and selectors
+- Domain-level state and workflows
 
 ## Rules
-- UI framework concerns should stay outside domain services
-- Prefer pure logic and testable units
+- Domain modules should remain UI-framework agnostic where possible

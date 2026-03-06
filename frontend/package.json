@@ -9,7 +9,7 @@
     "build": "vite build --mode production",
     "preview": "vite preview",
     "lint": "npm run lint:hygiene",
-    "lint:hygiene": "node ./scripts/enforce-frontend-hygiene.mjs",
+    "lint:hygiene": "node ./src/scripts/enforce-frontend-hygiene.mjs",
     "typecheck": "tsc --noEmit",
     "ci:guards": "npm run lint && npm run typecheck",
     "test": "vitest run",
