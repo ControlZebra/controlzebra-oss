@@ -1,12 +1,11 @@
 # app
 
-App bootstrap and composition layer.
+Application bootstrap and composition layer.
 
 ## Ownership
-- App initialization
-- Global providers wiring
-- Application entry orchestration
+- Application startup wiring
+- Provider composition and app shell setup
 
 ## Rules
-- Do not place domain or feature business logic here
-- Keep this layer thin and composition-focused
+- Keep business logic out of this layer
+- Prefer orchestration over implementation
