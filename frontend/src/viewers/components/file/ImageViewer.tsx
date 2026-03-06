@@ -29,11 +29,11 @@ import {
   Minimize,
 } from 'lucide-react';
 import { Events } from '@wailsio/runtime';
-import { ICON_SIZES } from '../../constants';
-import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
-import type { ViewerProps } from '../../lib/viewers';
+import { ICON_SIZES } from '../../../constants';
+import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
+import type { ViewerProps } from '../../registry/viewer-registry';
 import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from './image-utils';
-import { getPathFileName } from './path-utils';
+import { getPathFileName } from '../shared/path-utils';
 
 // ---------------------------------------------------------------------------
 // Cache – avoids re-fetching base64 when switching tabs

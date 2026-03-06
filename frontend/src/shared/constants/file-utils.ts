@@ -9,7 +9,7 @@ import {
   L5X_EXTENSIONS,
   MODEL_3D_EXTENSIONS,
   PDF_EXTENSIONS,
-} from '../shared/constants/file-types';
+} from './file-types';
 
 // ---------------------------------------------------------------------------
 // Image Files (diffable raster formats — SVG excluded)

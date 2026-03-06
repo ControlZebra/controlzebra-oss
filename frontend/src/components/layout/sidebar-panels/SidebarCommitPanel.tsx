@@ -15,7 +15,7 @@ import { Button, Textarea } from '../../ui';
 import LFSAutoTrackModal from '../../common/LFSAutoTrackModal';
 import { RewindConfirmModal } from '../';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
-import { supportsDiff } from '../../../lib/file-utils';
+import { supportsDiff } from '../../../shared/constants/file-utils';
 import type { FileStatus } from '../../../context';
 import { useLfsAutoTrackBeforeSave } from '../../../hooks/useLfsAutoTrackBeforeSave';
 import MainBranchSaveChoiceModal, { type MainBranchSaveChoice } from './MainBranchSaveChoiceModal';

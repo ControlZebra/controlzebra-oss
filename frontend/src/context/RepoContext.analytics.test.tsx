@@ -202,11 +202,11 @@ vi.mock('../lib/recentFolders', () => ({
   addRecentFolder: vi.fn(),
 }));
 
-vi.mock('../lib/viewer-cache', () => ({
+vi.mock('../viewers/registry/viewer-cache', () => ({
   clearViewerCache: vi.fn(),
 }));
 
-vi.mock('../components/viewers/l5x', () => ({
+vi.mock('../viewers/components/file/l5x', () => ({
   clearAllTabStates: vi.fn(),
 }));
 

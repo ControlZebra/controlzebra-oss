@@ -5,7 +5,7 @@
  * - base64→File conversion (OV requires browser File objects)
  * - Extension set + helper for 3D model detection
  */
-import { MODEL_3D_EXTENSIONS as MODEL_3D_EXTENSIONS_LIST } from '../../shared/constants/file-types';
+import { MODEL_3D_EXTENSIONS as MODEL_3D_EXTENSIONS_LIST } from '../../../shared/constants/file-types';
 
 // ---------------------------------------------------------------------------
 // Supported 3D extensions

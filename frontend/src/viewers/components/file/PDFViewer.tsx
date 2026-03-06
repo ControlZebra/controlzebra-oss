@@ -28,10 +28,10 @@ import {
   ChevronRight,
   FileText,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
-import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
-import type { ViewerProps } from '../../lib/viewers';
-import { getPathFileName } from './path-utils';
+import { ICON_SIZES } from '../../../constants';
+import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
+import type { ViewerProps } from '../../registry/viewer-registry';
+import { getPathFileName } from '../shared/path-utils';
 
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';

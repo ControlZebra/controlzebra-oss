@@ -42,14 +42,14 @@ import {
 } from 'lucide-react';
 import { Events } from '@wailsio/runtime';
 
-import { ICON_SIZES } from '../../constants';
+import { ICON_SIZES } from '../../../constants';
 import {
   ImageDiffCommit,
   ImageDiffWorking,
-} from '../../../bindings/controlzebra/services/imagediffservice';
-import type { ImageDiffResult } from '../../../bindings/controlzebra/services/models';
-import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from './image-utils';
-import { getPathFileName } from './path-utils';
+} from '../../../../bindings/controlzebra/services/imagediffservice';
+import type { ImageDiffResult } from '../../../../bindings/controlzebra/services/models';
+import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from '../file/image-utils';
+import { getPathFileName } from '../shared/path-utils';
 
 // ============================================================================
 // Types

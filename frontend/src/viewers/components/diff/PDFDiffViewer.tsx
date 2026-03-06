@@ -41,10 +41,10 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-import { ICON_SIZES } from '../../constants';
-import { GetFileAtRevisionBase64 } from '../../../bindings/controlzebra/services/gitservice';
-import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
-import { getPathFileName } from './path-utils';
+import { ICON_SIZES } from '../../../constants';
+import { GetFileAtRevisionBase64 } from '../../../../bindings/controlzebra/services/gitservice';
+import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { getPathFileName } from '../shared/path-utils';
 import {
   loadPdfFromBase64,
   renderPageToImageData,

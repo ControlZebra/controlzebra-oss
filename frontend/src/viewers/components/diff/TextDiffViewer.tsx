@@ -11,14 +11,14 @@
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 
-import { ICON_SIZES } from '../../constants';
-import DiffViewer from '../common/DiffViewer';
+import { ICON_SIZES } from '../../../constants';
+import DiffViewer from '../../../components/common/DiffViewer';
 
 import {
   DiffCommitFileRaw,
   DiffWorkingRaw,
-} from '../../../bindings/controlzebra/services/gitservice';
-import type { RawDiffResult } from '../../../bindings/controlzebra/services/models';
+} from '../../../../bindings/controlzebra/services/gitservice';
+import type { RawDiffResult } from '../../../../bindings/controlzebra/services/models';
 
 // ============================================================================
 // Types

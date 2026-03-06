@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ViewerRenderer, ViewerErrorBoundary } from './index';
+import { ViewerRenderer, ViewerErrorBoundary } from '../../viewers/components/shared/ViewerRenderer';
 import { clearViewers, type ViewerConfig, type ViewerProps } from '../../lib/viewers';
 
 // ============================================================================

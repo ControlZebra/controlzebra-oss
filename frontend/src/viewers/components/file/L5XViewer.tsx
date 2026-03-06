@@ -17,13 +17,13 @@
  */
 import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ReadTextFile } from '../../../bindings/controlzebra/services/filesystemservice';
-import { ICON_SIZES } from '../../constants';
-import { useLayout } from '../../context/LayoutContext';
-import type { ViewerProps } from '../../lib/viewers';
-import { useCachedContent } from '../../lib/viewer-cache';
-import { ViewerHeader } from './ViewerHeader';
-import { getPathFileName } from './path-utils';
+import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { ICON_SIZES } from '../../../constants';
+import { useLayout } from '../../../context/LayoutContext';
+import type { ViewerProps } from '../../registry/viewer-registry';
+import { useCachedContent } from '../../registry/viewer-cache';
+import { ViewerHeader } from '../shared/ViewerHeader';
+import { getPathFileName } from '../shared/path-utils';
 
 // Import ladder-visualizer components and parsers
 import {

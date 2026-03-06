@@ -38,11 +38,11 @@ import {
 } from 'lucide-react';
 import { Events } from '@wailsio/runtime';
 
-import { ICON_SIZES } from '../../constants';
-import { GetFileAtRevisionBase64 } from '../../../bindings/controlzebra/services/gitservice';
-import { ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
-import { base64ToFile } from './model3d-utils';
-import { getPathFileName } from './path-utils';
+import { ICON_SIZES } from '../../../constants';
+import { GetFileAtRevisionBase64 } from '../../../../bindings/controlzebra/services/gitservice';
+import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { base64ToFile } from '../file/model3d-utils';
+import { getPathFileName } from '../shared/path-utils';
 
 // ============================================================================
 // Types

@@ -1,6 +1,6 @@
 import { FILE_STATUS } from '../constants';
 import type { FileStatus } from '../context';
-import { isTextViewerExtension } from './text-viewer-patterns';
+import { isTextViewerExtension } from '../viewers/components/file/text-viewer-patterns';
 import type { TrackedPattern } from '../../bindings/controlzebra/services/models';
 
 export interface LFSAutoTrackCandidate {

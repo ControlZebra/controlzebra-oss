@@ -15,7 +15,7 @@ import {
   type RungDiff,
   type LadderDiagramTheme,
 } from 'ladder-visualizer';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../../constants';
 
 // ============================================================================
 // Types
