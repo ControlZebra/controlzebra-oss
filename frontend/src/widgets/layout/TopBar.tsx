@@ -23,7 +23,7 @@ import { openExternalUrl } from '../../shared/runtime/browser';
 import { ICON_SIZES, VIEWS } from '../../constants';
 import { useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../hooks';
-import { UndoLastSaveDialog } from '../ui';
+import { UndoLastSaveDialog } from '../../components/ui';
 import BranchModal from './BranchModal';
 import RewindConfirmModal from './RewindConfirmModal';
 import SwitchProjectModal from './SwitchProjectModal';
@@ -33,7 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+} from '../../components/ui/dropdown-menu';
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { GetTrackedPatterns, TrackPattern } from '../../bindings/controlzebra/services/lfsservice';
 import type { FileStatus } from '../context';
-import { getLFSAutoTrackCandidates, type LFSAutoTrackCandidate } from '../lib/lfs-auto-track';
+import { getLFSAutoTrackCandidates, type LFSAutoTrackCandidate } from '../domain/repo/services/lfs-auto-track';
 
 interface UseLfsAutoTrackBeforeSaveOptions {
   repoPath?: string;

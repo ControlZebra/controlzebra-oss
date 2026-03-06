@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   Progress,
-} from '../ui';
+} from '../../components/ui';
 
 function AdditionalPackagesModal(): JSX.Element {
   const {

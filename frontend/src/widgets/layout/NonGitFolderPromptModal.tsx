@@ -11,7 +11,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   Button,
-} from '../ui';
+} from '../../components/ui';
 
 function NonGitFolderPromptModal(): JSX.Element {
   const {

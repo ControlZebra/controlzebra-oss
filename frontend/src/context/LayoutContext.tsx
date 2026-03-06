@@ -24,7 +24,7 @@ import {
   type ViewType, 
   type ExplorerTab 
 } from '../constants';
-import { trackViewChanged, trackSettingsOpened } from '../lib/analytics';
+import { trackViewChanged, trackSettingsOpened } from '../domain/analytics/analytics';
 import { useWindowSize } from '../hooks/useWindowSize';
 
 // ============================================================================

@@ -47,7 +47,7 @@ import {
   GetPresetPatterns,
   GetRemotes,
   GetSettings,
-} from '../domain/repo/services/repo-queries';
+} from '../services/repo-queries';
 import {
   CommitAll,
   CheckoutBranch,
@@ -101,14 +101,14 @@ import {
   ApplyGitignoreTemplate,
   RevealInFinder,
   OpenInTerminal,
-} from '../domain/repo/services/repo-commands';
-import { useStatusPolling } from '../domain/repo/polling/useStatusPolling';
-import { useAuth } from './AuthContext';
-import { WatchDirectory, StopWatching } from '../../bindings/controlzebra/services/filewatcherservice';
+} from '../services/repo-commands';
+import { useStatusPolling } from '../polling/useStatusPolling';
+import { useAuth } from '../../auth/context/AuthContext';
+import { WatchDirectory, StopWatching } from '../../../../bindings/controlzebra/services/filewatcherservice';
 import { Events } from '@wailsio/runtime';
-import { addRecentFolder } from '../lib/recentFolders';
-import { clearViewerCache } from '../viewers/registry/viewer-cache';
-import { clearAllTabStates } from '../viewers/components/file/l5x';
+import { addRecentFolder } from '../../../lib/recentFolders';
+import { clearViewerCache } from '../../../viewers/registry/viewer-cache';
+import { clearAllTabStates } from '../../../viewers/components/file/l5x';
 import {
   trackRepoOpened,
   trackRepoClosed,
@@ -132,7 +132,7 @@ import {
   trackProjectPublishAttempted,
   trackProjectPublishFailed,
   trackProjectPublishCompleted,
-} from '../lib/analytics';
+} from '../../analytics/analytics';
 
 import type {
   RepoContextValue,

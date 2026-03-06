@@ -87,16 +87,16 @@ const {
   EnsureControlZebraDir: vi.fn(),
 }));
 
-vi.mock('./AuthContext', () => ({
+vi.mock('../../auth/context/AuthContext', () => ({
   useAuth: () => ({
     userName: 'Test User',
     userEmail: 'test@controlzebra.com',
   }),
 }));
 
-vi.mock('../lib/analytics', () => analyticsMocks);
+vi.mock('../../analytics/analytics', () => analyticsMocks);
 
-vi.mock('../../bindings/controlzebra/services/gitservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/gitservice', () => ({
   DetectRepo,
   Status,
   CommitAll,
@@ -142,7 +142,7 @@ vi.mock('../../bindings/controlzebra/services/gitservice', () => ({
   Pull,
 }));
 
-vi.mock('../../bindings/controlzebra/services/githubservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/githubservice', () => ({
   IsGHInstalled,
   GetGHVersion,
   AuthLogin: vi.fn(),
@@ -157,33 +157,33 @@ vi.mock('../../bindings/controlzebra/services/githubservice', () => ({
   ListUserOrganizations: vi.fn(),
 }));
 
-vi.mock('../../bindings/controlzebra/services/lfsservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/lfsservice', () => ({
   InitializeLFS,
   IsLFSInstalled,
   GetPresetPatterns,
   TrackPattern,
 }));
 
-vi.mock('../../bindings/controlzebra/services/localbinservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/localbinservice', () => ({
   EnsurePortableToolchainIfNeeded,
 }));
 
-vi.mock('../../bindings/controlzebra/services/progressservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/progressservice', () => ({
   SyncWithProgress,
 }));
 
-vi.mock('../../bindings/controlzebra/services/settingsservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/settingsservice', () => ({
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
 }));
 
-vi.mock('../../bindings/controlzebra/services/filewatcherservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/filewatcherservice', () => ({
   WatchDirectory,
   StopWatching,
 }));
 
-vi.mock('../../bindings/controlzebra/services/repositorysettingsservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/repositorysettingsservice', () => ({
   GetRemotes,
   WriteRepoLocalConfig: vi.fn(),
   EnsureControlZebraDir,
@@ -193,20 +193,20 @@ vi.mock('../../bindings/controlzebra/services/repositorysettingsservice', () => 
   ApplyGitignoreTemplate: vi.fn(),
 }));
 
-vi.mock('../../bindings/controlzebra/services/filesystemservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/filesystemservice', () => ({
   RevealInFinder: vi.fn(),
   OpenInTerminal: vi.fn(),
 }));
 
-vi.mock('../lib/recentFolders', () => ({
+vi.mock('../../../lib/recentFolders', () => ({
   addRecentFolder: vi.fn(),
 }));
 
-vi.mock('../viewers/registry/viewer-cache', () => ({
+vi.mock('../../../viewers/registry/viewer-cache', () => ({
   clearViewerCache: vi.fn(),
 }));
 
-vi.mock('../viewers/components/file/l5x', () => ({
+vi.mock('../../../viewers/components/file/l5x', () => ({
   clearAllTabStates: vi.fn(),
 }));
 

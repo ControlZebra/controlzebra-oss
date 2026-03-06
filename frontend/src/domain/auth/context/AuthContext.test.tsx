@@ -12,7 +12,7 @@ const mockHydrateSession = vi.fn();
 const mockRefreshSession = vi.fn();
 const mockSerialiseSession = vi.fn();
 
-vi.mock('../lib/supabaseClient', () => ({
+vi.mock('../supabaseClient', () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
   signOut: (...args: unknown[]) => mockSignOut(...args),
   hydrateSession: (...args: unknown[]) => mockHydrateSession(...args),
@@ -20,7 +20,7 @@ vi.mock('../lib/supabaseClient', () => ({
   serialiseSession: (...args: unknown[]) => mockSerialiseSession(...args),
 }));
 
-vi.mock('../../bindings/controlzebra/services/authservice', () => ({
+vi.mock('../../../../bindings/controlzebra/services/authservice', () => ({
   LoadSession: (...args: unknown[]) => mockLoadSession(...args),
   SaveSession: (...args: unknown[]) => mockSaveSession(...args),
   ClearSession: (...args: unknown[]) => mockClearSession(...args),

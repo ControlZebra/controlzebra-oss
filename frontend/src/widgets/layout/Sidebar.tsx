@@ -1,8 +1,8 @@
 import { memo, useMemo, useCallback, useRef, type MouseEvent, type ComponentType } from 'react';
 import { VIEWS, type ViewType } from '../../constants';
 import { useLayout, useRepo } from '../../context';
-import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView, WelcomeView, DebugView } from './views';
-import { RepoSwitcher } from '../common';
+import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView, WelcomeView, DebugView } from '../../components/layout/views';
+import { RepoSwitcher } from '../../components/common';
 
 // ============================================================================
 // Types
