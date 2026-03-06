@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useMemo, useCallback } from 'react';
 import { Github, Lock, Globe } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
-import { Button, Input, Label, Select, type SelectOption } from '../ui';
+import { ICON_SIZES } from '../../../constants';
+import { Button, Input, Label, Select, type SelectOption } from '../../../components/ui';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -10,10 +10,10 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogCancel,
-} from '../ui/alert-dialog';
-import { cn } from '../../lib/utils';
-import { getFolderNameFromPath } from '../../lib/pathUtils';
-import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../context/RepoContext.types';
+} from '../../../components/ui/alert-dialog';
+import { cn } from '../../../lib/utils';
+import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../../context/RepoContext.types';
 
 interface PublishToCloudModalProps {
   isOpen: boolean;

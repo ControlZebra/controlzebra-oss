@@ -41,9 +41,9 @@ import {
 import { ICON_SIZES, VIEWS } from '../../../constants';
 import {
   Button, Badge, Card, CardHeader, CardContent,
-} from '../../ui';
+} from '../../../components/ui';
 import { useLayout, useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy, type MergeReviewFile, type MergeReviewDiffResult } from '../../../context';
-import MergeReviewDiffModal from './merge/MergeReviewDiffModal';
+import MergeReviewDiffModal from '../components/MergeReviewDiffModal';
 
 // ============================================================================
 // Types

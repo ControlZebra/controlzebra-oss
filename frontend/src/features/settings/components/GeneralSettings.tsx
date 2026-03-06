@@ -3,18 +3,18 @@
  */
 import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
 import { Sun, Moon, Monitor, BarChart3, LogOut, Info, FolderTree, type LucideIcon } from 'lucide-react';
-import { useLayout, useAuth, type Theme } from '../../../../context';
-import { ICON_SIZES } from '../../../../constants';
+import { useLayout, useAuth, type Theme } from '../../../context';
+import { ICON_SIZES } from '../../../constants';
 import { 
   getAnalyticsConsent, 
   setAnalyticsConsent, 
   type AnalyticsConsent 
-} from '../../../../domain/analytics/analytics';
-import { Button } from '../../../ui';
+} from '../../../domain/analytics/analytics';
+import { Button } from '../../../components/ui';
 import {
   GetDataLocations,
-} from '../../../../../bindings/controlzebra/services/settingsservice';
-import type { DataLocations } from '../../../../../bindings/controlzebra/services/models';
+} from '../../../../bindings/controlzebra/services/settingsservice';
+import type { DataLocations } from '../../../../bindings/controlzebra/services/models';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0-dev';

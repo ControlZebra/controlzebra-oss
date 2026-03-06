@@ -6,8 +6,8 @@
  */
 import { memo, type CSSProperties } from 'react';
 import { FolderOpen } from 'lucide-react';
-import { ICON_STYLES } from '../../../../lib/gitHelpers';
-import { Button } from '../../../ui';
+import { ICON_STYLES } from '../../../lib/gitHelpers';
+import { Button } from '../../../components/ui';
 
 // ============================================================================
 // Types

@@ -11,16 +11,16 @@
  * - All open tabs are kept mounted (but hidden) to preserve viewer state/cache
  */
 import { memo, useState, useCallback, useMemo } from 'react';
-import { useRepo, useLayout } from '../../../../context';
-import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
-import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../welcome';
-import SimpleFileBrowser from '../../../common/SimpleFileBrowser';
-import ExplorerTabsBar from '../../../common/ExplorerTabsBar';
-import { ProjectSetupBanner } from '../../../common';
-import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../../constants';
-import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../../viewers/components/shared/ViewerRenderer';
-import { DiffRenderer } from '../../../../viewers/components/shared/DiffRenderer';
-import { getFolderNameFromPath } from '../../../../lib/pathUtils';
+import { useRepo, useLayout } from '../../../context';
+import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
+import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../../welcome/pages';
+import SimpleFileBrowser from '../components/SimpleFileBrowser';
+import ExplorerTabsBar from '../components/ExplorerTabsBar';
+import ProjectSetupBanner from '../components/ProjectSetupBanner';
+import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../constants';
+import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers/components/shared/ViewerRenderer';
+import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
+import { getFolderNameFromPath } from '../../../lib/pathUtils';
 
 function ExplorerPage(): JSX.Element {
   const {

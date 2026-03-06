@@ -10,21 +10,21 @@ import {
   RotateCcw,
   GitBranch,
 } from 'lucide-react';
-import { FILE_STATUS, type FileStatusType } from '../../../../constants';
-import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName, shortenPath } from '../../../../lib/gitHelpers';
+import { FILE_STATUS, type FileStatusType } from '../../../constants';
+import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName, shortenPath } from '../../../lib/gitHelpers';
 import { 
   Button, 
   Textarea, 
   Card, 
   CardContent,
   Input,
-} from '../../../ui';
+} from '../../../components/ui';
 
-import { RewindConfirmModal } from '../../';
-import LFSAutoTrackModal from '../../../common/LFSAutoTrackModal';
-import { GetUserProfile } from '../../../../../bindings/controlzebra/services/settingsservice';
-import { useLfsAutoTrackBeforeSave } from '../../../../hooks/useLfsAutoTrackBeforeSave';
-import type { FileStatus } from '../../../../context';
+import { RewindConfirmModal } from '../../../components/layout';
+import LFSAutoTrackModal from '../components/LFSAutoTrackModal';
+import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
+import { useLfsAutoTrackBeforeSave } from '../hooks/useLfsAutoTrackBeforeSave';
+import type { FileStatus } from '../../../context';
 
 // ============================================================================
 // Types

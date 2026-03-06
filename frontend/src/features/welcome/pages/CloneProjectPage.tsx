@@ -31,16 +31,16 @@ import {
   Star,
   GitFork,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
-import { ICON_STYLES } from '../../../../lib/gitHelpers';
-import { useRepo } from '../../../../context';
-import { GitHubDeviceFlowModal, ProjectCreationStepper } from '../../../common';
-import type { StepperStatus } from '../../../common';
-import { Button, Input, Select, Switch } from '../../../ui';
-import type { SelectOption } from '../../../ui';
-import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
-import { RepoList, RepoListForOrg, RepoClone } from '../../../../../bindings/controlzebra/services/githubservice';
-import type { GitHubRepo } from '../../../../../bindings/controlzebra/services/models';
+import { ICON_SIZES } from '../../../constants';
+import { ICON_STYLES } from '../../../lib/gitHelpers';
+import { useRepo } from '../../../context';
+import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import ProjectCreationStepper, { type StepperStatus } from '../components/ProjectCreationStepper';
+import { Button, Input, Select, Switch } from '../../../components/ui';
+import type { SelectOption } from '../../../components/ui';
+import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
+import { RepoList, RepoListForOrg, RepoClone } from '../../../../bindings/controlzebra/services/githubservice';
+import type { GitHubRepo } from '../../../../bindings/controlzebra/services/models';
 
 // ============================================================================
 // Types

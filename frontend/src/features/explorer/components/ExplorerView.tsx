@@ -13,8 +13,9 @@ import { memo, useState, useCallback, useMemo } from 'react';
 import { MAIN_BRANCHES, VIEWS } from '../../../constants';
 import { useLayout, useRepo, type FileStatus } from '../../../context';
 import { getFolderNameFromPath } from '../../../lib/pathUtils';
-import { SidebarCommitPanel, ExplorerStatusPanel } from '../sidebar-panels';
-import { GitHubDeviceFlowModal } from '../../common';
+import SidebarCommitPanel from './SidebarCommitPanel';
+import ExplorerStatusPanel from './ExplorerStatusPanel';
+import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 
 // ============================================================================
 // Types

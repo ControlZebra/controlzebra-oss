@@ -10,9 +10,9 @@
  */
 import { memo, useCallback, useMemo } from 'react';
 import { X, FolderOpen, FileText, Pin, Eye, FileDiff, type LucideIcon } from 'lucide-react';
-import { useLayout } from '../../context';
-import { ICON_SIZES, type ExplorerTab } from '../../constants';
-import { getViewerById, getViewerForFile } from '../../lib/viewers';
+import { useLayout } from '../../../context';
+import { ICON_SIZES, type ExplorerTab } from '../../../constants';
+import { getViewerById, getViewerForFile } from '../../../lib/viewers';
 
 interface TabItemProps {
   tab: ExplorerTab;

@@ -3,9 +3,9 @@
  */
 import { memo, useCallback, useState, useEffect, type CSSProperties, type ChangeEvent, type JSX } from 'react';
 import { User, Mail, CheckCircle, AlertCircle } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
-import { Button, Input, Label } from '../../../ui';
-import { GetUserProfile, SetUserProfile } from '../../../../../bindings/controlzebra/services/settingsservice';
+import { ICON_SIZES } from '../../../constants';
+import { Button, Input, Label } from '../../../components/ui';
+import { GetUserProfile, SetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 

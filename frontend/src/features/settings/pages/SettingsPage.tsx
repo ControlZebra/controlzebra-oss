@@ -4,10 +4,10 @@
  */
 import { memo, type JSX } from 'react';
 import { Settings } from 'lucide-react';
-import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../../constants';
-import { useLayout } from '../../../../context';
-import GitConfigForm from './GitConfigForm';
-import GeneralSettings from './GeneralSettings';
+import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../constants';
+import { useLayout } from '../../../context';
+import GitConfigForm from '../components/GitConfigForm';
+import GeneralSettings from '../components/GeneralSettings';
 
 function SettingsPage(): JSX.Element {
   const { selectedSettingsCategory } = useLayout();

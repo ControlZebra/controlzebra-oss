@@ -6,8 +6,9 @@ import { memo, useState, useCallback, type CSSProperties, type JSX } from 'react
 import { UserCircle, Github, Check, AlertCircle, Loader2, LogOut } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { useRepo } from '../../../context';
-import { GitLabIcon, GitHubDeviceFlowModal } from '../../common';
-import { Button } from '../../ui';
+import GitLabIcon from '../../../components/common/GitLabIcon';
+import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import { Button } from '../../../components/ui';
 
 interface DeviceFlowState {
   isOpen: boolean;

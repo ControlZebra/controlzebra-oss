@@ -35,19 +35,19 @@ import {
   Globe,
   Eye,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
-import { ICON_STYLES } from '../../../../lib/gitHelpers';
-import { suggestRepoName, getFolderNameFromPath } from '../../../../lib/pathUtils';
-import { useRepo } from '../../../../context';
-import { GitHubDeviceFlowModal, ProjectCreationStepper } from '../../../common';
-import type { StepperStatus } from '../../../common';
-import { Button, Input, Select, Switch, ToggleGroup } from '../../../ui';
-import type { SelectOption } from '../../../ui';
-import { OpenFolderDialog } from '../../../../../bindings/controlzebra/services/filedialogservice';
-import { DetectRepo, GetRemoteURL } from '../../../../../bindings/controlzebra/services/gitservice';
-import { ListDirectory } from '../../../../../bindings/controlzebra/services/filesystemservice';
-import { CheckRepoNameExists } from '../../../../../bindings/controlzebra/services/githubservice';
-import { GetGitignoreTemplates } from '../../../../../bindings/controlzebra/services/repositorysettingsservice';
+import { ICON_SIZES } from '../../../constants';
+import { ICON_STYLES } from '../../../lib/gitHelpers';
+import { suggestRepoName, getFolderNameFromPath } from '../../../lib/pathUtils';
+import { useRepo } from '../../../context';
+import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import ProjectCreationStepper, { type StepperStatus } from '../components/ProjectCreationStepper';
+import { Button, Input, Select, Switch, ToggleGroup } from '../../../components/ui';
+import type { SelectOption } from '../../../components/ui';
+import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
+import { DetectRepo, GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
+import { ListDirectory } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { CheckRepoNameExists } from '../../../../bindings/controlzebra/services/githubservice';
+import { GetGitignoreTemplates } from '../../../../bindings/controlzebra/services/repositorysettingsservice';
 
 // ============================================================================
 // Types

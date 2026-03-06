@@ -26,11 +26,11 @@ import {
   PROJECT_STATE_CONFIGS,
   ICON_SIZES,
   type ProjectState,
-} from '../../constants';
-import { Button } from '../ui';
-import { cn } from '../../lib/utils';
-import type { GitHubAuthStatus, GitHubOrganizationsResult } from '../../context/RepoContext.types';
-import PublishToCloudModal from './PublishToCloudModal.tsx';
+} from '../../../constants';
+import { Button } from '../../../components/ui';
+import { cn } from '../../../lib/utils';
+import type { GitHubAuthStatus, GitHubOrganizationsResult } from '../../../context/RepoContext.types';
+import PublishToCloudModal from '../../welcome/components/PublishToCloudModal';
 
 // ============================================================================
 // Types
