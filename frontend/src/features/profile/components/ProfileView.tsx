@@ -6,7 +6,7 @@ import { memo, useState, type CSSProperties, type JSX } from 'react';
 import { UserCircle, Crown, Zap, LogOut } from 'lucide-react';
 import { ICON_SIZES } from '../../../constants';
 import { useAuth } from '../../../context';
-import { Button } from '../../ui';
+import { Button } from '../../../components/ui';
 
 const avatarSize = ICON_SIZES.lg * 2;
 const avatarStyle: CSSProperties = { width: avatarSize, height: avatarSize };

@@ -21,10 +21,10 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '../../ui';
+} from '../../../components/ui';
 import { useAuth } from '../../../context';
 import { useLoginTheme } from '../../../hooks/useLoginTheme';
-import Spinner from '../../common/Spinner';
+import Spinner from '../../../components/common/Spinner';
 
 /* -------------------------------------------------------------------------- */
 /*  Logo                                                                      */

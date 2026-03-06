@@ -29,8 +29,8 @@ import {
   MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../../constants';
-import { useLayout, useRepo } from '../../../../context';
+import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../constants';
+import { useLayout, useRepo } from '../../../context';
 import { 
   Button, 
   Card, 
@@ -48,8 +48,8 @@ import {
   Label,
   Switch,
   Badge,
-} from '../../../ui';
-import RewindConfirmModal from '../../../../widgets/layout/RewindConfirmModal';
+} from '../../../components/ui';
+import RewindConfirmModal from '../../../widgets/layout/RewindConfirmModal';
 import {
   GetSettings,
   UpdateBackgroundTask,
@@ -65,14 +65,14 @@ import {
   RepairRepository,
   ResetToDefaults,
   RecoverFromDetachedHead,
-} from '../../../../../bindings/controlzebra/services/repositorysettingsservice';
+} from '../../../../bindings/controlzebra/services/repositorysettingsservice';
 import {
   AbortRevert,
   AbortBisect,
   AbortAM,
   AbortCurrentOperation,
   GetRemoteURL,
-} from '../../../../../bindings/controlzebra/services/gitservice';
+} from '../../../../bindings/controlzebra/services/gitservice';
 import {
   IsLFSInstalled,
   IsLFSEnabled,
@@ -81,9 +81,9 @@ import {
   GetTrackedPatterns,
   TrackPattern,
   UntrackPattern,
-} from '../../../../../bindings/controlzebra/services/lfsservice';
-import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../../bindings/controlzebra/services/models';
-import { getFolderNameFromPath } from '../../../../lib/pathUtils';
+} from '../../../../bindings/controlzebra/services/lfsservice';
+import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../bindings/controlzebra/services/models';
+import { getFolderNameFromPath } from '../../../lib/pathUtils';
 
 // ============================================================================
 // Types

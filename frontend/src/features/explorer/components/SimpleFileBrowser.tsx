@@ -51,17 +51,17 @@ import {
   RevealInFinder,
   CopyToClipboard,
   MoveToTrash,
-} from '../../../bindings/controlzebra/services/filesystemservice';
-import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
-import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../bindings/controlzebra/services/lfsservice';
-import { FileEntry } from '../../../bindings/controlzebra/services/models';
-import { useRepo, useLayout } from '../../context';
-import { useWindowSize } from '../../hooks';
-import { openExternalUrl } from '../../shared/runtime/browser';
+} from '../../../../bindings/controlzebra/services/filesystemservice';
+import { GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
+import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../../bindings/controlzebra/services/lfsservice';
+import { FileEntry } from '../../../../bindings/controlzebra/services/models';
+import { useRepo, useLayout } from '../../../context';
+import { useWindowSize } from '../../../hooks';
+import { openExternalUrl } from '../../../shared/runtime/browser';
 import { toast } from 'sonner';
 import { Events } from '@wailsio/runtime';
-import { type ExplorerTab } from '../../constants';
-import { getViewerForFile } from '../../lib/viewers';
+import { type ExplorerTab } from '../../../constants';
+import { getViewerForFile } from '../../../lib/viewers';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,7 +71,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../ui/alert-dialog';
+} from '../../../components/ui/alert-dialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -79,13 +79,13 @@ import {
   ContextMenuSeparator,
   ContextMenuShortcut,
   ContextMenuTrigger,
-} from '../ui/context-menu';
+} from '../../../components/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+} from '../../../components/ui/dropdown-menu';
 
 /**
  * Helper to reveal a path in the system file manager (Finder on macOS, Explorer on Windows)

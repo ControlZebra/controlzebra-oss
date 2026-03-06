@@ -7,13 +7,14 @@
 import { memo, useCallback, useState } from 'react';
 import { GitBranch, List } from 'lucide-react';
 import { useRepo } from '../../../context';
-import { CommitList, GitGraph } from '../../common';
+import CommitList from './CommitList';
+import GitGraph from './GitGraph';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '../../ui';
+} from '../../../components/ui';
 
 type ViewMode = 'list' | 'graph';
 

@@ -8,22 +8,22 @@ import type { ComponentType } from 'react';
 import { VIEWS, type ViewType } from '../../../constants';
 
 // Page components
-export { ExplorerPage } from './explorer';
-export { default as HistoryPage } from './HistoryPage';
-export { default as MergeChangesPage } from './MergeChangesPage';
-export { default as ProfilePage } from './ProfilePage';
-export { default as DebugPage } from './DebugPage';
-export { SettingsPage } from './settings';
-export { RepoSettingsPage } from './repo-settings';
+export { ExplorerPage } from '../../../features/explorer/pages';
+export { default as HistoryPage } from '../../../features/history/pages/HistoryPage';
+export { default as MergeChangesPage } from '../../../features/merge/pages/MergeChangesPage';
+export { default as ProfilePage } from '../../../features/profile/pages/ProfilePage';
+export { default as DebugPage } from '../../../features/debug/pages/DebugPage';
+export { default as SettingsPage } from '../../../features/settings/pages/SettingsPage';
+export { RepoSettingsPage } from '../../../features/repo-settings/pages';
 
 // Import for registry
-import { ExplorerPage } from './explorer';
-import HistoryPage from './HistoryPage';
-import MergeChangesPage from './MergeChangesPage';
-import ProfilePage from './ProfilePage';
-import DebugPage from './DebugPage';
-import { SettingsPage } from './settings';
-import { RepoSettingsPage } from './repo-settings';
+import { ExplorerPage } from '../../../features/explorer/pages';
+import HistoryPage from '../../../features/history/pages/HistoryPage';
+import MergeChangesPage from '../../../features/merge/pages/MergeChangesPage';
+import ProfilePage from '../../../features/profile/pages/ProfilePage';
+import DebugPage from '../../../features/debug/pages/DebugPage';
+import SettingsPage from '../../../features/settings/pages/SettingsPage';
+import { RepoSettingsPage } from '../../../features/repo-settings/pages';
 
 /**
  * VIEW_REGISTRY - Maps view IDs to page components.

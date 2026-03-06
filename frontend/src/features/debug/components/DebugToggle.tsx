@@ -4,8 +4,8 @@
  * Shows a green dot when active.
  */
 import { memo, type CSSProperties } from 'react';
-import { Switch } from '../../../ui';
-import { ICON_SIZES } from '../../../../constants';
+import { Switch } from '../../../components/ui';
+import { ICON_SIZES } from '../../../constants';
 
 interface DebugToggleProps {
   enabled: boolean;

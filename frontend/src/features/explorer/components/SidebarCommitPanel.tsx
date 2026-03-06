@@ -11,13 +11,13 @@ import {
 import { FILE_STATUS, MAIN_BRANCHES, type FileStatusType, type ExplorerTab } from '../../../constants';
 import { ICON_STYLES, STATUS_CONFIG } from '../../../lib/gitHelpers';
 import { useLayout, useRepo } from '../../../context';
-import { Button, Textarea } from '../../ui';
-import LFSAutoTrackModal from '../../common/LFSAutoTrackModal';
-import { RewindConfirmModal } from '../';
+import { Button, Textarea } from '../../../components/ui';
+import LFSAutoTrackModal from './LFSAutoTrackModal';
+import { RewindConfirmModal } from '../../../components/layout';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import { supportsDiff } from '../../../shared/constants/file-utils';
 import type { FileStatus } from '../../../context';
-import { useLfsAutoTrackBeforeSave } from '../../../hooks/useLfsAutoTrackBeforeSave';
+import { useLfsAutoTrackBeforeSave } from '../hooks/useLfsAutoTrackBeforeSave';
 import MainBranchSaveChoiceModal, { type MainBranchSaveChoice } from './MainBranchSaveChoiceModal';
 
 let rememberedMainBranchSaveChoice: MainBranchSaveChoice | null = null;

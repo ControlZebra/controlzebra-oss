@@ -12,7 +12,7 @@ import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 
 import { ICON_SIZES } from '../../../constants';
-import DiffViewer from '../../../components/common/DiffViewer';
+import DiffViewer from '../../../features/explorer/components/DiffViewer';
 
 import {
   DiffCommitFileRaw,

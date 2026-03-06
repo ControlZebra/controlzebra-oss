@@ -28,8 +28,8 @@ import { getFolderNameFromPath } from '../../../lib/pathUtils';
 import { MAIN_BRANCHES } from '../../../constants';
 import { 
   Button, 
-} from '../../ui';
-import PublishToCloudModal from '../../common/PublishToCloudModal.tsx';
+} from '../../../components/ui';
+import PublishToCloudModal from '../../welcome/components/PublishToCloudModal';
 import type { GitHubAuthStatus, GitHubOrganizationsResult } from '../../../context/RepoContext.types';
 
 // ============================================================================

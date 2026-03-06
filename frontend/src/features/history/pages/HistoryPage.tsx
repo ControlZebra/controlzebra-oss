@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { VIEWS, ICON_SIZES } from '../../../constants';
 import { useRepo, type CommitDetail } from '../../../context';
-import { EmptyState, LoadingState } from '../../common';
+import { EmptyState, LoadingState } from '../../../components/common';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
 import { 
   Button,
@@ -28,7 +28,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
-} from '../../ui';
+} from '../../../components/ui';
 
 // ============================================================================
 // Types

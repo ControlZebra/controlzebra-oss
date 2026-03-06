@@ -20,16 +20,16 @@ import type {
   DebugStats,
 } from '../../../../bindings/controlzebra/services/models';
 import { LogFilter } from '../../../../bindings/controlzebra/services/models';
-import DebugToggle from '../views/debug/DebugToggle';
-import LogFilterBar from '../views/debug/LogFilterBar';
-import LogEntryRow from '../views/debug/LogEntryRow';
-import StatsBar from '../views/debug/StatsBar';
+import DebugToggle from '../components/DebugToggle';
+import LogFilterBar from '../components/LogFilterBar';
+import LogEntryRow from '../components/LogEntryRow';
+import StatsBar from '../components/StatsBar';
 import {
   ContextMenu,
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-} from '../../ui';
+} from '../../../components/ui';
 
 const MAX_LOCAL_ENTRIES = 2000;
 const STATS_REFRESH_MS = 3000;

@@ -10,15 +10,15 @@ import {
   FolderSync,
   Settings,
 } from 'lucide-react';
-import { ICON_SIZES, VIEWS } from '../../constants';
-import { useLayout, useRepo } from '../../context';
-import { Button } from '../ui';
-import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover';
-import { cn } from '../../lib/utils';
-import { getFolderNameFromPath } from '../../lib/pathUtils';
-import { RevealInFinder } from '../../../bindings/controlzebra/services/filesystemservice';
-import { GetRemoteURL } from '../../../bindings/controlzebra/services/gitservice';
-import { openExternalUrl } from '../../shared/runtime/browser';
+import { ICON_SIZES, VIEWS } from '../../../constants';
+import { useLayout, useRepo } from '../../../context';
+import { Button } from '../../../components/ui';
+import { Popover, PopoverTrigger, PopoverContent } from '../../../components/ui/popover';
+import { cn } from '../../../lib/utils';
+import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import { RevealInFinder } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
+import { openExternalUrl } from '../../../shared/runtime/browser';
 import { toast } from 'sonner';
 
 // ============================================================================
