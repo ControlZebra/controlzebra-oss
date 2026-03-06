@@ -49,7 +49,7 @@ import {
   Switch,
   Badge,
 } from '../../../ui';
-import RewindConfirmModal from '../../RewindConfirmModal';
+import RewindConfirmModal from '../../../../widgets/layout/RewindConfirmModal';
 import {
   GetSettings,
   UpdateBackgroundTask,

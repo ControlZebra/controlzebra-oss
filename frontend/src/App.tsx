@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AuthProvider, useAuth, RepoProvider } from './context';
 import { AppLayout } from './components/layout';
-import { initAnalytics, trackAppLaunched, trackAppClosed } from './lib/analytics';
+import { initAnalytics, trackAppLaunched, trackAppClosed } from './domain/analytics/analytics';
 import LoginView from './components/layout/views/LoginView';
 import Spinner from './components/common/Spinner';
 import { useLoginTheme } from './hooks/useLoginTheme';

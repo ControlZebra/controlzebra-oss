@@ -9,7 +9,7 @@ import {
   getAnalyticsConsent, 
   setAnalyticsConsent, 
   type AnalyticsConsent 
-} from '../../../../lib/analytics';
+} from '../../../../domain/analytics/analytics';
 import { Button } from '../../../ui';
 import {
   GetDataLocations,

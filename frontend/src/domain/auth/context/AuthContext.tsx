@@ -23,12 +23,12 @@ import {
   hydrateSession,
   refreshSession as refreshSupabaseSession,
   serialiseSession,
-} from '../lib/supabaseClient';
+} from '../supabaseClient';
 import {
   LoadSession,
   SaveSession,
   ClearSession,
-} from '../../bindings/controlzebra/services/authservice';
+} from '../../../../bindings/controlzebra/services/authservice';
 
 interface AuthContextValue {
   isLoading: boolean;

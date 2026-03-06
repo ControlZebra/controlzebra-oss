@@ -5,7 +5,7 @@
 import { memo, useState, useCallback, useEffect, useRef, type KeyboardEvent, type CSSProperties } from 'react';
 import { GitBranch } from 'lucide-react';
 import { ICON_SIZES } from '../../constants';
-import { Button, Input } from '../ui';
+import { Button, Input } from '../../components/ui';
 
 // ============================================================================
 // Types

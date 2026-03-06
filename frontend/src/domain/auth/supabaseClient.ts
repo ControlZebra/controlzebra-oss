@@ -10,7 +10,7 @@
  *   https://supabase.com/docs/guides/auth/quickstarts/react
  *
  * Usage:
- *   import { supabase, signIn, signOut, getSession, refreshSession } from '../lib/supabaseClient';
+ *   import { supabase, signIn, signOut, getSession, refreshSession } from './supabaseClient';
  */
 
 import { createClient, type Session } from '@supabase/supabase-js';

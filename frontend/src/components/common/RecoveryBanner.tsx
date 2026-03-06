@@ -12,7 +12,7 @@ import { AlertTriangle, Lock, X, ArrowRight, Loader2, GitBranch, type LucideIcon
 import { ICON_SIZES, VIEWS } from '../../constants';
 import { useRepo, useLayout } from '../../context';
 import { Button } from '../ui';
-import BranchModal from '../layout/BranchModal';
+import BranchModal from '../../widgets/layout/BranchModal';
 
 const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 

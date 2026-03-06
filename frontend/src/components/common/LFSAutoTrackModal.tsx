@@ -9,7 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../ui';
-import type { LFSAutoTrackCandidate } from '../../lib/lfs-auto-track';
+import type { LFSAutoTrackCandidate } from '../../domain/repo/services/lfs-auto-track';
 
 interface LFSAutoTrackModalProps {
   open: boolean;
