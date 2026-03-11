@@ -6,7 +6,7 @@
 import { memo, useMemo } from 'react';
 import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
-import { cn } from '../../../lib/utils';
+import { cn } from '../../../shared/utils/misc';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
 
 

@@ -15,7 +15,7 @@ import {
   Check,
   GitMerge,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { useRepo, type ConflictedFile, type ResolutionStrategy } from '../../../context';
 
 // ============================================================================

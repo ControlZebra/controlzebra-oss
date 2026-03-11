@@ -1,7 +1,7 @@
 export { LayoutProvider, useLayout } from './LayoutContext';
 export type { Theme } from './LayoutContext';
-export { AuthProvider, useAuth } from './AuthContext';
-export { RepoProvider, useRepo } from './RepoContext';
+export { AuthProvider, useAuth } from '../domain/auth/context/AuthContext';
+export { RepoProvider, useRepo } from '../domain/repo/context/RepoContext';
 export type {
   RepoContextValue,
   RepoInfo,
@@ -19,4 +19,7 @@ export type {
   FileResolutionsMap,
   ResolutionStrategy,
   GitInitOptions,
-} from './RepoContext.types';
+  GitHubAuthStatus,
+  GitHubOrganization,
+  GitHubOrganizationsResult,
+} from '../domain/repo/context/RepoContext.types';

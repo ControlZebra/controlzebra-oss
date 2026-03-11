@@ -4,7 +4,7 @@
  */
 import { memo, useCallback, type CSSProperties } from 'react';
 import { Search, X } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 
 // Category tab definitions
 const CATEGORIES = [

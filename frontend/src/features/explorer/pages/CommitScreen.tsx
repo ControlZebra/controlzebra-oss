@@ -10,17 +10,17 @@ import {
   RotateCcw,
   GitBranch,
 } from 'lucide-react';
-import { FILE_STATUS, type FileStatusType } from '../../../constants';
-import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName, shortenPath } from '../../../lib/gitHelpers';
+import { FILE_STATUS, type FileStatusType } from '../../../shared/constants';
+import { ICON_STYLES, STATUS_CONFIG, generateDefaultBranchName, shortenPath } from '../../../shared/utils/gitHelpers';
 import { 
   Button, 
   Textarea, 
   Card, 
   CardContent,
   Input,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 
-import { RewindConfirmModal } from '../../../components/layout';
+import { RewindConfirmModal } from '../../../widgets/layout';
 import LFSAutoTrackModal from '../components/LFSAutoTrackModal';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import { useLfsAutoTrackBeforeSave } from '../hooks/useLfsAutoTrackBeforeSave';

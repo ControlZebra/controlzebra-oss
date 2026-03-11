@@ -56,12 +56,12 @@ import { GetRemoteURL } from '../../../../bindings/controlzebra/services/gitserv
 import { GetGitUser, LFSLsFiles, LFSLock, LFSLocks, LFSUnlock } from '../../../../bindings/controlzebra/services/lfsservice';
 import { FileEntry } from '../../../../bindings/controlzebra/services/models';
 import { useRepo, useLayout } from '../../../context';
-import { useWindowSize } from '../../../hooks';
+import { useWindowSize } from '../../../shared/hooks';
 import { openExternalUrl } from '../../../shared/runtime/browser';
 import { toast } from 'sonner';
-import { Events } from '@wailsio/runtime';
-import { type ExplorerTab } from '../../../constants';
-import { getViewerForFile } from '../../../lib/viewers';
+import { onEvent } from '../../../shared/runtime/events';
+import { type ExplorerTab } from '../../../shared/constants';
+import { getViewerForFile } from '../../../viewers/registry/viewer-registry';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,7 +71,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../../components/ui/alert-dialog';
+} from '../../../shared/ui/alert-dialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -79,13 +79,13 @@ import {
   ContextMenuSeparator,
   ContextMenuShortcut,
   ContextMenuTrigger,
-} from '../../../components/ui/context-menu';
+} from '../../../shared/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../../../components/ui/dropdown-menu';
+} from '../../../shared/ui/dropdown-menu';
 
 /**
  * Helper to reveal a path in the system file manager (Finder on macOS, Explorer on Windows)
@@ -1533,7 +1533,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
       }
     };
     
-    const unsubscribe = Events.On('files-changed', handleFileChanged);
+    const unsubscribe = onEvent('files-changed', handleFileChanged);
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       if (typeof unsubscribe === 'function') {

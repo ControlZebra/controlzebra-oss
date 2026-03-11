@@ -15,7 +15,7 @@ import {
   Bug,
   type LucideIcon,
 } from 'lucide-react';
-import { ICON_SIZES, VIEWS, type ViewType } from '../../constants';
+import { ICON_SIZES, VIEWS, type ViewType } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
 
 // ============================================================================

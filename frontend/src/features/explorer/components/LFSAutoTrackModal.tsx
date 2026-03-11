@@ -8,7 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 import type { LFSAutoTrackCandidate } from '../../../domain/repo/services/lfs-auto-track';
 
 interface LFSAutoTrackModalProps {

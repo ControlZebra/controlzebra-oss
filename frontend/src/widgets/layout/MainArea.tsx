@@ -11,7 +11,7 @@
  */
 import { memo } from 'react';
 import { useLayout } from '../../context';
-import { VIEW_REGISTRY, ExplorerPage } from '../../components/layout/pages';
+import { VIEW_REGISTRY, ExplorerPage } from './view-registry';
 
 function MainArea(): JSX.Element {
   const { activeView } = useLayout();

@@ -29,7 +29,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../constants';
+import { REPO_SETTINGS_CATEGORIES, ICON_SIZES } from '../../../shared/constants';
 import { useLayout, useRepo } from '../../../context';
 import { 
   Button, 
@@ -48,7 +48,7 @@ import {
   Label,
   Switch,
   Badge,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 import RewindConfirmModal from '../../../widgets/layout/RewindConfirmModal';
 import {
   GetSettings,
@@ -83,7 +83,7 @@ import {
   UntrackPattern,
 } from '../../../../bindings/controlzebra/services/lfsservice';
 import { BackgroundTaskType, PresetPattern, TrackedPattern } from '../../../../bindings/controlzebra/services/models';
-import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import { getFolderNameFromPath } from '../../../shared/utils/path';
 
 // ============================================================================
 // Types

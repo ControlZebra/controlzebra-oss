@@ -4,8 +4,8 @@
  */
 import { memo, useState, useCallback, type CSSProperties } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
-import type { LogEntry } from '../../../../../bindings/controlzebra/services/models';
+import { ICON_SIZES } from '../../../shared/constants';
+import type { LogEntry } from '../../../../bindings/controlzebra/services/models';
 
 // ============================================================================
 // Helpers

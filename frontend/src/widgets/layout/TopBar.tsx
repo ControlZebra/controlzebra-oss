@@ -20,10 +20,10 @@ import {
   Menu,
 } from 'lucide-react';
 import { openExternalUrl } from '../../shared/runtime/browser';
-import { ICON_SIZES, VIEWS } from '../../constants';
+import { ICON_SIZES, VIEWS } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
-import { useWindowSize, BREAKPOINTS } from '../../hooks';
-import { UndoLastSaveDialog } from '../../components/ui';
+import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
+import { UndoLastSaveDialog } from '../../shared/ui';
 import BranchModal from './BranchModal';
 import RewindConfirmModal from './RewindConfirmModal';
 import SwitchProjectModal from './SwitchProjectModal';
@@ -33,7 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
+} from '../../shared/ui/dropdown-menu';
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };

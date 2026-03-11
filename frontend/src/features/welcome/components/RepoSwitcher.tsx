@@ -10,12 +10,12 @@ import {
   FolderSync,
   Settings,
 } from 'lucide-react';
-import { ICON_SIZES, VIEWS } from '../../../constants';
+import { ICON_SIZES, VIEWS } from '../../../shared/constants';
 import { useLayout, useRepo } from '../../../context';
-import { Button } from '../../../components/ui';
-import { Popover, PopoverTrigger, PopoverContent } from '../../../components/ui/popover';
-import { cn } from '../../../lib/utils';
-import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import { Button } from '../../../shared/ui';
+import { Popover, PopoverTrigger, PopoverContent } from '../../../shared/ui/popover';
+import { cn } from '../../../shared/utils/misc';
+import { getFolderNameFromPath } from '../../../shared/utils/path';
 import { RevealInFinder } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
 import { openExternalUrl } from '../../../shared/runtime/browser';

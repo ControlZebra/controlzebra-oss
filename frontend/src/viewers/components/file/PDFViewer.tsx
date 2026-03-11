@@ -28,7 +28,7 @@ import {
   ChevronRight,
   FileText,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { getPathFileName } from '../shared/path-utils';

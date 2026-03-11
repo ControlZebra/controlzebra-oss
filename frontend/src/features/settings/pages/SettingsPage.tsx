@@ -4,7 +4,7 @@
  */
 import { memo, type JSX } from 'react';
 import { Settings } from 'lucide-react';
-import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../constants';
+import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../shared/constants';
 import { useLayout } from '../../../context';
 import GitConfigForm from '../components/GitConfigForm';
 import GeneralSettings from '../components/GeneralSettings';

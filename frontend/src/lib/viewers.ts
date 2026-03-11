@@ -1,1 +1,0 @@
-export * from '../viewers/registry/viewer-registry';

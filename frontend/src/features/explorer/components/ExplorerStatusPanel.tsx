@@ -23,14 +23,14 @@ import {
   Github,
   type LucideIcon,
 } from 'lucide-react';
-import { ICON_STYLES } from '../../../lib/gitHelpers';
-import { getFolderNameFromPath } from '../../../lib/pathUtils';
-import { MAIN_BRANCHES } from '../../../constants';
+import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
+import { getFolderNameFromPath } from '../../../shared/utils/path';
+import { MAIN_BRANCHES } from '../../../shared/constants';
 import { 
   Button, 
-} from '../../../components/ui';
+} from '../../../shared/ui';
 import PublishToCloudModal from '../../welcome/components/PublishToCloudModal';
-import type { GitHubAuthStatus, GitHubOrganizationsResult } from '../../../context/RepoContext.types';
+import type { GitHubAuthStatus, GitHubOrganizationsResult } from '../../../context';
 
 // ============================================================================
 // Types

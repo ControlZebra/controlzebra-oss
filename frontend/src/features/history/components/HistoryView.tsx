@@ -14,7 +14,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 
 type ViewMode = 'list' | 'graph';
 

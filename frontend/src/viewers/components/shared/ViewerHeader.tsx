@@ -14,7 +14,7 @@ import { memo, useCallback, type ReactNode } from 'react';
 import { FileText, ExternalLink, type LucideIcon } from 'lucide-react';
 import { OpenFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { toast } from 'sonner';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 
 // ============================================================================
 // Types

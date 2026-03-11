@@ -3,13 +3,13 @@
  *
  * Shared across the app wherever routing decisions depend on file extension
  * (diff viewers, sidebar panels, explorer pages, etc.).
+ *
+ * For generic file-kind detection, prefer `isFileKind(path, kind)` from
+ * `./file-types`. The helpers below exist only where they add semantics that
+ * `isFileKind` does not provide (e.g. `isImageFile` excludes SVG/ICO/AVIF
+ * because those formats are unsuitable for pixel-level image diffing).
  */
-import {
-  IMAGE_EXTENSIONS,
-  L5X_EXTENSIONS,
-  MODEL_3D_EXTENSIONS,
-  PDF_EXTENSIONS,
-} from './file-types';
+import { IMAGE_EXTENSIONS } from './file-types';
 
 // ---------------------------------------------------------------------------
 // Image Files (diffable raster formats — SVG excluded)
@@ -27,6 +27,10 @@ const IMAGE_DIFF_EXTENSIONS = new Set<string>(
 /**
  * Check if a file path has a raster image extension suitable for visual diffing.
  *
+ * NOTE: This intentionally differs from `isFileKind(path, 'image')` which
+ * includes ALL image types (svg, ico, avif). Use this specifically for
+ * image diff routing decisions.
+ *
  * @example
  *   isImageFile('screenshot.png')         // true
  *   isImageFile('/repo/assets/logo.svg')  // false  (SVG → text diff)
@@ -38,65 +42,8 @@ export function isImageFile(filePath: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Domain-specific files (L5X / L5K)
-// ---------------------------------------------------------------------------
-
-const DOMAIN_DIFF_EXTENSIONS = new Set<string>(L5X_EXTENSIONS);
-
-/** Check if a file path is a Rockwell Automation ladder-logic file. */
-export function isL5XFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return DOMAIN_DIFF_EXTENSIONS.has(ext);
-}
-
-// ---------------------------------------------------------------------------
-// PDF Files
-// ---------------------------------------------------------------------------
-
-const PDF_EXTENSION_SET = new Set<string>(PDF_EXTENSIONS);
-
-/**
- * Check if a file path is a PDF file suitable for visual page diffing.
- *
- * @example
- *   isPdfFile('report.pdf')    // true
- *   isPdfFile('readme.txt')    // false
- */
-export function isPdfFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return PDF_EXTENSION_SET.has(ext);
-}
-
-// ---------------------------------------------------------------------------
-// 3D Model Files
-// ---------------------------------------------------------------------------
-
-const MODEL_3D_EXTENSION_SET = new Set<string>(MODEL_3D_EXTENSIONS);
-
-/**
- * Check if a file path has a 3D model extension.
- *
- * @example
- *   is3DModelFile('part.stl')             // true
- *   is3DModelFile('/repo/cad/housing.stp') // true
- *   is3DModelFile('readme.md')            // false
- */
-export function is3DModelFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return MODEL_3D_EXTENSION_SET.has(ext);
-}
-
-// ---------------------------------------------------------------------------
 // Aggregate helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Returns true if the file type supports any kind of rich visual diff
- * (image diff, L5X domain diff, PDF visual diff, etc.) — as opposed to plain text diff.
- */
-export function supportsVisualDiff(filePath: string): boolean {
-  return isImageFile(filePath) || isL5XFile(filePath) || isPdfFile(filePath) || is3DModelFile(filePath);
-}
 
 /**
  * Returns true if the file can be opened in a diff tab.

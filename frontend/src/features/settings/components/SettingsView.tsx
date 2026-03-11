@@ -3,7 +3,7 @@
  * Displays settings categories; actual forms are shown in MainArea.
  */
 import { memo } from 'react';
-import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../constants';
+import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../shared/constants';
 import { useLayout } from '../../../context';
 
 // ============================================================================

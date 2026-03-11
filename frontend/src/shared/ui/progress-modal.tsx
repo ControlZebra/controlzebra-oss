@@ -5,8 +5,8 @@
  */
 import { memo, useEffect, useState, useRef } from "react";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
-import { Events } from "@wailsio/runtime";
-import { cn } from "../../lib/utils";
+import { onEvent } from "../runtime/events";
+import { cn } from "../utils/misc";
 import { Progress } from "./progress";
 
 // Debounce interval for progress updates (ms)
@@ -103,7 +103,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
       }
     };
 
-    const unsubscribe = Events.On("git-progress", handleProgress);
+    const unsubscribe = onEvent("git-progress", handleProgress);
 
     return () => {
       unsubscribe();

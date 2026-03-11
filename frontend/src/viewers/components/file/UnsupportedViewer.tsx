@@ -18,7 +18,7 @@
  */
 import { memo } from 'react';
 import { FileQuestion } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { getPathFileName } from '../shared/path-utils';
 

@@ -7,8 +7,8 @@
  */
 import { memo, useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent } from 'react';
 import { Clock, GitBranch, HardDrive, Folder, X, Trash2, RotateCcw } from 'lucide-react';
-import { ICON_STYLES } from '../../../lib/gitHelpers';
-import { getRecentFolders, removeRecentFolder, clearRecentFolders, getFolderName } from '../../../lib/recentFolders';
+import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
+import { getRecentFolders, removeRecentFolder, clearRecentFolders, getFolderName } from '../../../shared/utils/recentFolders';
 import { GetRecentFolders, ClearRecentFolders } from '../../../../bindings/controlzebra/services/settingsservice';
 import { DetectRepo, GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
 

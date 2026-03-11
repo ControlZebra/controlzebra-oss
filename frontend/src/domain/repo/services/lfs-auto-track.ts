@@ -1,4 +1,4 @@
-import { FILE_STATUS } from '../../../constants';
+import { FILE_STATUS } from '../../../shared/constants';
 import type { FileStatus } from '../context/RepoContext.types';
 import { isTextViewerExtension } from '../../../viewers/components/file/text-viewer-patterns';
 import type { TrackedPattern } from '../../../../bindings/controlzebra/services/models';

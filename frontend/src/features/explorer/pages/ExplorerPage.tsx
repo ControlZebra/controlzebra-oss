@@ -17,10 +17,10 @@ import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } 
 import SimpleFileBrowser from '../components/SimpleFileBrowser';
 import ExplorerTabsBar from '../components/ExplorerTabsBar';
 import ProjectSetupBanner from '../components/ProjectSetupBanner';
-import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../constants';
+import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../shared/constants';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers/components/shared/ViewerRenderer';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
-import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import { getFolderNameFromPath } from '../../../shared/utils/path';
 
 function ExplorerPage(): JSX.Element {
   const {

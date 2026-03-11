@@ -38,10 +38,10 @@ import {
   Info,
   Trash2,
 } from 'lucide-react';
-import { ICON_SIZES, VIEWS } from '../../../constants';
+import { ICON_SIZES, VIEWS } from '../../../shared/constants';
 import {
   Button, Badge, Card, CardHeader, CardContent,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 import { useLayout, useRepo, type BranchInfo, type ConflictedFile, type ResolutionStrategy, type MergeReviewFile, type MergeReviewDiffResult } from '../../../context';
 import MergeReviewDiffModal from '../components/MergeReviewDiffModal';
 

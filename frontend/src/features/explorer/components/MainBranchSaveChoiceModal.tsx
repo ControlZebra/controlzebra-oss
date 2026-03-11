@@ -8,7 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 
 export type MainBranchSaveChoice = 'branch-and-save' | 'save-on-main';
 

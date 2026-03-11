@@ -4,10 +4,10 @@
  */
 import { memo, useState, useCallback, useEffect, type KeyboardEvent, type CSSProperties } from 'react';
 import { GitBranch, Plus, Check, Search } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
+import { ICON_SIZES } from '../../shared/constants';
 import { useRepo, type BranchInfo } from '../../context';
-import { Button, Input } from '../../components/ui';
-import { cn } from '../../lib/utils';
+import { Button, Input } from '../../shared/ui';
+import { cn } from '../../shared/utils/misc';
 
 // ============================================================================
 // Types

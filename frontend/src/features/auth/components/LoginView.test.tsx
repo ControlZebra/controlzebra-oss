@@ -8,7 +8,7 @@ vi.mock('../../../context', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock('../../../hooks/useLoginTheme', () => ({
+vi.mock('../../../shared/hooks/useLoginTheme', () => ({
   useLoginTheme: () => ({
     theme: 'system' as const,
     setTheme: vi.fn(),

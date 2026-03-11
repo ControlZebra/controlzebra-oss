@@ -4,13 +4,13 @@
 import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
 import { Sun, Moon, Monitor, BarChart3, LogOut, Info, FolderTree, type LucideIcon } from 'lucide-react';
 import { useLayout, useAuth, type Theme } from '../../../context';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { 
   getAnalyticsConsent, 
   setAnalyticsConsent, 
   type AnalyticsConsent 
 } from '../../../domain/analytics/analytics';
-import { Button } from '../../../components/ui';
+import { Button } from '../../../shared/ui';
 import {
   GetDataLocations,
 } from '../../../../bindings/controlzebra/services/settingsservice';

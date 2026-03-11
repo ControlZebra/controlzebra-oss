@@ -18,7 +18,7 @@ import type {
   NormalizedRung,
   LadderDiagramTheme,
 } from 'ladder-visualizer';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_SIZES } from '../../../../shared/constants';
 
 import RungChangeCard from './RungChangeCard';
 import ContextRung from './ContextRung';

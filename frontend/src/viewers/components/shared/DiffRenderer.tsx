@@ -1,7 +1,7 @@
 import { memo, Suspense, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import {
   resolveDiffViewer,
   type DiffRenderRequest,

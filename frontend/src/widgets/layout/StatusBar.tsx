@@ -18,8 +18,8 @@ import {
   Bug,
   type LucideIcon,
 } from 'lucide-react';
-import { Events } from '@wailsio/runtime';
-import { ICON_SIZES, VIEWS, PROJECT_STATES, type ProjectState } from '../../constants';
+import { onEvent } from '../../shared/runtime/events';
+import { ICON_SIZES, VIEWS, PROJECT_STATES, type ProjectState } from '../../shared/constants';
 import { useRepo, useLayout } from '../../context';
 import { IsEnabled, SetEnabled } from '../../../bindings/controlzebra/services/debugservice';
 
@@ -148,7 +148,7 @@ function StatusBar(): JSX.Element {
     let cancelled = false;
     IsEnabled().then((v) => { if (!cancelled) setDebugEnabled(v); }).catch(() => {});
 
-    const unsub = Events.On('debug:state-changed', (event: any) => {
+    const unsub = onEvent('debug:state-changed', (event: any) => {
       const data = event?.data?.[0] ?? event;
       setDebugEnabled(data as boolean);
     });

@@ -31,13 +31,13 @@ import {
   Star,
   GitFork,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
-import { ICON_STYLES } from '../../../lib/gitHelpers';
+import { ICON_SIZES } from '../../../shared/constants';
+import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
 import { useRepo } from '../../../context';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import ProjectCreationStepper, { type StepperStatus } from '../components/ProjectCreationStepper';
-import { Button, Input, Select, Switch } from '../../../components/ui';
-import type { SelectOption } from '../../../components/ui';
+import { Button, Input, Select, Switch } from '../../../shared/ui';
+import type { SelectOption } from '../../../shared/ui';
 import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
 import { RepoList, RepoListForOrg, RepoClone } from '../../../../bindings/controlzebra/services/githubservice';
 import type { GitHubRepo } from '../../../../bindings/controlzebra/services/models';

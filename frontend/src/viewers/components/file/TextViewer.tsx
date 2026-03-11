@@ -18,7 +18,7 @@
 import { memo, useMemo, useCallback } from 'react';
 import { FileText, AlertCircle } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { useCachedContent } from '../../registry/viewer-cache';
 import { getPathFileName } from '../shared/path-utils';

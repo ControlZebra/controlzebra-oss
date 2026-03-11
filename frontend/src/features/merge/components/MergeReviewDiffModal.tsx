@@ -1,7 +1,7 @@
 import { memo, useMemo, type CSSProperties } from 'react';
 import { Loader2 } from 'lucide-react';
 
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import type { MergeReviewDiffResult } from '../../../context';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
 import {
@@ -12,7 +12,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 

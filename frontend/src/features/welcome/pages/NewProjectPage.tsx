@@ -35,14 +35,14 @@ import {
   Globe,
   Eye,
 } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
-import { ICON_STYLES } from '../../../lib/gitHelpers';
-import { suggestRepoName, getFolderNameFromPath } from '../../../lib/pathUtils';
+import { ICON_SIZES } from '../../../shared/constants';
+import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
+import { suggestRepoName, getFolderNameFromPath } from '../../../shared/utils/path';
 import { useRepo } from '../../../context';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import ProjectCreationStepper, { type StepperStatus } from '../components/ProjectCreationStepper';
-import { Button, Input, Select, Switch, ToggleGroup } from '../../../components/ui';
-import type { SelectOption } from '../../../components/ui';
+import { Button, Input, Select, Switch, ToggleGroup } from '../../../shared/ui';
+import type { SelectOption } from '../../../shared/ui';
 import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
 import { DetectRepo, GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
 import { ListDirectory } from '../../../../bindings/controlzebra/services/filesystemservice';

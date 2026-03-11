@@ -1,34 +1,11 @@
 /**
  * model3d-utils – Shared utilities for 3D model viewers.
  *
- * Provides:
- * - base64→File conversion (OV requires browser File objects)
- * - Extension set + helper for 3D model detection
- */
-import { MODEL_3D_EXTENSIONS as MODEL_3D_EXTENSIONS_LIST } from '../../../shared/constants/file-types';
-
-// ---------------------------------------------------------------------------
-// Supported 3D extensions
-// ---------------------------------------------------------------------------
-
-/**
- * All file extensions the 3D viewer can handle.
- * Sourced from Online3DViewer's supported import formats.
- */
-export const MODEL_3D_EXTENSIONS = new Set<string>(MODEL_3D_EXTENSIONS_LIST);
-
-/**
- * Check if a file path has a 3D model extension.
+ * Provides base64→File conversion (OV requires browser File objects).
  *
- * @example
- *   is3DModelFile('part.stl')             // true
- *   is3DModelFile('/repo/cad/housing.stp') // true
- *   is3DModelFile('readme.md')            // false
+ * For file-type detection (is3DModelFile, MODEL_3D_EXTENSIONS), use
+ * `isFileKind(path, 'model3d')` from `shared/constants/file-types`.
  */
-export function is3DModelFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
-  return MODEL_3D_EXTENSIONS.has(ext);
-}
 
 // ---------------------------------------------------------------------------
 // base64 → File conversion

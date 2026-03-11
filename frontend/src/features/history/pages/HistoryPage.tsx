@@ -14,9 +14,10 @@ import {
   ChevronLeft,
   RotateCcw,
 } from 'lucide-react';
-import { VIEWS, ICON_SIZES } from '../../../constants';
+import { VIEWS, ICON_SIZES } from '../../../shared/constants';
 import { useRepo, type CommitDetail } from '../../../context';
-import { EmptyState, LoadingState } from '../../../components/common';
+import EmptyState from '../../../shared/ui/EmptyState';
+import LoadingState from '../../../shared/ui/LoadingState';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
 import { 
   Button,
@@ -28,7 +29,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 
 // ============================================================================
 // Types
