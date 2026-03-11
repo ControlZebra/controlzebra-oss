@@ -11,8 +11,8 @@
 import { memo, useCallback, useMemo } from 'react';
 import { X, FolderOpen, FileText, Pin, Eye, FileDiff, type LucideIcon } from 'lucide-react';
 import { useLayout } from '../../../context';
-import { ICON_SIZES, type ExplorerTab } from '../../../constants';
-import { getViewerById, getViewerForFile } from '../../../lib/viewers';
+import { ICON_SIZES, type ExplorerTab } from '../../../shared/constants';
+import { getViewerById, getViewerForFile } from '../../../viewers/registry/viewer-registry';
 
 interface TabItemProps {
   tab: ExplorerTab;

@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { LayoutProvider, useRepo } from '../../context';
-import { Toaster, ProgressModal } from '../../components/ui';
-import { RecoveryBanner } from '../../components/common';
+import { Toaster, ProgressModal } from '../../shared/ui';
+import RecoveryBanner from '../../shared/ui/RecoveryBanner';
 import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';

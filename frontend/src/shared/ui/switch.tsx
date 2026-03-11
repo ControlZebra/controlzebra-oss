@@ -3,7 +3,7 @@
  * Used for boolean on/off settings.
  */
 import * as React from "react";
-import { cn } from "../../lib/utils";
+import { cn } from "../utils/misc";
 
 export interface SwitchProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'> {
   checked?: boolean;

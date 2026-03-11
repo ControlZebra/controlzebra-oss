@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { VIEWS } from '../../constants';
+import { VIEWS } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
 import {
   AlertDialog,
@@ -11,7 +11,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   Button,
-} from '../../components/ui';
+} from '../../shared/ui';
 
 function NonGitFolderPromptModal(): JSX.Element {
   const {

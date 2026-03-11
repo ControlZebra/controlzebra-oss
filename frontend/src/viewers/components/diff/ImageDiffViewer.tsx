@@ -40,9 +40,9 @@ import {
   Equal,
   FileText,
 } from 'lucide-react';
-import { Events } from '@wailsio/runtime';
+import { onEvent } from '../../../shared/runtime/events';
 
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import {
   ImageDiffCommit,
   ImageDiffWorking,
@@ -598,7 +598,7 @@ function ImageDiffViewer({
       setRefreshCounter((c) => c + 1);
     };
 
-    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
 
     return () => {
       if (typeof unsubscribe === 'function') {

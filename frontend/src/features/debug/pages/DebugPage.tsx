@@ -5,7 +5,7 @@
  */
 import { memo, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ArrowDown } from 'lucide-react';
-import { Events } from '@wailsio/runtime';
+import { onEvent } from '../../../shared/runtime/events';
 import { toast } from 'sonner';
 import {
   IsEnabled,
@@ -29,7 +29,7 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 
 const MAX_LOCAL_ENTRIES = 2000;
 const STATS_REFRESH_MS = 3000;
@@ -91,12 +91,12 @@ function DebugPage(): JSX.Element {
       setEnabled(isEnabled);
     };
 
-    const unsub1 = Events.On('debug:new-log', (event: any) => {
+    const unsub1 = onEvent('debug:new-log', (event: any) => {
       const data = event?.data?.[0] ?? event;
       handleNewLog(data as LogEntry);
     });
 
-    const unsub2 = Events.On('debug:state-changed', (event: any) => {
+    const unsub2 = onEvent('debug:state-changed', (event: any) => {
       const data = event?.data?.[0] ?? event;
       handleStateChanged(data as boolean);
     });

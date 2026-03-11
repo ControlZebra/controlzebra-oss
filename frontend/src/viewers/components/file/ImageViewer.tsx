@@ -28,8 +28,8 @@ import {
   RotateCw,
   Minimize,
 } from 'lucide-react';
-import { Events } from '@wailsio/runtime';
-import { ICON_SIZES } from '../../../constants';
+import { onEvent } from '../../../shared/runtime/events';
+import { ICON_SIZES } from '../../../shared/constants';
 import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from './image-utils';
@@ -118,7 +118,7 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
       setRefreshCounter((c) => c + 1);
     };
 
-    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
 
     return () => {
       if (typeof unsubscribe === 'function') {

@@ -4,8 +4,8 @@
  */
 import { memo } from 'react';
 import { Download, Trash2 } from 'lucide-react';
-import { ICON_SIZES } from '../../../constants';
-import type { DebugStats } from '../../../../../bindings/controlzebra/services/models';
+import { ICON_SIZES } from '../../../shared/constants';
+import type { DebugStats } from '../../../../bindings/controlzebra/services/models';
 
 interface StatsBarProps {
   stats: DebugStats;

@@ -13,7 +13,7 @@ import ViewerErrorBoundary from './ViewerErrorBoundary';
 import { ViewerHeader } from './ViewerHeader';
 import { getPathFileName } from './path-utils';
 import type { ViewerConfig, ViewerProps } from '../../registry/viewer-registry';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 
 // ============================================================================
 // Loading Fallback

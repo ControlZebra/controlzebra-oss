@@ -10,9 +10,9 @@
  * - Main branch synced: All caught up
  */
 import { memo, useState, useCallback, useMemo } from 'react';
-import { MAIN_BRANCHES, VIEWS } from '../../../constants';
+import { MAIN_BRANCHES, VIEWS } from '../../../shared/constants';
 import { useLayout, useRepo, type FileStatus } from '../../../context';
-import { getFolderNameFromPath } from '../../../lib/pathUtils';
+import { getFolderNameFromPath } from '../../../shared/utils/path';
 import SidebarCommitPanel from './SidebarCommitPanel';
 import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';

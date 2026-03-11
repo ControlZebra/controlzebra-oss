@@ -3,7 +3,7 @@
  * Displays repository settings categories; actual forms are shown in MainArea.
  */
 import { memo } from 'react';
-import { REPO_SETTINGS_CATEGORIES, type SettingsCategory } from '../../../constants';
+import { REPO_SETTINGS_CATEGORIES, type SettingsCategory } from '../../../shared/constants';
 import { useLayout } from '../../../context';
 
 // ============================================================================

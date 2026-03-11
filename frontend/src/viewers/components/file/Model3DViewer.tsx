@@ -16,8 +16,8 @@
  */
 import { memo, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AlertCircle, Loader2, Box } from 'lucide-react';
-import { Events } from '@wailsio/runtime';
-import { ICON_SIZES } from '../../../constants';
+import { onEvent } from '../../../shared/runtime/events';
+import { ICON_SIZES } from '../../../shared/constants';
 import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { base64ToFile } from './model3d-utils';
@@ -110,7 +110,7 @@ function Model3DViewer({ filePath }: ViewerProps): JSX.Element {
       setRefreshCounter((c) => c + 1);
     };
 
-    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
 
     return () => {
       if (typeof unsubscribe === 'function') {

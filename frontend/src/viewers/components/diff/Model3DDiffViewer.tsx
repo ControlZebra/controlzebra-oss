@@ -36,9 +36,9 @@ import {
   Minus,
   Box,
 } from 'lucide-react';
-import { Events } from '@wailsio/runtime';
+import { onEvent } from '../../../shared/runtime/events';
 
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { GetFileAtRevisionBase64 } from '../../../../bindings/controlzebra/services/gitservice';
 import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { base64ToFile } from '../file/model3d-utils';
@@ -607,7 +607,7 @@ function Model3DDiffViewer({
       setRefreshCounter((c) => c + 1);
     };
 
-    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
 
     return () => {
       if (typeof unsubscribe === 'function') {

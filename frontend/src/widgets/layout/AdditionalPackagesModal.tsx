@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { DownloadCloud, Loader2 } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
+import { ICON_SIZES } from '../../shared/constants';
 import { useRepo } from '../../context';
 import {
   AlertDialog,
@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   Progress,
-} from '../../components/ui';
+} from '../../shared/ui';
 
 function AdditionalPackagesModal(): JSX.Element {
   const {

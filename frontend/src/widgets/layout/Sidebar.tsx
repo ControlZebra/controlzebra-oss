@@ -1,8 +1,15 @@
 import { memo, useMemo, useCallback, useRef, type MouseEvent, type ComponentType } from 'react';
-import { VIEWS, type ViewType } from '../../constants';
+import { VIEWS, type ViewType } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
-import { ExplorerView, HistoryView, MergeChangesView, RepoSettingsView, SettingsView, ProfileView, WelcomeView, DebugView } from '../../components/layout/views';
-import { RepoSwitcher } from '../../components/common';
+import ExplorerView from '../../features/explorer/components/ExplorerView';
+import HistoryView from '../../features/history/components/HistoryView';
+import MergeChangesView from '../../features/merge/components/MergeChangesView';
+import RepoSettingsView from '../../features/repo-settings/components/RepoSettingsView';
+import SettingsView from '../../features/settings/components/SettingsView';
+import ProfileView from '../../features/profile/components/ProfileView';
+import WelcomeView from '../../features/welcome/components/WelcomeView';
+import DebugView from '../../features/debug/components/DebugView';
+import RepoSwitcher from '../../features/welcome/components/RepoSwitcher';
 
 // ============================================================================
 // Types

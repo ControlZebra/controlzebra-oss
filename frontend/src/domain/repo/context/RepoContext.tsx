@@ -105,8 +105,8 @@ import {
 import { useStatusPolling } from '../polling/useStatusPolling';
 import { useAuth } from '../../auth/context/AuthContext';
 import { WatchDirectory, StopWatching } from '../../../../bindings/controlzebra/services/filewatcherservice';
-import { Events } from '@wailsio/runtime';
-import { addRecentFolder } from '../../../lib/recentFolders';
+import { onEvent } from '../../../shared/runtime/events';
+import { addRecentFolder } from '../../../shared/utils/recentFolders';
 import { clearViewerCache } from '../../../viewers/registry/viewer-cache';
 import { clearAllTabStates } from '../../../viewers/components/file/l5x';
 import {
@@ -2576,7 +2576,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Track local portable toolchain progress emitted by backend.
   useEffect(() => {
-    const unsubscribe = Events.On('local-bin:progress', (event: any) => {
+    const unsubscribe = onEvent('local-bin:progress', (event: any) => {
       const payload = (event?.data?.[0] ?? event?.data ?? event) as {
         component?: string;
         phase?: string;
@@ -2733,7 +2733,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }, 300);
     };
     
-    const unsubscribe = Events.On('files-changed', handleFilesChanged);
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
     
     return () => {
       if (timeoutId) {
@@ -2765,7 +2765,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Listen for folder-selected event from native menu
   useEffect(() => {
-    const unsubscribe = Events.On('folder-selected', async (event: { data?: string }) => {
+    const unsubscribe = onEvent('folder-selected', async (event: { data?: string }) => {
       if (event.data) {
         await openFolder(event.data);
       }
@@ -2778,7 +2778,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Listen for folder-closed event from native menu
   useEffect(() => {
-    const unsubscribe = Events.On('folder-closed', async () => {
+    const unsubscribe = onEvent('folder-closed', async () => {
       await closeRepo();
     });
     
@@ -2789,7 +2789,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Listen for file:reveal-in-finder event from native menu
   useEffect(() => {
-    const unsubscribe = Events.On('file:reveal-in-finder', async () => {
+    const unsubscribe = onEvent('file:reveal-in-finder', async () => {
       if (repoPath) {
         const result = await RevealInFinder(repoPath);
         if (!result.success && result.error) {
@@ -2807,7 +2807,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // Listen for file:open-in-terminal event from native menu
   useEffect(() => {
-    const unsubscribe = Events.On('file:open-in-terminal', async () => {
+    const unsubscribe = onEvent('file:open-in-terminal', async () => {
       if (repoPath) {
         const result = await OpenInTerminal(repoPath);
         if (!result.success && result.error) {

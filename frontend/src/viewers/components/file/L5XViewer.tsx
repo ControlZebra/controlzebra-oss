@@ -18,7 +18,7 @@
 import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { useLayout } from '../../../context/LayoutContext';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { useCachedContent } from '../../registry/viewer-cache';

@@ -7,7 +7,7 @@
  */
 import { memo, useCallback } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_SIZES } from '../../../../shared/constants';
 
 // ============================================================================
 // Types

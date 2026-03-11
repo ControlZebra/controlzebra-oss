@@ -11,7 +11,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '../../../components/ui';
+} from '../../../shared/ui';
 import { shortenRelativeDate } from '../utils/relativeDate';
 
 // ============================================================================

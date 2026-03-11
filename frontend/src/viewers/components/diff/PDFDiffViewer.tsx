@@ -41,7 +41,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-import { ICON_SIZES } from '../../../constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { GetFileAtRevisionBase64 } from '../../../../bindings/controlzebra/services/gitservice';
 import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { getPathFileName } from '../shared/path-utils';

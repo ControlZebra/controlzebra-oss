@@ -5,8 +5,8 @@
  */
 import { memo, type CSSProperties } from 'react';
 import { Clock, FolderPlus, Download, FolderOpen } from 'lucide-react';
-import { WELCOME_CATEGORIES, type SettingsCategory } from '../../../constants';
-import { ICON_STYLES } from '../../../lib/gitHelpers';
+import { WELCOME_CATEGORIES, type SettingsCategory } from '../../../shared/constants';
+import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
 import { useLayout } from '../../../context';
 
 // ============================================================================

@@ -4,8 +4,8 @@
  */
 import { memo, useState, useCallback, useEffect, type KeyboardEvent, type ChangeEvent, type CSSProperties } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
-import { Button, Input } from '../../components/ui';
+import { ICON_SIZES } from '../../shared/constants';
+import { Button, Input } from '../../shared/ui';
 
 // ============================================================================
 // Types

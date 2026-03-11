@@ -5,8 +5,8 @@
  */
 import { memo, useCallback, useEffect, type KeyboardEvent, type CSSProperties } from 'react';
 import { Building, FolderOpen } from 'lucide-react';
-import { ICON_SIZES } from '../../constants';
-import { Button } from '../../components/ui';
+import { ICON_SIZES } from '../../shared/constants';
+import { Button } from '../../shared/ui';
 
 // ============================================================================
 // Types

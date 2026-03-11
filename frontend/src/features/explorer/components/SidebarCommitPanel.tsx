@@ -8,12 +8,12 @@ import {
   FileText,
   Undo2,
 } from 'lucide-react';
-import { FILE_STATUS, MAIN_BRANCHES, type FileStatusType, type ExplorerTab } from '../../../constants';
-import { ICON_STYLES, STATUS_CONFIG } from '../../../lib/gitHelpers';
+import { FILE_STATUS, MAIN_BRANCHES, type FileStatusType, type ExplorerTab } from '../../../shared/constants';
+import { ICON_STYLES, STATUS_CONFIG } from '../../../shared/utils/gitHelpers';
 import { useLayout, useRepo } from '../../../context';
-import { Button, Textarea } from '../../../components/ui';
+import { Button, Textarea } from '../../../shared/ui';
 import LFSAutoTrackModal from './LFSAutoTrackModal';
-import { RewindConfirmModal } from '../../../components/layout';
+import { RewindConfirmModal } from '../../../widgets/layout';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
 import { supportsDiff } from '../../../shared/constants/file-utils';
 import type { FileStatus } from '../../../context';

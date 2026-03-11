@@ -6,7 +6,7 @@ import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { Github, Check, Loader2, Copy, ExternalLink } from 'lucide-react';
 import { useRepo } from '../../../context';
 import { openExternalUrl } from '../../../shared/runtime/browser';
-import { Button } from '../../../components/ui';
+import { Button } from '../../../shared/ui';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogCancel,
-} from '../../../components/ui/alert-dialog';
+} from '../../../shared/ui/alert-dialog';
 
 const AUTH_POLL_INTERVAL = 2000;
 

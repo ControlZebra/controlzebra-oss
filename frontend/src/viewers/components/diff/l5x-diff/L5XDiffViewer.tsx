@@ -30,7 +30,7 @@ import {
   type L5XDiff,
 } from 'ladder-visualizer';
 import { ReadFileAtRevisionLarge } from '../../../../../bindings/controlzebra/services/gitservice';
-import { ICON_SIZES } from '../../../../constants';
+import { ICON_SIZES } from '../../../../shared/constants';
 import { useLayout } from '../../../../context/LayoutContext';
 import { getPathFileName } from '../../shared/path-utils';
 
