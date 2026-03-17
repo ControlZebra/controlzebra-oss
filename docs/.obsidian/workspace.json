@@ -1,0 +1,215 @@
+{
+  "main": {
+    "id": "41e39ab2f1f40181",
+    "type": "split",
+    "children": [
+      {
+        "id": "d19ed04004deee71",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e9f75cfe866a9c76",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "technical/frontend/UI Components.md",
+                "mode": "preview",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "UI Components"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "a9daefc636dc8498",
+    "type": "split",
+    "children": [
+      {
+        "id": "c25b7b59aa14b868",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8b2ecd0713f9fdbb",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "fce288a44d97b6cd",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "fc14008eab11c43d",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "ed5a290e8cb697f9",
+    "type": "split",
+    "children": [
+      {
+        "id": "3ee54f4bd027f46c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a1d42668392d7ca6",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "technical/frontend/UI Components.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for UI Components"
+            }
+          },
+          {
+            "id": "eac3b78c68a73d4f",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "technical/frontend/UI Components.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from UI Components"
+            }
+          },
+          {
+            "id": "8a8c2e2a2a6235ef",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "8e6e0521a25dc00e",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "f003841dc196021d",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "technical/frontend/UI Components.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of UI Components"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "e9f75cfe866a9c76",
+  "lastOpenFiles": [
+    "HOME.md",
+    "technical/backend/services/SettingsService.md",
+    "processes/Documentation Standards.md",
+    "processes/Incident Response.md",
+    "processes/Release Process.md",
+    "processes/Development Workflow.md",
+    "onboarding/Development Setup.md",
+    "onboarding/Onboarding Guide.md",
+    "technical/reference/Data Storage Reference.md",
+    "technical/reference/Constants Reference.md",
+    "technical/reference/Event Reference.md",
+    "technical/reference/Environment Variables.md",
+    "technical/guides/Testing Guide.md",
+    "technical/guides/Build and Release.md",
+    "technical/guides/Git Workflows.md",
+    "technical/guides/Adding a New Viewer.md",
+    "technical/guides/Adding a New View.md",
+    "technical/guides/Adding a New Service.md",
+    "technical/frontend/features/Feature Docs.md",
+    "technical/frontend/features/Explorer Feature.md",
+    "technical/frontend/Viewer System.md",
+    "technical/frontend/UI Components.md",
+    "technical/frontend/Context Providers.md",
+    "technical/frontend/Layout System.md",
+    "technical/frontend/Frontend Architecture.md",
+    "technical/architecture/State Management.md"
+  ]
+}
