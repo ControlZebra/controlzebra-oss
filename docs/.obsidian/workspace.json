@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "technical/frontend/UI Components.md",
+                "file": "product/Product Overview.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "UI Components"
+              "title": "Product Overview"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "technical/frontend/UI Components.md",
+                "file": "product/Product Overview.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for UI Components"
+              "title": "Backlinks for Product Overview"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "technical/frontend/UI Components.md",
+                "file": "product/Product Overview.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from UI Components"
+              "title": "Outgoing links from Product Overview"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "technical/frontend/UI Components.md",
+                "file": "product/Product Overview.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of UI Components"
+              "title": "Outline of Product Overview"
             }
           }
         ]
@@ -185,6 +185,10 @@
   },
   "active": "e9f75cfe866a9c76",
   "lastOpenFiles": [
+    "HOME.md",
+    "technical/frontend/Viewer System.md",
+    "technical/frontend/UI Components.md",
+    "plans/L5X_MERGE_DIFF_FIX_PLAN.md",
     "technical/Testing.md",
     "technical/SettingsService.md",
     "technical/Services.md",
@@ -201,15 +205,11 @@
     "technical/CommandRunner.md",
     "technical/BUILD_GUIDE.md",
     "technical/AUTO_UPDATE_TESTING.md",
-    "HOME.md",
     "technical/backend/services/SettingsService.md",
     "processes/Documentation Standards.md",
     "processes/Incident Response.md",
     "processes/Release Process.md",
     "processes/Development Workflow.md",
-    "onboarding/Development Setup.md",
-    "onboarding/Onboarding Guide.md",
-    "technical/reference/Data Storage Reference.md",
-    "technical/reference/Constants Reference.md"
+    "onboarding/Development Setup.md"
   ]
 }
