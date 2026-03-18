@@ -2,9 +2,25 @@ import type { ComponentType, LazyExoticComponent } from 'react';
 
 export type DiffMode = 'working' | 'commit';
 
+export type DiffSide =
+  | { kind: 'ref'; ref: string; path: string }
+  | { kind: 'working'; absolutePath: string; path: string }
+  | { kind: 'missing'; path: string };
+
 export interface DiffRenderRequest {
   repoPath?: string | null;
   filePath: string;
+  /**
+   * Preferred snapshot contract for diff viewers. When present, viewers should
+   * use these sides before falling back to the legacy mode-based fields below.
+   */
+  oldSide?: DiffSide;
+  newSide?: DiffSide;
+
+  /**
+   * Legacy diff metadata kept during migration for existing working-tree and
+   * commit-history viewers.
+   */
   mode: DiffMode;
   commitHash?: string | null;
   parentHash?: string | null;
