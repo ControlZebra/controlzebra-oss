@@ -66,6 +66,8 @@ function PdfDiffEntry(request: DiffRenderRequest): JSX.Element {
     <PDFDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
+      oldSide={request.oldSide}
+      newSide={request.newSide}
       commitHash={request.mode === 'commit' ? request.commitHash : undefined}
       isWorkingTree={request.mode === 'working'}
     />
@@ -77,6 +79,8 @@ function Model3DDiffEntry(request: DiffRenderRequest): JSX.Element {
     <Model3DDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
+      oldSide={request.oldSide}
+      newSide={request.newSide}
       commitHash={request.mode === 'commit' ? request.commitHash : undefined}
       isWorkingTree={request.mode === 'working'}
     />

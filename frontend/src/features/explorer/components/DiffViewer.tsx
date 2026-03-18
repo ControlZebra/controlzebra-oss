@@ -8,6 +8,10 @@ import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../../shared/utils/misc';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
+import {
+  buildCommitDiffRequest,
+  buildWorkingTreeDiffRequest,
+} from '../../../viewers/registry/diff-request-adapters';
 
 
 
@@ -96,19 +100,33 @@ function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffV
 
   // Binary file — route through shared diff registry/renderer
   if (fileDiff.binary) {
+    const request = commitHash
+      ? buildCommitDiffRequest({
+        repoPath: repoPath || null,
+        filePath: fileDiff.path,
+        commitHash,
+        oldPath: fileDiff.oldPath,
+        fileStatus: fileDiff.status,
+        fileDiff: fileDiff as any,
+        binary: true,
+        showHeader,
+      })
+      : buildWorkingTreeDiffRequest({
+        repoPath: repoPath || null,
+        filePath: fileDiff.path,
+        absoluteFilePath: `${repoPath || ''}/${fileDiff.path}`,
+        oldPath: fileDiff.oldPath,
+        fileStatus: fileDiff.status,
+        fileDiff: fileDiff as any,
+        binary: true,
+        showHeader,
+      });
+
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 min-h-0">
           <DiffRenderer
-            repoPath={repoPath || null}
-            filePath={fileDiff.path}
-            mode={commitHash ? 'commit' : 'working'}
-            commitHash={commitHash ?? null}
-            fileStatus={fileDiff.status}
-            oldPath={fileDiff.oldPath}
-            fileDiff={fileDiff as any}
-            binary
-            showHeader={showHeader}
+            {...request}
             loadingLabel="Loading diff viewer…"
           />
         </div>
