@@ -183,8 +183,10 @@
       "bases:Create new base": false
     }
   },
-  "active": "e9f75cfe866a9c76",
+  "active": "8b2ecd0713f9fdbb",
   "lastOpenFiles": [
+    "plans/simplified_git_diff_viewer.md",
+    "plans/SIMPLIFIED_BRANCH_COMPARE_DIFF_PLAN.md",
     "HOME.md",
     "technical/frontend/Viewer System.md",
     "technical/frontend/UI Components.md",
@@ -208,8 +210,6 @@
     "technical/backend/services/SettingsService.md",
     "processes/Documentation Standards.md",
     "processes/Incident Response.md",
-    "processes/Release Process.md",
-    "processes/Development Workflow.md",
-    "onboarding/Development Setup.md"
+    "processes/Release Process.md"
   ]
 }
