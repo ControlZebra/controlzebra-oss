@@ -19,6 +19,7 @@ import { useRepo, type CommitDetail } from '../../../context';
 import EmptyState from '../../../shared/ui/EmptyState';
 import LoadingState from '../../../shared/ui/LoadingState';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
+import { buildCommitDiffRequest } from '../../../viewers/registry/diff-request-adapters';
 import { 
   Button,
   AlertDialog,
@@ -383,16 +384,17 @@ function HistoryPage(): JSX.Element {
         />
         <div className="flex-1 overflow-hidden min-h-0">
           <DiffRenderer
-            repoPath={repoPath}
-            filePath={selectedCommitFile}
-            mode="commit"
-            commitHash={selectedCommit.hash}
-            parentHash={selectedCommit.parentHashes?.[0]}
-            oldPath={selectedFileInfo?.oldPath}
-            fileStatus={selectedFileInfo?.status}
-            fileDiff={currentDiff as any}
-            binary={(currentDiff as any)?.binary}
-            showHeader
+            {...buildCommitDiffRequest({
+              repoPath,
+              filePath: selectedCommitFile,
+              commitHash: selectedCommit.hash,
+              parentHash: selectedCommit.parentHashes?.[0] ?? null,
+              oldPath: selectedFileInfo?.oldPath,
+              fileStatus: selectedFileInfo?.status,
+              fileDiff: currentDiff as any,
+              binary: (currentDiff as any)?.binary,
+              showHeader: true,
+            })}
           />
         </div>
         {restoreConfirmModal}
