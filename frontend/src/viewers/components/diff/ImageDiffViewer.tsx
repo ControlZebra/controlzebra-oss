@@ -48,7 +48,6 @@ import { getPathFileName } from '../shared/path-utils';
 import type { DiffSide } from '../../registry/diff-registry';
 import {
   loadBinarySide,
-  resolveDiffSidePair,
   serializeDiffSide,
   type BinarySidePayload,
 } from './diff-side-loaders';
@@ -63,11 +62,8 @@ type DiffMode = 'side-by-side' | 'diff' | 'overlay';
 export interface ImageDiffViewerProps {
   repoPath: string;
   filePath: string;
-  oldSide?: DiffSide;
-  newSide?: DiffSide;
-  commitHash?: string | null;
-  isWorkingTree?: boolean;
-  absoluteFilePath?: string;
+  oldSide: DiffSide;
+  newSide: DiffSide;
 }
 
 // ============================================================================
@@ -609,29 +605,14 @@ function ImageDiffViewer({
   filePath,
   oldSide,
   newSide,
-  commitHash,
-  isWorkingTree,
-  absoluteFilePath,
 }: ImageDiffViewerProps): JSX.Element {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
 
-  const resolvedSides = useMemo(
-    () => resolveDiffSidePair({
-      repoPath,
-      filePath,
-      oldSide,
-      newSide,
-      commitHash,
-      isWorkingTree,
-      absoluteFilePath,
-    }),
-    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
-  );
   const key = useMemo(
-    () => (resolvedSides ? cacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide) : ''),
-    [repoPath, resolvedSides],
+    () => cacheKey(repoPath, oldSide, newSide),
+    [repoPath, oldSide, newSide],
   );
   const cached = key ? imageDiffCache.get(key) : undefined;
 
@@ -653,17 +634,17 @@ function ImageDiffViewer({
     [filePath],
   );
   const usesWorkingTree = useMemo(
-    () => resolvedSides != null && (resolvedSides.oldSide.kind === 'working' || resolvedSides.newSide.kind === 'working'),
-    [resolvedSides],
+    () => oldSide.kind === 'working' || newSide.kind === 'working',
+    [oldSide, newSide],
   );
   const normalizedTargetPath = useMemo(() => {
-    const workingSide = resolvedSides?.newSide.kind === 'working'
-      ? resolvedSides.newSide
-      : resolvedSides?.oldSide.kind === 'working'
-        ? resolvedSides.oldSide
+    const workingSide = newSide.kind === 'working'
+      ? newSide
+      : oldSide.kind === 'working'
+        ? oldSide
         : null;
     return workingSide?.absolutePath.replace(/\\/g, '/').toLowerCase() ?? null;
-  }, [resolvedSides]);
+  }, [newSide, oldSide]);
 
   // ---------------------------------------------------------------------------
   // File change subscription (for working tree diffs)
@@ -743,15 +724,6 @@ function ImageDiffViewer({
   useEffect(() => {
     mountedRef.current = true;
 
-    if (!resolvedSides || !key) {
-      setResult(null);
-      setError('Unable to determine which image snapshots to compare.');
-      setIsLoading(false);
-      return () => {
-        mountedRef.current = false;
-      };
-    }
-
     // Use cache when available
     if (imageDiffCache.has(key)) {
       const c = imageDiffCache.get(key)!;
@@ -766,7 +738,7 @@ function ImageDiffViewer({
     setResult(null);
 
     let cancelled = false;
-    const activeSides = resolvedSides;
+    const activeSides = { oldSide, newSide };
 
     async function load() {
       try {
@@ -844,7 +816,7 @@ function ImageDiffViewer({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [filePath, key, repoPath, refreshCounter, resolvedSides]);
+  }, [filePath, key, newSide, oldSide, refreshCounter, repoPath]);
 
   // ---------------------------------------------------------------------------
   // Derived data URLs

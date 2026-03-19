@@ -10,7 +10,6 @@ describe('diff-builtins', () => {
       filePath: 'Programs/Main.L5X',
       oldSide: { kind: 'ref', ref: 'origin/main', path: 'Programs/Main.L5X' },
       newSide: { kind: 'ref', ref: 'feature/plc', path: 'Programs/Main.L5X' },
-      mode: 'working',
       fileStatus: 'modified',
     });
 
@@ -27,9 +26,7 @@ describe('diff-builtins', () => {
         absolutePath: '/repo/Programs/Main.L5X',
         path: 'Programs/Main.L5X',
       },
-      mode: 'working',
       fileStatus: 'modified',
-      absoluteFilePath: '/repo/Programs/Main.L5X',
     });
 
     expect(viewer?.id).toBe('l5x');
@@ -41,7 +38,6 @@ describe('diff-builtins', () => {
       filePath: 'Screenshots/HMI.png',
       oldSide: { kind: 'ref', ref: 'origin/main', path: 'Screenshots/HMI.png' },
       newSide: { kind: 'ref', ref: 'feature/panel', path: 'Screenshots/HMI.png' },
-      mode: 'working',
       fileStatus: 'modified',
       binary: true,
     });
@@ -55,7 +51,6 @@ describe('diff-builtins', () => {
       filePath: 'Manuals/Recipe.pdf',
       oldSide: { kind: 'ref', ref: 'origin/main', path: 'Manuals/Recipe.pdf' },
       newSide: { kind: 'ref', ref: 'feature/docs', path: 'Manuals/Recipe.pdf' },
-      mode: 'working',
       fileStatus: 'modified',
       binary: true,
     });
@@ -73,12 +68,26 @@ describe('diff-builtins', () => {
         absolutePath: '/repo/Models/Fixture.step',
         path: 'Models/Fixture.step',
       },
-      mode: 'working',
       fileStatus: 'modified',
-      absoluteFilePath: '/repo/Models/Fixture.step',
       binary: true,
     });
 
     expect(viewer?.id).toBe('model-3d');
+  });
+
+  it('resolves the text viewer without legacy mode metadata', () => {
+    const viewer = resolveDiffViewer({
+      repoPath: '/repo',
+      filePath: 'Docs/notes.txt',
+      oldSide: { kind: 'ref', ref: 'HEAD', path: 'Docs/notes.txt' },
+      newSide: {
+        kind: 'working',
+        absolutePath: '/repo/Docs/notes.txt',
+        path: 'Docs/notes.txt',
+      },
+      fileStatus: 'modified',
+    });
+
+    expect(viewer?.id).toBe('text');
   });
 });

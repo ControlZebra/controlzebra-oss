@@ -15,8 +15,8 @@ function TextDiffEntry(request: DiffRenderRequest): JSX.Element {
     <TextDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
-      commitHash={request.mode === 'commit' ? request.commitHash : null}
-      isWorkingTree={request.mode === 'working'}
+      oldSide={request.oldSide}
+      newSide={request.newSide}
       fileStatus={request.fileStatus}
       oldPath={request.oldPath}
       fileDiff={request.fileDiff as any}
@@ -26,60 +26,62 @@ function TextDiffEntry(request: DiffRenderRequest): JSX.Element {
 }
 
 function L5XDiffEntry(request: DiffRenderRequest): JSX.Element {
+  if (!request.oldSide || !request.newSide) {
+    return <TextDiffEntry {...request} />;
+  }
+
   return (
     <L5XDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
       oldSide={request.oldSide}
       newSide={request.newSide}
-      commitHash={request.mode === 'commit' ? request.commitHash ?? undefined : undefined}
-      parentHash={request.parentHash ?? undefined}
-      isWorkingTree={request.mode === 'working'}
-      absoluteFilePath={request.absoluteFilePath}
-      oldPath={request.oldPath}
       fileStatus={request.fileStatus ?? 'modified'}
     />
   );
 }
 
 function ImageDiffEntry(request: DiffRenderRequest): JSX.Element {
+  if (!request.oldSide || !request.newSide) {
+    return <BinaryFallbackEntry />;
+  }
+
   return (
     <ImageDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
       oldSide={request.oldSide}
       newSide={request.newSide}
-      commitHash={request.mode === 'commit' ? request.commitHash : undefined}
-      isWorkingTree={request.mode === 'working'}
-      absoluteFilePath={request.absoluteFilePath}
     />
   );
 }
 
 function PdfDiffEntry(request: DiffRenderRequest): JSX.Element {
+  if (!request.oldSide || !request.newSide) {
+    return <BinaryFallbackEntry />;
+  }
+
   return (
     <PDFDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
       oldSide={request.oldSide}
       newSide={request.newSide}
-      commitHash={request.mode === 'commit' ? request.commitHash : undefined}
-      isWorkingTree={request.mode === 'working'}
-      absoluteFilePath={request.absoluteFilePath}
     />
   );
 }
 
 function Model3DDiffEntry(request: DiffRenderRequest): JSX.Element {
+  if (!request.oldSide || !request.newSide) {
+    return <BinaryFallbackEntry />;
+  }
+
   return (
     <Model3DDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
       oldSide={request.oldSide}
       newSide={request.newSide}
-      commitHash={request.mode === 'commit' ? request.commitHash : undefined}
-      isWorkingTree={request.mode === 'working'}
-      absoluteFilePath={request.absoluteFilePath}
     />
   );
 }

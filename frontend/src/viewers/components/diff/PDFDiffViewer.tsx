@@ -46,7 +46,6 @@ import type { DiffSide } from '../../registry/diff-registry';
 import { getPathFileName } from '../shared/path-utils';
 import {
   loadBinarySide,
-  resolveDiffSidePair,
   serializeDiffSide,
 } from './diff-side-loaders';
 import {
@@ -70,14 +69,8 @@ export interface PDFDiffViewerProps {
   repoPath: string;
   /** Path to the PDF file (repo-relative or absolute). */
   filePath: string;
-  oldSide?: DiffSide;
-  newSide?: DiffSide;
-  /** For commit diffs: the commit hash. Omit / null for working tree diffs. */
-  commitHash?: string | null;
-  /** True when comparing the working tree against HEAD. */
-  isWorkingTree?: boolean;
-  /** Absolute working-tree file path for legacy non-side requests. */
-  absoluteFilePath?: string;
+  oldSide: DiffSide;
+  newSide: DiffSide;
 }
 
 /** Internal state for the loaded PDF pair. */
@@ -434,9 +427,6 @@ function PDFDiffViewer({
   filePath,
   oldSide,
   newSide,
-  commitHash,
-  isWorkingTree,
-  absoluteFilePath,
 }: PDFDiffViewerProps): JSX.Element {
   // ── State ──────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
@@ -462,34 +452,22 @@ function PDFDiffViewer({
 
   // ── Total pages ────────────────────────────────────────────────────────
   const totalPages = pdfPair ? Math.max(pdfPair.oldPageCount, pdfPair.newPageCount) : 0;
-  const resolvedSides = useMemo(
-    () => resolveDiffSidePair({
-      repoPath,
-      filePath,
-      oldSide,
-      newSide,
-      commitHash,
-      isWorkingTree,
-      absoluteFilePath,
-    }),
-    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
-  );
   const usesWorkingTree = useMemo(
-    () => resolvedSides != null && (resolvedSides.oldSide.kind === 'working' || resolvedSides.newSide.kind === 'working'),
-    [resolvedSides],
+    () => oldSide.kind === 'working' || newSide.kind === 'working',
+    [oldSide, newSide],
   );
   const activeCacheKey = useMemo(
-    () => resolvedSides ? cacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide) : '',
-    [repoPath, resolvedSides],
+    () => cacheKey(repoPath, oldSide, newSide),
+    [repoPath, oldSide, newSide],
   );
   const normalizedTargetPath = useMemo(() => {
-    const workingSide = resolvedSides?.newSide.kind === 'working'
-      ? resolvedSides.newSide
-      : resolvedSides?.oldSide.kind === 'working'
-        ? resolvedSides.oldSide
+    const workingSide = newSide.kind === 'working'
+      ? newSide
+      : oldSide.kind === 'working'
+        ? oldSide
         : null;
     return workingSide?.absolutePath.replace(/\\/g, '/').toLowerCase() ?? null;
-  }, [resolvedSides]);
+  }, [newSide, oldSide]);
 
   const handleReload = useCallback(() => {
     pdfDiffCache.delete(activeCacheKey);
@@ -504,12 +482,6 @@ function PDFDiffViewer({
     let cancelled = false;
 
     async function load() {
-      if (!resolvedSides) {
-        setError('Unable to determine which PDF revisions to compare.');
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       setError(null);
       setPdfPair(null);
@@ -518,7 +490,7 @@ function PDFDiffViewer({
       setSummary(null);
       pageCacheRef.current.clear();
 
-      const key = cacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide);
+      const key = cacheKey(repoPath, oldSide, newSide);
 
       // Check cache first
       const cached = pdfDiffCache.get(key);
@@ -537,8 +509,8 @@ function PDFDiffViewer({
         let newError: string | null = null;
 
         const [oldResult, newResult] = await Promise.allSettled([
-          loadBinarySide(repoPath, resolvedSides.oldSide),
-          loadBinarySide(repoPath, resolvedSides.newSide),
+          loadBinarySide(repoPath, oldSide),
+          loadBinarySide(repoPath, newSide),
         ]);
 
         if (cancelled || !mountedRef.current) return;
@@ -611,7 +583,7 @@ function PDFDiffViewer({
 
     load();
     return () => { cancelled = true; };
-  }, [repoPath, filePath, resolvedSides, reloadNonce]);
+  }, [filePath, newSide, oldSide, reloadNonce, repoPath]);
 
   useEffect(() => {
     if (!usesWorkingTree || !normalizedTargetPath) return;
