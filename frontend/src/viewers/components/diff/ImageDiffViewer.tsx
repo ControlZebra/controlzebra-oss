@@ -10,9 +10,8 @@
  * ImageViewer.tsx). Images are transported as base64 from the Go backend
  * because Wails webviews cannot access file:// URLs.
  *
- * Backend methods:
- *  - `ImageDiffCommit(repoPath, filePath, commitHash)` — history diffs
- *  - `ImageDiffWorking(repoPath, filePath)`             — working tree diffs
+ * Data is loaded through the shared diff-side loaders so history, working-tree,
+ * and merge-review flows all compare explicit old/new snapshots.
  */
 import {
   memo,
@@ -43,13 +42,17 @@ import {
 import { onEvent } from '../../../shared/runtime/events';
 
 import { ICON_SIZES } from '../../../shared/constants';
-import {
-  ImageDiffCommit,
-  ImageDiffWorking,
-} from '../../../../bindings/controlzebra/services/imagediffservice';
-import type { ImageDiffResult } from '../../../../bindings/controlzebra/services/models';
+import { ImageDiffResult } from '../../../../bindings/controlzebra/services/models';
 import { formatFileSize, CHECKERBOARD_STYLE, ToolbarIcon } from '../file/image-utils';
 import { getPathFileName } from '../shared/path-utils';
+import type { DiffSide } from '../../registry/diff-registry';
+import {
+  loadBinarySide,
+  resolveDiffSidePair,
+  serializeDiffSide,
+  type BinarySidePayload,
+} from './diff-side-loaders';
+import { comparePages } from './pdf-diff-utils';
 
 // ============================================================================
 // Types
@@ -58,14 +61,13 @@ import { getPathFileName } from '../shared/path-utils';
 type DiffMode = 'side-by-side' | 'diff' | 'overlay';
 
 export interface ImageDiffViewerProps {
-  /** Absolute path to the git repository root. */
   repoPath: string;
-  /** Path to the image file (repo-relative or absolute). */
   filePath: string;
-  /** For commit diffs: the commit hash. Omit / null for working tree diffs. */
+  oldSide?: DiffSide;
+  newSide?: DiffSide;
   commitHash?: string | null;
-  /** True when comparing the working tree against HEAD. */
   isWorkingTree?: boolean;
+  absoluteFilePath?: string;
 }
 
 // ============================================================================
@@ -76,10 +78,10 @@ const imageDiffCache = new Map<string, ImageDiffResult>();
 
 function cacheKey(
   repoPath: string,
-  filePath: string,
-  commitHash?: string | null,
+  oldSide: DiffSide,
+  newSide: DiffSide,
 ): string {
-  return `${repoPath}::${filePath}::${commitHash || 'working'}`;
+  return `image::${repoPath}::${serializeDiffSide(oldSide)}::${serializeDiffSide(newSide)}`;
 }
 
 // ============================================================================
@@ -119,9 +121,8 @@ function ToolbarBtn({ active, disabled, onClick, title, children }: ToolbarBtnPr
  * Called when files change on disk to ensure fresh diffs are loaded.
  */
 export function invalidateWorkingTreeImageDiffCache(): void {
-  // Remove all entries with 'working' suffix (working tree diffs)
   for (const key of imageDiffCache.keys()) {
-    if (key.endsWith('::working')) {
+    if (key.includes('::working:')) {
       imageDiffCache.delete(key);
     }
   }
@@ -133,8 +134,89 @@ export function invalidateWorkingTreeImageDiffCache(): void {
  * @param filePath - File path
  */
 export function invalidateImageDiffCacheForFile(repoPath: string, filePath: string): void {
-  const key = cacheKey(repoPath, filePath, null);
-  imageDiffCache.delete(key);
+  const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+
+  for (const key of imageDiffCache.keys()) {
+    if (!key.includes(`image::${repoPath}::`)) {
+      continue;
+    }
+
+    if (key.toLowerCase().includes(`:${normalizedPath}`)) {
+      imageDiffCache.delete(key);
+    }
+  }
+}
+
+function stripDataUrlPrefix(dataUrl: string | null): string | undefined {
+  if (!dataUrl) {
+    return undefined;
+  }
+
+  const separatorIndex = dataUrl.indexOf(',');
+  if (separatorIndex === -1) {
+    return undefined;
+  }
+
+  return dataUrl.slice(separatorIndex + 1);
+}
+
+function estimateBinarySize(base64Data?: string): number {
+  if (!base64Data) {
+    return 0;
+  }
+
+  const padding = base64Data.endsWith('==') ? 2 : base64Data.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((base64Data.length * 3) / 4) - padding);
+}
+
+function inferImageMimeType(filePath: string): string {
+  const normalizedPath = filePath.toLowerCase();
+  if (normalizedPath.endsWith('.png')) return 'image/png';
+  if (normalizedPath.endsWith('.jpg') || normalizedPath.endsWith('.jpeg')) return 'image/jpeg';
+  if (normalizedPath.endsWith('.gif')) return 'image/gif';
+  if (normalizedPath.endsWith('.webp')) return 'image/webp';
+  if (normalizedPath.endsWith('.bmp')) return 'image/bmp';
+  if (normalizedPath.endsWith('.svg')) return 'image/svg+xml';
+  if (normalizedPath.endsWith('.tif') || normalizedPath.endsWith('.tiff')) return 'image/tiff';
+  return 'image/png';
+}
+
+function loadHtmlImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Failed to decode image data'));
+    image.src = src;
+  });
+}
+
+async function renderBinaryImage(
+  payload: BinarySidePayload,
+  fallbackMimeType: string,
+): Promise<{ imageData: ImageData; width: number; height: number }> {
+  const mimeType = payload.mimeType || fallbackMimeType;
+  const image = await loadHtmlImage(`data:${mimeType};base64,${payload.base64Data}`);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Failed to get canvas 2d context for image diff');
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+  canvas.width = 0;
+  canvas.height = 0;
+
+  return {
+    imageData,
+    width: imageData.width,
+    height: imageData.height,
+  };
 }
 
 // ============================================================================
@@ -525,18 +607,33 @@ const StatsBar = memo(function StatsBar({ result }: StatsBarProps) {
 function ImageDiffViewer({
   repoPath,
   filePath,
+  oldSide,
+  newSide,
   commitHash,
   isWorkingTree,
+  absoluteFilePath,
 }: ImageDiffViewerProps): JSX.Element {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
 
-  const key = useMemo(
-    () => cacheKey(repoPath, filePath, commitHash),
-    [repoPath, filePath, commitHash],
+  const resolvedSides = useMemo(
+    () => resolveDiffSidePair({
+      repoPath,
+      filePath,
+      oldSide,
+      newSide,
+      commitHash,
+      isWorkingTree,
+      absoluteFilePath,
+    }),
+    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
   );
-  const cached = imageDiffCache.get(key);
+  const key = useMemo(
+    () => (resolvedSides ? cacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide) : ''),
+    [repoPath, resolvedSides],
+  );
+  const cached = key ? imageDiffCache.get(key) : undefined;
 
   const [result, setResult] = useState<ImageDiffResult | null>(cached ?? null);
   const [isLoading, setIsLoading] = useState(!cached);
@@ -555,14 +652,18 @@ function ImageDiffViewer({
     () => getPathFileName(filePath),
     [filePath],
   );
+  const usesWorkingTree = useMemo(
+    () => resolvedSides != null && (resolvedSides.oldSide.kind === 'working' || resolvedSides.newSide.kind === 'working'),
+    [resolvedSides],
+  );
   const normalizedTargetPath = useMemo(() => {
-    const normalizedFilePath = filePath.replace(/\\/g, '/');
-    if (/^([a-zA-Z]:)?\//.test(normalizedFilePath)) {
-      return normalizedFilePath;
-    }
-    const normalizedRepoPath = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
-    return `${normalizedRepoPath}/${normalizedFilePath}`;
-  }, [repoPath, filePath]);
+    const workingSide = resolvedSides?.newSide.kind === 'working'
+      ? resolvedSides.newSide
+      : resolvedSides?.oldSide.kind === 'working'
+        ? resolvedSides.oldSide
+        : null;
+    return workingSide?.absolutePath.replace(/\\/g, '/').toLowerCase() ?? null;
+  }, [resolvedSides]);
 
   // ---------------------------------------------------------------------------
   // File change subscription (for working tree diffs)
@@ -570,8 +671,7 @@ function ImageDiffViewer({
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    // Only subscribe for working tree diffs
-    if (!isWorkingTree && commitHash) return;
+    if (!usesWorkingTree || !normalizedTargetPath) return;
 
     const handleFilesChanged = (event: {
       data?: {
@@ -580,20 +680,14 @@ function ImageDiffViewer({
         isDir?: boolean;
       };
     }) => {
-      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const changedPath = event.data?.path?.replace(/\\/g, '/').toLowerCase();
       const eventType = event.data?.eventType;
       const isDir = event.data?.isDir;
 
       if (!changedPath || isDir) return;
       if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+      if (changedPath !== normalizedTargetPath) return;
 
-      const samePath =
-        changedPath === normalizedTargetPath ||
-        changedPath.toLowerCase() === normalizedTargetPath.toLowerCase();
-
-      if (!samePath) return;
-
-      // Invalidate this file's cache entry and bump counter to trigger re-fetch
       imageDiffCache.delete(key);
       setRefreshCounter((c) => c + 1);
     };
@@ -605,7 +699,7 @@ function ImageDiffViewer({
         unsubscribe();
       }
     };
-  }, [key, isWorkingTree, commitHash, normalizedTargetPath]);
+  }, [key, normalizedTargetPath, usesWorkingTree]);
 
   const handleReload = useCallback(() => {
     imageDiffCache.delete(key);
@@ -649,6 +743,15 @@ function ImageDiffViewer({
   useEffect(() => {
     mountedRef.current = true;
 
+    if (!resolvedSides || !key) {
+      setResult(null);
+      setError('Unable to determine which image snapshots to compare.');
+      setIsLoading(false);
+      return () => {
+        mountedRef.current = false;
+      };
+    }
+
     // Use cache when available
     if (imageDiffCache.has(key)) {
       const c = imageDiffCache.get(key)!;
@@ -662,34 +765,86 @@ function ImageDiffViewer({
     setError(null);
     setResult(null);
 
-    const promise = isWorkingTree || !commitHash
-      ? ImageDiffWorking(repoPath, filePath)
-      : ImageDiffCommit(repoPath, filePath, commitHash);
+    let cancelled = false;
+    const activeSides = resolvedSides;
 
-    promise
-      .then((res) => {
-        if (!mountedRef.current) return;
-        if (!res.success) {
-          setError(res.error || 'Image diff failed');
+    async function load() {
+      try {
+        const [oldResult, newResult] = await Promise.allSettled([
+          loadBinarySide(repoPath, activeSides.oldSide),
+          loadBinarySide(repoPath, activeSides.newSide),
+        ]);
+
+        if (cancelled || !mountedRef.current) return;
+
+        if (oldResult.status === 'rejected' || newResult.status === 'rejected') {
+          const oldMessage = oldResult.status === 'rejected'
+            ? oldResult.reason instanceof Error ? oldResult.reason.message : String(oldResult.reason)
+            : null;
+          const newMessage = newResult.status === 'rejected'
+            ? newResult.reason instanceof Error ? newResult.reason.message : String(newResult.reason)
+            : null;
+          setError(newMessage || oldMessage || 'Could not load one of the image versions.');
           setIsLoading(false);
           return;
         }
 
-        // Cache for tab-switch performance
-        imageDiffCache.set(key, res);
-        setResult(res);
+        const oldPayload = oldResult.status === 'fulfilled' ? oldResult.value : null;
+        const newPayload = newResult.status === 'fulfilled' ? newResult.value : null;
+
+        if (!oldPayload && !newPayload) {
+          setError('Could not load either version of the image.');
+          setIsLoading(false);
+          return;
+        }
+
+        const fallbackMimeType = newPayload?.mimeType || oldPayload?.mimeType || inferImageMimeType(filePath);
+        const [oldRaster, newRaster] = await Promise.all([
+          oldPayload ? renderBinaryImage(oldPayload, fallbackMimeType) : Promise.resolve(null),
+          newPayload ? renderBinaryImage(newPayload, fallbackMimeType) : Promise.resolve(null),
+        ]);
+
+        if (cancelled || !mountedRef.current) return;
+
+        const comparison = comparePages(oldRaster?.imageData ?? null, newRaster?.imageData ?? null);
+        const status = !oldPayload ? 'added' : !newPayload ? 'deleted' : 'modified';
+        const computedResult = new ImageDiffResult({
+          success: true,
+          oldImage: stripDataUrlPrefix(comparison.oldDataUrl),
+          newImage: stripDataUrlPrefix(comparison.newDataUrl),
+          diffImage: stripDataUrlPrefix(comparison.diffDataUrl),
+          mimeType: 'image/png',
+          oldWidth: oldRaster?.width ?? 0,
+          oldHeight: oldRaster?.height ?? 0,
+          newWidth: newRaster?.width ?? 0,
+          newHeight: newRaster?.height ?? 0,
+          oldSize: oldPayload?.size ?? estimateBinarySize(oldPayload?.base64Data),
+          newSize: newPayload?.size ?? estimateBinarySize(newPayload?.base64Data),
+          diffPixelCount: comparison.diffPixelCount,
+          totalPixels: comparison.totalPixels,
+          isEqual: status === 'modified' ? comparison.isEqual : false,
+          status,
+        });
+
+        imageDiffCache.set(key, computedResult);
+        setResult(computedResult);
         setIsLoading(false);
-      })
-      .catch((err) => {
-        if (!mountedRef.current) return;
-        setError(`Failed to compute image diff: ${err?.message || err}`);
-        setIsLoading(false);
-      });
+      } catch (err) {
+        if (!cancelled && mountedRef.current) {
+          const message = err instanceof Error ? err.message : String(err);
+          setError(`Failed to compute image diff: ${message}`);
+          setIsLoading(false);
+        }
+      }
+    }
+
+    load();
 
     return () => {
+      cancelled = true;
       mountedRef.current = false;
     };
-  }, [key, repoPath, filePath, commitHash, isWorkingTree, refreshCounter]);
+  }, [filePath, key, repoPath, refreshCounter, resolvedSides]);
 
   // ---------------------------------------------------------------------------
   // Derived data URLs

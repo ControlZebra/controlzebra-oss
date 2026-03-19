@@ -64,6 +64,8 @@ export interface Model3DDiffViewerProps {
   commitHash?: string | null;
   /** True when comparing the working tree against HEAD. */
   isWorkingTree?: boolean;
+  /** Absolute working-tree file path for legacy non-side requests. */
+  absoluteFilePath?: string;
 }
 
 /** Internal state for the loaded model pair. */
@@ -547,14 +549,23 @@ function Model3DDiffViewer({
   newSide,
   commitHash,
   isWorkingTree,
+  absoluteFilePath,
 }: Model3DDiffViewerProps): JSX.Element {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
 
   const resolvedSides = useMemo(
-    () => resolveDiffSidePair({ repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree }),
-    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree],
+    () => resolveDiffSidePair({
+      repoPath,
+      filePath,
+      oldSide,
+      newSide,
+      commitHash,
+      isWorkingTree,
+      absoluteFilePath,
+    }),
+    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
   );
   const key = useMemo(
     () => resolvedSides ? makeCacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide) : '',
