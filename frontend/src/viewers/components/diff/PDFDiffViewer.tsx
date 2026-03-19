@@ -76,6 +76,8 @@ export interface PDFDiffViewerProps {
   commitHash?: string | null;
   /** True when comparing the working tree against HEAD. */
   isWorkingTree?: boolean;
+  /** Absolute working-tree file path for legacy non-side requests. */
+  absoluteFilePath?: string;
 }
 
 /** Internal state for the loaded PDF pair. */
@@ -434,6 +436,7 @@ function PDFDiffViewer({
   newSide,
   commitHash,
   isWorkingTree,
+  absoluteFilePath,
 }: PDFDiffViewerProps): JSX.Element {
   // ── State ──────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
@@ -460,8 +463,16 @@ function PDFDiffViewer({
   // ── Total pages ────────────────────────────────────────────────────────
   const totalPages = pdfPair ? Math.max(pdfPair.oldPageCount, pdfPair.newPageCount) : 0;
   const resolvedSides = useMemo(
-    () => resolveDiffSidePair({ repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree }),
-    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree],
+    () => resolveDiffSidePair({
+      repoPath,
+      filePath,
+      oldSide,
+      newSide,
+      commitHash,
+      isWorkingTree,
+      absoluteFilePath,
+    }),
+    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
   );
   const usesWorkingTree = useMemo(
     () => resolvedSides != null && (resolvedSides.oldSide.kind === 'working' || resolvedSides.newSide.kind === 'working'),

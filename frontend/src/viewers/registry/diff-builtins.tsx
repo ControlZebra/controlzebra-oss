@@ -6,7 +6,6 @@ import TextDiffViewer from '../components/diff/TextDiffViewer';
 import { registerDiffViewer, type DiffRenderRequest } from './diff-registry';
 
 const L5XDiffViewer = lazy(() => import('../components/diff/l5x-diff/L5XDiffViewer'));
-const L5XWorkingDiffViewer = lazy(() => import('../components/diff/l5x-diff/L5XWorkingDiffViewer'));
 const ImageDiffViewer = lazy(() => import('../components/diff/ImageDiffViewer'));
 const PDFDiffViewer = lazy(() => import('../components/diff/PDFDiffViewer'));
 const Model3DDiffViewer = lazy(() => import('../components/diff/Model3DDiffViewer'));
@@ -26,25 +25,18 @@ function TextDiffEntry(request: DiffRenderRequest): JSX.Element {
   );
 }
 
-function L5XCommitEntry(request: DiffRenderRequest): JSX.Element {
+function L5XDiffEntry(request: DiffRenderRequest): JSX.Element {
   return (
     <L5XDiffViewer
       repoPath={request.repoPath ?? ''}
-      commitHash={request.commitHash ?? ''}
+      filePath={request.filePath}
+      oldSide={request.oldSide}
+      newSide={request.newSide}
+      commitHash={request.mode === 'commit' ? request.commitHash ?? undefined : undefined}
       parentHash={request.parentHash ?? undefined}
-      filePath={request.filePath}
+      isWorkingTree={request.mode === 'working'}
+      absoluteFilePath={request.absoluteFilePath}
       oldPath={request.oldPath}
-      fileStatus={request.fileStatus ?? 'modified'}
-    />
-  );
-}
-
-function L5XWorkingEntry(request: DiffRenderRequest): JSX.Element {
-  return (
-    <L5XWorkingDiffViewer
-      repoPath={request.repoPath ?? ''}
-      filePath={request.filePath}
-      absoluteFilePath={request.absoluteFilePath ?? request.filePath}
       fileStatus={request.fileStatus ?? 'modified'}
     />
   );
@@ -55,8 +47,11 @@ function ImageDiffEntry(request: DiffRenderRequest): JSX.Element {
     <ImageDiffViewer
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
+      oldSide={request.oldSide}
+      newSide={request.newSide}
       commitHash={request.mode === 'commit' ? request.commitHash : undefined}
       isWorkingTree={request.mode === 'working'}
+      absoluteFilePath={request.absoluteFilePath}
     />
   );
 }
@@ -70,6 +65,7 @@ function PdfDiffEntry(request: DiffRenderRequest): JSX.Element {
       newSide={request.newSide}
       commitHash={request.mode === 'commit' ? request.commitHash : undefined}
       isWorkingTree={request.mode === 'working'}
+      absoluteFilePath={request.absoluteFilePath}
     />
   );
 }
@@ -83,6 +79,7 @@ function Model3DDiffEntry(request: DiffRenderRequest): JSX.Element {
       newSide={request.newSide}
       commitHash={request.mode === 'commit' ? request.commitHash : undefined}
       isWorkingTree={request.mode === 'working'}
+      absoluteFilePath={request.absoluteFilePath}
     />
   );
 }
@@ -103,33 +100,15 @@ export function ensureBuiltInDiffViewersRegistered(): void {
   }
 
   registerDiffViewer({
-    id: 'l5x-working',
-    name: 'L5X Working Diff Viewer',
+    id: 'l5x',
+    name: 'L5X Diff Viewer',
     builtIn: true,
     priority: 60,
     canHandle: (request) => {
       const kind = fileKindFromPath(request.filePath);
-      return kind === 'l5x'
-        && request.mode === 'working'
-        && !!request.repoPath
-        && !!request.absoluteFilePath;
+      return kind === 'l5x' && !!request.repoPath;
     },
-    component: L5XWorkingEntry,
-  });
-
-  registerDiffViewer({
-    id: 'l5x-commit',
-    name: 'L5X Commit Diff Viewer',
-    builtIn: true,
-    priority: 50,
-    canHandle: (request) => {
-      const kind = fileKindFromPath(request.filePath);
-      return kind === 'l5x'
-        && request.mode === 'commit'
-        && !!request.repoPath
-        && !!request.commitHash;
-    },
-    component: L5XCommitEntry,
+    component: L5XDiffEntry,
   });
 
   registerDiffViewer({

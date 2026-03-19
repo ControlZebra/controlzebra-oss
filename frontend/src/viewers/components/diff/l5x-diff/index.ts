@@ -2,8 +2,7 @@
  * L5X Diff Viewer — Barrel exports.
  *
  * Primary exports:
- * - L5XDiffViewer: For commit-to-commit diffs (history view)
- * - L5XWorkingDiffViewer: For working tree diffs (HEAD vs current file)
+ * - L5XDiffViewer: Unified old/new snapshot diff viewer
  *
  * Sub-components are also exported for potential reuse/testing.
  */
