@@ -204,7 +204,7 @@ vi.mock('../../../../bindings/controlzebra/services/filesystemservice', () => ({
   OpenInTerminal: vi.fn(),
 }));
 
-vi.mock('../../../lib/recentFolders', () => ({
+vi.mock('../../../shared/utils/recentFolders', () => ({
   addRecentFolder: vi.fn(),
 }));
 

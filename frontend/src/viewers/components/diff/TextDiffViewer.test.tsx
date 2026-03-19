@@ -79,6 +79,33 @@ describe('TextDiffViewer', () => {
     expect(DiffMergeReviewFileRaw).not.toHaveBeenCalled();
   });
 
+  it('loads explicit-parent history diffs through the commit diff endpoint', async () => {
+    vi.mocked(DiffCommitFileRaw).mockResolvedValue({
+      path: 'Docs/notes.txt',
+      status: 'modified',
+      binary: false,
+      rawDiff: '@@ -1 +1 @@',
+      hasError: false,
+      error: '',
+    });
+
+    render(
+      <TextDiffViewer
+        repoPath="/repo"
+        filePath="Docs/notes.txt"
+        oldSide={{ kind: 'ref', ref: 'deadbeef', path: 'Docs/notes.txt' }}
+        newSide={{ kind: 'ref', ref: 'abc123', path: 'Docs/notes.txt' }}
+        fileStatus="modified"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(DiffCommitFileRaw).toHaveBeenCalledWith('/repo', 'abc123', 'Docs/notes.txt');
+    });
+    expect(DiffWorkingRaw).not.toHaveBeenCalled();
+    expect(DiffMergeReviewFileRaw).not.toHaveBeenCalled();
+  });
+
   it('uses preloaded merge-review diffs without fetching', async () => {
     render(
       <TextDiffViewer
