@@ -74,7 +74,7 @@ interface ModelPair {
 
 const modelDiffCache = new Map<string, ModelPair>();
 
-function makeCacheKey(
+export function makeCacheKey(
   repoPath: string,
   oldSide: DiffSide,
   newSide: DiffSide,
@@ -82,20 +82,48 @@ function makeCacheKey(
   return `3d::${repoPath}::${serializeDiffSide(oldSide)}::${serializeDiffSide(newSide)}`;
 }
 
+export function clear3DDiffCacheForTests(): void {
+  modelDiffCache.clear();
+}
+
+export function prime3DDiffCacheForTests(
+  repoPath: string,
+  oldSide: DiffSide,
+  newSide: DiffSide,
+): string {
+  const key = makeCacheKey(repoPath, oldSide, newSide);
+  modelDiffCache.set(key, {
+    oldFile: null,
+    newFile: null,
+    status: 'modified',
+  });
+  return key;
+}
+
+export function has3DDiffCacheKeyForTests(key: string): boolean {
+  return modelDiffCache.has(key);
+}
+
 /** Invalidate all working-tree 3D diff caches. */
 export function invalidateWorkingTree3DDiffCache(): void {
   for (const key of modelDiffCache.keys()) {
-    if (key.endsWith('::working')) {
+    if (key.includes('::working:')) {
       modelDiffCache.delete(key);
     }
   }
 }
 
 /** Invalidate a specific file's cache entry. */
-export function invalidate3DDiffCacheForFile(_repoPath: string, filePath: string): void {
-  // Remove both working and any commit-based cache
+export function invalidate3DDiffCacheForFile(repoPath: string, filePath: string): void {
+  const normalizedRepoPath = repoPath.replace(/\\/g, '/');
+  const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+
   for (const key of modelDiffCache.keys()) {
-    if (key.includes(`::${filePath}::`)) {
+    if (!key.startsWith(`3d::${normalizedRepoPath}::`)) {
+      continue;
+    }
+
+    if (key.toLowerCase().includes(`:${normalizedPath}`)) {
       modelDiffCache.delete(key);
     }
   }

@@ -98,6 +98,10 @@ function isWorkingSide(side?: DiffSide): side is Extract<DiffSide, { kind: 'work
   return side?.kind === 'working';
 }
 
+function looksLikeCommitRef(ref: string): boolean {
+  return /^[0-9a-f]{6,40}$/i.test(ref);
+}
+
 function resolveRawDiffFetcher(
   repoPath: string,
   filePath: string,
@@ -113,7 +117,12 @@ function resolveRawDiffFetcher(
 
   if (isRefSide(oldSide) && isRefSide(newSide)) {
     const expectedParentRef = `${newSide.ref}^`;
-    if (oldSide.ref === expectedParentRef && newSide.path === filePath) {
+    const isCommitHistoryDiff =
+      newSide.path === filePath
+      && (oldSide.ref === expectedParentRef
+        || (looksLikeCommitRef(oldSide.ref) && looksLikeCommitRef(newSide.ref)));
+
+    if (isCommitHistoryDiff) {
       return {
         description: 'commit diff',
         load: () => DiffCommitFileRaw(repoPath, newSide.ref, filePath) as Promise<RawDiffResult>,
