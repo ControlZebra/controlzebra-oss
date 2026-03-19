@@ -22,7 +22,6 @@ import { getPathFileName } from '../../shared/path-utils';
 import type { DiffSide } from '../../../registry/diff-registry';
 import {
   loadTextSide,
-  resolveDiffSidePair,
   serializeDiffSide,
 } from '../diff-side-loaders';
 
@@ -116,13 +115,8 @@ export function clearL5XDiffCache(): void {
 export interface L5XDiffViewerProps {
   repoPath: string;
   filePath: string;
-  oldSide?: DiffSide;
-  newSide?: DiffSide;
-  commitHash?: string;
-  parentHash?: string;
-  isWorkingTree?: boolean;
-  absoluteFilePath?: string;
-  oldPath?: string;
+  oldSide: DiffSide;
+  newSide: DiffSide;
   fileStatus: 'added' | 'modified' | 'deleted' | 'renamed' | string;
 }
 
@@ -170,45 +164,24 @@ function L5XDiffViewer({
   filePath,
   oldSide,
   newSide,
-  commitHash,
-  isWorkingTree,
-  absoluteFilePath,
   fileStatus,
 }: L5XDiffViewerProps): JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ phase: 'idle' });
   const [diff, setDiff] = useState<L5XDiff | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  const resolvedSides = useMemo(
-    () => resolveDiffSidePair({
-      repoPath,
-      filePath,
-      oldSide,
-      newSide,
-      commitHash,
-      isWorkingTree,
-      absoluteFilePath,
-    }),
-    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
-  );
   const cacheKeys = useMemo(() => {
-    if (!resolvedSides) {
-      return null;
-    }
-
     return {
-      oldController: buildControllerCacheKey(repoPath, resolvedSides.oldSide),
-      newController: buildControllerCacheKey(repoPath, resolvedSides.newSide),
-      diff: buildDiffCacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide),
+      oldController: buildControllerCacheKey(repoPath, oldSide),
+      newController: buildControllerCacheKey(repoPath, newSide),
+      diff: buildDiffCacheKey(repoPath, oldSide, newSide),
     };
-  }, [repoPath, resolvedSides]);
+  }, [repoPath, oldSide, newSide]);
   const normalizedWorkingPaths = useMemo(
-    () => (resolvedSides
-      ? [resolvedSides.oldSide, resolvedSides.newSide]
-        .filter((side): side is Extract<DiffSide, { kind: 'working' }> => side.kind === 'working')
-        .map((side) => side.absolutePath.replace(/\\/g, '/').toLowerCase())
-      : []),
-    [resolvedSides],
+    () => [oldSide, newSide]
+      .filter((side): side is Extract<DiffSide, { kind: 'working' }> => side.kind === 'working')
+      .map((side) => side.absolutePath.replace(/\\/g, '/').toLowerCase()),
+    [oldSide, newSide],
   );
 
   const { theme } = useLayout();
@@ -271,12 +244,6 @@ function L5XDiffViewer({
     let cancelled = false;
 
     async function run() {
-      if (!resolvedSides || !cacheKeys) {
-        setDiff(null);
-        setLoadState({ phase: 'error', error: 'Unable to determine which L5X snapshots to compare.' });
-        return;
-      }
-
       const cachedDiff = getCachedDiff(cacheKeys.diff);
       if (cachedDiff) {
         setDiff(cachedDiff);
@@ -294,7 +261,7 @@ function L5XDiffViewer({
           if (cachedOld) {
             oldController = cachedOld;
           } else {
-            const oldContent = await loadTextSide(repoPath, resolvedSides.oldSide);
+            const oldContent = await loadTextSide(repoPath, oldSide);
             if (cancelled) return;
 
             if (oldContent !== null) {
@@ -314,7 +281,7 @@ function L5XDiffViewer({
           if (cachedNew) {
             newController = cachedNew;
           } else {
-            const newContent = await loadTextSide(repoPath, resolvedSides.newSide);
+            const newContent = await loadTextSide(repoPath, newSide);
             if (cancelled) return;
 
             if (newContent !== null) {
@@ -369,7 +336,7 @@ function L5XDiffViewer({
     return () => {
       cancelled = true;
     };
-  }, [cacheKeys, fileStatus, repoPath, resolvedSides, retryCount]);
+  }, [cacheKeys, fileStatus, newSide, oldSide, repoPath, retryCount]);
 
   if (loadState.phase !== 'done' && loadState.phase !== 'error') {
     const phaseLabel = PHASE_LABELS[loadState.phase] ?? 'Preparing…';

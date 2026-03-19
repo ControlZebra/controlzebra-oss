@@ -8,35 +8,6 @@ export interface BinarySidePayload {
   size?: number;
 }
 
-interface ResolveDiffSidePairInput {
-  repoPath: string;
-  filePath: string;
-  oldSide?: DiffSide;
-  newSide?: DiffSide;
-  commitHash?: string | null;
-  isWorkingTree?: boolean;
-  absoluteFilePath?: string;
-}
-
-interface ResolvedDiffSidePair {
-  oldSide: DiffSide;
-  newSide: DiffSide;
-}
-
-function isAbsolutePath(path: string): boolean {
-  return /^([a-zA-Z]:)?[\\/]/.test(path);
-}
-
-function joinRepoPath(repoPath: string, filePath: string): string {
-  const normalizedFilePath = filePath.replace(/\\/g, '/');
-  if (isAbsolutePath(normalizedFilePath)) {
-    return normalizedFilePath;
-  }
-
-  const normalizedRepoPath = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
-  return `${normalizedRepoPath}/${normalizedFilePath}`;
-}
-
 function isMissingFileError(error?: string): boolean {
   if (!error) {
     return false;
@@ -73,33 +44,6 @@ export function serializeDiffSide(side?: DiffSide): string {
     default:
       return side satisfies never;
   }
-}
-
-export function resolveDiffSidePair({
-  repoPath,
-  filePath,
-  oldSide,
-  newSide,
-  commitHash,
-  isWorkingTree,
-  absoluteFilePath,
-}: ResolveDiffSidePairInput): ResolvedDiffSidePair | null {
-  if (oldSide && newSide) {
-    return { oldSide, newSide };
-  }
-
-  if (commitHash && !isWorkingTree) {
-    return {
-      oldSide: { kind: 'ref', ref: `${commitHash}^`, path: filePath },
-      newSide: { kind: 'ref', ref: commitHash, path: filePath },
-    };
-  }
-
-  const workingPath = absoluteFilePath ?? joinRepoPath(repoPath, filePath);
-  return {
-    oldSide: { kind: 'ref', ref: 'HEAD', path: filePath },
-    newSide: { kind: 'working', absolutePath: workingPath, path: filePath },
-  };
 }
 
 export async function loadTextSide(repoPath: string, side: DiffSide): Promise<string | null> {

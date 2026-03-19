@@ -16,7 +16,6 @@ describe('diff-request-adapters', () => {
       showHeader: true,
     });
 
-    expect(request.mode).toBe('working');
     expect(request.filePath).toBe('Programs/Mixer.L5X');
     expect(request.oldSide).toEqual({
       kind: 'ref',
@@ -28,6 +27,8 @@ describe('diff-request-adapters', () => {
       absolutePath: '/repo/Programs/Mixer.L5X',
       path: 'Programs/Mixer.L5X',
     });
+    expect(request).not.toHaveProperty('mode');
+    expect(request).not.toHaveProperty('absoluteFilePath');
   });
 
   it('normalizes untracked working files into added snapshots', () => {
@@ -75,7 +76,6 @@ describe('diff-request-adapters', () => {
       commitHash: 'abc123',
     });
 
-    expect(request.mode).toBe('commit');
     expect(request.oldSide).toEqual({
       kind: 'ref',
       ref: 'abc123^',
@@ -86,5 +86,8 @@ describe('diff-request-adapters', () => {
       ref: 'abc123',
       path: 'Programs/NewName.L5X',
     });
+    expect(request).not.toHaveProperty('mode');
+    expect(request).not.toHaveProperty('commitHash');
+    expect(request).not.toHaveProperty('parentHash');
   });
 });

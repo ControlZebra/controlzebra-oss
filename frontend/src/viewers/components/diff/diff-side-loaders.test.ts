@@ -15,58 +15,12 @@ import { ReadFileBase64, ReadTextFile } from '../../../../bindings/controlzebra/
 import {
   loadBinarySide,
   loadTextSide,
-  resolveDiffSidePair,
   serializeDiffSide,
 } from './diff-side-loaders';
 
 describe('diff-side-loaders', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('prefers explicit old/new sides when they are present', () => {
-    const oldSide = { kind: 'ref', ref: 'origin/main', path: 'Programs/Main.L5X' } as const;
-    const newSide = { kind: 'ref', ref: 'feature/plc', path: 'Programs/Main.L5X' } as const;
-
-    const resolved = resolveDiffSidePair({
-      repoPath: '/repo',
-      filePath: 'Programs/Main.L5X',
-      oldSide,
-      newSide,
-      commitHash: 'abc123',
-      isWorkingTree: true,
-    });
-
-    expect(resolved).toEqual({ oldSide, newSide });
-  });
-
-  it('builds legacy commit sides from parent and commit refs', () => {
-    const resolved = resolveDiffSidePair({
-      repoPath: '/repo',
-      filePath: 'Programs/Main.L5X',
-      commitHash: 'abc123',
-    });
-
-    expect(resolved).toEqual({
-      oldSide: { kind: 'ref', ref: 'abc123^', path: 'Programs/Main.L5X' },
-      newSide: { kind: 'ref', ref: 'abc123', path: 'Programs/Main.L5X' },
-    });
-  });
-
-  it('builds legacy working-tree sides with an absolute path', () => {
-    const resolved = resolveDiffSidePair({
-      repoPath: '/repo',
-      filePath: 'Programs/Main.L5X',
-    });
-
-    expect(resolved).toEqual({
-      oldSide: { kind: 'ref', ref: 'HEAD', path: 'Programs/Main.L5X' },
-      newSide: {
-        kind: 'working',
-        absolutePath: '/repo/Programs/Main.L5X',
-        path: 'Programs/Main.L5X',
-      },
-    });
   });
 
   it('loads ref text content through the git service', async () => {

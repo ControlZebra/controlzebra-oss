@@ -62,7 +62,6 @@ function MergeReviewDiffModal({
       return {
         repoPath: repoPath || null,
         filePath: activeViewerPath,
-        mode: 'working' as const,
         fileStatus: reviewDiff.status,
         oldPath: reviewDiff.oldPath,
         fileDiff: reviewDiff as any,

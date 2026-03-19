@@ -8,10 +8,7 @@ import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../../shared/utils/misc';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
-import {
-  buildCommitDiffRequest,
-  buildWorkingTreeDiffRequest,
-} from '../../../viewers/registry/diff-request-adapters';
+import type { DiffSide } from '../../../viewers/registry/diff-registry';
 
 
 
@@ -61,14 +58,14 @@ interface DiffViewerProps {
   showHeader?: boolean;
   /** Repo path — needed when rendering ImageDiffViewer for binary image files. */
   repoPath?: string;
-  /** Commit hash — passed to ImageDiffViewer for history diffs. */
-  commitHash?: string;
+  oldSide?: DiffSide;
+  newSide?: DiffSide;
 }
 
 /**
  * DiffViewer - Main component for viewing file diffs.
  */
-function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffViewerProps) {
+function DiffViewer({ fileDiff, showHeader = true, repoPath, oldSide, newSide }: DiffViewerProps) {
   // Parse the raw diff text using react-diff-view
   const files = useMemo(() => {
     if (!fileDiff?.rawDiff) return [];
@@ -100,27 +97,17 @@ function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffV
 
   // Binary file — route through shared diff registry/renderer
   if (fileDiff.binary) {
-    const request = commitHash
-      ? buildCommitDiffRequest({
-        repoPath: repoPath || null,
-        filePath: fileDiff.path,
-        commitHash,
-        oldPath: fileDiff.oldPath,
-        fileStatus: fileDiff.status,
-        fileDiff: fileDiff as any,
-        binary: true,
-        showHeader,
-      })
-      : buildWorkingTreeDiffRequest({
-        repoPath: repoPath || null,
-        filePath: fileDiff.path,
-        absoluteFilePath: `${repoPath || ''}/${fileDiff.path}`,
-        oldPath: fileDiff.oldPath,
-        fileStatus: fileDiff.status,
-        fileDiff: fileDiff as any,
-        binary: true,
-        showHeader,
-      });
+    const request = {
+      repoPath: repoPath || null,
+      filePath: fileDiff.path,
+      oldSide,
+      newSide,
+      oldPath: fileDiff.oldPath,
+      fileStatus: fileDiff.status,
+      fileDiff: fileDiff as any,
+      binary: true,
+      showHeader,
+    };
 
     return (
       <div className="flex flex-col h-full">

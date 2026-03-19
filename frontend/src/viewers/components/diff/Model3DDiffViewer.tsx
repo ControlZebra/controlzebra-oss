@@ -43,7 +43,6 @@ import { base64ToFile } from '../file/model3d-utils';
 import { getPathFileName } from '../shared/path-utils';
 import {
   loadBinarySide,
-  resolveDiffSidePair,
   serializeDiffSide,
 } from './diff-side-loaders';
 
@@ -58,14 +57,8 @@ export interface Model3DDiffViewerProps {
   repoPath: string;
   /** Path to the 3D model file (repo-relative). */
   filePath: string;
-  oldSide?: DiffSide;
-  newSide?: DiffSide;
-  /** For commit diffs: the commit hash. Omit / null for working tree diffs. */
-  commitHash?: string | null;
-  /** True when comparing the working tree against HEAD. */
-  isWorkingTree?: boolean;
-  /** Absolute working-tree file path for legacy non-side requests. */
-  absoluteFilePath?: string;
+  oldSide: DiffSide;
+  newSide: DiffSide;
 }
 
 /** Internal state for the loaded model pair. */
@@ -547,29 +540,14 @@ function Model3DDiffViewer({
   filePath,
   oldSide,
   newSide,
-  commitHash,
-  isWorkingTree,
-  absoluteFilePath,
 }: Model3DDiffViewerProps): JSX.Element {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
 
-  const resolvedSides = useMemo(
-    () => resolveDiffSidePair({
-      repoPath,
-      filePath,
-      oldSide,
-      newSide,
-      commitHash,
-      isWorkingTree,
-      absoluteFilePath,
-    }),
-    [repoPath, filePath, oldSide, newSide, commitHash, isWorkingTree, absoluteFilePath],
-  );
   const key = useMemo(
-    () => resolvedSides ? makeCacheKey(repoPath, resolvedSides.oldSide, resolvedSides.newSide) : '',
-    [repoPath, resolvedSides],
+    () => makeCacheKey(repoPath, oldSide, newSide),
+    [repoPath, oldSide, newSide],
   );
   const cached = modelDiffCache.get(key);
 
@@ -590,17 +568,17 @@ function Model3DDiffViewer({
     [filePath],
   );
   const usesWorkingTree = useMemo(
-    () => resolvedSides != null && (resolvedSides.oldSide.kind === 'working' || resolvedSides.newSide.kind === 'working'),
-    [resolvedSides],
+    () => oldSide.kind === 'working' || newSide.kind === 'working',
+    [oldSide, newSide],
   );
   const normalizedTargetPath = useMemo(() => {
-    const workingSide = resolvedSides?.newSide.kind === 'working'
-      ? resolvedSides.newSide
-      : resolvedSides?.oldSide.kind === 'working'
-        ? resolvedSides.oldSide
+    const workingSide = newSide.kind === 'working'
+      ? newSide
+      : oldSide.kind === 'working'
+        ? oldSide
         : null;
     return workingSide?.absolutePath.replace(/\\/g, '/').toLowerCase() ?? null;
-  }, [resolvedSides]);
+  }, [newSide, oldSide]);
 
   // ---------------------------------------------------------------------------
   // File change subscription (for working tree diffs)
@@ -676,14 +654,6 @@ function Model3DDiffViewer({
   useEffect(() => {
     mountedRef.current = true;
 
-    if (!resolvedSides) {
-      setError('Unable to determine which 3D model revisions to compare.');
-      setIsLoading(false);
-      return () => {
-        mountedRef.current = false;
-      };
-    }
-
     // Use cache when available
     if (modelDiffCache.has(key)) {
       const c = modelDiffCache.get(key)!;
@@ -697,7 +667,7 @@ function Model3DDiffViewer({
     setIsLoading(true);
     setError(null);
     setModelPair(null);
-    const activeSides = resolvedSides;
+    const activeSides = { oldSide, newSide };
 
     async function load() {
       try {
@@ -768,7 +738,7 @@ function Model3DDiffViewer({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [key, repoPath, resolvedSides, refreshCounter, fileName]);
+  }, [fileName, key, newSide, oldSide, refreshCounter, repoPath]);
 
   // ---------------------------------------------------------------------------
   // Derived state

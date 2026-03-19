@@ -16,9 +16,11 @@ import DiffViewer from '../../../features/explorer/components/DiffViewer';
 
 import {
   DiffCommitFileRaw,
+  DiffMergeReviewFileRaw,
   DiffWorkingRaw,
 } from '../../../../bindings/controlzebra/services/gitservice';
 import type { RawDiffResult } from '../../../../bindings/controlzebra/services/models';
+import type { DiffSide } from '../../registry/diff-registry';
 
 // ============================================================================
 // Types
@@ -31,11 +33,8 @@ export interface TextDiffViewerProps {
   repoPath: string;
   /** Repository-relative file path (preferred). */
   filePath: string;
-
-  /** For commit diffs: the commit hash. Omit/null for working tree diffs. */
-  commitHash?: string | null;
-  /** True when comparing the working tree against HEAD. */
-  isWorkingTree?: boolean;
+  oldSide?: DiffSide;
+  newSide?: DiffSide;
 
   /** Optional status override (e.g., from status list). */
   fileStatus?: string;
@@ -55,8 +54,22 @@ export interface TextDiffViewerProps {
 
 const textDiffCache = new Map<string, RawDiffResult>();
 
-function cacheKey(repoPath: string, filePath: string, commitHash?: string | null): string {
-  return `textdiff::${repoPath}::${filePath}::${commitHash || 'working'}`;
+function serializeSide(side?: DiffSide): string {
+  if (!side) return 'none';
+  switch (side.kind) {
+    case 'ref':
+      return `ref:${side.ref}:${side.path}`;
+    case 'working':
+      return `working:${side.absolutePath}:${side.path}`;
+    case 'missing':
+      return `missing:${side.path}`;
+    default:
+      return 'unknown';
+  }
+}
+
+function cacheKey(repoPath: string, filePath: string, oldSide?: DiffSide, newSide?: DiffSide): string {
+  return `textdiff::${repoPath}::${filePath}::${serializeSide(oldSide)}::${serializeSide(newSide)}`;
 }
 
 function normalizeStatus(status?: string): TextDiffStatus {
@@ -72,6 +85,50 @@ function normalizePathSeparators(path: string): string {
   return path.replace(/\\/g, '/');
 }
 
+interface RawDiffFetcher {
+  description: string;
+  load: () => Promise<RawDiffResult>;
+}
+
+function isRefSide(side?: DiffSide): side is Extract<DiffSide, { kind: 'ref' }> {
+  return side?.kind === 'ref';
+}
+
+function isWorkingSide(side?: DiffSide): side is Extract<DiffSide, { kind: 'working' }> {
+  return side?.kind === 'working';
+}
+
+function resolveRawDiffFetcher(
+  repoPath: string,
+  filePath: string,
+  oldSide?: DiffSide,
+  newSide?: DiffSide,
+): RawDiffFetcher | null {
+  if (isRefSide(oldSide) && isWorkingSide(newSide) && oldSide.ref === 'HEAD' && newSide.path === filePath) {
+    return {
+      description: 'working tree diff',
+      load: () => DiffWorkingRaw(repoPath, filePath) as Promise<RawDiffResult>,
+    };
+  }
+
+  if (isRefSide(oldSide) && isRefSide(newSide)) {
+    const expectedParentRef = `${newSide.ref}^`;
+    if (oldSide.ref === expectedParentRef && newSide.path === filePath) {
+      return {
+        description: 'commit diff',
+        load: () => DiffCommitFileRaw(repoPath, newSide.ref, filePath) as Promise<RawDiffResult>,
+      };
+    }
+
+    return {
+      description: 'ref diff',
+      load: () => DiffMergeReviewFileRaw(repoPath, oldSide.ref, newSide.ref, filePath) as Promise<RawDiffResult>,
+    };
+  }
+
+  return null;
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -79,8 +136,8 @@ function normalizePathSeparators(path: string): string {
 function TextDiffViewer({
   repoPath,
   filePath,
-  commitHash,
-  isWorkingTree,
+  oldSide,
+  newSide,
   fileStatus,
   oldPath,
   fileDiff,
@@ -106,13 +163,10 @@ function TextDiffViewer({
   const [error, setError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  const resolvedCommitHash = commitHash || null;
-  const mode: 'commit' | 'working' = resolvedCommitHash ? 'commit' : 'working';
-
-  const effectiveIsWorkingTree = useMemo((): boolean => {
-    if (typeof isWorkingTree === 'boolean') return isWorkingTree;
-    return mode === 'working';
-  }, [isWorkingTree, mode]);
+  const fetcher = useMemo(
+    () => resolveRawDiffFetcher(repoPath, repoRelativePath, oldSide, newSide),
+    [repoPath, repoRelativePath, oldSide, newSide],
+  );
 
   const applyOverrides = useCallback((incoming: RawDiffResult): RawDiffResult => {
     const status = normalizeStatus(fileStatus || (incoming as any).status);
@@ -144,8 +198,22 @@ function TextDiffViewer({
       return;
     }
 
+    if (!fetcher) {
+      setDiff({
+        path: repoRelativePath,
+        status: normalizeStatus(fileStatus),
+        binary: false,
+        rawDiff: '',
+        hasError: true,
+        error: 'This diff view does not support loading raw text for the selected snapshots.',
+      } as RawDiffResult);
+      setIsLoading(false);
+      setError('This diff view does not support loading raw text for the selected snapshots.');
+      return;
+    }
+
     let cancelled = false;
-    const key = cacheKey(repoPath, repoRelativePath, resolvedCommitHash);
+    const key = cacheKey(repoPath, repoRelativePath, oldSide, newSide);
     const cached = textDiffCache.get(key);
 
     if (cached) {
@@ -161,9 +229,7 @@ function TextDiffViewer({
 
     (async () => {
       try {
-        const result = resolvedCommitHash
-          ? await DiffCommitFileRaw(repoPath, resolvedCommitHash, repoRelativePath)
-          : await DiffWorkingRaw(repoPath, repoRelativePath);
+        const result = await fetcher.load();
 
         if (cancelled) return;
 
@@ -194,11 +260,13 @@ function TextDiffViewer({
   }, [
     repoPath,
     repoRelativePath,
-    resolvedCommitHash,
+    oldSide,
+    newSide,
     fileStatus,
     oldPath,
     fileDiff,
     applyOverrides,
+    fetcher,
     reloadNonce,
   ]);
 
@@ -239,7 +307,8 @@ function TextDiffViewer({
       fileDiff={diff as any}
       showHeader={showHeader}
       repoPath={repoPath}
-      commitHash={effectiveIsWorkingTree ? undefined : (resolvedCommitHash ?? undefined)}
+      oldSide={oldSide}
+      newSide={newSide}
     />
   );
 }
