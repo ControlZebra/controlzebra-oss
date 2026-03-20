@@ -185,6 +185,7 @@
   },
   "active": "8b2ecd0713f9fdbb",
   "lastOpenFiles": [
+    "plans/EXPLORER_MERGE_OUTCOME_MODAL_PLAN.md",
     "plans/simplified_git_diff_viewer.md",
     "plans/SIMPLIFIED_BRANCH_COMPARE_DIFF_PLAN.md",
     "HOME.md",
@@ -209,7 +210,6 @@
     "technical/AUTO_UPDATE_TESTING.md",
     "technical/backend/services/SettingsService.md",
     "processes/Documentation Standards.md",
-    "processes/Incident Response.md",
-    "processes/Release Process.md"
+    "processes/Incident Response.md"
   ]
 }
