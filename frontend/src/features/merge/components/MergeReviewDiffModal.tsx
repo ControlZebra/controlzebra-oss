@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { ICON_SIZES } from '../../../shared/constants';
 import type { MergeReviewDiffResult } from '../../../context';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
+import { buildMergeReviewDiffRequest } from '../../../viewers/registry/diff-request-adapters';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -52,6 +53,36 @@ function MergeReviewDiffModal({
     return selectedFilePath;
   }, [reviewDiff?.status, reviewDiff?.oldPath, selectedFilePath]);
 
+  const diffRequest = useMemo(() => {
+    if (!reviewDiff) {
+      return null;
+    }
+
+    if (!reviewDiff.targetRef || !reviewDiff.sourceRef) {
+      return {
+        repoPath: repoPath || null,
+        filePath: activeViewerPath,
+        fileStatus: reviewDiff.status,
+        oldPath: reviewDiff.oldPath,
+        fileDiff: reviewDiff as any,
+        binary: reviewDiff.binary,
+        showHeader: true,
+      };
+    }
+
+    return buildMergeReviewDiffRequest({
+      repoPath: repoPath || null,
+      filePath: selectedFilePath,
+      targetRef: reviewDiff.targetRef,
+      sourceRef: reviewDiff.sourceRef,
+      oldPath: reviewDiff.oldPath,
+      fileStatus: reviewDiff.status,
+      fileDiff: reviewDiff as any,
+      binary: reviewDiff.binary,
+      showHeader: true,
+    });
+  }, [activeViewerPath, repoPath, reviewDiff, selectedFilePath]);
+
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <AlertDialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
@@ -80,17 +111,12 @@ function MergeReviewDiffModal({
             </div>
           ) : (
             <div className="h-full overflow-auto">
-              <DiffRenderer
-                repoPath={repoPath || null}
-                filePath={activeViewerPath}
-                mode="working"
-                fileStatus={reviewDiff.status}
-                oldPath={reviewDiff.oldPath}
-                fileDiff={reviewDiff as any}
-                binary={reviewDiff.binary}
-                showHeader
-                loadingLabel="Loading diff viewer…"
-              />
+              {diffRequest && (
+                <DiffRenderer
+                  {...diffRequest}
+                  loadingLabel="Loading diff viewer…"
+                />
+              )}
             </div>
           )}
         </div>

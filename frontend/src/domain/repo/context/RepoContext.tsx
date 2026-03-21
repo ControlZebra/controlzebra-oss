@@ -170,6 +170,29 @@ import type {
   CreateProjectResult,
 } from './RepoContext.types';
 
+function normalizeMergeReviewDiffResult(
+  filePath: string,
+  targetRef: string,
+  sourceRef: string,
+  result: Partial<MergeReviewDiffResult> | null | undefined,
+): MergeReviewDiffResult | null {
+  if (!result) {
+    return null;
+  }
+
+  return {
+    path: result.path ?? filePath,
+    oldPath: result.oldPath,
+    status: (result.status ?? 'modified') as MergeReviewDiffResult['status'],
+    binary: result.binary,
+    rawDiff: result.rawDiff,
+    hasError: result.hasError,
+    error: result.error,
+    targetRef: result.targetRef ?? targetRef,
+    sourceRef: result.sourceRef ?? sourceRef,
+  };
+}
+
 // Polling interval for status updates (in ms)
 const STATUS_POLL_INTERVAL = 30000;
 const STARTUP_AUTO_PULL_DELAY_MS = 10000;
@@ -1454,7 +1477,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
     try {
       const result = await DiffMergeReviewFileRaw(repoPath, target, source, filePath);
-      return result as MergeReviewDiffResult;
+      return normalizeMergeReviewDiffResult(
+        filePath,
+        target,
+        source,
+        result as Partial<MergeReviewDiffResult> | null,
+      );
     } catch (err) {
       const error = err as Error;
       console.error('Failed to load merge review diff:', error.message || err);

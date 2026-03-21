@@ -14,8 +14,7 @@
  *  - Results are cached per page to avoid redundant work
  *
  * Backend methods used:
- *  - `GetFileAtRevisionBase64(repoPath, filePath, revision)` — PDF at a git revision
- *  - `ReadFileBase64(absolutePath)` — working tree PDF
+ *  - Shared diff-side loaders backed by the GitService/FileSystemService
  */
 import {
   memo,
@@ -40,11 +39,15 @@ import {
   Equal,
   AlertTriangle,
 } from 'lucide-react';
+import { onEvent } from '../../../shared/runtime/events';
 
 import { ICON_SIZES } from '../../../shared/constants';
-import { GetFileAtRevisionBase64 } from '../../../../bindings/controlzebra/services/gitservice';
-import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
+import type { DiffSide } from '../../registry/diff-registry';
 import { getPathFileName } from '../shared/path-utils';
+import {
+  loadBinarySide,
+  serializeDiffSide,
+} from './diff-side-loaders';
 import {
   loadPdfFromBase64,
   renderPageToImageData,
@@ -66,10 +69,8 @@ export interface PDFDiffViewerProps {
   repoPath: string;
   /** Path to the PDF file (repo-relative or absolute). */
   filePath: string;
-  /** For commit diffs: the commit hash. Omit / null for working tree diffs. */
-  commitHash?: string | null;
-  /** True when comparing the working tree against HEAD. */
-  isWorkingTree?: boolean;
+  oldSide: DiffSide;
+  newSide: DiffSide;
 }
 
 /** Internal state for the loaded PDF pair. */
@@ -89,16 +90,16 @@ const pdfDiffCache = new Map<string, PdfPair>();
 
 function cacheKey(
   repoPath: string,
-  filePath: string,
-  commitHash?: string | null,
+  oldSide: DiffSide,
+  newSide: DiffSide,
 ): string {
-  return `pdf::${repoPath}::${filePath}::${commitHash || 'working'}`;
+  return `pdf::${repoPath}::${serializeDiffSide(oldSide)}::${serializeDiffSide(newSide)}`;
 }
 
 /** Invalidate all working-tree PDF diff caches. */
 export function invalidateWorkingTreePdfDiffCache(): void {
   for (const key of pdfDiffCache.keys()) {
-    if (key.endsWith('::working')) {
+    if (key.includes('::working:')) {
       pdfDiffCache.delete(key);
     }
   }
@@ -424,8 +425,8 @@ const OverlayView = memo(function OverlayView({
 function PDFDiffViewer({
   repoPath,
   filePath,
-  commitHash,
-  isWorkingTree,
+  oldSide,
+  newSide,
 }: PDFDiffViewerProps): JSX.Element {
   // ── State ──────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
@@ -451,7 +452,22 @@ function PDFDiffViewer({
 
   // ── Total pages ────────────────────────────────────────────────────────
   const totalPages = pdfPair ? Math.max(pdfPair.oldPageCount, pdfPair.newPageCount) : 0;
-  const activeCacheKey = useMemo(() => cacheKey(repoPath, filePath, commitHash), [repoPath, filePath, commitHash]);
+  const usesWorkingTree = useMemo(
+    () => oldSide.kind === 'working' || newSide.kind === 'working',
+    [oldSide, newSide],
+  );
+  const activeCacheKey = useMemo(
+    () => cacheKey(repoPath, oldSide, newSide),
+    [repoPath, oldSide, newSide],
+  );
+  const normalizedTargetPath = useMemo(() => {
+    const workingSide = newSide.kind === 'working'
+      ? newSide
+      : oldSide.kind === 'working'
+        ? oldSide
+        : null;
+    return workingSide?.absolutePath.replace(/\\/g, '/').toLowerCase() ?? null;
+  }, [newSide, oldSide]);
 
   const handleReload = useCallback(() => {
     pdfDiffCache.delete(activeCacheKey);
@@ -474,7 +490,7 @@ function PDFDiffViewer({
       setSummary(null);
       pageCacheRef.current.clear();
 
-      const key = cacheKey(repoPath, filePath, commitHash);
+      const key = cacheKey(repoPath, oldSide, newSide);
 
       // Check cache first
       const cached = pdfDiffCache.get(key);
@@ -492,69 +508,40 @@ function PDFDiffViewer({
         let oldError: string | null = null;
         let newError: string | null = null;
 
-        if (isWorkingTree || !commitHash) {
-          // Working tree diff: old = HEAD, new = working tree file
-          const [oldResult, newResult] = await Promise.all([
-            GetFileAtRevisionBase64(repoPath, filePath, 'HEAD').catch(() => null),
-            ReadFileBase64(repoPath + '/' + filePath).catch(() => null),
-          ]);
+        const [oldResult, newResult] = await Promise.allSettled([
+          loadBinarySide(repoPath, oldSide),
+          loadBinarySide(repoPath, newSide),
+        ]);
 
-          if (cancelled || !mountedRef.current) return;
+        if (cancelled || !mountedRef.current) return;
 
-          // Load old doc (HEAD revision) — independent error handling
-          if (oldResult?.success && oldResult.data) {
-            try {
-              oldDoc = await loadPdfFromBase64(oldResult.data);
-            } catch (e: any) {
-              console.warn('[PDFDiffViewer] Failed to load old (HEAD) PDF:', e?.message);
-              oldError = e?.message || 'Failed to parse old PDF';
-            }
-          } else if (oldResult && !oldResult.success) {
-            // Not an error — file may simply not exist at HEAD (newly added file)
-            oldError = null;
+        if (oldResult.status === 'rejected' || newResult.status === 'rejected') {
+          const oldMessage = oldResult.status === 'rejected'
+            ? oldResult.reason instanceof Error ? oldResult.reason.message : String(oldResult.reason)
+            : null;
+          const newMessage = newResult.status === 'rejected'
+            ? newResult.reason instanceof Error ? newResult.reason.message : String(newResult.reason)
+            : null;
+          setError(newMessage || oldMessage || 'Could not load one of the PDF versions');
+          setLoading(false);
+          return;
+        }
+
+        if (oldResult.status === 'fulfilled' && oldResult.value) {
+          try {
+            oldDoc = await loadPdfFromBase64(oldResult.value.base64Data);
+          } catch (e: any) {
+            console.warn('[PDFDiffViewer] Failed to load old PDF:', e?.message);
+            oldError = e?.message || 'Failed to parse old PDF';
           }
+        }
 
-          // Load new doc (working tree) — independent error handling
-          if (newResult?.success && newResult.data) {
-            try {
-              newDoc = await loadPdfFromBase64(newResult.data);
-            } catch (e: any) {
-              console.warn('[PDFDiffViewer] Failed to load new (working tree) PDF:', e?.message);
-              newError = e?.message || 'Failed to parse new PDF';
-            }
-          } else if (newResult && !newResult.success) {
-            newError = newResult.error || 'Failed to read working tree file';
-          }
-        } else {
-          // Commit diff: old = parent commit, new = this commit
-          const parentRef = commitHash + '^';
-          const [oldResult, newResult] = await Promise.all([
-            GetFileAtRevisionBase64(repoPath, filePath, parentRef).catch(() => null),
-            GetFileAtRevisionBase64(repoPath, filePath, commitHash).catch(() => null),
-          ]);
-
-          if (cancelled || !mountedRef.current) return;
-
-          // Load old doc (parent commit) — independent error handling
-          if (oldResult?.success && oldResult.data) {
-            try {
-              oldDoc = await loadPdfFromBase64(oldResult.data);
-            } catch (e: any) {
-              console.warn('[PDFDiffViewer] Failed to load old (parent) PDF:', e?.message);
-              oldError = e?.message || 'Failed to parse old PDF';
-            }
-          }
-
-          // Load new doc (this commit) — independent error handling
-          if (newResult?.success && newResult.data) {
-            try {
-              newDoc = await loadPdfFromBase64(newResult.data);
-            } catch (e: any) {
-              console.warn('[PDFDiffViewer] Failed to load new (commit) PDF:', e?.message);
-              newError = e?.message || 'Failed to parse new PDF';
-            }
-          } else if (newResult && !newResult.success) {
-            newError = newResult.error || 'Failed to read file at commit';
+        if (newResult.status === 'fulfilled' && newResult.value) {
+          try {
+            newDoc = await loadPdfFromBase64(newResult.value.base64Data);
+          } catch (e: any) {
+            console.warn('[PDFDiffViewer] Failed to load new PDF:', e?.message);
+            newError = e?.message || 'Failed to parse new PDF';
           }
         }
 
@@ -596,7 +583,38 @@ function PDFDiffViewer({
 
     load();
     return () => { cancelled = true; };
-  }, [repoPath, filePath, commitHash, isWorkingTree, reloadNonce]);
+  }, [filePath, newSide, oldSide, reloadNonce, repoPath]);
+
+  useEffect(() => {
+    if (!usesWorkingTree || !normalizedTargetPath) return;
+
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/').toLowerCase();
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+      if (changedPath !== normalizedTargetPath) return;
+
+      pdfDiffCache.delete(activeCacheKey);
+      pageCacheRef.current.clear();
+      setReloadNonce((nonce) => nonce + 1);
+    };
+
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [activeCacheKey, normalizedTargetPath, usesWorkingTree]);
 
   // ── Compare current page whenever it changes ──────────────────────────
   useEffect(() => {
