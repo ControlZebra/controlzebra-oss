@@ -18,6 +18,7 @@ export type ConflictFileStatus = 'both-modified' | 'deleted-by-us' | 'deleted-by
 export type ResolutionStrategy = 'mine' | 'theirs' | 'both';
 export type MessageType = 'success' | 'error' | 'info' | 'warning';
 export type ProjectSetupStartSource = 'status_bar_nudge' | 'setup_banner';
+export type LiveMergePhase = 'dry-run' | 'starting' | 'resolving' | 'ready-to-complete' | 'auto-completed';
 
 // ============================================================================
 // GitHub Types (for Phase 2: GitHub Integration)
@@ -313,6 +314,7 @@ export interface BranchConflictCheckResult {
   mergeStarted?: boolean;
   alreadyUpToDate?: boolean;
   autoCompleted?: boolean;
+  liveMergePhase?: LiveMergePhase;
 }
 
 /**
@@ -432,6 +434,7 @@ export interface StartMergeResult {
   hasConflicts?: boolean;
   alreadyUpToDate?: boolean;
   autoCompleted?: boolean;
+  liveMergePhase?: LiveMergePhase;
 }
 
 // ============================================================================

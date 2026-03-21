@@ -185,6 +185,8 @@
   },
   "active": "8b2ecd0713f9fdbb",
   "lastOpenFiles": [
+    "plans/MERGE_MODAL_FULL_WIDTH_REVIEW_WIREFRAMES.md",
+    "plans/EXPLORER_MERGE_CONFLICT_WORKFLOW_FIX_PLAN.md",
     "plans/EXPLORER_MERGE_OUTCOME_MODAL_PLAN.md",
     "plans/simplified_git_diff_viewer.md",
     "plans/SIMPLIFIED_BRANCH_COMPARE_DIFF_PLAN.md",
@@ -208,8 +210,6 @@
     "technical/CommandRunner.md",
     "technical/BUILD_GUIDE.md",
     "technical/AUTO_UPDATE_TESTING.md",
-    "technical/backend/services/SettingsService.md",
-    "processes/Documentation Standards.md",
-    "processes/Incident Response.md"
+    "technical/backend/services/SettingsService.md"
   ]
 }
