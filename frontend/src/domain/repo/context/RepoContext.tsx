@@ -153,6 +153,7 @@ import type {
   ProgressModalState,
   FileResolutionsMap,
   ResolutionStrategy,
+  LiveMergePhase,
   MessageType,
   MergeOptions,
   StartMergeResult,
@@ -196,6 +197,7 @@ function normalizeMergeReviewDiffResult(
 // Polling interval for status updates (in ms)
 const STATUS_POLL_INTERVAL = 30000;
 const STARTUP_AUTO_PULL_DELAY_MS = 10000;
+const LIVE_CONFLICT_RETRY_DELAY_MS = 150;
 
 // Global UI events consumed by LayoutContext for explorer tab cleanup
 const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
@@ -348,6 +350,121 @@ export function RepoProvider({ children }: RepoProviderProps) {
       detail: { relativePath },
     }));
   }, []);
+
+  const pruneResolvedConflictCache = useCallback((activeConflicts: ConflictedFile[]) => {
+    const activeConflictPaths = new Set(activeConflicts.map((file) => file.path));
+    setFileResolutions((previous) => {
+      const nextEntries = Object.entries(previous).filter(([filePath]) => !activeConflictPaths.has(filePath));
+      if (nextEntries.length === Object.keys(previous).length) {
+        return previous;
+      }
+
+      return Object.fromEntries(nextEntries) as FileResolutionsMap;
+    });
+  }, []);
+
+  const reconcileLiveMergeState = useCallback(async (
+    targetBranch: string,
+    sourceBranch: string,
+    options: {
+      squash?: boolean;
+      preserveConflictPreview?: boolean;
+    } = {},
+  ): Promise<{
+    liveMergePhase: LiveMergePhase;
+    mergeState: MergeState;
+    conflictedFiles: ConflictedFile[];
+  }> => {
+    if (!repoPath) {
+      throw new Error('No repository open');
+    }
+
+    const readLiveState = async (): Promise<{ mergeState: MergeState; conflictedFiles: ConflictedFile[] }> => {
+      const [nextMergeState, nextConflictedFiles] = await Promise.all([
+        GetMergeState(repoPath),
+        GetConflictedFiles(repoPath),
+      ]);
+
+      return {
+        mergeState: nextMergeState as MergeState,
+        conflictedFiles: (nextConflictedFiles || []) as ConflictedFile[],
+      };
+    };
+
+    let liveState = await readLiveState();
+    const expectedConflicts = options.preserveConflictPreview && (
+      Boolean(conflictCheckResult?.hasConflicts)
+      || Boolean(conflictCheckResult?.conflictedFiles?.length)
+      || conflictedFiles.length > 0
+    );
+
+    if (liveState.conflictedFiles.length === 0 && (liveState.mergeState.hasConflicts || expectedConflicts)) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, LIVE_CONFLICT_RETRY_DELAY_MS);
+      });
+      liveState = await readLiveState();
+    }
+
+    const confirmedConflictFree = !liveState.mergeState.hasConflicts && liveState.conflictedFiles.length === 0;
+    const fallbackConflicts = options.preserveConflictPreview
+      ? (((conflictCheckResult?.conflictedFiles?.length ? conflictCheckResult.conflictedFiles : conflictedFiles) || []) as ConflictedFile[])
+      : conflictedFiles;
+    const authoritativeConflicts = liveState.conflictedFiles.length > 0
+      ? liveState.conflictedFiles
+      : confirmedConflictFree
+        ? []
+        : fallbackConflicts;
+    const liveMergePhase: LiveMergePhase = liveState.conflictedFiles.length > 0
+      ? 'resolving'
+      : confirmedConflictFree
+        ? 'ready-to-complete'
+        : 'starting';
+
+    setMergeState(liveState.mergeState);
+    setConflictedFiles(authoritativeConflicts);
+    pruneResolvedConflictCache(authoritativeConflicts);
+    setSelectedConflictFile((previous) => {
+      if (authoritativeConflicts.length === 0) {
+        return null;
+      }
+
+      return authoritativeConflicts.some((file) => file.path === previous)
+        ? previous
+        : authoritativeConflicts[0].path;
+    });
+    setConflictCheckResult((previous) => {
+      const baseResult: BranchConflictCheckResult = previous ?? {
+        hasConflicts: authoritativeConflicts.length > 0,
+        conflictedFiles: authoritativeConflicts,
+        parentBranch: targetBranch,
+        targetBranch,
+        sourceBranch,
+        success: true,
+      };
+
+      return {
+        ...baseResult,
+        success: true,
+        error: undefined,
+        targetBranch: baseResult.targetBranch || targetBranch,
+        parentBranch: baseResult.parentBranch || targetBranch,
+        sourceBranch: baseResult.sourceBranch || sourceBranch,
+        isSquashMerge: options.squash ?? baseResult.isSquashMerge,
+        mergeStarted: true,
+        hasConflicts: !confirmedConflictFree,
+        conflictedFiles: authoritativeConflicts,
+        alreadyUpToDate: false,
+        autoCompleted: false,
+        liveMergePhase,
+      };
+    });
+
+    return {
+      liveMergePhase,
+      mergeState: liveState.mergeState,
+      conflictedFiles: authoritativeConflicts,
+    };
+  }, [repoPath, conflictCheckResult, conflictedFiles, pruneResolvedConflictCache]);
 
   const refreshToolchainStatus = useCallback(async (): Promise<{ hasGit: boolean; hasGh: boolean; hasLfs: boolean }> => {
     let hasGit = false;
@@ -1513,7 +1630,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     try {
       const result = await CheckBranchConflicts(repoPath, targetBranch, sourceBranch);
       
-      const resultWithSquash = { ...result, isSquashMerge: squash } as BranchConflictCheckResult;
+      const resultWithSquash = { ...result, isSquashMerge: squash, liveMergePhase: 'dry-run' } as BranchConflictCheckResult;
       setConflictCheckResult(resultWithSquash);
       
       if (result.targetBranch || result.parentBranch) {
@@ -1603,47 +1720,77 @@ export function RepoProvider({ children }: RepoProviderProps) {
       if (!mergeResult.success) {
         const errorMsg = mergeResult.error || mergeResult.message || 'Failed to start merge';
         showMessage('error', errorMsg);
-        setConflictCheckResult(prev => prev ? { ...prev, success: false, error: errorMsg, mergeStarted: false } : null);
+        setConflictCheckResult(prev => prev ? { ...prev, success: false, error: errorMsg, mergeStarted: false, liveMergePhase: 'dry-run' } : null);
         setIsCheckingConflicts(false);
         return null;
       }
       
       if (mergeResult.error === 'already_up_to_date') {
         showMessage('info', `${target} already contains all changes from ${source} - nothing to merge`);
-        setConflictCheckResult(prev => prev ? { ...prev, success: true, alreadyUpToDate: true, mergeStarted: false } : null);
+        setConflictCheckResult(prev => prev ? { ...prev, success: true, alreadyUpToDate: true, mergeStarted: false, liveMergePhase: 'dry-run' } : null);
         setIsCheckingConflicts(false);
-        return { success: true, alreadyUpToDate: true };
+        return { success: true, alreadyUpToDate: true, liveMergePhase: 'dry-run' };
       }
       
       if (mergeResult.error === 'auto_completed') {
         showMessage('success', `Merged ${source} into ${target} successfully`);
-        setConflictCheckResult(prev => prev ? { ...prev, success: true, autoCompleted: true, mergeStarted: true } : null);
+        setConflictCheckResult(prev => prev ? {
+          ...prev,
+          success: true,
+          autoCompleted: true,
+          mergeStarted: true,
+          liveMergePhase: 'auto-completed',
+        } : null);
         await refreshAll();
         setIsCheckingConflicts(false);
-        return { success: true, autoCompleted: true };
+        return { success: true, autoCompleted: true, liveMergePhase: 'auto-completed' };
       }
-      
-      const mergeStateAfterStart = await GetMergeState(repoPath);
-      
-      if (mergeStateAfterStart.hasConflicts) {
-        const actualConflicts = await GetConflictedFiles(repoPath);
-        setConflictedFiles((actualConflicts || conflictCheckResult?.conflictedFiles || []) as ConflictedFile[]);
-        showMessage('info', `${mergeType} started: ${source} → ${target} with ${actualConflicts?.length || 0} conflict(s) to resolve`);
-      } else {
-        setConflictedFiles([]);
+
+      setConflictCheckResult((previous) => previous ? {
+        ...previous,
+        mergeStarted: true,
+        liveMergePhase: 'starting',
+      } : {
+        hasConflicts: false,
+        conflictedFiles: [],
+        parentBranch: target,
+        targetBranch: target,
+        sourceBranch: source || '',
+        success: true,
+        isSquashMerge: squash,
+        mergeStarted: true,
+        liveMergePhase: 'starting',
+      });
+
+      const reconciledMerge = await reconcileLiveMergeState(target, source || '', {
+        squash,
+        preserveConflictPreview: true,
+      });
+
+      if (reconciledMerge.liveMergePhase === 'resolving') {
+        showMessage(
+          'info',
+          `${mergeType} started: ${source} → ${target} with ${reconciledMerge.conflictedFiles.length} conflict(s) to resolve`,
+        );
+      } else if (reconciledMerge.liveMergePhase === 'ready-to-complete') {
         showMessage('success', `${mergeType} started - ready to complete`);
+      } else {
+        showMessage('info', 'Merge started. Preparing the conflict list...');
       }
-      
-      setConflictCheckResult(prev => prev ? { ...prev, mergeStarted: true, hasConflicts: mergeStateAfterStart.hasConflicts } : null);
+
       setIsCheckingConflicts(false);
-      return { success: true, hasConflicts: mergeStateAfterStart.hasConflicts };
+      return {
+        success: true,
+        hasConflicts: reconciledMerge.liveMergePhase !== 'ready-to-complete',
+        liveMergePhase: reconciledMerge.liveMergePhase,
+      };
     } catch (err) {
       const error = err as Error;
       showMessage('error', `Failed to start merge: ${error.message || err}`);
       setIsCheckingConflicts(false);
       return null;
     }
-  }, [repoPath, showMessage, isSquashMerge, conflictCheckResult, detectedParentBranch, repoInfo?.branch, refreshAll]);
+  }, [repoPath, showMessage, isSquashMerge, conflictCheckResult, detectedParentBranch, repoInfo?.branch, refreshAll, reconcileLiveMergeState]);
 
   // Legacy function for backward compatibility
   const checkBranchConflicts = useCallback(async (
@@ -1739,7 +1886,25 @@ export function RepoProvider({ children }: RepoProviderProps) {
       });
 
       setFileResolutions(prev => ({ ...prev, [filePath]: strategy }));
-      showMessage('success', result.message || `Resolved "${filePath.split('/').pop()}"`);
+
+      const reconciledMerge = await reconcileLiveMergeState(
+        conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name || '',
+        conflictCheckResult?.sourceBranch || repoInfo?.branch || '',
+        {
+          squash: conflictCheckResult?.isSquashMerge ?? isSquashMerge,
+          preserveConflictPreview: false,
+        },
+      );
+
+      if (reconciledMerge.liveMergePhase === 'ready-to-complete') {
+        showMessage('success', 'All conflict choices are saved. Add a merge message and finish.');
+      } else {
+        showMessage(
+          'success',
+          result.message || `Resolved "${filePath.split('/').pop()}". ${reconciledMerge.conflictedFiles.length} file(s) still need a choice.`,
+        );
+      }
+
       setIsResolvingConflict(false);
       return true;
     } catch (err) {
@@ -1748,7 +1913,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsResolvingConflict(false);
       return false;
     }
-  }, [repoPath, showMessage]);
+  }, [repoPath, showMessage, reconcileLiveMergeState, conflictCheckResult, detectedParentBranch, repoInfo?.branch, isSquashMerge]);
 
   // Apply all pending resolutions
   const applyAllResolutions = useCallback(async (): Promise<boolean> => {
@@ -1847,8 +2012,26 @@ export function RepoProvider({ children }: RepoProviderProps) {
     const parentBranchName = detectedParentBranch?.name;
     const totalConflicts = conflictedFiles.length;
     const strategiesUsed = Object.values(fileResolutions).filter(Boolean) as string[];
+    const liveTargetBranch = conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name || '';
+    const liveSourceBranch = conflictCheckResult?.sourceBranch || repoInfo?.branch || '';
 
     try {
+      const reconciledMerge = await reconcileLiveMergeState(liveTargetBranch, liveSourceBranch, {
+        squash: conflictCheckResult?.isSquashMerge ?? isSquashMerge,
+        preserveConflictPreview: false,
+      });
+
+      if (reconciledMerge.mergeState.hasConflicts || reconciledMerge.conflictedFiles.length > 0) {
+        const liveUnresolvedCount = reconciledMerge.conflictedFiles.length || 1;
+        showMessage(
+          'error',
+          liveUnresolvedCount === 1
+            ? '1 file still needs a choice before you can finish this merge.'
+            : `${liveUnresolvedCount} files still need a choice before you can finish this merge.`,
+        );
+        return false;
+      }
+
       // CompleteMerge handles both regular and squash merges on the backend
       const result = await CompleteMerge(repoPath, message || '');
       
@@ -1888,7 +2071,21 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to complete merge: ${error.message || err}`);
       return false;
     }
-  }, [repoPath, conflictedFiles, fileResolutions, showMessage, clearConflicts, clearSelection, refreshAll, refreshBranches, detectedParentBranch]);
+  }, [
+    repoPath,
+    conflictedFiles,
+    fileResolutions,
+    showMessage,
+    clearConflicts,
+    clearSelection,
+    refreshAll,
+    refreshBranches,
+    detectedParentBranch,
+    conflictCheckResult,
+    repoInfo?.branch,
+    reconcileLiveMergeState,
+    isSquashMerge,
+  ]);
 
   // Refresh merge state from backend
   const refreshMergeState = useCallback(async (): Promise<MergeState | null> => {
