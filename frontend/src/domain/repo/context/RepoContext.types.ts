@@ -335,6 +335,8 @@ export interface MergeReviewDiffResult {
   rawDiff?: string;
   hasError?: boolean;
   error?: string;
+  targetRef?: string;
+  sourceRef?: string;
 }
 
 /**

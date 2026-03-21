@@ -1,16 +1,17 @@
 import type { ComponentType, LazyExoticComponent } from 'react';
 
-export type DiffMode = 'working' | 'commit';
+export type DiffSide =
+  | { kind: 'ref'; ref: string; path: string }
+  | { kind: 'working'; absolutePath: string; path: string }
+  | { kind: 'missing'; path: string };
 
 export interface DiffRenderRequest {
   repoPath?: string | null;
   filePath: string;
-  mode: DiffMode;
-  commitHash?: string | null;
-  parentHash?: string | null;
+  oldSide?: DiffSide;
+  newSide?: DiffSide;
   oldPath?: string;
   fileStatus?: string;
-  absoluteFilePath?: string;
   fileDiff?: unknown;
   binary?: boolean;
   showHeader?: boolean;

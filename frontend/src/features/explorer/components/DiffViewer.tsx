@@ -8,6 +8,7 @@ import { parseDiff, Diff, Hunk, HunkData } from 'react-diff-view';
 import 'react-diff-view/style/index.css';
 import { cn } from '../../../shared/utils/misc';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
+import type { DiffSide } from '../../../viewers/registry/diff-registry';
 
 
 
@@ -57,14 +58,14 @@ interface DiffViewerProps {
   showHeader?: boolean;
   /** Repo path — needed when rendering ImageDiffViewer for binary image files. */
   repoPath?: string;
-  /** Commit hash — passed to ImageDiffViewer for history diffs. */
-  commitHash?: string;
+  oldSide?: DiffSide;
+  newSide?: DiffSide;
 }
 
 /**
  * DiffViewer - Main component for viewing file diffs.
  */
-function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffViewerProps) {
+function DiffViewer({ fileDiff, showHeader = true, repoPath, oldSide, newSide }: DiffViewerProps) {
   // Parse the raw diff text using react-diff-view
   const files = useMemo(() => {
     if (!fileDiff?.rawDiff) return [];
@@ -96,19 +97,23 @@ function DiffViewer({ fileDiff, showHeader = true, repoPath, commitHash }: DiffV
 
   // Binary file — route through shared diff registry/renderer
   if (fileDiff.binary) {
+    const request = {
+      repoPath: repoPath || null,
+      filePath: fileDiff.path,
+      oldSide,
+      newSide,
+      oldPath: fileDiff.oldPath,
+      fileStatus: fileDiff.status,
+      fileDiff: fileDiff as any,
+      binary: true,
+      showHeader,
+    };
+
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 min-h-0">
           <DiffRenderer
-            repoPath={repoPath || null}
-            filePath={fileDiff.path}
-            mode={commitHash ? 'commit' : 'working'}
-            commitHash={commitHash ?? null}
-            fileStatus={fileDiff.status}
-            oldPath={fileDiff.oldPath}
-            fileDiff={fileDiff as any}
-            binary
-            showHeader={showHeader}
+            {...request}
             loadingLabel="Loading diff viewer…"
           />
         </div>

@@ -14,8 +14,7 @@
  * objects for OV's LoadModelFromFileList API.
  *
  * Backend methods:
- *  - `GetFileAtRevisionBase64(repoPath, filePath, revision)` — file at a git revision
- *  - `ReadFileBase64(absolutePath)`                          — working tree file
+ *  - Shared diff-side loaders backed by the GitService/FileSystemService
  */
 import {
   memo,
@@ -39,10 +38,13 @@ import {
 import { onEvent } from '../../../shared/runtime/events';
 
 import { ICON_SIZES } from '../../../shared/constants';
-import { GetFileAtRevisionBase64 } from '../../../../bindings/controlzebra/services/gitservice';
-import { ReadFileBase64 } from '../../../../bindings/controlzebra/services/filesystemservice';
+import type { DiffSide } from '../../registry/diff-registry';
 import { base64ToFile } from '../file/model3d-utils';
 import { getPathFileName } from '../shared/path-utils';
+import {
+  loadBinarySide,
+  serializeDiffSide,
+} from './diff-side-loaders';
 
 // ============================================================================
 // Types
@@ -55,10 +57,8 @@ export interface Model3DDiffViewerProps {
   repoPath: string;
   /** Path to the 3D model file (repo-relative). */
   filePath: string;
-  /** For commit diffs: the commit hash. Omit / null for working tree diffs. */
-  commitHash?: string | null;
-  /** True when comparing the working tree against HEAD. */
-  isWorkingTree?: boolean;
+  oldSide: DiffSide;
+  newSide: DiffSide;
 }
 
 /** Internal state for the loaded model pair. */
@@ -74,28 +74,56 @@ interface ModelPair {
 
 const modelDiffCache = new Map<string, ModelPair>();
 
-function makeCacheKey(
+export function makeCacheKey(
   repoPath: string,
-  filePath: string,
-  commitHash?: string | null,
+  oldSide: DiffSide,
+  newSide: DiffSide,
 ): string {
-  return `3d::${repoPath}::${filePath}::${commitHash || 'working'}`;
+  return `3d::${repoPath}::${serializeDiffSide(oldSide)}::${serializeDiffSide(newSide)}`;
+}
+
+export function clear3DDiffCacheForTests(): void {
+  modelDiffCache.clear();
+}
+
+export function prime3DDiffCacheForTests(
+  repoPath: string,
+  oldSide: DiffSide,
+  newSide: DiffSide,
+): string {
+  const key = makeCacheKey(repoPath, oldSide, newSide);
+  modelDiffCache.set(key, {
+    oldFile: null,
+    newFile: null,
+    status: 'modified',
+  });
+  return key;
+}
+
+export function has3DDiffCacheKeyForTests(key: string): boolean {
+  return modelDiffCache.has(key);
 }
 
 /** Invalidate all working-tree 3D diff caches. */
 export function invalidateWorkingTree3DDiffCache(): void {
   for (const key of modelDiffCache.keys()) {
-    if (key.endsWith('::working')) {
+    if (key.includes('::working:')) {
       modelDiffCache.delete(key);
     }
   }
 }
 
 /** Invalidate a specific file's cache entry. */
-export function invalidate3DDiffCacheForFile(_repoPath: string, filePath: string): void {
-  // Remove both working and any commit-based cache
+export function invalidate3DDiffCacheForFile(repoPath: string, filePath: string): void {
+  const normalizedRepoPath = repoPath.replace(/\\/g, '/');
+  const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+
   for (const key of modelDiffCache.keys()) {
-    if (key.includes(`::${filePath}::`)) {
+    if (!key.startsWith(`3d::${normalizedRepoPath}::`)) {
+      continue;
+    }
+
+    if (key.toLowerCase().includes(`:${normalizedPath}`)) {
       modelDiffCache.delete(key);
     }
   }
@@ -538,16 +566,16 @@ async function loadSecondaryOverlay(
 function Model3DDiffViewer({
   repoPath,
   filePath,
-  commitHash,
-  isWorkingTree,
+  oldSide,
+  newSide,
 }: Model3DDiffViewerProps): JSX.Element {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
 
   const key = useMemo(
-    () => makeCacheKey(repoPath, filePath, commitHash),
-    [repoPath, filePath, commitHash],
+    () => makeCacheKey(repoPath, oldSide, newSide),
+    [repoPath, oldSide, newSide],
   );
   const cached = modelDiffCache.get(key);
 
@@ -567,21 +595,25 @@ function Model3DDiffViewer({
     () => getPathFileName(filePath),
     [filePath],
   );
+  const usesWorkingTree = useMemo(
+    () => oldSide.kind === 'working' || newSide.kind === 'working',
+    [oldSide, newSide],
+  );
   const normalizedTargetPath = useMemo(() => {
-    const normalizedFilePath = filePath.replace(/\\/g, '/');
-    if (/^([a-zA-Z]:)?\//.test(normalizedFilePath)) {
-      return normalizedFilePath;
-    }
-    const normalizedRepoPath = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
-    return `${normalizedRepoPath}/${normalizedFilePath}`;
-  }, [repoPath, filePath]);
+    const workingSide = newSide.kind === 'working'
+      ? newSide
+      : oldSide.kind === 'working'
+        ? oldSide
+        : null;
+    return workingSide?.absolutePath.replace(/\\/g, '/').toLowerCase() ?? null;
+  }, [newSide, oldSide]);
 
   // ---------------------------------------------------------------------------
   // File change subscription (for working tree diffs)
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!isWorkingTree && commitHash) return;
+    if (!usesWorkingTree || !normalizedTargetPath) return;
 
     const handleFilesChanged = (event: {
       data?: {
@@ -590,18 +622,13 @@ function Model3DDiffViewer({
         isDir?: boolean;
       };
     }) => {
-      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const changedPath = event.data?.path?.replace(/\\/g, '/').toLowerCase();
       const eventType = event.data?.eventType;
       const isDir = event.data?.isDir;
 
       if (!changedPath || isDir) return;
       if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
-
-      const samePath =
-        changedPath === normalizedTargetPath ||
-        changedPath.toLowerCase() === normalizedTargetPath.toLowerCase();
-
-      if (!samePath) return;
+      if (changedPath !== normalizedTargetPath) return;
 
       modelDiffCache.delete(key);
       setRefreshCounter((c) => c + 1);
@@ -614,7 +641,7 @@ function Model3DDiffViewer({
         unsubscribe();
       }
     };
-  }, [key, isWorkingTree, commitHash, normalizedTargetPath]);
+  }, [key, normalizedTargetPath, usesWorkingTree]);
 
   // ---------------------------------------------------------------------------
   // Mode change handler — persist to localStorage
@@ -668,43 +695,37 @@ function Model3DDiffViewer({
     setIsLoading(true);
     setError(null);
     setModelPair(null);
+    const activeSides = { oldSide, newSide };
 
     async function load() {
       try {
         let oldData: string | null = null;
         let newData: string | null = null;
 
-        if (isWorkingTree || !commitHash) {
-          // Working tree diff: old = HEAD, new = working tree (disk)
-          const [oldResult, newResult] = await Promise.all([
-            GetFileAtRevisionBase64(repoPath, filePath, 'HEAD').catch(() => null),
-            ReadFileBase64(repoPath + '/' + filePath).catch(() => null),
-          ]);
+        const [oldResult, newResult] = await Promise.allSettled([
+          loadBinarySide(repoPath, activeSides.oldSide),
+          loadBinarySide(repoPath, activeSides.newSide),
+        ]);
 
-          if (cancelled || !mountedRef.current) return;
+        if (cancelled || !mountedRef.current) return;
 
-          if (oldResult?.success && oldResult.data) {
-            oldData = oldResult.data;
-          }
-          if (newResult?.success && newResult.data) {
-            newData = newResult.data;
-          }
-        } else {
-          // Commit diff: old = parent commit, new = this commit
-          const parentRef = commitHash + '^';
-          const [oldResult, newResult] = await Promise.all([
-            GetFileAtRevisionBase64(repoPath, filePath, parentRef).catch(() => null),
-            GetFileAtRevisionBase64(repoPath, filePath, commitHash).catch(() => null),
-          ]);
+        if (oldResult.status === 'rejected' || newResult.status === 'rejected') {
+          const oldMessage = oldResult.status === 'rejected'
+            ? oldResult.reason instanceof Error ? oldResult.reason.message : String(oldResult.reason)
+            : null;
+          const newMessage = newResult.status === 'rejected'
+            ? newResult.reason instanceof Error ? newResult.reason.message : String(newResult.reason)
+            : null;
+          setError(newMessage || oldMessage || 'Could not load one of the 3D model versions.');
+          setIsLoading(false);
+          return;
+        }
 
-          if (cancelled || !mountedRef.current) return;
-
-          if (oldResult?.success && oldResult.data) {
-            oldData = oldResult.data;
-          }
-          if (newResult?.success && newResult.data) {
-            newData = newResult.data;
-          }
+        if (oldResult.status === 'fulfilled' && oldResult.value) {
+          oldData = oldResult.value.base64Data;
+        }
+        if (newResult.status === 'fulfilled' && newResult.value) {
+          newData = newResult.value.base64Data;
         }
 
         if (cancelled || !mountedRef.current) return;
@@ -745,7 +766,7 @@ function Model3DDiffViewer({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [key, repoPath, filePath, commitHash, isWorkingTree, refreshCounter, fileName]);
+  }, [fileName, key, newSide, oldSide, refreshCounter, repoPath]);
 
   // ---------------------------------------------------------------------------
   // Derived state

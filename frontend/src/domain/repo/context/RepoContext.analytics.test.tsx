@@ -8,6 +8,8 @@ const {
   Status,
   CommitAll,
   GetCommitGraph,
+  ListMergeReviewFiles,
+  DiffMergeReviewFileRaw,
   Branches,
   GetMergeState,
   GetConflictedFiles,
@@ -61,6 +63,8 @@ const {
   Status: vi.fn(),
   CommitAll: vi.fn(),
   GetCommitGraph: vi.fn(),
+  ListMergeReviewFiles: vi.fn(),
+  DiffMergeReviewFileRaw: vi.fn(),
   Branches: vi.fn(),
   GetMergeState: vi.fn(),
   GetConflictedFiles: vi.fn(),
@@ -104,6 +108,8 @@ vi.mock('../../../../bindings/controlzebra/services/gitservice', () => ({
   ShowCommit: vi.fn(),
   DiffWorkingRaw: vi.fn(),
   DiffCommitFileRaw: vi.fn(),
+  ListMergeReviewFiles,
+  DiffMergeReviewFileRaw,
   Branches,
   CheckoutBranch: vi.fn(),
   CreateBranchAndCheckout: vi.fn(),
@@ -198,7 +204,7 @@ vi.mock('../../../../bindings/controlzebra/services/filesystemservice', () => ({
   OpenInTerminal: vi.fn(),
 }));
 
-vi.mock('../../../lib/recentFolders', () => ({
+vi.mock('../../../shared/utils/recentFolders', () => ({
   addRecentFolder: vi.fn(),
 }));
 
@@ -262,6 +268,8 @@ describe('RepoContext analytics validation', () => {
     });
     CommitAll.mockResolvedValue({ success: true, message: 'ok' });
     GetCommitGraph.mockResolvedValue({ hasError: false, commits: [] });
+    ListMergeReviewFiles.mockResolvedValue([]);
+    DiffMergeReviewFileRaw.mockResolvedValue(null);
     Branches.mockResolvedValue({ hasError: false, current: 'main', local: [], remote: [] });
     GetMergeState.mockResolvedValue({ inMerge: false, inRebase: false, hasConflicts: false });
     GetConflictedFiles.mockResolvedValue([]);
@@ -374,6 +382,46 @@ describe('RepoContext analytics validation', () => {
     const calls = analyticsMocks.trackSyncCompleted.mock.calls;
     const args = calls[calls.length - 1]?.[0] as { durationMs: number };
     expect(args.durationMs).toBeGreaterThan(0);
+  });
+
+  it('preserves merge review target and source refs from the backend payload', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      await api!.openRepo('/tmp/repo-merge-review');
+    });
+
+    DiffMergeReviewFileRaw.mockResolvedValueOnce({
+      path: 'Programs/Mixer.L5X',
+      oldPath: 'Programs/Mixer.L5X',
+      status: 'modified',
+      binary: false,
+      rawDiff: '@@ -1 +1 @@',
+      hasError: false,
+      targetRef: 'origin/main',
+      sourceRef: 'feature/plc-update',
+    });
+
+    let diffResult = null;
+    await act(async () => {
+      diffResult = await api!.loadMergeReviewFileDiff('Programs/Mixer.L5X', 'main', 'feature/plc-update');
+    });
+
+    expect(DiffMergeReviewFileRaw).toHaveBeenCalledWith(
+      '/tmp/repo-merge-review',
+      'main',
+      'feature/plc-update',
+      'Programs/Mixer.L5X',
+    );
+    expect(diffResult).toEqual(expect.objectContaining({
+      targetRef: 'origin/main',
+      sourceRef: 'feature/plc-update',
+    }));
   });
 
 });

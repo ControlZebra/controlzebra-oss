@@ -20,6 +20,10 @@ import ProjectSetupBanner from '../components/ProjectSetupBanner';
 import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../shared/constants';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers/components/shared/ViewerRenderer';
 import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
+import {
+  buildCommitDiffRequest,
+  buildWorkingTreeDiffRequest,
+} from '../../../viewers/registry/diff-request-adapters';
 import { getFolderNameFromPath } from '../../../shared/utils/path';
 
 function ExplorerPage(): JSX.Element {
@@ -154,6 +158,24 @@ function ExplorerPage(): JSX.Element {
       const { diffContext } = tab;
       const filePath = diffContext.relativePath || tab.filePath || '';
       const mode = diffContext.type;
+      const request = mode === 'commit'
+        ? buildCommitDiffRequest({
+          repoPath,
+          filePath,
+          commitHash: diffContext.commitHash ?? '',
+          parentHash: diffContext.parentHash ?? null,
+          oldPath: diffContext.oldPath,
+          fileStatus: diffContext.status,
+          showHeader: true,
+        })
+        : buildWorkingTreeDiffRequest({
+          repoPath,
+          filePath,
+          absoluteFilePath: diffContext.absolutePath ?? tab.filePath ?? filePath,
+          oldPath: diffContext.oldPath,
+          fileStatus: diffContext.status,
+          showHeader: true,
+        });
 
       return (
         <div
@@ -161,17 +183,7 @@ function ExplorerPage(): JSX.Element {
           className="h-full"
           style={{ display: isActive ? 'block' : 'none' }}
         >
-          <DiffRenderer
-            repoPath={repoPath}
-            filePath={filePath}
-            mode={mode}
-            commitHash={mode === 'commit' ? (diffContext.commitHash ?? null) : null}
-            parentHash={mode === 'commit' ? (diffContext.parentHash ?? null) : null}
-            oldPath={mode === 'commit' ? diffContext.oldPath : undefined}
-            fileStatus={diffContext.status}
-            absoluteFilePath={mode === 'working' ? diffContext.absolutePath : undefined}
-            showHeader
-          />
+          <DiffRenderer {...request} />
         </div>
       );
     }).filter(Boolean) as JSX.Element[];
