@@ -236,7 +236,7 @@ const SideBySideView = memo(function SideBySideView({
             <img
               src={result.oldDataUrl}
               alt={`Old page ${pageNum}`}
-              className="max-w-full max-h-[calc(100vh-280px)] object-contain block"
+              className="max-w-full max-h-[calc(100cqh-4rem)] object-contain block"
               draggable={false}
             />
           </div>
@@ -260,7 +260,7 @@ const SideBySideView = memo(function SideBySideView({
             <img
               src={result.newDataUrl}
               alt={`New page ${pageNum}`}
-              className="max-w-full max-h-[calc(100vh-280px)] object-contain block"
+              className="max-w-full max-h-[calc(100cqh-4rem)] object-contain block"
               draggable={false}
             />
           </div>
@@ -304,7 +304,7 @@ const DiffHighlightView = memo(function DiffHighlightView({
         <img
           src={imgSrc}
           alt={`Diff page ${pageNum}`}
-          className="max-w-full max-h-[calc(100vh-280px)] object-contain block"
+          className="max-w-full max-h-[calc(100cqh-4rem)] object-contain block"
           draggable={false}
         />
       </div>
@@ -373,14 +373,14 @@ const OverlayView = memo(function OverlayView({
         <img
           src={result.newDataUrl}
           alt={`New page ${pageNum}`}
-          className="block max-w-full max-h-[calc(100vh-280px)] object-contain"
+          className="block max-w-full max-h-[calc(100cqh-4rem)] object-contain"
           draggable={false}
         />
         {/* Top layer: OLD image (clipped via clipPath — no resize) */}
         <img
           src={result.oldDataUrl}
           alt={`Old page ${pageNum}`}
-          className="absolute inset-0 block max-w-full max-h-[calc(100vh-280px)] object-contain"
+          className="absolute inset-0 block max-w-full max-h-[calc(100cqh-4rem)] object-contain"
           style={{ clipPath: `inset(0 ${clipRight} 0 0)` }}
           draggable={false}
         />
@@ -928,7 +928,7 @@ function PDFDiffViewer({
       </div>
 
       {/* ── Page content ────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ containerType: 'size' }}>
         {showChangesOnly && visiblePages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-theme-muted text-sm">
             {summary && pageCacheRef.current.size >= totalPages

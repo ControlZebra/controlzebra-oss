@@ -1,10 +1,6 @@
-import { memo, useMemo, type CSSProperties } from 'react';
-import { Loader2 } from 'lucide-react';
+import { memo } from 'react';
 
-import { ICON_SIZES } from '../../../shared/constants';
 import type { MergeReviewDiffResult } from '../../../context';
-import { DiffRenderer } from '../../../viewers/components/shared/DiffRenderer';
-import { buildMergeReviewDiffRequest } from '../../../viewers/registry/diff-request-adapters';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -14,8 +10,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../../shared/ui';
-
-const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
+import MergeReviewPreview from './modal/MergeReviewPreview';
+import { formatMergeReviewFileLabel } from './modal/mergeReviewShared';
 
 interface MergeReviewDiffModalProps {
   open: boolean;
@@ -34,54 +30,9 @@ function MergeReviewDiffModal({
   isLoadingReviewDiff,
   repoPath,
 }: MergeReviewDiffModalProps): JSX.Element {
-  const displayPath = useMemo(() => {
-    if (reviewDiff?.oldPath && reviewDiff.oldPath !== reviewDiff.path) {
-      return `${reviewDiff.oldPath} → ${reviewDiff.path}`;
-    }
-    return reviewFilePath || reviewDiff?.path || '';
-  }, [reviewDiff?.oldPath, reviewDiff?.path, reviewFilePath]);
-
-  const selectedFilePath = useMemo(
-    () => reviewDiff?.path || reviewFilePath || '',
-    [reviewDiff?.path, reviewFilePath],
-  );
-
-  const activeViewerPath = useMemo(() => {
-    if (reviewDiff?.status === 'deleted' && reviewDiff.oldPath) {
-      return reviewDiff.oldPath;
-    }
-    return selectedFilePath;
-  }, [reviewDiff?.status, reviewDiff?.oldPath, selectedFilePath]);
-
-  const diffRequest = useMemo(() => {
-    if (!reviewDiff) {
-      return null;
-    }
-
-    if (!reviewDiff.targetRef || !reviewDiff.sourceRef) {
-      return {
-        repoPath: repoPath || null,
-        filePath: activeViewerPath,
-        fileStatus: reviewDiff.status,
-        oldPath: reviewDiff.oldPath,
-        fileDiff: reviewDiff as any,
-        binary: reviewDiff.binary,
-        showHeader: true,
-      };
-    }
-
-    return buildMergeReviewDiffRequest({
-      repoPath: repoPath || null,
-      filePath: selectedFilePath,
-      targetRef: reviewDiff.targetRef,
-      sourceRef: reviewDiff.sourceRef,
-      oldPath: reviewDiff.oldPath,
-      fileStatus: reviewDiff.status,
-      fileDiff: reviewDiff as any,
-      binary: reviewDiff.binary,
-      showHeader: true,
-    });
-  }, [activeViewerPath, repoPath, reviewDiff, selectedFilePath]);
+  const displayPath = reviewDiff
+    ? formatMergeReviewFileLabel(reviewDiff)
+    : reviewFilePath || '';
 
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
@@ -96,29 +47,14 @@ function MergeReviewDiffModal({
         </AlertDialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden border border-theme-default rounded-lg">
-          {isLoadingReviewDiff ? (
-            <div className="h-64 flex items-center justify-center text-theme-muted text-sm gap-2">
-              <Loader2 style={iconSm} className="animate-spin" />
-              Loading diff...
-            </div>
-          ) : !selectedFilePath ? (
-            <div className="h-64 flex items-center justify-center text-theme-muted text-sm">
-              No file selected
-            </div>
-          ) : !reviewDiff ? (
-            <div className="h-64 flex items-center justify-center text-theme-muted text-sm">
-              Unable to load diff for {selectedFilePath}
-            </div>
-          ) : (
-            <div className="h-full overflow-auto">
-              {diffRequest && (
-                <DiffRenderer
-                  {...diffRequest}
-                  loadingLabel="Loading diff viewer…"
-                />
-              )}
-            </div>
-          )}
+          <MergeReviewPreview
+            repoPath={repoPath}
+            reviewFilePath={reviewFilePath}
+            reviewDiff={reviewDiff}
+            isLoadingReviewDiff={isLoadingReviewDiff}
+            emptyLabel="No file selected"
+            errorLabelPrefix="Unable to load diff for"
+          />
         </div>
 
         <AlertDialogFooter>

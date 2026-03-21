@@ -3,12 +3,65 @@
  * A controlled modal for destructive actions that require user confirmation.
  */
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../utils/misc";
 import { Button, type ButtonProps } from "./button";
 
 interface AlertDialogContextValue {
   open: boolean;
   onOpenChange?: (open: boolean) => void;
+  dialogId: string;
+}
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+const openDialogStack: string[] = [];
+let originalBodyOverflow = "";
+
+function pushDialog(dialogId: string): void {
+  if (typeof document === "undefined" || openDialogStack.includes(dialogId)) {
+    return;
+  }
+
+  if (openDialogStack.length === 0) {
+    originalBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+
+  openDialogStack.push(dialogId);
+}
+
+function removeDialog(dialogId: string): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const dialogIndex = openDialogStack.lastIndexOf(dialogId);
+  if (dialogIndex !== -1) {
+    openDialogStack.splice(dialogIndex, 1);
+  }
+
+  if (openDialogStack.length === 0) {
+    document.body.style.overflow = originalBodyOverflow;
+    originalBodyOverflow = "";
+  }
+}
+
+function isTopmostDialog(dialogId: string): boolean {
+  return openDialogStack[openDialogStack.length - 1] === dialogId;
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true",
+  );
 }
 
 // Context for managing dialog state
@@ -24,8 +77,10 @@ interface AlertDialogProps {
  * AlertDialog - Root component that manages open/close state.
  */
 function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
+  const dialogId = React.useId();
+
   return (
-    <AlertDialogContext.Provider value={{ open, onOpenChange }}>
+    <AlertDialogContext.Provider value={{ open, onOpenChange, dialogId }}>
       {children}
     </AlertDialogContext.Provider>
   );
@@ -73,12 +128,13 @@ interface AlertDialogPortalProps {
 function AlertDialogPortal({ children }: AlertDialogPortalProps) {
   const context = React.useContext(AlertDialogContext);
   
-  if (!context?.open) return null;
+  if (!context?.open || typeof document === "undefined") return null;
   
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50">
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -95,6 +151,14 @@ const AlertDialogOverlay = React.forwardRef<HTMLDivElement, AlertDialogOverlayPr
         "fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in-0",
         className
       )}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       {...props}
     />
   )
@@ -109,24 +173,129 @@ interface AlertDialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
 const AlertDialogContent = React.forwardRef<HTMLDivElement, AlertDialogContentProps>(
   ({ className, children, ...props }, ref) => {
     const context = React.useContext(AlertDialogContext);
-    
-    // Close on Escape key
+    const localRef = React.useRef<HTMLDivElement | null>(null);
+
+    const setRefs = React.useCallback((node: HTMLDivElement | null) => {
+      localRef.current = node;
+
+      if (typeof ref === "function") {
+        ref(node);
+        return;
+      }
+
+      if (ref) {
+        ref.current = node;
+      }
+    }, [ref]);
+
     React.useEffect(() => {
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === "Escape") {
-          context?.onOpenChange?.(false);
+      if (!context?.open || !context.dialogId) {
+        return undefined;
+      }
+
+      pushDialog(context.dialogId);
+
+      const previouslyFocused = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+      const focusInitialElement = (): void => {
+        const contentElement = localRef.current;
+        if (!contentElement) {
+          return;
+        }
+
+        const firstFocusable = getFocusableElements(contentElement)[0] || contentElement;
+        firstFocusable.focus();
+      };
+
+      const handleKeyDown = (event: KeyboardEvent): void => {
+        if (!isTopmostDialog(context.dialogId)) {
+          return;
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          context.onOpenChange?.(false);
+          return;
+        }
+
+        if (event.key !== "Tab") {
+          return;
+        }
+
+        const contentElement = localRef.current;
+        if (!contentElement) {
+          return;
+        }
+
+        const focusableElements = getFocusableElements(contentElement);
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          contentElement.focus();
+          return;
+        }
+
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+        const activeElement = document.activeElement as HTMLElement | null;
+
+        if (event.shiftKey) {
+          if (activeElement === firstFocusable || activeElement === contentElement) {
+            event.preventDefault();
+            lastFocusable.focus();
+          }
+          return;
+        }
+
+        if (activeElement === lastFocusable) {
+          event.preventDefault();
+          firstFocusable.focus();
         }
       };
-      document.addEventListener("keydown", handleEscape);
-      return () => document.removeEventListener("keydown", handleEscape);
+
+      const handleFocusIn = (event: FocusEvent): void => {
+        const contentElement = localRef.current;
+        if (!contentElement || !isTopmostDialog(context.dialogId)) {
+          return;
+        }
+
+        if (contentElement.contains(event.target as Node)) {
+          return;
+        }
+
+        const firstFocusable = getFocusableElements(contentElement)[0] || contentElement;
+        firstFocusable.focus();
+      };
+
+      const animationFrame = window.requestAnimationFrame(focusInitialElement);
+      document.addEventListener("keydown", handleKeyDown, true);
+      document.addEventListener("focusin", handleFocusIn);
+
+      return () => {
+        window.cancelAnimationFrame(animationFrame);
+        document.removeEventListener("keydown", handleKeyDown, true);
+        document.removeEventListener("focusin", handleFocusIn);
+        removeDialog(context.dialogId);
+        previouslyFocused?.focus();
+      };
     }, [context]);
     
     return (
       <AlertDialogPortal>
         <AlertDialogOverlay />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4"
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
           <div
-            ref={ref}
+            ref={setRefs}
             className={cn(
               "relative w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl",
               "animate-in fade-in-0 zoom-in-95 duration-200",
@@ -134,6 +303,13 @@ const AlertDialogContent = React.forwardRef<HTMLDivElement, AlertDialogContentPr
             )}
             role="alertdialog"
             aria-modal="true"
+            tabIndex={-1}
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
             {...props}
           >
             {children}
