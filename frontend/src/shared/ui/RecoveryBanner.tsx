@@ -172,10 +172,12 @@ function RecoveryBanner() {
     }
   }, [stuckType, removeAllStaleLocks, abortCurrentOperation]);
 
-  // Don't show if no stuck state
+  // Don't show if no stuck state or unrecognized state
   if (!stuckType) return null;
 
   const config = STUCK_STATE_CONFIG[stuckType];
+  if (!config) return null;
+
   const colors = COLOR_CLASSES[config.color];
   const IconComponent = config.icon;
 

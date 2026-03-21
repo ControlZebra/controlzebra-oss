@@ -10,12 +10,13 @@
  * - Main branch synced: All caught up
  */
 import { memo, useState, useCallback, useMemo } from 'react';
-import { MAIN_BRANCHES, VIEWS } from '../../../shared/constants';
-import { useLayout, useRepo, type FileStatus } from '../../../context';
+import { MAIN_BRANCHES } from '../../../shared/constants';
+import { useRepo, type FileStatus } from '../../../context';
 import { getFolderNameFromPath } from '../../../shared/utils/path';
 import SidebarCommitPanel from './SidebarCommitPanel';
 import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import ExplorerMergeModal from '../../merge/components/ExplorerMergeModal';
 
 // ============================================================================
 // Types
@@ -40,7 +41,6 @@ interface DeviceFlowState {
 // ============================================================================
 
 function ExplorerView(): JSX.Element {
-  const { setActiveView, setSidebarCollapsed } = useLayout();
   const { 
     repoPath, 
     repoInfo,
@@ -73,6 +73,7 @@ function ExplorerView(): JSX.Element {
   
   const [isRewinding, setIsRewinding] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
     isOpen: false,
     userCode: '',
@@ -158,31 +159,55 @@ function ExplorerView(): JSX.Element {
   }, [repoPath, publishToGitHub, refreshRemotes]);
 
   const handleOpenCombineChanges = useCallback((): void => {
-    setActiveView(VIEWS.MERGE_CHANGES);
-    setSidebarCollapsed(false);
-  }, [setActiveView, setSidebarCollapsed]);
+    setIsMergeModalOpen(true);
+  }, []);
+
+  const sharedModals = (
+    <>
+      <GitHubDeviceFlowModal
+        isOpen={deviceFlow.isOpen}
+        userCode={deviceFlow.userCode}
+        verificationUrl={deviceFlow.verificationUrl}
+        onComplete={handleDeviceFlowComplete}
+        onCancel={handleDeviceFlowCancel}
+      />
+
+      <ExplorerMergeModal
+        open={isMergeModalOpen}
+        onOpenChange={setIsMergeModalOpen}
+      />
+    </>
+  );
 
   // No folder open - sidebar shows WelcomeView in this case (handled by Sidebar.tsx)
   // So we just return null as a safety fallback
   if (panelState.type === 'noFolder') {
-    return <div className="p-4 text-center text-theme-muted text-xs">No folder open</div>;
+    return (
+      <>
+        <div className="p-4 text-center text-theme-muted text-xs">No folder open</div>
+        {sharedModals}
+      </>
+    );
   }
 
   // Has uncommitted changes - show commit panel
   if (panelState.type === 'hasChanges') {
     return (
-      <SidebarCommitPanel
-        changedFiles={panelState.changedFiles}
-        onCommit={commitChanges}
-        onBranchAndCommit={branchAndCommit}
-        onRewind={handleRewind}
-        onDiscardFile={discardFileChanges}
-        currentBranch={panelState.branchName}
-        repoPath={repoPath || undefined}
-        isCommitting={isCommitting}
-        isRewinding={isRewinding}
-        operationInProgress={operationInProgress}
-      />
+      <>
+        <SidebarCommitPanel
+          changedFiles={panelState.changedFiles}
+          onCommit={commitChanges}
+          onBranchAndCommit={branchAndCommit}
+          onRewind={handleRewind}
+          onDiscardFile={discardFileChanges}
+          currentBranch={panelState.branchName}
+          repoPath={repoPath || undefined}
+          isCommitting={isCommitting}
+          isRewinding={isRewinding}
+          operationInProgress={operationInProgress}
+        />
+        {sharedModals}
+      </>
     );
   }
 
@@ -215,15 +240,8 @@ function ExplorerView(): JSX.Element {
         ghInstalled={ghInstalled}
         ghAuthStatus={ghAuthStatus}
       />
-      
-      {/* GitHub Device Flow Modal */}
-      <GitHubDeviceFlowModal
-        isOpen={deviceFlow.isOpen}
-        userCode={deviceFlow.userCode}
-        verificationUrl={deviceFlow.verificationUrl}
-        onComplete={handleDeviceFlowComplete}
-        onCancel={handleDeviceFlowCancel}
-      />
+
+      {sharedModals}
     </>
   );
 }
