@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileWarning,
@@ -47,7 +48,6 @@ import MergeReviewPane, { MergeReviewFileList } from './modal/MergeReviewPane';
 import { getMergeReviewSelectedFilePath } from './modal/mergeReviewShared';
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const iconMd: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
 const iconLg: CSSProperties = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 };
 
 interface ExplorerMergeModalProps {
@@ -84,6 +84,10 @@ function buildOutcomeBadge(state: MergeOutcomeState): { label: string; variant: 
   }
 }
 
+function formatCountLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
   const {
     repoPath,
@@ -103,6 +107,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     availableBranches,
     targetBranch,
     setTargetBranch,
+    handleTargetBranchChange,
     error,
     showSuccess,
     selectedReviewFiles,
@@ -134,8 +139,10 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [isAbandoningMerge, setIsAbandoningMerge] = useState(false);
   const [isReviewDrawerOpen, setIsReviewDrawerOpen] = useState(false);
+  const [isTargetBranchDrawerOpen, setIsTargetBranchDrawerOpen] = useState(false);
   const hasAutoAnalyzedRef = useRef(false);
   const reviewDrawerRef = useRef<HTMLDivElement | null>(null);
+  const targetBranchDrawerRef = useRef<HTMLDivElement | null>(null);
   const hasActiveMerge = hasActiveMergeFromController ?? (Boolean(conflictCheckResult?.mergeStarted) && !showSuccess && !conflictCheckResult?.autoCompleted);
   const defaultMergeMessage = defaultMergeMessageFromController ?? getDefaultMergeMessage(
     effectiveSource,
@@ -225,6 +232,12 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   }, [open, outcomeState]);
 
   useEffect(() => {
+    if (!open) {
+      setIsTargetBranchDrawerOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (
       outcomeState !== 'review'
       || isLoadingMergeReviewFiles
@@ -246,19 +259,24 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   ]);
 
   useEffect(() => {
-    if (!isReviewDrawerOpen) {
+    if (!isReviewDrawerOpen && !isTargetBranchDrawerOpen) {
       return undefined;
     }
 
     const handlePointerDown = (event: MouseEvent): void => {
-      if (!reviewDrawerRef.current?.contains(event.target as Node)) {
+      if (isReviewDrawerOpen && !reviewDrawerRef.current?.contains(event.target as Node)) {
         setIsReviewDrawerOpen(false);
+      }
+
+      if (isTargetBranchDrawerOpen && !targetBranchDrawerRef.current?.contains(event.target as Node)) {
+        setIsTargetBranchDrawerOpen(false);
       }
     };
 
     const handleEscape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setIsReviewDrawerOpen(false);
+        setIsTargetBranchDrawerOpen(false);
       }
     };
 
@@ -269,7 +287,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
       document.removeEventListener('mousedown', handlePointerDown, true);
       document.removeEventListener('keydown', handleEscape, true);
     };
-  }, [isReviewDrawerOpen]);
+  }, [isReviewDrawerOpen, isTargetBranchDrawerOpen]);
 
   const badge = buildOutcomeBadge(outcomeState);
   const isReviewState = outcomeState === 'review';
@@ -355,10 +373,29 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     void handleReviewFile(filePath);
   }, [handleReviewFile]);
 
+  const handleTargetBranchSelection = useCallback((nextTargetBranch: string): void => {
+    if (!nextTargetBranch || nextTargetBranch === effectiveTarget) {
+      setIsTargetBranchDrawerOpen(false);
+      return;
+    }
+
+    hasAutoAnalyzedRef.current = false;
+    setIsReviewDrawerOpen(false);
+    setIsTargetBranchDrawerOpen(false);
+    handleTargetBranchChange(nextTargetBranch);
+  }, [effectiveTarget, handleTargetBranchChange]);
+
   const branchOptions = useMemo(
     () => availableBranches.map((branch) => ({ value: branch.name, label: branch.name })),
     [availableBranches],
   );
+
+  const targetBranchOptions = useMemo(
+    () => [{ name: currentBranch, isCurrent: true }, ...availableBranches],
+    [availableBranches, currentBranch],
+  );
+
+  const isTargetBranchLocked = hasActiveMerge || outcomeState === 'complete' || outcomeState === 'success';
 
   let footerNote = 'Note: Check this step, then continue when you are ready.';
 
@@ -425,18 +462,82 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <AlertDialogTitle className={isReviewState ? 'text-xl' : 'text-2xl'}>{title}</AlertDialogTitle>
-                  {isReviewState ? (
-                    <div className="inline-flex min-w-0 items-center gap-2 rounded-lg border border-theme-default bg-theme-surface/60 px-3 py-1.5 text-sm text-theme-primary font-medium">
-                      <GitBranch style={iconSm} className="text-blue-400 shrink-0" />
-                      <span className="truncate">{effectiveSource}</span>
-                      <ArrowRight style={iconSm} className="text-theme-muted shrink-0" />
-                      <span className="truncate">{effectiveTarget}</span>
-                    </div>
-                  ) : (
+                  {!isReviewState && (
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                   )}
                 </div>
-                {!isReviewState && <AlertDialogDescription className="mt-2">{description}</AlertDialogDescription>}
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                  <div className="inline-flex min-w-0 items-center gap-2 text-theme-secondary">
+                    <GitBranch style={iconSm} className="text-blue-400 shrink-0" />
+                    <span className="truncate font-medium text-theme-primary">{effectiveSource}</span>
+                    <span className="text-xs text-theme-muted">(Current branch)</span>
+                  </div>
+
+                  <ArrowRight style={iconSm} className="text-theme-muted shrink-0" />
+
+                  <div ref={targetBranchDrawerRef} className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isTargetBranchLocked}
+                      onClick={() => setIsTargetBranchDrawerOpen((current) => !current)}
+                      aria-expanded={isTargetBranchDrawerOpen}
+                      aria-controls="merge-target-branch-drawer"
+                      aria-label={`Change target branch from ${effectiveTarget}`}
+                      className="h-9 rounded-xl border-theme-default bg-theme-surface/70 px-3 text-theme-primary"
+                    >
+                      <GitBranch style={iconSm} className="text-amber-400 shrink-0" />
+                      <span className="truncate">{effectiveTarget}</span>
+                      <ChevronDown
+                        style={iconSm}
+                        className={`shrink-0 text-theme-muted transition-transform ${isTargetBranchDrawerOpen ? 'rotate-180' : ''}`}
+                      />
+                    </Button>
+
+                    {isTargetBranchDrawerOpen && (
+                      <div
+                        id="merge-target-branch-drawer"
+                        className="absolute left-0 top-full z-20 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-theme-default bg-theme-surface shadow-xl"
+                      >
+                        <div className="border-b border-theme-default px-4 py-3">
+                          <p className="text-sm font-medium text-theme-primary">Choose a destination branch</p>
+                          <p className="mt-1 text-xs text-theme-secondary">Pick another branch before you continue the merge.</p>
+                        </div>
+                        <div className="max-h-72 overflow-auto p-2">
+                          {targetBranchOptions.map((branch) => {
+                            const isSelected = branch.name === effectiveTarget;
+
+                            return (
+                              <button
+                                key={branch.name}
+                                type="button"
+                                disabled={branch.isCurrent}
+                                onClick={() => handleTargetBranchSelection(branch.name)}
+                                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                                  branch.isCurrent
+                                    ? 'cursor-not-allowed bg-theme-muted/30 text-theme-muted opacity-100'
+                                    : isSelected
+                                      ? 'bg-theme-muted text-theme-primary'
+                                      : 'text-theme-secondary hover:bg-theme-muted/60 hover:text-theme-primary'
+                                }`}
+                              >
+                                <span className="min-w-0 truncate">
+                                  <span className="font-medium">{branch.name}</span>
+                                  {branch.isCurrent && <span className="ml-2 text-xs text-theme-muted">(Current branch)</span>}
+                                </span>
+                                {isSelected && <Check style={iconSm} className="shrink-0 text-blue-400" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {!isReviewState && <AlertDialogDescription className="mt-3">{description}</AlertDialogDescription>}
               </div>
               <Button variant="ghost" size="icon" onClick={requestClose} aria-label="Close merge modal">
                 <X style={iconSm} />
@@ -444,13 +545,16 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
             </div>
 
             {isReviewState ? (
-              <div className="mt-2 space-y-3">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-theme-secondary">
-                  <span>{mergeReviewFiles.length} files changed</span>
-                  <span>No conflicts</span>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-theme-secondary">
+                  <span className="font-medium text-theme-secondary">{formatCountLabel(mergeReviewFiles.length, 'file changed', 'files changed')}</span>
+                  <span className="text-theme-muted">|</span>
+                  <span className="font-medium text-theme-secondary">{formatCountLabel(selectedReviewFiles.length, 'file to merge', 'files to merge')}</span>
+                  <span className="text-theme-muted">|</span>
+                  <span className="text-theme-secondary">No conflicts</span>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="ml-auto flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -508,21 +612,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                <div className="inline-flex items-center gap-2 rounded-lg border border-theme-default bg-theme-surface/60 px-3 py-2 text-theme-primary font-medium">
-                  <GitBranch style={iconSm} className="text-blue-400 shrink-0" />
-                  <span>{effectiveSource}</span>
-                </div>
-                <div className="inline-flex items-center justify-center rounded-lg border border-theme-default bg-theme-surface/40 px-2 py-2 text-theme-muted">
-                  <ArrowRight style={iconMd} />
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-lg border border-theme-default bg-theme-surface/60 px-3 py-2 text-theme-primary font-medium">
-                  <GitBranch style={iconSm} className="text-amber-400 shrink-0" />
-                  <span>{effectiveTarget}</span>
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
 
           <div className={isReviewState ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0 overflow-auto px-5 py-4'}>

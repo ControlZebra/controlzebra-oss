@@ -719,3 +719,24 @@ body,
   user-select: none;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="menuitem"]:not([aria-disabled="true"]),
+[role="menuitemcheckbox"]:not([aria-disabled="true"]),
+[role="menuitemradio"]:not([aria-disabled="true"]),
+a[href],
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+[role="tab"][aria-disabled="true"],
+[role="menuitem"][aria-disabled="true"],
+[role="menuitemcheckbox"][aria-disabled="true"],
+[role="menuitemradio"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+

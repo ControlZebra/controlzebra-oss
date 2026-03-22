@@ -213,6 +213,7 @@ export interface CommitFileInfo {
   status: string;
   additions: number;
   deletions: number;
+  hasNoLineStats?: boolean;
 }
 
 /**

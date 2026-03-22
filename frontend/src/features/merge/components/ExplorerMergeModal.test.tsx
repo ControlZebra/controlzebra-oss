@@ -40,6 +40,7 @@ function createControllerValue(overrides: Record<string, unknown> = {}) {
     availableBranches: [{ name: 'main', isCurrent: false }],
     targetBranch: 'main',
     setTargetBranch: vi.fn(),
+    handleTargetBranchChange: vi.fn(),
     error: null,
     showSuccess: false,
     selectedReviewFiles: [],
@@ -73,7 +74,10 @@ describe('ExplorerMergeModal', () => {
 
   it('shows the compact merge review header without the old review or merge-type labels', () => {
     useMergeFlowControllerMock.mockReturnValue(createControllerValue({
-      mergeReviewFiles: [{ path: 'logic/alpha.L5X', status: 'modified' }],
+      mergeReviewFiles: [
+        { path: 'logic/alpha.L5X', status: 'modified' },
+        { path: 'logic/beta.L5X', status: 'modified' },
+      ],
       selectedReviewFiles: ['logic/alpha.L5X'],
       reviewFilePath: 'logic/alpha.L5X',
     }));
@@ -83,8 +87,37 @@ describe('ExplorerMergeModal', () => {
     expect(screen.getByRole('heading', { name: 'Merge review' })).toBeInTheDocument();
     expect(screen.getByText('feature/tank-logic')).toBeInTheDocument();
     expect(screen.getAllByText('main').length).toBeGreaterThan(0);
+    expect(screen.getByText('(Current branch)')).toBeInTheDocument();
+    expect(screen.getByText('2 files changed')).toBeInTheDocument();
+    expect(screen.getByText('1 file to merge')).toBeInTheDocument();
+    expect(screen.getByText('No conflicts')).toBeInTheDocument();
     expect(screen.queryByText('Review available')).not.toBeInTheDocument();
     expect(screen.queryByText('Squash merge')).not.toBeInTheDocument();
+  });
+
+  it('lets the user open the target branch drawer and choose another destination branch', async () => {
+    const handleTargetBranchChange = vi.fn();
+
+    useMergeFlowControllerMock.mockReturnValue(createControllerValue({
+      availableBranches: [
+        { name: 'main', isCurrent: false },
+        { name: 'release/v1', isCurrent: false },
+      ],
+      handleTargetBranchChange,
+    }));
+
+    render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change target branch from main' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Choose a destination branch')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('(Current branch)').length).toBeGreaterThan(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /release\/v1/i }));
+
+    expect(handleTargetBranchChange).toHaveBeenCalledWith('release/v1');
   });
 
   it('opens the selected files drawer from the upper review header and previews the chosen file', () => {

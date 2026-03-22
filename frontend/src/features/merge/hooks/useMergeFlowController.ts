@@ -342,6 +342,16 @@ export function useMergeFlowController() {
     handleDismiss,
   ]);
 
+  const handleTargetBranchChange = useCallback((nextTargetBranch: string): void => {
+    if (!nextTargetBranch || nextTargetBranch === targetBranch) {
+      return;
+    }
+
+    clearConflicts();
+    resetControllerState();
+    setTargetBranch(nextTargetBranch);
+  }, [clearConflicts, resetControllerState, targetBranch]);
+
   const showBranchBanner = !!conflictCheckResult?.success;
 
   const currentMergeStep = useMemo<MergeFlowStep>(() => {
@@ -379,6 +389,7 @@ export function useMergeFlowController() {
     availableBranches,
     targetBranch,
     setTargetBranch,
+    handleTargetBranchChange,
     error,
     showSuccess,
     selectedReviewFiles,
