@@ -9,7 +9,7 @@
  * - Viewer-specific icons for file tabs
  */
 import { memo, useCallback, useMemo } from 'react';
-import { X, FolderOpen, FileText, Pin, Eye, FileDiff, type LucideIcon } from 'lucide-react';
+import { X, FolderOpen, FileText, Pin, Eye, FileDiff, GitCommitHorizontal, type LucideIcon } from 'lucide-react';
 import { useLayout } from '../../../context';
 import { ICON_SIZES, type ExplorerTab } from '../../../shared/constants';
 import { getViewerById, getViewerForFile } from '../../../viewers/registry/viewer-registry';
@@ -28,6 +28,10 @@ interface TabItemProps {
 function getTabIcon(tab: ExplorerTab): LucideIcon {
   if (tab.type === 'file-browser') {
     return FolderOpen;
+  }
+
+  if (tab.type === 'commit') {
+    return GitCommitHorizontal;
   }
   
   // Try to get viewer icon via explicit viewerId or auto-detect from filename
@@ -75,6 +79,12 @@ const TabItem = memo(function TabItem({
         <FileDiff
           size={ICON_SIZES.xs}
           className={isActive ? 'text-orange-400 shrink-0' : 'text-theme-muted shrink-0'}
+        />
+      )}
+      {tab.type === 'commit' && (
+        <GitCommitHorizontal
+          size={ICON_SIZES.xs}
+          className={isActive ? 'text-emerald-400 shrink-0' : 'text-theme-muted shrink-0'}
         />
       )}
       <Icon 

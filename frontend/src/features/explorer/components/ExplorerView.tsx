@@ -10,6 +10,7 @@
  * - Main branch synced: All caught up
  */
 import { memo, useState, useCallback, useMemo } from 'react';
+import { useLayout } from '../../../context';
 import { MAIN_BRANCHES } from '../../../shared/constants';
 import { useRepo, type FileStatus } from '../../../context';
 import { getFolderNameFromPath } from '../../../shared/utils/path';
@@ -17,6 +18,7 @@ import SidebarCommitPanel from './SidebarCommitPanel';
 import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import ExplorerMergeModal from '../../merge/components/ExplorerMergeModal';
+import HistoryTimeline from '../../history/components/HistoryTimeline';
 
 // ============================================================================
 // Types
@@ -41,10 +43,17 @@ interface DeviceFlowState {
 // ============================================================================
 
 function ExplorerView(): JSX.Element {
+  const {
+    openExplorerTab,
+    explorerTabs,
+    activeExplorerTab,
+    setActiveExplorerTab,
+  } = useLayout();
   const { 
     repoPath, 
     repoInfo,
     repoStatus, 
+    graphCommits,
     startTracking,
     installRequiredPackages,
     commitChanges,
@@ -162,6 +171,31 @@ function ExplorerView(): JSX.Element {
     setIsMergeModalOpen(true);
   }, []);
 
+  const selectedTimelineCommitHash = useMemo(() => {
+    const activeTab = explorerTabs.find((tab) => tab.id === activeExplorerTab);
+    return activeTab?.type === 'commit' ? activeTab.commitContext?.commitHash ?? null : null;
+  }, [explorerTabs, activeExplorerTab]);
+
+  const handleTimelineSelectCommit = useCallback((hash: string | null): void => {
+    if (!hash) {
+      setActiveExplorerTab('file-browser');
+      return;
+    }
+
+    const graphCommit = graphCommits.find((commit) => commit.hash === hash);
+    const firstLineMessage = graphCommit?.message.split('\n')[0].trim();
+    const shortHash = graphCommit?.shortHash || hash.slice(0, 7);
+
+    openExplorerTab({
+      id: `commit-${hash}`,
+      title: firstLineMessage || `Snapshot ${shortHash}`,
+      type: 'commit',
+      commitContext: {
+        commitHash: hash,
+      },
+    });
+  }, [graphCommits, openExplorerTab, setActiveExplorerTab]);
+
   const sharedModals = (
     <>
       <GitHubDeviceFlowModal
@@ -179,6 +213,8 @@ function ExplorerView(): JSX.Element {
     </>
   );
 
+  let primaryPanel: JSX.Element;
+
   // No folder open - sidebar shows WelcomeView in this case (handled by Sidebar.tsx)
   // So we just return null as a safety fallback
   if (panelState.type === 'noFolder') {
@@ -192,28 +228,22 @@ function ExplorerView(): JSX.Element {
 
   // Has uncommitted changes - show commit panel
   if (panelState.type === 'hasChanges') {
-    return (
-      <>
-        <SidebarCommitPanel
-          changedFiles={panelState.changedFiles}
-          onCommit={commitChanges}
-          onBranchAndCommit={branchAndCommit}
-          onRewind={handleRewind}
-          onDiscardFile={discardFileChanges}
-          currentBranch={panelState.branchName}
-          repoPath={repoPath || undefined}
-          isCommitting={isCommitting}
-          isRewinding={isRewinding}
-          operationInProgress={operationInProgress}
-        />
-        {sharedModals}
-      </>
+    primaryPanel = (
+      <SidebarCommitPanel
+        changedFiles={panelState.changedFiles}
+        onCommit={commitChanges}
+        onBranchAndCommit={branchAndCommit}
+        onRewind={handleRewind}
+        onDiscardFile={discardFileChanges}
+        currentBranch={panelState.branchName}
+        repoPath={repoPath || undefined}
+        isCommitting={isCommitting}
+        isRewinding={isRewinding}
+        operationInProgress={operationInProgress}
+      />
     );
-  }
-
-  // All other states use the unified status panel
-  return (
-    <>
+  } else {
+    primaryPanel = (
       <ExplorerStatusPanel
         status={panelState.type}
         folderName={panelState.type === 'noRepo' ? panelState.folderName : undefined}
@@ -240,6 +270,31 @@ function ExplorerView(): JSX.Element {
         ghInstalled={ghInstalled}
         ghAuthStatus={ghAuthStatus}
       />
+    );
+  }
+
+  return (
+    <>
+      <div className="h-full flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {primaryPanel}
+        </div>
+
+        <section className="flex-1 min-h-0 flex flex-col border-t border-theme-default" aria-label="Timeline">
+          <header className="px-3 py-2 border-b border-theme-default shrink-0">
+            <h3 className="text-theme-muted text-xs font-medium uppercase tracking-wide">
+              Timeline
+            </h3>
+          </header>
+
+          <div className="flex-1 min-h-0">
+            <HistoryTimeline
+              selectedHash={selectedTimelineCommitHash}
+              onSelectCommit={handleTimelineSelectCommit}
+            />
+          </div>
+        </section>
+      </div>
 
       {sharedModals}
     </>

@@ -9,7 +9,7 @@
  * - Compact commit info with hover tooltips
  * - Smart message truncation based on sidebar width
  */
-import { memo, useMemo, useCallback, useRef, useState, useEffect } from 'react';
+import { memo, useMemo, useCallback, useRef, useState, useLayoutEffect } from 'react';
 import {
   Tooltip,
   TooltipContent,
@@ -60,6 +60,8 @@ const BRANCH_COLORS = [
   '#14b8a6', // teal
 ];
 
+const PRIMARY_BRANCH_NAMES = new Set(['main', 'master']);
+
 interface Commit {
   hash: string;
   shortHash: string;
@@ -98,15 +100,104 @@ interface GraphLayout {
   maxColumn: number;
 }
 
+type RefColorMap = Map<string, string>;
+
+function normalizeRefName(ref: string): string {
+  return ref
+    .replace(/^refs\/heads\//, '')
+    .replace(/^refs\/remotes\//, '')
+    .replace(/^origin\//, '');
+}
+
+function generateFallbackColor(index: number): string {
+  const hue = Math.round((index * 137.508) % 360);
+  return `hsl(${hue} 68% 52%)`;
+}
+
+function buildRefColorMap(commits: Commit[]): RefColorMap {
+  const refColors: RefColorMap = new Map();
+  let nextPaletteIndex = 1;
+  let nextGeneratedColorIndex = 0;
+
+  for (const commit of commits) {
+    for (const ref of commit.refs ?? []) {
+      const normalizedRef = normalizeRefName(ref);
+      if (!normalizedRef || refColors.has(normalizedRef)) {
+        continue;
+      }
+
+      if (PRIMARY_BRANCH_NAMES.has(normalizedRef)) {
+        refColors.set(normalizedRef, BRANCH_COLORS[0]);
+        continue;
+      }
+
+      if (nextPaletteIndex < BRANCH_COLORS.length) {
+        refColors.set(normalizedRef, BRANCH_COLORS[nextPaletteIndex]);
+        nextPaletteIndex++;
+        continue;
+      }
+
+      refColors.set(normalizedRef, generateFallbackColor(nextGeneratedColorIndex));
+      nextGeneratedColorIndex++;
+    }
+  }
+
+  return refColors;
+}
+
+function createUniqueColorAllocator(initialColors: Iterable<string> = []): () => string {
+  const usedColors = new Set(initialColors);
+  let nextPaletteIndex = 0;
+  let nextGeneratedColorIndex = 0;
+
+  return () => {
+    while (nextPaletteIndex < BRANCH_COLORS.length) {
+      const candidate = BRANCH_COLORS[nextPaletteIndex];
+      nextPaletteIndex++;
+
+      if (usedColors.has(candidate)) {
+        continue;
+      }
+
+      usedColors.add(candidate);
+      return candidate;
+    }
+
+    while (true) {
+      const candidate = generateFallbackColor(nextGeneratedColorIndex);
+      nextGeneratedColorIndex++;
+
+      if (usedColors.has(candidate)) {
+        continue;
+      }
+
+      usedColors.add(candidate);
+      return candidate;
+    }
+  };
+}
+
+function getCommitRefColor(refs: string[] | undefined, refColors: RefColorMap): string | null {
+  if (!refs || refs.length === 0) {
+    return null;
+  }
+
+  const prioritizedRef = refs.find((ref) => PRIMARY_BRANCH_NAMES.has(normalizeRefName(ref))) ?? refs[0];
+  return refColors.get(normalizeRefName(prioritizedRef)) ?? null;
+}
+
 /**
  * Compute the visual layout for the git graph.
  * Assigns each commit to a column (lane) based on branch topology.
  */
-function computeGraphLayout(commits: Commit[]): GraphLayout {
+export function computeGraphLayout(commits: Commit[]): GraphLayout {
   if (!commits || commits.length === 0) return { nodes: [], connections: [], maxColumn: 0 };
 
   const nodes: GraphNode[] = [];
   const connections: Connection[] = [];
+  const commitByHash = new Map(commits.map((commit) => [commit.hash, commit]));
+  const refColors = buildRefColorMap(commits);
+  const allocateColor = createUniqueColorAllocator(refColors.values());
   
   // Track active lanes (columns) - each lane holds the hash of the commit that "owns" it
   const lanes: (string | null)[] = [];
@@ -133,17 +224,19 @@ function computeGraphLayout(commits: Commit[]): GraphLayout {
       }
     }
     
-    // Assign color if lane doesn't have one
-    if (!laneColors.has(column)) {
-      laneColors.set(column, BRANCH_COLORS[nextColorIndex % BRANCH_COLORS.length]);
+    const explicitRefColor = getCommitRefColor(commit.refs, refColors);
+    let color = explicitRefColor ?? laneColors.get(column);
+
+    if (!color) {
+      color = allocateColor();
       nextColorIndex++;
     }
+
+    laneColors.set(column, color);
     
     // Clear this lane since we're processing this commit
     lanes[column] = null;
     commitToColumn.set(commit.hash, column);
-    
-    const color = laneColors.get(column)!;
     
     // Create node for this commit
     nodes.push({
@@ -188,9 +281,11 @@ function computeGraphLayout(commits: Commit[]): GraphLayout {
             parentColumn = emptyLane;
             lanes[parentColumn] = parentHash;
             
-            // Assign a new color for this branch
+            // Assign a color for the newly activated lane.
             if (!laneColors.has(parentColumn)) {
-              laneColors.set(parentColumn, BRANCH_COLORS[nextColorIndex % BRANCH_COLORS.length]);
+              const parentCommit = commitByHash.get(parentHash);
+              const parentColor = getCommitRefColor(parentCommit?.refs, refColors);
+              laneColors.set(parentColumn, parentColor ?? allocateColor());
               nextColorIndex++;
             }
           }
@@ -339,7 +434,7 @@ interface CommitInfoProps {
   config: typeof CONFIG;
   isSelected: boolean;
   onSelect: (hash: string) => void;
-  availableWidth: number;
+  availableWidth: number | null;
 }
 
 /**
@@ -349,14 +444,17 @@ interface CommitInfoProps {
 const CommitInfo = memo(function CommitInfo({ node, x, config, isSelected, onSelect, availableWidth }: CommitInfoProps) {
   const y = node.row * config.rowHeight;
   const shortTime = shortenRelativeDate(node.relativeDate);
-  const truncatedMessage = truncateMessage(node.message, availableWidth);
+  const firstLineMessage = node.message.split('\n')[0].trim();
+  const truncatedMessage = availableWidth === null
+    ? firstLineMessage
+    : truncateMessage(node.message, availableWidth);
   const hasRefs = node.refs.length > 0;
   
   return (
     <foreignObject
       x={x}
       y={y}
-      width={Math.max(100, availableWidth)}
+      width={Math.max(100, availableWidth ?? 240)}
       height={config.rowHeight}
       className="overflow-visible"
     >
@@ -435,25 +533,39 @@ interface GitGraphProps {
  */
 function GitGraph({ commits, selectedHash, onSelectCommit, className }: GitGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(200);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
   
   // Measure container width for smart truncation
-  useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.offsetWidth);
+  useLayoutEffect(() => {
+    const measureWidth = (width?: number): void => {
+      const nextWidth = width ?? containerRef.current?.getBoundingClientRect().width ?? 0;
+
+      if (nextWidth > 0) {
+        setContainerWidth((currentWidth) => (currentWidth === nextWidth ? currentWidth : nextWidth));
       }
     };
-    
-    updateWidth();
-    
-    // Use ResizeObserver for responsive width updates
-    const resizeObserver = new ResizeObserver(updateWidth);
+
+    let firstFrame = window.requestAnimationFrame(() => {
+      measureWidth();
+    });
+    let secondFrame = window.requestAnimationFrame(() => {
+      measureWidth();
+    });
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      measureWidth(entries[0]?.contentRect.width);
+    });
+
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
+      measureWidth();
     }
-    
-    return () => resizeObserver.disconnect();
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      resizeObserver.disconnect();
+    };
   }, []);
   
   const { nodes, connections, maxColumn } = useMemo(
@@ -478,7 +590,9 @@ function GitGraph({ commits, selectedHash, onSelectCommit, className }: GitGraph
   const graphWidth = CONFIG.leftPadding + (maxColumn + 1) * CONFIG.columnWidth + CONFIG.labelPadding;
   const totalHeight = commits.length * CONFIG.rowHeight;
   // Available width for commit info = container width - graph area
-  const infoAvailableWidth = Math.max(100, containerWidth - graphWidth - 10);
+  const infoAvailableWidth = containerWidth === null
+    ? null
+    : Math.max(100, containerWidth - graphWidth - 10);
   
   return (
     <TooltipProvider delayDuration={300}>

@@ -175,7 +175,7 @@ export const REPO_SETTINGS_CATEGORIES: SettingsCategory[] = [
 export interface ExplorerTab {
   id: string;
   title: string;
-  type: 'file-browser' | 'file' | 'diff';
+  type: 'file-browser' | 'file' | 'diff' | 'commit';
   filePath?: string;
   isPinned?: boolean;
   /** Explicit viewer ID for file tabs. If not provided, auto-detected from filename. */
@@ -195,6 +195,10 @@ export interface ExplorerTab {
     parentHash?: string;
     /** For commit: old path if renamed */
     oldPath?: string;
+  };
+  /** For commit tabs: selected commit to show in-place. */
+  commitContext?: {
+    commitHash: string;
   };
 }
 

@@ -16,6 +16,7 @@ import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/fil
 import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../../welcome/pages';
 import SimpleFileBrowser from '../components/SimpleFileBrowser';
 import ExplorerTabsBar from '../components/ExplorerTabsBar';
+import ExplorerCommitTabContent from '../components/ExplorerCommitTabContent';
 import ProjectSetupBanner from '../components/ProjectSetupBanner';
 import { PROJECT_STATES, type ProjectState, type ExplorerTab } from '../../../shared/constants';
 import { ViewerRenderer, getViewerForFile, getViewerById } from '../../../viewers/components/shared/ViewerRenderer';
@@ -121,6 +122,11 @@ function ExplorerPage(): JSX.Element {
     [explorerTabs]
   );
 
+  const commitTabs = useMemo(() =>
+    explorerTabs.filter(tab => tab.type === 'commit' && tab.commitContext?.commitHash),
+    [explorerTabs]
+  );
+
   // Check if file browser is active
   const isFileBrowserActive = activeExplorerTab === 'file-browser';
 
@@ -189,6 +195,25 @@ function ExplorerPage(): JSX.Element {
     }).filter(Boolean) as JSX.Element[];
   }, [diffTabs, activeExplorerTab, repoPath]);
 
+  const renderedCommitTabs = useMemo(() => {
+    return commitTabs.map((tab: ExplorerTab) => {
+      const commitHash = tab.commitContext?.commitHash;
+      if (!commitHash) return null;
+
+      const isActive = tab.id === activeExplorerTab;
+
+      return (
+        <div
+          key={tab.id}
+          className="h-full"
+          style={{ display: isActive ? 'block' : 'none' }}
+        >
+          <ExplorerCommitTabContent commitHash={commitHash} />
+        </div>
+      );
+    }).filter(Boolean) as JSX.Element[];
+  }, [commitTabs, activeExplorerTab]);
+
   // No folder open - show welcome page based on selected category
   if (!repoPath) {
     switch (selectedWelcomeCategory) {
@@ -253,6 +278,9 @@ function ExplorerPage(): JSX.Element {
         
         {/* All diff tabs - mounted but hidden when not active */}
         {renderedDiffTabs}
+
+        {/* Commit overview tabs - mounted but hidden when not active */}
+        {renderedCommitTabs}
       </div>
     </div>
   );
