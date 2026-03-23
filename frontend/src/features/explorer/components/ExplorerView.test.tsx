@@ -65,10 +65,6 @@ vi.mock('../../auth/components/GitHubDeviceFlowModal', () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Device flow modal</div> : null),
 }));
 
-vi.mock('../../merge/components/ExplorerMergeModal', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div>Merge modal is open</div> : null),
-}));
-
 import ExplorerView from './ExplorerView';
 
 function createRepoValue(overrides: Record<string, unknown> = {}) {
@@ -114,6 +110,7 @@ function createLayoutValue(overrides: Record<string, unknown> = {}) {
     explorerTabs: [{ id: 'file-browser', type: 'file-browser', title: 'File Browser', isPinned: true }],
     activeExplorerTab: 'file-browser',
     setActiveExplorerTab: vi.fn(),
+    openExplorerMergeModal: vi.fn(),
     ...overrides,
   };
 }
@@ -128,13 +125,14 @@ describe('ExplorerView', () => {
 
   it('keeps the merge modal mounted when merge start changes the panel to has changes', () => {
     repoStore.current = createRepoValue();
-    layoutStore.current = createLayoutValue();
+    const openExplorerMergeModal = vi.fn();
+    layoutStore.current = createLayoutValue({ openExplorerMergeModal });
 
     render(<ExplorerView />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open merge modal' }));
 
-    expect(screen.getByText('Merge modal is open')).toBeInTheDocument();
+    expect(openExplorerMergeModal).toHaveBeenCalledTimes(1);
 
     act(() => {
       repoStore.current = createRepoValue({
@@ -151,7 +149,7 @@ describe('ExplorerView', () => {
 
     expect(screen.getByTestId('sidebar-commit-panel')).toHaveTextContent('Commit panel for main');
     expect(screen.getByTestId('explorer-timeline')).toBeInTheDocument();
-    expect(screen.getByText('Merge modal is open')).toBeInTheDocument();
+    expect(openExplorerMergeModal).toHaveBeenCalledTimes(1);
   });
 
   it('renders the timeline alongside the upper explorer panel', () => {

@@ -2,7 +2,7 @@
  * LayoutContext - Global UI state management for the application layout.
  * 
  * Manages:
- * - Active sidebar view (Explorer, Changes, History, Settings, Profile)
+ * - Active sidebar view (Explorer, Repository Settings, Profile, Settings)
  * - Sidebar collapse state and width
  * - Bottom panel collapse state, height, and active tab
  * - Theme preference (light/dark/system)
@@ -63,6 +63,9 @@ interface LayoutContextValue {
   openExplorerTab: (tab: ExplorerTab) => void;
   closeExplorerTab: (tabId: string) => void;
   setActiveExplorerTab: (tabId: string) => void;
+  explorerMergeModalOpen: boolean;
+  setExplorerMergeModalOpen: (open: boolean) => void;
+  openExplorerMergeModal: () => void;
   
   // Theme
   theme: Theme;
@@ -155,6 +158,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   // Explorer tabs state - file browser is always the first (pinned) tab
   const [explorerTabs, setExplorerTabs] = useState<ExplorerTab[]>([FILE_BROWSER_TAB]);
   const [activeExplorerTab, setActiveExplorerTab] = useState<string>(FILE_BROWSER_TAB.id);
+  const [explorerMergeModalOpen, setExplorerMergeModalOpen] = useState(false);
 
   const normalizePath = useCallback((path: string): string => path.replace(/\\/g, '/'), []);
 
@@ -267,6 +271,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     });
   }, []);
 
+  const openExplorerMergeModal = useCallback(() => {
+    setExplorerMergeModalOpen(true);
+  }, []);
+
   // Keep explorer previews/diffs in sync with repository operations and external edits.
   useEffect(() => {
     const handleCloseAll = () => {
@@ -320,6 +328,9 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     openExplorerTab,
     closeExplorerTab,
     setActiveExplorerTab,
+    explorerMergeModalOpen,
+    setExplorerMergeModalOpen,
+    openExplorerMergeModal,
     
     // Theme
     theme,
@@ -336,6 +347,8 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     activeExplorerTab,
     openExplorerTab,
     closeExplorerTab,
+    explorerMergeModalOpen,
+    openExplorerMergeModal,
     theme, 
     toggleSidebar,
   ]);

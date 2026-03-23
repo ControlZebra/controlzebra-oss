@@ -48,6 +48,24 @@ describe('useMergeFlowController', () => {
     vi.clearAllMocks();
   });
 
+  it('skips repository setup work when disabled', () => {
+    const fetchParentBranch = vi.fn();
+    const refreshBranches = vi.fn();
+
+    useRepoMock.mockReturnValue(createRepoValue({
+      repoPath: '/tmp/repo',
+      detectedParentBranch: null,
+      branches: null,
+      fetchParentBranch,
+      refreshBranches,
+    }));
+
+    renderHook(() => useMergeFlowController({ enabled: false }));
+
+    expect(fetchParentBranch).not.toHaveBeenCalled();
+    expect(refreshBranches).not.toHaveBeenCalled();
+  });
+
   it('uses selective merge when the user narrows the clean review selection', async () => {
     const startMerge = vi.fn().mockResolvedValue({ success: true });
 

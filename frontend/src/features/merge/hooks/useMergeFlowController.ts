@@ -25,6 +25,10 @@ export function getDefaultMergeMessage(sourceBranch: string, targetBranch: strin
     : `Merge ${sourceBranch} into ${targetBranch}`;
 }
 
+interface UseMergeFlowControllerOptions {
+  enabled?: boolean;
+}
+
 /**
  * Shared merge flow orchestration for page and modal surfaces.
  *
@@ -32,7 +36,7 @@ export function getDefaultMergeMessage(sourceBranch: string, targetBranch: strin
  * state that coordinates target selection, pre-merge review, completion, and
  * clean-up flows.
  */
-export function useMergeFlowController() {
+export function useMergeFlowController({ enabled = true }: UseMergeFlowControllerOptions = {}) {
   const {
     repoPath,
     repoInfo,
@@ -90,13 +94,17 @@ export function useMergeFlowController() {
   );
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     if (repoPath && !detectedParentBranch) {
       void fetchParentBranch();
     }
     if (repoPath && !branches) {
       void refreshBranches();
     }
-  }, [repoPath, detectedParentBranch, fetchParentBranch, branches, refreshBranches]);
+  }, [enabled, repoPath, detectedParentBranch, fetchParentBranch, branches, refreshBranches]);
 
   useEffect(() => {
     if (canSelectMergeFiles) {

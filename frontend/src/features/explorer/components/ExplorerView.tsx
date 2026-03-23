@@ -17,7 +17,6 @@ import { getFolderNameFromPath } from '../../../shared/utils/path';
 import SidebarCommitPanel from './SidebarCommitPanel';
 import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
-import ExplorerMergeModal from '../../merge/components/ExplorerMergeModal';
 import HistoryTimeline from '../../history/components/HistoryTimeline';
 
 // ============================================================================
@@ -48,6 +47,7 @@ function ExplorerView(): JSX.Element {
     explorerTabs,
     activeExplorerTab,
     setActiveExplorerTab,
+    openExplorerMergeModal,
   } = useLayout();
   const { 
     repoPath, 
@@ -82,7 +82,6 @@ function ExplorerView(): JSX.Element {
   
   const [isRewinding, setIsRewinding] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
     isOpen: false,
     userCode: '',
@@ -168,8 +167,8 @@ function ExplorerView(): JSX.Element {
   }, [repoPath, publishToGitHub, refreshRemotes]);
 
   const handleOpenCombineChanges = useCallback((): void => {
-    setIsMergeModalOpen(true);
-  }, []);
+    openExplorerMergeModal();
+  }, [openExplorerMergeModal]);
 
   const selectedTimelineCommitHash = useMemo(() => {
     const activeTab = explorerTabs.find((tab) => tab.id === activeExplorerTab);
@@ -204,11 +203,6 @@ function ExplorerView(): JSX.Element {
         verificationUrl={deviceFlow.verificationUrl}
         onComplete={handleDeviceFlowComplete}
         onCancel={handleDeviceFlowCancel}
-      />
-
-      <ExplorerMergeModal
-        open={isMergeModalOpen}
-        onOpenChange={setIsMergeModalOpen}
       />
     </>
   );

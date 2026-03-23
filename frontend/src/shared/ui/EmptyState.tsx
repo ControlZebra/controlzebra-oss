@@ -7,8 +7,6 @@ import { VIEWS, type ViewType } from '../constants';
 
 const VIEW_HINTS: Record<string, string> = {
   [VIEWS.EXPLORER]: 'Browse your project files',
-  [VIEWS.HISTORY]: 'Click on a commit to view details',
-  [VIEWS.MERGE_CHANGES]: 'Combine versions from different branches',
   [VIEWS.SETTINGS]: 'Select a settings category',
   [VIEWS.PROFILE]: 'Connect your accounts',
 };

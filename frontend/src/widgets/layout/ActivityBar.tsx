@@ -1,14 +1,12 @@
 /**
  * ActivityBar - Vertical navigation sidebar (leftmost panel).
- * Provides navigation between main views: Explorer, Changes, History, Profile, Settings.
+ * Provides navigation between main views: Explorer, Repository Settings, Profile, Settings.
  * Clicking an active view toggles the sidebar collapsed state.
- * Git-related views (Changes, History) are disabled when no git repo is open.
+ * Repository-specific views are disabled when no git repo is open.
  */
 import { memo, useMemo, useCallback, type CSSProperties } from 'react';
 import {
   House,
-  Clock,
-  Merge,
   Sliders,
   Settings,
   UserCircle,
@@ -45,8 +43,6 @@ interface NavButtonProps {
 // requiresGit: true means the view requires an active git repository
 const TOP_NAV_ITEMS: NavItem[] = [
   { id: VIEWS.EXPLORER, Icon: House, label: 'Next Step Advisor', requiresGit: false },
-  { id: VIEWS.HISTORY, Icon: Clock, label: 'History', requiresGit: true },
-  { id: VIEWS.MERGE_CHANGES, Icon: Merge, label: 'Merge changes', requiresGit: true },
   { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];
 

@@ -38,8 +38,6 @@ export const ICON_SIZES: IconSizes = {
 // ============================================================================
 export const VIEWS = {
   EXPLORER: 'explorer',
-  HISTORY: 'history',
-  MERGE_CHANGES: 'merge-changes',
   REPO_SETTINGS: 'repo-settings',
   SETTINGS: 'settings',
   PROFILE: 'profile',
