@@ -5,7 +5,6 @@
  * v2 additions:
  * - Branch modal trigger
  * - Undo Last Save button
- * - Discard Changes button
  * - Responsive burger menu for narrow windows
  */
 import { memo, useCallback, useState, type CSSProperties } from 'react';
@@ -15,7 +14,6 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
-  Undo2,
   Trash2,
   Menu,
 } from 'lucide-react';
@@ -61,7 +59,6 @@ function TopBar(): JSX.Element {
     closeRepo,
     commits,
     undoLastCommit,
-    discardAllChanges,
     operationInProgress,
   } = useRepo();
   const { sidebarCollapsed, sidebarWidth, toggleSidebar, setActiveView } = useLayout();
@@ -72,9 +69,7 @@ function TopBar(): JSX.Element {
   // Modal states
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
-  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [switchProjectModalOpen, setSwitchProjectModalOpen] = useState(false);
-  const [isRewinding, setIsRewinding] = useState(false);
 
   const handleSwitchProject = useCallback(async (): Promise<void> => {
     await closeRepo();
@@ -89,21 +84,8 @@ function TopBar(): JSX.Element {
     await undoLastCommit();
   }, [undoLastCommit]);
 
-  const handleDiscard = useCallback(async (): Promise<void> => {
-    setIsRewinding(true);
-    try {
-      const success = await discardAllChanges();
-      if (success) {
-        setDiscardDialogOpen(false);
-      }
-    } finally {
-      setIsRewinding(false);
-    }
-  }, [discardAllChanges]);
-
   // Derive display values from repo state
   const branchName = repoInfo?.branch || 'main';
-  const hasChanges = (repoStatus?.changedFiles?.length ?? 0) > 0;
   const hasCommits = (commits?.length ?? 0) > 0;
   const isGitRepo = repoInfo?.isRepo ?? false;
   const leftPanelWidth = BREAKPOINTS.ACTIVITY_BAR_WIDTH + (sidebarCollapsed ? 0 : sidebarWidth);
@@ -137,16 +119,6 @@ function TopBar(): JSX.Element {
                     onClick={() => setUndoDialogOpen(true)}
                     disabled={!hasCommits || operationInProgress}
                     title="Undo Last Save"
-                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
-                  >
-                    <Undo2 style={iconStyle} className="currentColor" />
-                  </button>
-
-                  {/* Discard Changes */}
-                  <button 
-                    onClick={() => setDiscardDialogOpen(true)}
-                    disabled={!hasChanges || operationInProgress}
-                    title="Discard All Changes"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
                   >
                     <Trash2 style={iconStyle} className="currentColor" />
@@ -198,15 +170,8 @@ function TopBar(): JSX.Element {
                   onClick={() => setUndoDialogOpen(true)}
                   disabled={!hasCommits || operationInProgress}
                 >
-                  <Undo2 style={iconStyle} className="mr-2" />
-                  Undo Last Save
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setDiscardDialogOpen(true)}
-                  disabled={!hasChanges || operationInProgress}
-                >
                   <Trash2 style={iconStyle} className="mr-2" />
-                  Discard All Changes
+                  Undo Last Save
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -248,14 +213,6 @@ function TopBar(): JSX.Element {
         open={undoDialogOpen}
         onOpenChange={setUndoDialogOpen}
         onConfirm={handleUndo}
-      />
-
-      {/* Discard Changes Confirmation */}
-      <RewindConfirmModal
-        open={discardDialogOpen}
-        onOpenChange={setDiscardDialogOpen}
-        onConfirm={handleDiscard}
-        isLoading={isRewinding}
       />
 
       {/* Switch Project Confirmation */}

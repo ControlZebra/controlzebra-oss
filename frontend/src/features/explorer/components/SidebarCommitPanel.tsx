@@ -94,8 +94,8 @@ const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff, onDisc
         title={canOpenDiff ? `View changes: ${file.path}` : file.path}
       >
         <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
-        <FileText style={ICON_STYLES.xs as CSSProperties} className="text-yellow-500 shrink-0" />
-        <span className="text-yellow-500 truncate flex-1">
+        <FileText style={ICON_STYLES.xs as CSSProperties} className="text-theme-primary shrink-0" />
+        <span className="text-theme-primary truncate flex-1">
           {file.name}
         </span>
       </button>
@@ -104,7 +104,7 @@ const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff, onDisc
         type="button"
         onClick={handleDiscardClick}
         disabled={isDiscarding}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded text-yellow-500 hover:bg-red-500/10 hover:text-red-400 transition-all disabled:opacity-40"
+        className="opacity-0 group-hover:opacity-100 p-1 rounded text-theme-primary hover:bg-red-500/10 hover:text-red-400 transition-all disabled:opacity-40"
         title={`Discard changes: ${file.path}`}
       >
         <Undo2 style={ICON_STYLES.xs as CSSProperties} />
@@ -122,14 +122,14 @@ const ChangedFilesList = memo(function ChangedFilesList({ files, onOpenDiff, onD
   return (
     <div className="border-t border-theme-default">
       <div className="px-3 py-2 flex items-center justify-between gap-2">
-        <div className="text-xs text-yellow-500 uppercase tracking-wide">
-          Changed Files ({files.length})
+        <div className="text-xs text-theme-muted font-sans tracking-wide">
+          Changed files ({files.length})
         </div>
         <button
           type="button"
           onClick={onRewind}
           disabled={isRewinding || isDiscardingFile}
-          className="p-1 rounded text-yellow-500 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+          className="p-1 rounded text--500 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
           title="Discard all changes"
         >
           <Undo2 style={ICON_STYLES.xs as CSSProperties} />
