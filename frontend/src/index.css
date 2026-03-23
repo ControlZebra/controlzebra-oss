@@ -42,13 +42,13 @@
   --color-accent-border: theme(colors.blue.500/30);
   --color-accent-border-strong: theme(colors.blue.500);
   
-  /* Warning / Amber */
-  --color-warning: theme(colors.amber.600);
-  --color-warning-muted: theme(colors.amber.700);
-  --color-warning-subtle: theme(colors.amber.600/60);
-  --color-warning-bg: theme(colors.amber.500/10);
-  --color-warning-border: theme(colors.amber.400/30);
-  --color-warning-border-strong: theme(colors.amber.500);
+  /* Warning / Orange */
+  --color-warning: theme(colors.orange.600);
+  --color-warning-muted: theme(colors.orange.700);
+  --color-warning-subtle: theme(colors.orange.600/60);
+  --color-warning-bg: theme(colors.orange.500/10);
+  --color-warning-border: theme(colors.orange.400/30);
+  --color-warning-border-strong: theme(colors.orange.500);
   
   /* Diff Status: Added / Green */
   --color-added: theme(colors.green.700);
@@ -68,13 +68,13 @@
   --color-removed-border: theme(colors.red.500/30);
   --color-removed-border-strong: theme(colors.red.600);
 
-  /* Diff Status: Modified / Yellow-Amber */
-  --color-modified: theme(colors.yellow.700);
-  --color-modified-muted: theme(colors.yellow.600);
-  --color-modified-subtle: theme(colors.yellow.700/60);
-  --color-modified-bg: theme(colors.yellow.500/10);
-  --color-modified-border: theme(colors.yellow.500/30);
-  --color-modified-border-strong: theme(colors.yellow.600);
+  /* Diff Status: Modified / Orange */
+  --color-modified: theme(colors.orange.700);
+  --color-modified-muted: theme(colors.orange.600);
+  --color-modified-subtle: theme(colors.orange.700/60);
+  --color-modified-bg: theme(colors.orange.500/10);
+  --color-modified-border: theme(colors.orange.500/30);
+  --color-modified-border-strong: theme(colors.orange.600);
 
   /* Error / Destructive Red */
   --color-error: theme(colors.red.600);

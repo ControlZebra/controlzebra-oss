@@ -282,7 +282,7 @@ function ExplorerView(): JSX.Element {
 
         <section className="flex-1 min-h-0 flex flex-col border-t border-theme-default" aria-label="Timeline">
           <header className="px-3 py-2 border-b border-theme-default shrink-0">
-            <h3 className="text-theme-muted text-xs font-medium uppercase tracking-wide">
+            <h3 className="text-theme-muted text-xs font-sans font-medium tracking-wide">
               Timeline
             </h3>
           </header>

@@ -23,7 +23,7 @@ interface ViewConfig {
 // ============================================================================
 
 const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
-  [VIEWS.EXPLORER]: { title: 'Next Step Advisor', Component: ExplorerView },
+  [VIEWS.EXPLORER]: { title: 'Next step advisor', Component: ExplorerView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
   [VIEWS.PROFILE]: { title: 'Profile', Component: ProfileView },
@@ -94,7 +94,7 @@ function Sidebar(): JSX.Element | null {
 
       {/* View header */}
       <header className="h-9 px-3 flex items-center border-b border-theme-default shrink-0 mt-2">
-        <h2 className="text-theme-muted text-xs font-medium uppercase tracking-wide">
+        <h2 className="text-theme-muted text-xs font-sans font-medium tracking-wide">
           {title}
         </h2>
       </header>
