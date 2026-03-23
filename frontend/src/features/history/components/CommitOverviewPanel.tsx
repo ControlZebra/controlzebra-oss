@@ -210,7 +210,7 @@ const CommitHeader = memo(function CommitHeader({
   }, [commit.date, commit.relativeDate]);
 
   return (
-    <div className="border-b border-theme-default bg-theme-elevated">
+    <div className="border-b border-theme-default bg-fb-base">
       {onBack && (
         <div className="px-4 py-2 border-b border-theme-muted/50">
           <Button variant="ghost" size="sm" onClick={onBack}>
@@ -337,13 +337,13 @@ const CommitFileList = memo(function CommitFileList({ files, onFileSelect }: Com
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="px-4 py-2 text-xs text-theme-muted uppercase tracking-wide border-b border-theme-muted/50 bg-theme-elevated shrink-0">
+      <div className="px-4 py-2 text-xs text-theme-muted uppercase tracking-wide border-b border-theme-muted/50 bg-fb-base shrink-0">
         Changed Files
       </div>
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto bg-fb-base">
         <Table>
-          <TableHeader className="bg-theme-elevated">
-            <TableRow className="hover:bg-theme-elevated">
+          <TableHeader className="bg-fb-base">
+            <TableRow className="hover:bg-fb-base">
               <TableHead className="h-8 w-12 py-1.5">
                 <input
                   type="checkbox"
@@ -499,7 +499,7 @@ function CommitOverviewPanel({
 
   if (selectedFilePath && (currentDiff || repoPath)) {
     return (
-      <div className="flex flex-col h-full min-h-0">
+      <div className="flex flex-col h-full min-h-0 bg-fb-base">
         <CommitHeader
           commit={commit}
           branchName={branchName}
@@ -528,7 +528,7 @@ function CommitOverviewPanel({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 bg-fb-base">
       <CommitHeader
         commit={commit}
         branchName={branchName}

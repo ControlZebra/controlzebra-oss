@@ -215,20 +215,16 @@ function StatusBar(): JSX.Element {
   }, [startTracking, gitInstalled, lfsInstalled, installRequiredPackages]);
 
   return (
-    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0">
+    <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0 text-theme-muted">
       {/* Left: Debug indicator */}
       <div className="flex items-center gap-1.5 text-xs shrink-0">
         <button
           onClick={handleDebugClick}
           onContextMenu={(e) => { e.preventDefault(); handleDebugToggle(); }}
-          className={`flex items-center gap-1 px-1 rounded transition-colors
-            ${debugEnabled
-              ? 'text-green-400 hover:text-green-300'
-              : 'text-theme-muted hover:text-theme-secondary'
-            }`}
+          className="flex items-center gap-1 px-1 rounded text-theme-muted transition-colors hover:text-theme-secondary"
           title={debugEnabled ? 'Debug: ON — Click to view, right-click to toggle' : 'Debug: OFF — Click to view, right-click to toggle'}
         >
-          <Bug style={iconStyle} />
+          <Bug style={iconStyle} className="text-theme-muted" />
           <span className="hidden sm:inline text-[11px]">
             {debugEnabled ? 'Debug' : 'Debug'}
           </span>
@@ -244,8 +240,8 @@ function StatusBar(): JSX.Element {
           <>
             {/* Project state indicator (Phase 13.1) */}
             {stateIndicator && (
-              <div className={`flex items-center gap-1 shrink-0 ${stateIndicator.className}`}>
-                <stateIndicator.Icon style={iconStyle} />
+              <div className="flex items-center gap-1 shrink-0 text-theme-muted">
+                <stateIndicator.Icon style={iconStyle} className="text-theme-muted" />
                 <span className="hidden sm:inline">{stateIndicator.text}</span>
                 {stateIndicator.showNudge && (
                   <button
@@ -264,7 +260,7 @@ function StatusBar(): JSX.Element {
 
             {/* Branch name — only show when tracked */}
             {repoInfo?.isRepo && (
-              <div className="flex items-center gap-1 text-theme-secondary min-w-0">
+              <div className="flex items-center gap-1 text-theme-muted min-w-0">
                 <CodeSquare style={iconStyle} className="shrink-0" />
                 <span className="truncate max-w-[120px]">{branchName}</span>
               </div>
@@ -272,10 +268,10 @@ function StatusBar(): JSX.Element {
             
             {/* Sync status — only show when tracked with remote */}
             {repoInfo?.isRepo && hasRemote && (
-              <div className={`flex items-center gap-1 shrink-0 ${syncStatus.className}`}>
+              <div className="flex items-center gap-1 shrink-0 text-theme-muted">
                 <syncStatus.Icon 
                   style={iconStyle} 
-                  className={syncStatus.spinning ? 'animate-spin' : ''} 
+                  className={`text-theme-muted ${syncStatus.spinning ? 'animate-spin' : ''}`.trim()} 
                 />
                 <span className="hidden sm:inline">{syncStatus.text}</span>
               </div>
@@ -283,8 +279,8 @@ function StatusBar(): JSX.Element {
 
             {/* Changes count */}
             {changesCount > 0 && (
-              <div className="flex items-center gap-1 text-yellow-400 shrink-0">
-                <Pencil style={iconStyle} />
+              <div className="flex items-center gap-1 text-theme-muted shrink-0">
+                <Pencil style={iconStyle} className="text-theme-muted" />
                 <span className="hidden sm:inline">{changesCount} changes</span>
                 <span className="sm:hidden">{changesCount}</span>
               </div>
