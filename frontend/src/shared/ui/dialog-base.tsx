@@ -309,6 +309,13 @@ export const BaseDialogContent = React.forwardRef<HTMLDivElement, BaseDialogCont
           return;
         }
 
+        // Allow focus to move into Radix popover / select portals
+        // rendered outside the dialog DOM tree.
+        const target = event.target as HTMLElement | null;
+        if (target?.closest?.('[data-radix-popper-content-wrapper]')) {
+          return;
+        }
+
         const requestedInitialFocus = context.initialFocusRef?.current;
         const firstFocusable = getFocusableElements(contentElement)[0] || contentElement;
         const focusTarget = isFocusableElement(requestedInitialFocus) ? requestedInitialFocus : firstFocusable;

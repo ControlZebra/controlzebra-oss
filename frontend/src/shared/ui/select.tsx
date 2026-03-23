@@ -144,7 +144,7 @@ const ToggleGroup = React.forwardRef<HTMLDivElement, ToggleGroupProps>(
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-theme-surface",
               "disabled:pointer-events-none disabled:opacity-50",
               value === option.value
-                ? "bg-theme-primary text-theme-primary-foreground shadow-sm"
+                ? "bg-theme-muted text-theme-primary shadow-sm"
                 : "text-theme-muted hover:text-theme-primary hover:bg-theme-muted/50"
             )}
           >
