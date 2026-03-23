@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useMemo, useCallback } from 'react';
 import { Github, Lock, Globe } from 'lucide-react';
 import { ICON_SIZES } from '../../../shared/constants';
-import { Button, Input, Label, Select, type SelectOption } from '../../../shared/ui';
+import { Button, Input, Select, ToggleGroup, type SelectOption, type ToggleGroupOption } from '../../../shared/ui';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,9 +12,13 @@ import {
   AlertDialogDescription,
   AlertDialogCancel,
 } from '../../../shared/ui/alert-dialog';
-import { cn } from '../../../shared/utils/misc';
 import { getFolderNameFromPath } from '../../../shared/utils/path';
 import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../../context';
+
+const VISIBILITY_OPTIONS: ToggleGroupOption[] = [
+  { value: 'private', label: 'Private', icon: <Lock size={12} /> },
+  { value: 'public', label: 'Public', icon: <Globe size={12} /> },
+];
 
 interface PublishToCloudModalProps {
   open: boolean;
@@ -44,7 +48,7 @@ function PublishToCloudModal({
   repoPath,
 }: PublishToCloudModalProps): JSX.Element {
   const [repoName, setRepoName] = useState('my-repo');
-  const [isPrivate, setIsPrivate] = useState(true);
+  const [visibility, setVisibility] = useState('private');
   const [selectedOwner, setSelectedOwner] = useState('');
   const [username, setUsername] = useState('');
   const [organizations, setOrganizations] = useState<GitHubOrganization[]>([]);
@@ -66,7 +70,7 @@ function PublishToCloudModal({
     if (!open) return;
     const defaultRepoName = repoPath ? getFolderNameFromPath(repoPath) : 'my-repo';
     setRepoName(defaultRepoName);
-    setIsPrivate(true);
+    setVisibility('private');
   }, [open, repoPath]);
 
   // Load organizations when authenticated and modal is open
@@ -94,9 +98,9 @@ function PublishToCloudModal({
     if (!onPublishToGitHub || !repoName.trim() || !selectedOwner) return;
 
     const owner = selectedOwner === username ? '' : selectedOwner;
-    await onPublishToGitHub(repoName.trim(), isPrivate, owner);
+    await onPublishToGitHub(repoName.trim(), visibility === 'private', owner);
     onOpenChange(false);
-  }, [onPublishToGitHub, repoName, selectedOwner, username, isPrivate, onOpenChange]);
+  }, [onPublishToGitHub, repoName, selectedOwner, username, visibility, onOpenChange]);
 
   const handlePublishAction = useCallback((event: React.MouseEvent<HTMLButtonElement>): void => {
     event.preventDefault();
@@ -116,7 +120,7 @@ function PublishToCloudModal({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="px-6 pb-2 space-y-3">
+        <div className="px-6 pb-2 space-y-4">
           {!ghAuthStatus?.loggedIn ? (
             <div className="text-center py-2">
               <p className="text-theme-muted text-xs mb-3">
@@ -149,11 +153,12 @@ function PublishToCloudModal({
               )}
             </div>
           ) : (
-            <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Repository name */}
               <div>
-                <Label htmlFor="publish-cloud-repo-name" className="text-left">
+                <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
                   Repository Name
-                </Label>
+                </label>
                 <Input
                   id="publish-cloud-repo-name"
                   type="text"
@@ -163,41 +168,38 @@ function PublishToCloudModal({
                 />
               </div>
 
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <Label className="text-left">Visibility</Label>
-                  <button
-                    type="button"
-                    onClick={() => setIsPrivate((v) => !v)}
-                    className={cn(
-                      'flex h-9 w-full items-center gap-2 rounded border border-theme-default bg-theme-surface px-3 text-sm transition-colors',
-                      'hover:border-theme-hover'
-                    )}
-                  >
-                    {isPrivate ? (
-                      <>
-                        <Lock size={14} className="text-theme-muted" /> Private
-                      </>
-                    ) : (
-                      <>
-                        <Globe size={14} className="text-theme-muted" /> Public
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="flex-1">
-                  <Label className="text-left">Owner</Label>
-                  <Select
-                    value={selectedOwner}
-                    onValueChange={setSelectedOwner}
-                    options={ownerOptions}
-                    placeholder={isLoadingOrgs ? 'Loading...' : 'Select owner'}
-                    disabled={isLoadingOrgs}
-                  />
-                </div>
+              {/* Organization picker */}
+              <div>
+                <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
+                  Organization
+                </label>
+                <Select
+                  value={selectedOwner}
+                  onValueChange={setSelectedOwner}
+                  options={ownerOptions}
+                  placeholder={isLoadingOrgs ? 'Loading…' : 'Personal account'}
+                  disabled={isLoadingOrgs}
+                />
               </div>
-            </>
+
+              {/* Visibility */}
+              <div className="lg:col-span-2">
+                <label className="block text-xs text-theme-secondary mb-1.5 font-medium">
+                  Visibility
+                </label>
+                <ToggleGroup
+                  value={visibility}
+                  onValueChange={setVisibility}
+                  options={VISIBILITY_OPTIONS}
+                  disabled={isPublishing}
+                />
+                <p className="text-theme-muted text-xs mt-1.5">
+                  {visibility === 'private'
+                    ? 'Only you and collaborators can view this repository'
+                    : 'Anyone on the internet can view this repository'}
+                </p>
+              </div>
+            </div>
           )}
         </div>
 
