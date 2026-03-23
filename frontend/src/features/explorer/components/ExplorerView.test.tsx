@@ -62,7 +62,7 @@ vi.mock('../../history/components/HistoryTimeline', () => ({
 }));
 
 vi.mock('../../auth/components/GitHubDeviceFlowModal', () => ({
-  default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Device flow modal</div> : null),
+  default: ({ open }: { open: boolean }) => (open ? <div>Device flow modal</div> : null),
 }));
 
 import ExplorerView from './ExplorerView';

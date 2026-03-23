@@ -352,7 +352,7 @@ function SidebarCommitPanel({
       {/* Modals */}
       <RewindConfirmModal
         open={showRewindModal}
-        onClose={() => setShowRewindModal(false)}
+        onOpenChange={setShowRewindModal}
         onConfirm={handleRewindConfirm}
         isLoading={isRewinding}
       />

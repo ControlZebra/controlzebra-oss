@@ -9,6 +9,7 @@ import { openExternalUrl } from '../../../shared/runtime/browser';
 import { Button } from '../../../shared/ui';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,
@@ -21,23 +22,23 @@ const AUTH_POLL_INTERVAL = 2000;
 
 export interface GitHubDeviceFlowModalProps {
   /** Whether the modal is open */
-  isOpen: boolean;
+  open: boolean;
   /** The user code to display */
   userCode: string;
   /** The verification URL to open */
   verificationUrl: string;
   /** Called when authentication completes successfully */
   onComplete: () => void;
-  /** Called when the user cancels the flow */
-  onCancel: () => void;
+  /** Called when the modal open state changes */
+  onOpenChange: (open: boolean) => void;
 }
 
 function GitHubDeviceFlowModal({
-  isOpen,
+  open,
   userCode,
   verificationUrl,
   onComplete,
-  onCancel,
+  onOpenChange,
 }: GitHubDeviceFlowModalProps) {
   const { completeGitHubLogin, cancelGitHubLogin } = useRepo();
   
@@ -77,7 +78,7 @@ function GitHubDeviceFlowModal({
 
   // Poll for auth completion
   useEffect(() => {
-    if (!isWaiting || !isOpen) {
+    if (!isWaiting || !open) {
       stopPolling();
       return;
     }
@@ -92,7 +93,7 @@ function GitHubDeviceFlowModal({
     }, AUTH_POLL_INTERVAL);
 
     return () => stopPolling();
-  }, [isWaiting, isOpen, completeGitHubLogin, stopPolling, onComplete]);
+  }, [isWaiting, open, completeGitHubLogin, stopPolling, onComplete]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -101,22 +102,36 @@ function GitHubDeviceFlowModal({
 
   // Reset state when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       setIsWaiting(false);
       setCopied(false);
     }
-  }, [isOpen]);
+  }, [open]);
 
   // Cancel device flow
   const handleCancelFlow = useCallback(async () => {
     stopPolling();
     await cancelGitHubLogin();
     setIsWaiting(false);
-    onCancel();
-  }, [cancelGitHubLogin, stopPolling, onCancel]);
+    onOpenChange(false);
+  }, [cancelGitHubLogin, stopPolling, onOpenChange]);
+
+  const handleDialogOpenChange = useCallback((nextOpen: boolean): void => {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+
+    void handleCancelFlow();
+  }, [handleCancelFlow, onOpenChange]);
+
+  const handleOpenGitHubAction = useCallback((event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    void handleOpenGitHub();
+  }, [handleOpenGitHub]);
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && handleCancelFlow()}>
+    <AlertDialog open={open} onOpenChange={handleDialogOpenChange}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -165,8 +180,9 @@ function GitHubDeviceFlowModal({
         
         <AlertDialogFooter className="flex-col sm:flex-row gap-2">
           <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-          <Button 
-            onClick={handleOpenGitHub}
+          <AlertDialogAction
+            variant="default"
+            onClick={handleOpenGitHubAction}
             className="w-full sm:w-auto"
             disabled={isWaiting}
           >
@@ -181,7 +197,7 @@ function GitHubDeviceFlowModal({
                 <span className="ml-2">Open GitHub</span>
               </>
             )}
-          </Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

@@ -15,7 +15,7 @@ import { formatMergeReviewFileLabel } from './modal/mergeReviewShared';
 
 interface MergeReviewDiffModalProps {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   reviewFilePath: string | null;
   reviewDiff: MergeReviewDiffResult | null;
   isLoadingReviewDiff: boolean;
@@ -24,7 +24,7 @@ interface MergeReviewDiffModalProps {
 
 function MergeReviewDiffModal({
   open,
-  onClose,
+  onOpenChange,
   reviewFilePath,
   reviewDiff,
   isLoadingReviewDiff,
@@ -35,8 +35,8 @@ function MergeReviewDiffModal({
     : reviewFilePath || '';
 
   return (
-    <AlertDialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-      <AlertDialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="3xl" className="max-h-[80vh] flex flex-col">
         <AlertDialogHeader>
           <AlertDialogTitle>
             Review Changes

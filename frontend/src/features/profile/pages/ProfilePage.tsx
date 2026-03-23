@@ -65,6 +65,12 @@ function ProfilePage(): JSX.Element {
     setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
   }, []);
 
+  const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
+    if (!open) {
+      handleDeviceFlowCancel();
+    }
+  }, [handleDeviceFlowCancel]);
+
   // Disconnect from GitHub
   const handleGitHubDisconnect = useCallback(async () => {
     setError(null);
@@ -220,11 +226,11 @@ function ProfilePage(): JSX.Element {
 
         {/* Device Flow Modal */}
         <GitHubDeviceFlowModal
-          isOpen={deviceFlow.isOpen}
+          open={deviceFlow.isOpen}
           userCode={deviceFlow.userCode}
           verificationUrl={deviceFlow.verificationUrl}
           onComplete={handleDeviceFlowComplete}
-          onCancel={handleDeviceFlowCancel}
+          onOpenChange={handleDeviceFlowOpenChange}
         />
       </div>
     </div>

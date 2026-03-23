@@ -240,7 +240,7 @@ function TopBar(): JSX.Element {
       {/* Branch Modal */}
       <BranchModal 
         open={branchModalOpen} 
-        onClose={() => setBranchModalOpen(false)} 
+        onOpenChange={setBranchModalOpen} 
       />
 
       {/* Undo Last Save Confirmation */}
@@ -253,7 +253,7 @@ function TopBar(): JSX.Element {
       {/* Discard Changes Confirmation */}
       <RewindConfirmModal
         open={discardDialogOpen}
-        onClose={() => setDiscardDialogOpen(false)}
+        onOpenChange={setDiscardDialogOpen}
         onConfirm={handleDiscard}
         isLoading={isRewinding}
       />
@@ -261,7 +261,7 @@ function TopBar(): JSX.Element {
       {/* Switch Project Confirmation */}
       <SwitchProjectModal
         open={switchProjectModalOpen}
-        onClose={() => setSwitchProjectModalOpen(false)}
+        onOpenChange={setSwitchProjectModalOpen}
         onConfirm={handleSwitchProject}
       />
     </>

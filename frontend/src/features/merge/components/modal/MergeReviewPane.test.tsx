@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MergeReviewFile } from '../../../../context';
 import MergeReviewPane from './MergeReviewPane';
 
 vi.mock('./MergeReviewPreview', () => ({
@@ -9,7 +10,7 @@ vi.mock('./MergeReviewPreview', () => ({
   ),
 }));
 
-const reviewFiles = [
+const reviewFiles: MergeReviewFile[] = [
   { path: 'logic/alpha.L5X', status: 'modified' },
   { path: 'logic/beta.L5X', status: 'renamed', oldPath: 'logic/beta-old.L5X' },
   { path: 'logic/gamma.L5X', status: 'added' },

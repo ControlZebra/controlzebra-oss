@@ -26,7 +26,7 @@ function AppLayoutInner(): JSX.Element {
       
       {/* Progress Modal for git operations */}
       <ProgressModal
-        isOpen={progressModal.isOpen}
+        open={progressModal.isOpen}
         operationId={progressModal.operationId || ''}
         title={progressModal.title}
         onComplete={handleProgressComplete}

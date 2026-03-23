@@ -2,10 +2,19 @@
  * RewindConfirmModal - Confirmation modal for the "Rewind" (git reset --hard HEAD) action.
  * Requires user to type "Rewind" as a safety mechanism before allowing confirmation.
  */
-import { memo, useState, useCallback, useEffect, type KeyboardEvent, type ChangeEvent, type CSSProperties } from 'react';
+import { memo, useState, useCallback, useEffect, useRef, type KeyboardEvent, type ChangeEvent, type CSSProperties } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { ICON_SIZES } from '../../shared/constants';
-import { Button, Input } from '../../shared/ui';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Input,
+} from '../../shared/ui';
 
 // ============================================================================
 // Types
@@ -13,7 +22,7 @@ import { Button, Input } from '../../shared/ui';
 
 interface RewindConfirmModalProps {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   onConfirm: () => Promise<void>;
   isLoading?: boolean;
   title?: string;
@@ -35,7 +44,7 @@ const DEFAULT_CONFIRMATION_WORD = 'Delete';
 
 function RewindConfirmModal({
   open,
-  onClose,
+  onOpenChange,
   onConfirm,
   isLoading = false,
   title = 'Delete Uncommitted Changes?',
@@ -45,6 +54,7 @@ function RewindConfirmModal({
   confirmationWord = DEFAULT_CONFIRMATION_WORD,
 }: RewindConfirmModalProps): JSX.Element | null {
   const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   
   // Reset input when modal opens/closes
   useEffect(() => {
@@ -66,89 +76,76 @@ function RewindConfirmModal({
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Enter' && isConfirmEnabled && !isLoading) {
-      handleConfirm();
+      void handleConfirm();
     }
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  }, [isConfirmEnabled, isLoading, handleConfirm, onClose]);
+  }, [isConfirmEnabled, isLoading, handleConfirm]);
 
-  if (!open) return null;
+  const handleConfirmAction = useCallback((event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    void handleConfirm();
+  }, [handleConfirm]);
 
   const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
 
   return (
-    <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/75 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">
-          {/* Header with warning icon */}
-          <div className="px-6 py-4 border-b border-theme-default flex items-center gap-3">
+    <AlertDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      initialFocusRef={inputRef}
+    >
+      <AlertDialogContent className="overflow-hidden" onKeyDown={handleKeyDown}>
+        <AlertDialogHeader className="border-b border-theme-default">
+          <div className="flex items-center gap-3">
             <div className="p-2 rounded-full bg-red-500/20">
               <AlertTriangle 
                 style={iconStyle} 
                 className="text-red-500" 
               />
             </div>
-            <h2 className="text-lg font-semibold text-theme-primary">
+            <AlertDialogTitle>
               {title}
-            </h2>
+            </AlertDialogTitle>
           </div>
+        </AlertDialogHeader>
 
-          {/* Content */}
-          <div className="px-6 py-4 space-y-4">
-            <p className="text-sm text-theme-secondary">
-              {description}
+        <div className="px-6 py-4 space-y-4">
+          <p className="text-sm text-theme-secondary">
+            {description}
+          </p>
+
+          <div className="p-3 rounded bg-red-500/10 border border-red-500/30">
+            <p className="text-sm text-red-400 font-medium">
+              {warningText}
             </p>
-            
-            <div className="p-3 rounded bg-red-500/10 border border-red-500/30">
-              <p className="text-sm text-red-400 font-medium">
-                {warningText}
-              </p>
-            </div>
-
-            {/* Confirmation input */}
-            <div>
-              <label className="block text-xs text-theme-secondary mb-2">
-                Type <span className="font-bold text-theme-primary">{confirmationWord}</span> to confirm
-              </label>
-              <Input
-                value={inputValue}
-                onChange={handleInputChange}
-                placeholder={confirmationWord}
-                autoFocus
-                disabled={isLoading}
-              />
-            </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-theme-default flex justify-end gap-2">
-            <Button 
-              variant="secondary" 
-              onClick={onClose}
+          <div>
+            <label className="block text-xs text-theme-secondary mb-2">
+              Type <span className="font-bold text-theme-primary">{confirmationWord}</span> to confirm
+            </label>
+            <Input
+              ref={inputRef}
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder={confirmationWord}
               disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={handleConfirm}
-              disabled={!isConfirmEnabled}
-              loading={isLoading}
-            >
-              {confirmButtonText}
-            </Button>
+            />
           </div>
         </div>
-      </div>
-    </div>
+
+        <AlertDialogFooter className="border-t border-theme-default px-6 py-4">
+          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={handleConfirmAction}
+            disabled={!isConfirmEnabled}
+            loading={isLoading}
+          >
+            {confirmButtonText}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

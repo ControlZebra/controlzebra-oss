@@ -263,7 +263,7 @@ function ExplorerStatusPanel({
             </div>
             <p className="text-theme-primary text-sm font-medium mb-1">Ready to choose where to keep your work?</p>
             <p className="text-theme-muted text-xs mb-3">
-              You currently have {pendingCount} snapshot{pendingCount !== 1 ? 's' : ''} saved on this computer only.
+              This branch has {pendingCount} snapshot{pendingCount !== 1 ? 's' : ''} saved on this computer only.
             </p>
             <div className="text-left rounded-lg border border-theme-default bg-theme-surface p-3 mb-4">
               <p className="text-theme-primary text-xs font-medium mb-1">Your options:</p>
@@ -289,8 +289,8 @@ function ExplorerStatusPanel({
           </div>
 
           <PublishToCloudModal
-            isOpen={isPublishModalOpen}
-            onClose={() => setIsPublishModalOpen(false)}
+            open={isPublishModalOpen}
+            onOpenChange={setIsPublishModalOpen}
             onPublishToGitHub={onPublishToGitHub}
             onConnectGitHub={onConnectGitHub}
             onLoadOrganizations={onLoadOrganizations}

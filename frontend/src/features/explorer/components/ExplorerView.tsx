@@ -146,6 +146,12 @@ function ExplorerView(): JSX.Element {
     setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
   }, []);
 
+  const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
+    if (!open) {
+      handleDeviceFlowCancel();
+    }
+  }, [handleDeviceFlowCancel]);
+
   // Handle publish to GitHub with form data
   const handlePublishToGitHub = useCallback(async (
     name: string,
@@ -198,11 +204,11 @@ function ExplorerView(): JSX.Element {
   const sharedModals = (
     <>
       <GitHubDeviceFlowModal
-        isOpen={deviceFlow.isOpen}
+        open={deviceFlow.isOpen}
         userCode={deviceFlow.userCode}
         verificationUrl={deviceFlow.verificationUrl}
         onComplete={handleDeviceFlowComplete}
-        onCancel={handleDeviceFlowCancel}
+        onOpenChange={handleDeviceFlowOpenChange}
       />
     </>
   );

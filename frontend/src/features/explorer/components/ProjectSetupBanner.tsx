@@ -254,8 +254,8 @@ function ProjectSetupBanner({
 
       {isPublishState && (
         <PublishToCloudModal
-          isOpen={isPublishModalOpen}
-          onClose={() => setIsPublishModalOpen(false)}
+          open={isPublishModalOpen}
+          onOpenChange={setIsPublishModalOpen}
           onPublishToGitHub={onPublishToGitHub}
           onConnectGitHub={onConnectGitHub}
           onLoadOrganizations={onLoadOrganizations}

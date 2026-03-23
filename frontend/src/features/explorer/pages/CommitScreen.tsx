@@ -374,7 +374,11 @@ function CommitScreen({
       {/* Rewind Confirmation Modal */}
       <RewindConfirmModal
         open={showRewindModal}
-        onClose={handleRewindCancel}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleRewindCancel();
+          }
+        }}
         onConfirm={handleRewindConfirm}
         isLoading={isRewinding}
       />

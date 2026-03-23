@@ -2,11 +2,11 @@
  * BranchModal - Modal for switching or creating branches.
  * Triggered from the TopBar branch indicator.
  */
-import { memo, useState, useCallback, useEffect, type KeyboardEvent, type CSSProperties } from 'react';
+import { memo, useState, useCallback, useEffect, useRef, type KeyboardEvent, type CSSProperties } from 'react';
 import { GitBranch, Plus, Check, Search } from 'lucide-react';
 import { ICON_SIZES } from '../../shared/constants';
 import { useRepo, type BranchInfo } from '../../context';
-import { Button, Input } from '../../shared/ui';
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '../../shared/ui';
 import { cn } from '../../shared/utils/misc';
 
 // ============================================================================
@@ -15,7 +15,7 @@ import { cn } from '../../shared/utils/misc';
 
 interface BranchModalProps {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
 }
 
 interface BranchItemProps {
@@ -60,13 +60,15 @@ const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect, disab
   );
 });
 
-function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
+function BranchModal({ open, onOpenChange }: BranchModalProps): JSX.Element {
   const { branches, repoInfo, switchBranch, createBranch, refreshBranches, operationInProgress } = useRepo();
   const [mode, setMode] = useState<'switch' | 'create'>('switch');
   const [newBranchName, setNewBranchName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const newBranchInputRef = useRef<HTMLInputElement>(null);
 
   // Refresh branches when modal opens
   useEffect(() => {
@@ -95,9 +97,9 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
     
     setIsLoading(false);
     if (success) {
-      onClose();
+      onOpenChange(false);
     }
-  }, [repoInfo, switchBranch, onClose]);
+  }, [repoInfo, switchBranch, onOpenChange]);
 
   // Handle create new branch
   const handleCreate = useCallback(async (): Promise<void> => {
@@ -110,39 +112,35 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
     
     setIsLoading(false);
     if (success) {
-      onClose();
+      onOpenChange(false);
     }
-  }, [newBranchName, createBranch, onClose]);
+  }, [newBranchName, createBranch, onOpenChange]);
 
   // Handle key press
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Enter' && mode === 'create' && newBranchName.trim()) {
-      handleCreate();
+      void handleCreate();
     }
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  }, [mode, newBranchName, handleCreate, onClose]);
-
-  if (!open) return null;
+  }, [mode, newBranchName, handleCreate]);
 
   return (
-    <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/75 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-start justify-center pt-20 px-4">
-        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-theme-default flex items-center gap-2">
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      initialFocusRef={mode === 'create' ? newBranchInputRef : searchInputRef}
+    >
+      <DialogContent
+        size="md"
+        containerClassName="items-start pt-20"
+        className="overflow-hidden"
+        onKeyDown={handleKeyDown}
+      >
+        <DialogHeader className="border-b border-theme-default px-4 py-3">
+          <div className="flex items-center gap-2">
             <GitBranch style={iconStyle} className="text-theme-secondary" />
-            <h2 className="text-theme-primary font-medium flex-1">
+            <DialogTitle className="flex-1 text-base font-medium">
               {mode === 'switch' ? 'Switch Branch' : 'Create New Branch'}
-            </h2>
+            </DialogTitle>
             <Button
               variant="ghost"
               size="sm"
@@ -158,96 +156,88 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
               )}
             </Button>
           </div>
+        </DialogHeader>
 
-          {/* Content */}
-          <div className="p-4">
-            {mode === 'create' ? (
-              /* Create mode */
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-theme-secondary mb-1">
-                    Branch name
-                  </label>
-                  <Input
-                    value={newBranchName}
-                    onChange={(e) => setNewBranchName(e.target.value)}
-                    placeholder="feature/my-new-branch"
-                    autoFocus
-                  />
-                </div>
-                <p className="text-xs text-theme-muted">
-                  Branch will be created from current branch: <span className="text-theme-secondary">{repoInfo?.branch}</span>
-                </p>
-                <Button
-                  className="w-full"
-                  onClick={handleCreate}
-                  disabled={!newBranchName.trim() || operationInProgress}
-                  loading={isLoading}
-                >
-                  Create Branch
-                </Button>
+        <div className="p-4">
+          {mode === 'create' ? (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs text-theme-secondary">
+                  Branch name
+                </label>
+                <Input
+                  ref={newBranchInputRef}
+                  value={newBranchName}
+                  onChange={(e) => setNewBranchName(e.target.value)}
+                  placeholder="feature/my-new-branch"
+                />
               </div>
-            ) : (
-              /* Switch mode */
-              <div className="space-y-3">
-                {/* Search */}
-                <div className="relative">
-                  <Search 
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" 
-                    style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }}
-                  />
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search branches..."
-                    className="pl-9"
-                    autoFocus
-                  />
-                </div>
+              <p className="text-xs text-theme-muted">
+                Branch will be created from current branch: <span className="text-theme-secondary">{repoInfo?.branch}</span>
+              </p>
+              <Button
+                className="w-full"
+                onClick={() => void handleCreate()}
+                disabled={!newBranchName.trim() || operationInProgress}
+                loading={isLoading}
+              >
+                Create Branch
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted"
+                  style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }}
+                />
+                <Input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search branches..."
+                  className="pl-9"
+                />
+              </div>
 
-                {/* Branch list */}
-                <div className="max-h-64 overflow-y-auto -mx-4 border-t border-b border-theme-default">
-                  {filteredBranches.length === 0 ? (
-                    <p className="px-4 py-3 text-theme-muted text-sm text-center">
-                      {searchQuery ? 'No matching branches' : 'No branches found'}
-                    </p>
-                  ) : (
-                    filteredBranches.map(branch => (
-                      <BranchItem
-                        key={branch.name}
-                        branch={branch}
-                        isCurrent={branch.name === repoInfo?.branch}
-                        onSelect={handleSwitch}
-                        disabled={isLoading || operationInProgress}
-                      />
-                    ))
-                  )}
-                </div>
-
-                {/* Remote branches hint */}
-                {branches?.remote && branches.remote.length > 0 && (
-                  <p className="text-xs text-theme-muted text-center">
-                    {branches.remote.length} remote branch{branches.remote.length !== 1 ? 'es' : ''} available
+              <div className="-mx-4 max-h-64 overflow-y-auto border-y border-theme-default">
+                {filteredBranches.length === 0 ? (
+                  <p className="px-4 py-3 text-center text-sm text-theme-muted">
+                    {searchQuery ? 'No matching branches' : 'No branches found'}
                   </p>
+                ) : (
+                  filteredBranches.map(branch => (
+                    <BranchItem
+                      key={branch.name}
+                      branch={branch}
+                      isCurrent={branch.name === repoInfo?.branch}
+                      onSelect={handleSwitch}
+                      disabled={isLoading || operationInProgress}
+                    />
+                  ))
                 )}
               </div>
-            )}
 
-            {/* Error display */}
-            {error && (
-              <p className="mt-3 text-sm text-red-400">{error}</p>
-            )}
-          </div>
+              {branches?.remote && branches.remote.length > 0 && (
+                <p className="text-center text-xs text-theme-muted">
+                  {branches.remote.length} remote branch{branches.remote.length !== 1 ? 'es' : ''} available
+                </p>
+              )}
+            </div>
+          )}
 
-          {/* Footer */}
-          <div className="px-4 py-3 border-t border-theme-default flex justify-end">
-            <Button variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-          </div>
+          {error && (
+            <p className="mt-3 text-sm text-red-400">{error}</p>
+          )}
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="border-t border-theme-default px-4 py-3">
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

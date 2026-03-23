@@ -4,6 +4,7 @@ import { ICON_SIZES } from '../../../shared/constants';
 import { Button, Input, Label, Select, type SelectOption } from '../../../shared/ui';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,
@@ -16,8 +17,8 @@ import { getFolderNameFromPath } from '../../../shared/utils/path';
 import type { GitHubAuthStatus, GitHubOrganization, GitHubOrganizationsResult } from '../../../context';
 
 interface PublishToCloudModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onPublishToGitHub?: (name: string, isPrivate: boolean, owner: string) => Promise<void>;
   onConnectGitHub?: () => void;
   onLoadOrganizations?: () => Promise<GitHubOrganizationsResult>;
@@ -30,8 +31,8 @@ interface PublishToCloudModalProps {
 }
 
 function PublishToCloudModal({
-  isOpen,
-  onClose,
+  open,
+  onOpenChange,
   onPublishToGitHub,
   onConnectGitHub,
   onLoadOrganizations,
@@ -62,16 +63,16 @@ function PublishToCloudModal({
 
   // Reset form values when modal opens
   useEffect(() => {
-    if (!isOpen) return;
+    if (!open) return;
     const defaultRepoName = repoPath ? getFolderNameFromPath(repoPath) : 'my-repo';
     setRepoName(defaultRepoName);
     setIsPrivate(true);
-  }, [isOpen, repoPath]);
+  }, [open, repoPath]);
 
   // Load organizations when authenticated and modal is open
   useEffect(() => {
     const loadOrgs = async () => {
-      if (!isOpen || !ghAuthStatus?.loggedIn || !onLoadOrganizations) return;
+      if (!open || !ghAuthStatus?.loggedIn || !onLoadOrganizations) return;
 
       setIsLoadingOrgs(true);
       try {
@@ -87,19 +88,24 @@ function PublishToCloudModal({
     };
 
     loadOrgs();
-  }, [isOpen, ghAuthStatus?.loggedIn, onLoadOrganizations]);
+  }, [open, ghAuthStatus?.loggedIn, onLoadOrganizations]);
 
   const handlePublish = useCallback(async () => {
     if (!onPublishToGitHub || !repoName.trim() || !selectedOwner) return;
 
     const owner = selectedOwner === username ? '' : selectedOwner;
     await onPublishToGitHub(repoName.trim(), isPrivate, owner);
-    onClose();
-  }, [onPublishToGitHub, repoName, selectedOwner, username, isPrivate, onClose]);
+    onOpenChange(false);
+  }, [onPublishToGitHub, repoName, selectedOwner, username, isPrivate, onOpenChange]);
+
+  const handlePublishAction = useCallback((event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    void handlePublish();
+  }, [handlePublish]);
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent className="max-w-lg">
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="lg">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <Github size={ICON_SIZES.sm} />
@@ -197,14 +203,15 @@ function PublishToCloudModal({
 
         <AlertDialogFooter className="gap-2">
           <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
-          <Button
-            onClick={handlePublish}
+          <AlertDialogAction
+            variant="default"
+            onClick={handlePublishAction}
             loading={isPublishing}
             disabled={!ghAuthStatus?.loggedIn || !repoName.trim() || !selectedOwner}
           >
             <Github size={ICON_SIZES.xs} />
             Publish to Cloud
-          </Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

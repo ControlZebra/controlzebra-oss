@@ -4,13 +4,13 @@ import { VIEWS } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
-  Button,
 } from '../../shared/ui';
 
 function NonGitFolderPromptModal(): JSX.Element {
@@ -27,6 +27,14 @@ function NonGitFolderPromptModal(): JSX.Element {
   } = useLayout();
 
   const isOpen = !!nonGitFolderPromptPath;
+
+  const handleOpenChange = useCallback((open: boolean): void => {
+    if (open) {
+      return;
+    }
+
+    dismissNonGitFolderPrompt();
+  }, [dismissNonGitFolderPrompt]);
 
   const handleInitiateVersionControl = useCallback(async () => {
     if (!nonGitFolderPromptPath) return;
@@ -52,7 +60,7 @@ function NonGitFolderPromptModal(): JSX.Element {
   ]);
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && dismissNonGitFolderPrompt()}>
+    <AlertDialog open={isOpen} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <div className="flex items-center gap-2 mb-1">
@@ -66,7 +74,9 @@ function NonGitFolderPromptModal(): JSX.Element {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <Button onClick={handleInitiateVersionControl}>Enable Version Control</Button>
+          <AlertDialogAction variant="default" onClick={() => void handleInitiateVersionControl()}>
+            Enable Version Control
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

@@ -36,7 +36,7 @@ function LFSAutoTrackModal({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-2xl">
+      <AlertDialogContent size="2xl">
         <AlertDialogHeader>
           <AlertDialogTitle>ControlZebra can remember these file types for Large File Storage</AlertDialogTitle>
           <AlertDialogDescription>
