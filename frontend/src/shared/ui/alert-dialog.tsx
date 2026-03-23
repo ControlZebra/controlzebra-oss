@@ -148,7 +148,7 @@ const AlertDialogOverlay = React.forwardRef<HTMLDivElement, AlertDialogOverlayPr
     <div
       ref={ref}
       className={cn(
-        "fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in-0",
+        "fixed inset-0 bg-black/75 backdrop-blur-[1px] animate-in fade-in-0",
         className
       )}
       onMouseDown={(event) => {

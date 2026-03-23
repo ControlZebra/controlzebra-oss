@@ -130,7 +130,7 @@ function BranchModal({ open, onClose }: BranchModalProps): JSX.Element | null {
     <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/75 backdrop-blur-[1px]"
         onClick={onClose}
       />
       
