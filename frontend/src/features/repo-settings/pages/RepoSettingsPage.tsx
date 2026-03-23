@@ -2,7 +2,7 @@
  * RepoSettingsPage - Main area content for Repository Settings view.
  * Shows repository-specific settings forms organized by user perspective.
  */
-import { memo, useState, useEffect, useCallback, useMemo, type CSSProperties, type ChangeEvent, type KeyboardEvent, type JSX } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, useRef, type CSSProperties, type ChangeEvent, type KeyboardEvent, type JSX } from 'react';
 import { 
   Settings, 
   RefreshCw, 
@@ -38,6 +38,12 @@ import {
   CardTitle, 
   CardDescription, 
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Table,
   TableBody,
   TableCell,
@@ -201,7 +207,7 @@ interface RenameBranchModalProps {
   open: boolean;
   branchName: string;
   isLoading: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   onConfirm: (newName: string) => Promise<void>;
 }
 
@@ -1687,11 +1693,12 @@ const RenameBranchModal = memo(function RenameBranchModal({
   open,
   branchName,
   isLoading,
-  onClose,
+  onOpenChange,
   onConfirm,
 }: RenameBranchModalProps): JSX.Element | null {
   const [newName, setNewName] = useState('');
   const [acknowledgedRisk, setAcknowledgedRisk] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -1708,71 +1715,61 @@ const RenameBranchModal = memo(function RenameBranchModal({
   }, [isValid, isLoading, newName, onConfirm]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>): void => {
-    if (e.key === 'Escape') {
-      onClose();
-      return;
-    }
     if (e.key === 'Enter' && isValid && !isLoading) {
       void handleConfirm();
     }
-  }, [onClose, isValid, isLoading, handleConfirm]);
-
-  if (!open) return null;
+  }, [isValid, isLoading, handleConfirm]);
 
   return (
-    <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
-      <div className="fixed inset-0 bg-black/75 backdrop-blur-[1px]" onClick={onClose} />
+    <Dialog open={open} onOpenChange={onOpenChange} initialFocusRef={inputRef}>
+      <DialogContent className="overflow-hidden" onKeyDown={handleKeyDown}>
+        <DialogHeader className="border-b border-theme-default">
+          <DialogTitle>Rename Branch</DialogTitle>
+          <DialogDescription>Update the branch name locally and on remote.</DialogDescription>
+        </DialogHeader>
 
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-theme-default">
-            <h2 className="text-lg font-semibold text-theme-primary">Rename Branch</h2>
-            <p className="text-sm text-theme-muted mt-1">Update the branch name locally and on remote.</p>
+        <div className="px-6 py-4 space-y-4">
+          <div>
+            <Label className="text-xs text-theme-secondary">Old branch name</Label>
+            <Input value={branchName} disabled className="mt-1" />
           </div>
 
-          <div className="px-6 py-4 space-y-4">
-            <div>
-              <Label className="text-xs text-theme-secondary">Old branch name</Label>
-              <Input value={branchName} disabled className="mt-1" />
-            </div>
-
-            <div>
-              <Label className="text-xs text-theme-secondary">New branch name</Label>
-              <Input
-                value={newName}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
-                placeholder="feature/new-name"
-                autoFocus
-                className="mt-1"
-                disabled={isLoading}
-              />
-            </div>
-
-            <label className="flex items-start gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={acknowledgedRisk}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setAcknowledgedRisk(e.target.checked)}
-                disabled={isLoading}
-              />
-              <span className="text-sm text-theme-secondary">
-                I understand the risks related with renaming a branch.
-              </span>
-            </label>
+          <div>
+            <Label className="text-xs text-theme-secondary">New branch name</Label>
+            <Input
+              ref={inputRef}
+              value={newName}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
+              placeholder="feature/new-name"
+              className="mt-1"
+              disabled={isLoading}
+            />
           </div>
 
-          <div className="px-6 py-4 border-t border-theme-default flex justify-end gap-2">
-            <Button variant="secondary" onClick={onClose} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button variant="default" onClick={handleConfirm} disabled={!isValid} loading={isLoading}>
-              Rename Branch
-            </Button>
-          </div>
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={acknowledgedRisk}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setAcknowledgedRisk(e.target.checked)}
+              disabled={isLoading}
+            />
+            <span className="text-sm text-theme-secondary">
+              I understand the risks related with renaming a branch.
+            </span>
+          </label>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="border-t border-theme-default px-6 py-4">
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button variant="default" onClick={() => void handleConfirm()} disabled={!isValid} loading={isLoading}>
+            Rename Branch
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 });
 
@@ -2005,18 +2002,22 @@ const BranchManagementPanel = memo(function BranchManagementPanel({ repoPath }: 
         open={renameOpen}
         branchName={selectedBranch?.name || ''}
         isLoading={isRenaming}
-        onClose={() => {
-          setRenameOpen(false);
-          setSelectedBranch(null);
+        onOpenChange={(open) => {
+          setRenameOpen(open);
+          if (!open) {
+            setSelectedBranch(null);
+          }
         }}
         onConfirm={handleRenameConfirm}
       />
 
       <RewindConfirmModal
         open={deleteOpen}
-        onClose={() => {
-          setDeleteOpen(false);
-          setSelectedBranch(null);
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) {
+            setSelectedBranch(null);
+          }
         }}
         onConfirm={handleDeleteConfirm}
         isLoading={isDeleting}

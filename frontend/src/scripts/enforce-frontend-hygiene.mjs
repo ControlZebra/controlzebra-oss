@@ -11,9 +11,21 @@ const srcRoot = path.join(frontendRoot, 'src');
 const violations = {
   jsxInSrc: [],
   generatedBindingsInComponents: [],
+  createPortalOutsideSharedUi: [],
+  bespokeModalShellOutsideSharedUi: [],
 };
 
 const normalize = (p) => p.split(path.sep).join('/');
+const isSharedUiFile = (relPath) => relPath.startsWith('src/shared/ui/');
+
+function hasBespokeModalShell(source) {
+  const hasFixedFullscreenWrapper = /class(Name)?\s*=\s*["'`][^"'`]*\bfixed\s+inset-0\b[^"'`]*["'`]/.test(source);
+  const hasModalBackdrop = /class(Name)?\s*=\s*["'`][^"'`]*\bbg-black\/(?:75|80)\b[^"'`]*\bbackdrop-blur/.test(source);
+  const hasDialogSemantics = /role\s*=\s*["'](?:dialog|alertdialog)["']|aria-modal\s*=\s*["']true["']/.test(source);
+
+  return (hasFixedFullscreenWrapper && hasModalBackdrop)
+    || (hasFixedFullscreenWrapper && hasDialogSemantics);
+}
 
 async function walk(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -34,6 +46,23 @@ async function walk(dir) {
 
     if (entry.isFile() && relPath.startsWith('src/') && relPath.endsWith('.jsx')) {
       violations.jsxInSrc.push(relPath);
+      continue;
+    }
+
+    if (entry.isFile() && relPath.startsWith('src/') && /\.(ts|tsx|js|jsx|mjs)$/.test(relPath)) {
+      const source = await fs.readFile(absPath, 'utf8');
+      const usesCreatePortal = /\bcreatePortal\s*\(|import\s*\{[^}]*\bcreatePortal\b[^}]*\}\s*from\s*['\"]react-dom['\"]/.test(source);
+
+      if (
+        relPath !== 'src/shared/ui/dialog-base.tsx'
+        && usesCreatePortal
+      ) {
+        violations.createPortalOutsideSharedUi.push(relPath);
+      }
+
+      if (!isSharedUiFile(relPath) && hasBespokeModalShell(source)) {
+        violations.bespokeModalShellOutsideSharedUi.push(relPath);
+      }
     }
   }
 }
@@ -53,7 +82,10 @@ async function main() {
   await walk(srcRoot);
 
   const hasViolations =
-    violations.jsxInSrc.length > 0 || violations.generatedBindingsInComponents.length > 0;
+    violations.jsxInSrc.length > 0
+    || violations.generatedBindingsInComponents.length > 0
+    || violations.createPortalOutsideSharedUi.length > 0
+    || violations.bespokeModalShellOutsideSharedUi.length > 0;
 
   if (hasViolations) {
     console.error('Frontend hygiene checks failed.');
@@ -61,6 +93,14 @@ async function main() {
     printSection(
       'Disallowed generated bindings paths under src/components/**/frontend/bindings:',
       violations.generatedBindingsInComponents,
+    );
+    printSection(
+      'Disallowed createPortal usage outside src/shared/ui/dialog-base.tsx:',
+      violations.createPortalOutsideSharedUi,
+    );
+    printSection(
+      'Disallowed bespoke fullscreen modal shells outside src/shared/ui:',
+      violations.bespokeModalShellOutsideSharedUi,
     );
     process.exitCode = 1;
     return;

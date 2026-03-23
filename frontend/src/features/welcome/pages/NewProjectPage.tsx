@@ -370,6 +370,12 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
     setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
   }, []);
 
+  const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
+    if (!open) {
+      handleCloseDeviceFlow();
+    }
+  }, [handleCloseDeviceFlow]);
+
   // ── Load organizations once after login ───────────────────────────────
 
   useEffect(() => {
@@ -858,11 +864,11 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
 
         {/* GitHub Device Flow Modal */}
         <GitHubDeviceFlowModal
-          isOpen={deviceFlow.isOpen}
+          open={deviceFlow.isOpen}
           userCode={deviceFlow.userCode}
           verificationUrl={deviceFlow.verificationUrl}
           onComplete={handleCloseDeviceFlow}
-          onCancel={handleCloseDeviceFlow}
+          onOpenChange={handleDeviceFlowOpenChange}
         />
       </div>
     </div>

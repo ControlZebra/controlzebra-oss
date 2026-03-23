@@ -362,6 +362,12 @@ function CloneProjectPage(): JSX.Element {
     setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
   }, []);
 
+  const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
+    if (!open) {
+      handleDeviceFlowCancel();
+    }
+  }, [handleDeviceFlowCancel]);
+
   // ── Manual URL validation ─────────────────────────────────────────────
 
   const handleManualUrlChange = useCallback(
@@ -723,11 +729,11 @@ function CloneProjectPage(): JSX.Element {
 
         {/* GitHub Device Flow Modal */}
         <GitHubDeviceFlowModal
-          isOpen={deviceFlow.isOpen}
+          open={deviceFlow.isOpen}
           userCode={deviceFlow.userCode}
           verificationUrl={deviceFlow.verificationUrl}
           onComplete={handleDeviceFlowComplete}
-          onCancel={handleDeviceFlowCancel}
+          onOpenChange={handleDeviceFlowOpenChange}
         />
       </div>
     </div>

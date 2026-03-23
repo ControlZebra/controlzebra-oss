@@ -241,7 +241,10 @@ cd frontend && npm test
 - **Theme classes:** `text-theme-primary`, `bg-theme-surface`, etc. for theme-aware styling
 - **Performance:** Wrap components with `memo()`, handlers with `useCallback`, derived state with `useMemo`
 - **Toasts:** Use `sonner` for notifications (success, error, info)
-- **Modals:** Use Radix `AlertDialog` or `Dialog` primitives from `components/ui/`
+- **Modals:** Use the shared modal primitives from `frontend/src/shared/ui`, not bespoke wrappers
+- **Modal classes:** `AlertDialog` for confirmations, `Dialog` for workflow/forms, `BlockingDialog` for long-running operational flows
+- **Modal contract:** Prefer `open` + `onOpenChange`; use `initialFocusRef` when the first focus target matters
+- **Modal rule:** No component outside `frontend/src/shared/ui` should render its own fullscreen modal wrapper or portal unless there is a documented exception
 
 ### Git Operation Labels (User-Facing)
 

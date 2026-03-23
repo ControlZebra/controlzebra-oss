@@ -1,5 +1,6 @@
 export {
   AlertDialog,
+  type DialogOpenChangeReason,
   AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
@@ -9,6 +10,16 @@ export {
   AlertDialogAction,
   AlertDialogCancel,
 } from "./alert-dialog";
+export {
+  Dialog,
+  BlockingDialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "./dialog";
 export { Badge, badgeVariants } from "./badge";
 export { Button, buttonVariants, type ButtonProps } from "./button";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "./button-group";

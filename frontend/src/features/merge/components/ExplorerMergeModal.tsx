@@ -658,7 +658,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   return (
     <>
       <AlertDialog open={open} onOpenChange={handleOpenStateChange}>
-        <AlertDialogContent className="max-w-6xl h-[min(92vh,860px)] p-0 flex flex-col overflow-hidden">
+        <AlertDialogContent size="6xl" className="h-[min(92vh,860px)] p-0 flex flex-col overflow-hidden">
           <div className="border-b border-theme-default px-5 py-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">

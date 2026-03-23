@@ -243,7 +243,7 @@ function RecoveryBanner() {
       {/* Branch Modal for detached HEAD */}
       <BranchModal 
         open={branchModalOpen} 
-        onClose={() => setBranchModalOpen(false)} 
+        onOpenChange={setBranchModalOpen} 
       />
     </>
   );

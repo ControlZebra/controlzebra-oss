@@ -8,6 +8,7 @@ import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { onEvent } from "../runtime/events";
 import { cn } from "../utils/misc";
 import { Progress } from "./progress";
+import { BlockingDialog, DialogContent } from "./dialog";
 
 // Debounce interval for progress updates (ms)
 const DEBOUNCE_MS = 50;
@@ -23,7 +24,7 @@ interface ProgressEventData {
 }
 
 interface ProgressModalProps {
-  isOpen: boolean;
+  open: boolean;
   operationId: string;
   title?: string;
   onComplete?: (success: boolean, error?: string) => void;
@@ -32,7 +33,7 @@ interface ProgressModalProps {
 /**
  * ProgressModal - Displays a blocking modal during git operations.
  */
-function ProgressModal({ isOpen, operationId, title = "Processing...", onComplete }: ProgressModalProps) {
+function ProgressModal({ open, operationId, title = "Processing...", onComplete }: ProgressModalProps) {
   const [phase, setPhase] = useState("starting");
   const [percent, setPercent] = useState(-1); // -1 = indeterminate
   const [message, setMessage] = useState("Initializing...");
@@ -46,7 +47,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
 
   // Reset state when modal opens with new operation
   useEffect(() => {
-    if (isOpen && operationId) {
+    if (open && operationId) {
       setPhase("starting");
       setPercent(-1);
       setMessage("Initializing...");
@@ -54,11 +55,11 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
       setSuccess(false);
       setError("");
     }
-  }, [isOpen, operationId]);
+  }, [open, operationId]);
 
   // Listen for progress events
   useEffect(() => {
-    if (!isOpen || !operationId) return;
+    if (!open || !operationId) return;
 
     const handleProgress = (event: { data: ProgressEventData }) => {
       const data = event.data;
@@ -111,7 +112,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
         clearTimeout(pendingUpdateRef.current);
       }
     };
-  }, [isOpen, operationId]);
+  }, [open, operationId]);
 
   // Call onComplete after showing result briefly
   useEffect(() => {
@@ -124,77 +125,63 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
     }
   }, [isComplete, success, error, onComplete]);
 
-  if (!isOpen) return null;
-
   const isIndeterminate = percent < 0;
   const displayPercent = isIndeterminate ? 0 : Math.min(100, Math.max(0, percent));
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Backdrop - blocks all clicks */}
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-[1px]" />
-
-      {/* Modal content */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-2xl p-6">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-4">
-            {isComplete ? (
-              success ? (
-                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 shrink-0" />
-              ) : (
-                <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" />
-              )
+    <BlockingDialog open={open}>
+      <DialogContent size="md" overlayTone="emphasized" className="p-6 shadow-2xl">
+        <div className="mb-4 flex items-center gap-3">
+          {isComplete ? (
+            success ? (
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 shrink-0" />
             ) : (
-              <Loader2 className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
-            )}
-            <h2 className="text-lg font-medium text-theme-primary">{title}</h2>
-          </div>
+              <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" />
+            )
+          ) : (
+            <Loader2 className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
+          )}
+          <h2 className="text-lg font-medium text-theme-primary">{title}</h2>
+        </div>
 
-          {/* Progress bar */}
-          <div className="mb-4">
-            {isIndeterminate && !isComplete ? (
-              // Indeterminate progress - animated gradient
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-theme-muted">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-indeterminate" />
-              </div>
-            ) : (
-              <Progress
-                value={isComplete && success ? 100 : displayPercent}
-                variant={isComplete ? (success ? "success" : "error") : "default"}
-              />
-            )}
-          </div>
-
-          {/* Phase label */}
-          <div className="text-sm text-theme-secondary capitalize mb-2">
-            {phase.replace(/-/g, " ")}
-          </div>
-
-          {/* Status message */}
-          <div
-            className={cn(
-              "text-sm break-words",
-              isComplete && !success ? "text-red-600 dark:text-red-400" : "text-theme-secondary"
-            )}
-          >
-            {isComplete && error ? error : message}
-          </div>
-
-          {/* Completion indicator */}
-          {isComplete && (
-            <div
-              className={cn(
-                "mt-4 text-sm font-medium text-center",
-                success ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-              )}
-            >
-              {success ? "Complete!" : "Operation failed"}
+        <div className="mb-4">
+          {isIndeterminate && !isComplete ? (
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-theme-muted">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-indeterminate" />
             </div>
+          ) : (
+            <Progress
+              value={isComplete && success ? 100 : displayPercent}
+              variant={isComplete ? (success ? "success" : "error") : "default"}
+            />
           )}
         </div>
-      </div>
-    </div>
+
+        <div className="text-sm text-theme-secondary capitalize mb-2">
+          {phase.replace(/-/g, " ")}
+        </div>
+
+        <div
+          className={cn(
+            "text-sm break-words",
+            isComplete && !success ? "text-red-600 dark:text-red-400" : "text-theme-secondary"
+          )}
+        >
+          {isComplete && error ? error : message}
+        </div>
+
+        {isComplete && (
+          <div
+            className={cn(
+              "mt-4 text-sm font-medium text-center",
+              success ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+            )}
+          >
+            {success ? "Complete!" : "Operation failed"}
+          </div>
+        )}
+      </DialogContent>
+    </BlockingDialog>
   );
 }
 

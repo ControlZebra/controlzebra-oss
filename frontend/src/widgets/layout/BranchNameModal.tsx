@@ -5,7 +5,7 @@
 import { memo, useState, useCallback, useEffect, useRef, type KeyboardEvent, type CSSProperties } from 'react';
 import { GitBranch } from 'lucide-react';
 import { ICON_SIZES } from '../../shared/constants';
-import { Button, Input } from '../../shared/ui';
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '../../shared/ui';
 
 // ============================================================================
 // Types
@@ -13,7 +13,7 @@ import { Button, Input } from '../../shared/ui';
 
 interface BranchNameModalProps {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   onConfirm: (branchName: string) => void;
   defaultBranchName?: string;
   isLoading?: boolean;
@@ -32,7 +32,7 @@ const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm }
 
 function BranchNameModal({ 
   open, 
-  onClose, 
+  onOpenChange, 
   onConfirm, 
   defaultBranchName = '',
   isLoading = false,
@@ -45,10 +45,6 @@ function BranchNameModal({
   useEffect(() => {
     if (open) {
       setBranchName(defaultBranchName);
-      // Focus input after state update
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
     }
   }, [open, defaultBranchName]);
 
@@ -61,75 +57,62 @@ function BranchNameModal({
     if (e.key === 'Enter' && branchName.trim()) {
       handleConfirm();
     }
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  }, [branchName, handleConfirm, onClose]);
-
-  if (!open) return null;
+  }, [branchName, handleConfirm]);
 
   return (
-    <div 
-      className="fixed inset-0 z-50" 
-      onKeyDown={handleKeyDown}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="branch-modal-title"
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      initialFocusRef={inputRef}
     >
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/75 backdrop-blur-[1px]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-start justify-center pt-20 px-4">
-        <div className="w-full max-w-sm bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-theme-default flex items-center gap-2">
+      <DialogContent
+        size="sm"
+        containerClassName="items-start pt-20"
+        className="overflow-hidden"
+        onKeyDown={handleKeyDown}
+      >
+        <DialogHeader className="border-b border-theme-default px-4 py-3">
+          <div className="flex items-center gap-2">
             <GitBranch style={iconStyle} className="text-theme-secondary" />
-            <h2 id="branch-modal-title" className="text-theme-primary font-medium flex-1">
+            <DialogTitle id="branch-modal-title" className="flex-1 text-base font-medium">
               Create Branch & Save
-            </h2>
+            </DialogTitle>
           </div>
+        </DialogHeader>
 
-          {/* Content */}
-          <div className="p-4 space-y-3">
-            <div>
-              <label htmlFor="branch-name-input" className="block text-xs text-theme-secondary mb-1">
-                Branch name
-              </label>
-              <Input
-                ref={inputRef}
-                id="branch-name-input"
-                value={branchName}
-                onChange={(e) => setBranchName(e.target.value)}
-                placeholder="feature/my-changes"
-                disabled={isLoading}
-              />
-            </div>
-            <p className="text-xs text-theme-muted">
-              Creates branch from <span className="text-theme-secondary">{currentBranch}</span>, moves changes there, and saves.
-            </p>
+        <div className="p-4 space-y-3">
+          <div>
+            <label htmlFor="branch-name-input" className="mb-1 block text-xs text-theme-secondary">
+              Branch name
+            </label>
+            <Input
+              ref={inputRef}
+              id="branch-name-input"
+              value={branchName}
+              onChange={(e) => setBranchName(e.target.value)}
+              placeholder="feature/my-changes"
+              disabled={isLoading}
+            />
           </div>
-
-          {/* Footer */}
-          <div className="px-4 py-3 border-t border-theme-default flex justify-end gap-2">
-            <Button variant="secondary" onClick={onClose} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleConfirm}
-              disabled={!branchName.trim()}
-              loading={isLoading}
-            >
-              Create & Save
-            </Button>
-          </div>
+          <p className="text-xs text-theme-muted">
+            Creates branch from <span className="text-theme-secondary">{currentBranch}</span>, moves changes there, and saves.
+          </p>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="border-t border-theme-default px-4 py-3">
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirm}
+            disabled={!branchName.trim()}
+            loading={isLoading}
+          >
+            Create & Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

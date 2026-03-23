@@ -5,28 +5,37 @@ Scope: ControlZebra desktop app frontend modal and dialog surfaces under `fronte
 
 ## Executive Summary
 
-The app currently has two modal systems:
+The app now has a shared modal foundation rather than the split architecture described at the start of this audit.
 
-1. A shared `AlertDialog` primitive in `frontend/src/shared/ui/alert-dialog.tsx`
-2. Multiple bespoke modal implementations that recreate their own backdrop, positioning, keyboard handling, and close semantics
+Today there are two shared modal primitives built on one shared engine:
 
-The result is a split implementation model rather than a homogeneous one.
+1. `AlertDialog` in `frontend/src/shared/ui/alert-dialog.tsx`
+2. `Dialog` in `frontend/src/shared/ui/dialog.tsx`, backed by `frontend/src/shared/ui/dialog-base.tsx`
 
-The newer work is converging on the shared `AlertDialog` primitive, especially in merge, explorer, welcome, auth, and inline confirmation flows. The older and more workflow-heavy modals still use hand-rolled overlays. That split creates three practical problems:
+The major structural problem identified in this audit has been addressed:
 
-- Inconsistent public props (`open` vs `isOpen`, `onOpenChange` vs `onClose`, `onCancel`)
-- Inconsistent interaction behavior (overlay click, escape handling, focus management, blocking behavior)
-- Repeated layout and styling logic outside the shared UI layer
+- The original bespoke fullscreen modal implementations called out here have been migrated onto shared primitives
+- `AlertDialog` now reuses the same base portal, stack, focus, and scroll-lock behavior as `Dialog`
+- The public modal contract has been normalized significantly toward `open` and `onOpenChange`
+
+The remaining work is no longer foundational migration. It is cleanup, policy definition, and QA hardening around the shared layer.
+
+The practical problems that still remain are:
+
+- A few remaining inconsistent public APIs and state adapters
+- Dismissal and blocking behavior that is still implicit in some consumers instead of encoded as shared policy
+- Incomplete shared-layer QA and usage guidance for future modal work
 
 ## Inventory
 
 ### Shared `AlertDialog`-based surfaces
 
-These use the shared dialog primitive and inherit its portal, body scroll locking, focus trap, focus restoration, and stacked-dialog handling:
+These use the shared alert-dialog primitive and inherit the shared portal, body scroll locking, focus trap, focus restoration, and stacked-dialog handling:
 
 - `frontend/src/shared/ui/UndoLastSaveDialog.tsx`
 - `frontend/src/widgets/layout/AdditionalPackagesModal.tsx`
 - `frontend/src/widgets/layout/NonGitFolderPromptModal.tsx`
+- `frontend/src/widgets/layout/RewindConfirmModal.tsx`
 - `frontend/src/features/auth/components/GitHubDeviceFlowModal.tsx`
 - `frontend/src/features/welcome/components/PublishToCloudModal.tsx`
 - `frontend/src/features/explorer/components/LFSAutoTrackModal.tsx`
@@ -36,127 +45,110 @@ These use the shared dialog primitive and inherit its portal, body scroll lockin
 - Inline confirmations in `frontend/src/features/explorer/components/SimpleFileBrowser.tsx`
 - Inline confirmation in `frontend/src/features/history/components/CommitOverviewPanel.tsx`
 
-### Bespoke modal implementations
+### Shared `Dialog`-based surfaces
 
-These bypass the shared dialog infrastructure and implement their own wrapper/backdrop/content stack:
+These use the shared workflow/progress dialog primitive and inherit the same base portal, stack, focus, and scroll-lock behavior:
 
 - `frontend/src/widgets/layout/BranchModal.tsx`
 - `frontend/src/widgets/layout/BranchNameModal.tsx`
-- `frontend/src/widgets/layout/RewindConfirmModal.tsx`
 - `frontend/src/widgets/layout/SwitchProjectModal.tsx`
 - `RenameBranchModal` inside `frontend/src/features/repo-settings/pages/RepoSettingsPage.tsx`
 - `frontend/src/shared/ui/progress-modal.tsx`
 
+### Remaining cleanup candidates
+
+These no longer bypass the shared dialog infrastructure, but they still have API or policy cleanup remaining:
+
+- `frontend/src/widgets/layout/NonGitFolderPromptModal.tsx` manually translates dialog close into domain dismissal logic
+
 ## What The Shared Primitive Already Gives You
 
-`frontend/src/shared/ui/alert-dialog.tsx` already centralizes several behaviors that the bespoke modals do not consistently reproduce:
+The shared modal layer now spans `frontend/src/shared/ui/dialog-base.tsx`, `frontend/src/shared/ui/dialog.tsx`, and `frontend/src/shared/ui/alert-dialog.tsx`.
+
+That shared layer centralizes several behaviors that were previously reimplemented in feature code:
 
 - Portal rendering to `document.body`
 - Open-dialog stack tracking for nested dialogs
 - Body scroll locking while any dialog is open
 - Escape key handling for the topmost dialog only
+- Shared dismissal-reason metadata via the optional second `onOpenChange` argument
 - Focus trap with tab cycling
 - Focus restoration to the previously focused element on close
 - Standard backdrop and container styling baseline
+- Shared size and overlay-tone variants plus close-policy props for `Dialog`
 
-This file is currently the strongest foundation for a homogeneous approach.
+This is now the strongest foundation for a homogeneous modal architecture in the app.
 
 ## Findings
 
-### 1. There is no shared primitive for non-destructive workflow modals
+### 1. Shared primitives exist, but modal behavior classes are not yet encoded as first-class policy
 
-Severity: High
+Severity: Medium
 
-The shared UI layer exports `AlertDialog`, but it does not export a general-purpose `Dialog` or `Modal` primitive. That matters because several app surfaces are not destructive confirmation dialogs. They are workflow modals with search, forms, branch selection, or progress state.
+The shared UI layer now exports both `AlertDialog` and a general-purpose `Dialog`, which is a substantial improvement over the original state of the codebase. However, the intended behavior classes are still implicit rather than codified.
+
+The audit originally proposed three categories:
+
+- Confirm modal
+- Workflow modal
+- Blocking progress modal
+
+Those categories are not yet enforced directly in the shared API. Instead, consumers still encode parts of the policy themselves.
 
 Examples:
 
-- `frontend/src/widgets/layout/BranchModal.tsx`
-- `frontend/src/widgets/layout/BranchNameModal.tsx`
-- `frontend/src/widgets/layout/SwitchProjectModal.tsx`
-- `frontend/src/features/repo-settings/pages/RepoSettingsPage.tsx` (`RenameBranchModal`)
-- `frontend/src/shared/ui/progress-modal.tsx`
-
-Because there is no shared generic dialog primitive, those flows reimplement their own shell instead of using a common contract.
+- `frontend/src/shared/ui/dialog.tsx` now exposes a shared `BlockingDialog`, but the modal behavior classes are still not documented clearly enough for future contributors
+- `frontend/src/features/auth/components/GitHubDeviceFlowModal.tsx` customizes close behavior through its own `onOpenChange` translation because the modal class semantics are not explicitly modeled
 
 Impact:
 
-- Accessibility behavior drifts
-- Visual behavior drifts
-- Consumers must remember multiple modal APIs
-- Future modal work is likely to keep splitting rather than converging
+- Close policy remains harder to reason about than it should be
+- Blocking flows are still implemented by convention rather than by a named shared primitive or variant
+- Future modal work can still drift unless the intended classes are documented and enforced centrally
 
-### 2. The modal prop contract is inconsistent across the app
+### 2. The modal prop contract is mostly standardized, but a few shared-dialog consumers still lag behind
 
-Severity: High
+Severity: Medium
 
-Current prop signatures vary significantly:
+The migration work has removed the broad prop inconsistency that originally existed across the app. Most modal surfaces now use `open` and `onOpenChange`.
 
-- `open` + `onOpenChange`: `ExplorerMergeModal`, `UndoLastSaveDialog`, `LFSAutoTrackModal`, `MainBranchSaveChoiceModal`
-- `open` + `onClose`: `BranchModal`, `BranchNameModal`, `RewindConfirmModal`, `SwitchProjectModal`, `RenameBranchModal`
-- `isOpen` + `onClose`: `PublishToCloudModal`
-- `isOpen` + `onCancel` + `onComplete`: `GitHubDeviceFlowModal`
-- `isOpen` + `operationId` + `onComplete`: `ProgressModal`
+The remaining inconsistencies are narrower:
 
-This inconsistency is visible at call sites. `TopBar.tsx` and `AppLayout.tsx` need different state adapters depending on the modal being rendered.
+- Some consumers still translate `onOpenChange` manually to perform close-side effects rather than exposing a clean controlled contract all the way through
+- Some page-local state objects still use `isOpen` as an internal field name even though the modal component contract has been normalized
+
+This is no longer a systemic architecture problem, but it is still enough inconsistency to slow reuse and make refactors noisier than necessary.
 
 Impact:
 
-- Higher cognitive load for every caller
-- More wrapper lambdas and state bridging than necessary
-- Harder to build reusable modal helpers or tests
-- Easier to introduce close-state bugs during refactors
+- There is still avoidable adapter code at some call sites
+- Public modal APIs are not yet uniformly predictable
+- The cleanup cost will keep growing if the remaining exceptions are left in place
 
-### 3. Bespoke modals do not consistently meet the shared accessibility baseline
+### 3. The original accessibility gaps in bespoke modals are largely closed, but shared-layer guarantees still need broader verification
 
-Severity: High
+Severity: Medium
 
-Compared with `AlertDialog`, the bespoke modals have several gaps:
+The highest-risk accessibility issues identified in the original audit have been reduced substantially. The previously bespoke branch, rename, switch-project, rewind, and progress surfaces now sit on shared primitives and therefore inherit the shared portal, focus-trap, and focus-restoration behavior.
 
-- No portal rendering
-- No stacked-dialog coordination
-- No body scroll lock
-- No guaranteed focus trap
-- No focus restoration on close
-- Missing or inconsistent ARIA semantics
+The remaining accessibility and interaction risk is now less about missing implementation and more about incomplete verification and policy consistency.
 
-File-by-file notes:
+Current gaps are primarily:
 
-- `frontend/src/widgets/layout/BranchModal.tsx`
-  - No `role="dialog"`
-  - No `aria-modal`
-  - No focus trap
-  - No focus restoration
+- Shared-layer behavior is better covered now, but nested/backdrop/focus policy still relies on a relatively small test surface
+- Blocking modal behavior is not yet expressed as a first-class shared pattern
+- Nested-dialog and scroll-lock guarantees need broader automated verification
 
-- `frontend/src/widgets/layout/BranchNameModal.tsx`
-  - Has `role="dialog"` and `aria-modal`
-  - Still lacks focus trap and focus restoration
-  - Accessibility is better than the other bespoke modals, but still below the shared primitive baseline
+Examples:
 
-- `frontend/src/widgets/layout/RewindConfirmModal.tsx`
-  - No ARIA dialog semantics
-  - No focus trap
-  - No focus restoration
-
-- `frontend/src/widgets/layout/SwitchProjectModal.tsx`
-  - No ARIA dialog semantics
-  - No focus trap
-  - Adds a global `window` escape listener instead of using a shared modal lifecycle
-
-- `frontend/src/features/repo-settings/pages/RepoSettingsPage.tsx` (`RenameBranchModal`)
-  - No ARIA dialog semantics
-  - No focus trap
-  - No focus restoration
-
-- `frontend/src/shared/ui/progress-modal.tsx`
-  - Intentionally blocking, but still bypasses the app’s shared dialog infrastructure entirely
+- `frontend/src/shared/ui/dialog.test.tsx` now covers focus restoration, escape handling, backdrop policy, body scroll locking, topmost-dialog escape handling, and blocking dialog dismissal behavior
+- The shared blocking-modal contract is in place, but it still needs usage guidance so future long-running flows choose it consistently
+- Nested dialogs are covered for escape handling, but the broader stacked-dialog interaction surface is still only lightly tested
 
 Impact:
 
-- Keyboard navigation quality differs by modal
-- Nested modal behavior is less predictable
-- Users can lose focus context after close
-- Accessibility regressions are more likely in the bespoke set
+- Regressions are still possible without stronger shared-layer tests
+- The shared baseline is better, but it is not yet protected strongly enough against future drift
 
 ### 4. Dismissal behavior is inconsistent and not encoded as a shared policy
 
@@ -165,18 +157,18 @@ Severity: Medium
 The app currently uses multiple close models:
 
 - Shared `AlertDialog` blocks backdrop-click dismissal and allows escape dismissal
-- Bespoke modals usually close on backdrop click
-- `AdditionalPackagesModal` is effectively non-dismissible because `onOpenChange` is a no-op
-- `ProgressModal` is fully blocking and manually implemented
+- Shared `Dialog` allows backdrop-click dismissal and escape dismissal by default
+- `BlockingDialog` disables escape dismissal and outside-click dismissal for long-running operational flows
+- `ProgressModal` is fully blocking through shared dialog props
 - Some dialogs close themselves through `AlertDialogAction`; others use custom `Button` actions and manual callbacks
 
 This is not inherently wrong, but the behavior is implicit and component-specific rather than policy-driven.
 
 Examples:
 
-- Destructive bespoke modals like `RewindConfirmModal` allow closing by clicking the backdrop
-- Shared destructive dialogs do not allow backdrop dismissal
-- Blocking install/progress flows use two different approaches to become non-dismissible
+- Confirm dialogs and workflow dialogs now behave differently by primitive, but that policy is still documented only implicitly
+- `frontend/src/widgets/layout/AdditionalPackagesModal.tsx` and `frontend/src/shared/ui/progress-modal.tsx` now share a `BlockingDialog` contract, but the class is still not documented as the standard for future operational flows
+- Close behavior is still sometimes inferred from feature-level code instead of expressed directly by a named modal class
 
 Impact:
 
@@ -184,25 +176,25 @@ Impact:
 - Engineers have to rediscover the expected behavior per modal
 - There is no obvious standard for “confirm”, “form”, and “blocking progress” modal classes
 
-### 5. Layout and styling are duplicated outside the shared UI layer
+### 5. Layout and styling duplication has been reduced, but variant usage is not yet standardized
 
 Severity: Medium
 
-The bespoke modals repeat the same shell structure with slightly different values:
+The migration to shared primitives removed most of the old fullscreen wrapper duplication. What remains is mostly variant-level inconsistency rather than full shell reimplementation.
 
-- `fixed inset-0 z-50`
-- `bg-black/75 backdrop-blur-[1px]`
-- `w-full max-w-sm|max-w-md`
-- `bg-theme-surface border border-theme-default rounded-lg shadow-xl`
-- ad hoc header/body/footer padding choices
+Examples of remaining variation:
 
-The shared `AlertDialogContent` already provides a standard container shell, but the bespoke set duplicates and slightly mutates it.
+- ad hoc `AlertDialogContent` and `DialogContent` sizing choices across feature code
+- one-off overlay styling such as the custom overlay in `frontend/src/shared/ui/progress-modal.tsx`
+- inconsistent header and footer spacing patterns layered on top of the shared primitives
+
+The shared content components now provide the shell, but sizing and spacing conventions are not yet expressed as stronger variants or tokens.
 
 Impact:
 
-- Visual drift accumulates over time
-- Design changes require touching many files
-- Modal sizing is not standardized by tokens or variants
+- Visual drift can still accumulate at the variant level
+- Design changes still require auditing multiple consumers
+- Modal sizing and density are not yet standardized strongly enough by shared tokens or variants
 
 ### 6. Shared-dialog usage is directionally correct, but composition is still uneven
 
@@ -219,7 +211,7 @@ Examples:
 
 - `frontend/src/features/explorer/components/LFSAutoTrackModal.tsx` uses the full shared footer/action model cleanly
 - `frontend/src/widgets/layout/NonGitFolderPromptModal.tsx` and `frontend/src/features/welcome/components/PublishToCloudModal.tsx` mix shared and plain button actions
-- `frontend/src/features/auth/components/GitHubDeviceFlowModal.tsx` uses `isOpen` and `onCancel` naming even though it sits on `AlertDialog`
+- `frontend/src/features/auth/components/GitHubDeviceFlowModal.tsx` still uses a custom `onOpenChange` adapter to run cancellation side effects
 
 This is a smaller issue than the bespoke overlays, but it still weakens homogeneity.
 
@@ -227,33 +219,36 @@ This is a smaller issue than the bespoke overlays, but it still weakens homogene
 
 Severity: Medium
 
-There are at least two blocking or semi-blocking operational modal patterns:
+This item has been addressed in the current branch.
+
+The shared UI layer now has a common `BlockingDialog` contract, and both of the operational modal patterns called out in this audit use it:
 
 - `frontend/src/shared/ui/progress-modal.tsx`
 - `frontend/src/widgets/layout/AdditionalPackagesModal.tsx`
 
-Both represent “wait while the app performs setup or sync work”, but they use different APIs, different shells, and different dismissibility behavior.
-
 Impact:
 
-- Operational states feel inconsistent
-- Shared progress UX improvements cannot be rolled out from one place
-- Blocking modal behavior is duplicated conceptually
+- Operational states now share one explicit blocking policy
+- Shared progress UX improvements can be applied from the shared layer more easily
+- The remaining work is documentation and broader adoption, not foundational unification
 
 ## Positive Findings
 
 The codebase is not starting from zero. Several good patterns are already present:
 
-- The shared `AlertDialog` primitive is substantially better than the bespoke overlays from an interaction and accessibility standpoint
-- Most newer work appears to prefer the shared primitive
+- A shared `Dialog` primitive now exists for workflow and progress surfaces
+- `AlertDialog` now reuses the same base portal, stack, and focus-management engine as `Dialog`
+- The originally bespoke modal surfaces called out in this audit have been migrated to shared primitives
 - Complex merge flows already use the shared dialog system, including nested confirmation inside `ExplorerMergeModal`
-- Destructive confirmations in explorer and history are already close to a reusable standard
+- Shared modal tests now cover the core focus restoration and backdrop policy baseline
 
 ## Recommended Target Architecture
 
-### 1. Introduce a general-purpose shared `Dialog` primitive
+### 1. Keep `Dialog` as the shared workflow baseline
 
-Add a non-destructive modal primitive in `frontend/src/shared/ui`, separate from `AlertDialog`.
+Status: Complete
+
+The app now has a non-destructive shared `Dialog` primitive in `frontend/src/shared/ui`, separate from `AlertDialog`. Future modal work should continue to build on it rather than introducing new wrappers.
 
 Recommended exported shape:
 
@@ -279,7 +274,7 @@ Implementation note:
 - Reuse the same portal, stack, and focus-management engine already present in `alert-dialog.tsx`
 - `AlertDialog` should become a specialization of the same base behavior rather than a separate modal system
 
-### 2. Standardize the public contract for all dismissible modals
+### 2. Finish standardizing the public contract for all dismissible modals
 
 Use one controlled API across the app:
 
@@ -288,16 +283,9 @@ Use one controlled API across the app:
 
 For most component-level modals, avoid `isOpen` and avoid `onClose` as the only state API. `onClose` can still exist as an internal convenience callback derived from `onOpenChange(false)` if needed, but it should not be the primary public contract.
 
-Recommended migration targets:
+Remaining migration targets:
 
-- `BranchModal`
-- `BranchNameModal`
-- `RewindConfirmModal`
-- `SwitchProjectModal`
-- `RenameBranchModal`
-- `PublishToCloudModal`
-- `GitHubDeviceFlowModal`
-- `ProgressModal` if it remains component-driven rather than app-service-driven
+- Any future or touched modal surface that still exposes `onClose` as its primary state contract
 
 ### 3. Define modal behavior classes explicitly
 
@@ -320,9 +308,11 @@ Document three modal categories and enforce them in shared primitives:
 
 This removes implicit policy from individual components.
 
-### 4. Migrate bespoke overlays first
+### 4. Keep the bespoke overlay migration closed
 
-Highest-value migration order:
+Status: Complete
+
+The highest-value migration wave identified in this audit has already been completed:
 
 1. `frontend/src/widgets/layout/BranchModal.tsx`
 2. `frontend/src/widgets/layout/BranchNameModal.tsx`
@@ -331,7 +321,7 @@ Highest-value migration order:
 5. `frontend/src/widgets/layout/RewindConfirmModal.tsx`
 6. `frontend/src/shared/ui/progress-modal.tsx`
 
-Why this order:
+Why this still matters:
 
 - Branch and rename flows are straightforward and benefit immediately from accessibility parity
 - Switch and rewind are simple conversions with low product risk
@@ -371,11 +361,15 @@ That rule alone will prevent the current split from growing.
 
 ### Phase 1: Foundation
 
+Status: Complete
+
 - Add shared `Dialog` primitive built on the same infrastructure as `AlertDialog`
 - Extract common overlay/content/stack/focus logic into a shared base module
 - Add `size` and close-policy props to shared modal primitives
 
 ### Phase 2: Migration
+
+Status: Largely complete
 
 - Convert the five bespoke workflow/confirmation overlays plus `ProgressModal`
 - Standardize all public props to `open` and `onOpenChange`
@@ -383,28 +377,100 @@ That rule alone will prevent the current split from growing.
 
 ### Phase 3: Cleanup
 
+Status: Active
+
 - Normalize `AlertDialog` consumers that still use inconsistent naming or footer composition
 - Remove duplicated shell classes from feature code
 - Add a short modal usage guide to the frontend shared UI docs or Copilot instructions
 
+## Remaining Tasks
+
+The foundation and first migration wave are now substantially complete in the current branch:
+
+- Shared `Dialog` and shared dialog-base infrastructure exist in `frontend/src/shared/ui`
+- `AlertDialog` now reuses the shared base behavior instead of maintaining a separate stack/focus implementation
+- The previously bespoke workflow and confirmation overlays called out in this audit have been migrated onto shared primitives
+- `GitHubDeviceFlowModal` and `PublishToCloudModal` now use the `open` / `onOpenChange` public contract
+- Shared modal tests now cover focus restoration, escape handling, and backdrop policy basics
+
+What remains is the cleanup and policy pass.
+
+### 1. Define explicit modal behavior classes in shared UI
+
+- Document and enforce the three intended modal classes in shared primitives:
+  - Confirm modal
+  - Workflow modal
+  - Blocking progress modal
+- Blocking flows now have a dedicated shared `BlockingDialog`; document it as the default for long-running operational flows
+- Make the default close policy explicit per class instead of leaving it implicit at each call site
+
+Progress update:
+
+- Complete: `frontend/src/shared/ui/README.md` now documents confirm, workflow, and blocking modal classes plus the standard `open` / `onOpenChange` contract
+- Complete: `.github/copilot-instructions.md` now includes the shared modal-class guidance and the rule against bespoke fullscreen wrappers outside `frontend/src/shared/ui`
+- Complete: `frontend/src/shared/ui/dialog-base.tsx` now emits an optional dismissal reason through `onOpenChange`, making shared close intent explicit for trigger, action, cancel, escape, and outside-click flows
+- Remaining: shared primitives still rely on documentation and conventions rather than stronger type-level enforcement of modal classes
+
+### 2. Unify blocking operational modals
+
+- Complete: `frontend/src/widgets/layout/AdditionalPackagesModal.tsx` no longer relies on `onOpenChange={() => {}}`
+- Complete: `AdditionalPackagesModal` and `frontend/src/shared/ui/progress-modal.tsx` now share one blocking-modal contract via `BlockingDialog`
+- Complete: blocking flows now disable escape dismissal and outside-click dismissal through shared policy rather than ad hoc handlers
+
+### 3. Normalize remaining uneven shared-dialog consumers
+
+- Complete: `frontend/src/features/merge/components/MergeReviewDiffModal.tsx` now uses `open` + `onOpenChange`
+- Complete: GitHub device-flow callers now use named `onOpenChange` handlers instead of inline close adapters in `ExplorerView`, `ProfilePage`, `CloneProjectPage`, and `NewProjectPage`
+- Complete: `frontend/src/widgets/layout/NonGitFolderPromptModal.tsx` now routes its primary confirm path through `AlertDialogAction` instead of mixing a plain `Button` into a simple confirm footer
+- Remaining: some dialogs still translate close events into domain-specific cancellation or dismissal behavior because that policy is not yet modeled directly by the shared primitives
+
+### 4. Normalize shared-dialog composition patterns
+
+- Complete: `frontend/src/widgets/layout/NonGitFolderPromptModal.tsx` now uses `AlertDialogAction` for its confirm path, reducing one of the remaining simple mixed-footer cases
+- Complete: `frontend/src/features/auth/components/GitHubDeviceFlowModal.tsx`, `frontend/src/features/welcome/components/PublishToCloudModal.tsx`, and `frontend/src/widgets/layout/RewindConfirmModal.tsx` now use `AlertDialogAction` with `preventDefault()` for async or parent-controlled close flows instead of plain `Button` actions in alert footers
+- Complete: the remaining `AlertDialog` footers that intentionally stay open during async work now do so through shared `AlertDialogAction` semantics rather than ad hoc plain-button composition
+- Complete: `frontend/src/shared/ui/dialog-base.tsx` now supports shared `size` variants up to `6xl` and an `overlayTone` variant, which removed ad hoc shell styling from `PublishToCloudModal`, `LFSAutoTrackModal`, `MergeReviewDiffModal`, `ExplorerMergeModal`, and `ProgressModal`
+- Remaining: some high-complexity modal layouts still use custom height and content classes where the shared shell intentionally stops short of imposing layout structure
+
+### 5. Expand shared-layer modal QA coverage
+
+- Complete: shared tests now cover body scroll locking while dialogs are open
+- Complete: shared tests now cover nested dialog stacking for topmost escape handling
+- Complete: shared tests now cover blocking-dialog dismissal policy for progress/setup-style modals
+- Complete: shared tests now cover topmost-only backdrop dismissal for stacked dialogs
+- Complete: shared tests now verify body scroll remains locked until the last stacked dialog closes
+- Complete: shared tests now verify dismissal reasons emitted by the shared layer for action, escape, and outside-click close paths
+- Keep feature tests focused on business behavior once those shared guarantees are covered centrally
+
+### 6. Add a durable implementation rule for future modal work
+
+- Add a short modal usage guide to shared UI docs or Copilot instructions
+- State the rule that no component outside `frontend/src/shared/ui` should render its own fullscreen modal wrapper or portal unless there is a documented exception
+- Consider adding a lightweight hygiene check or code-review checklist item so the split modal architecture does not reappear
+
+Progress update:
+
+- Complete: the shared modal usage guide now lives in `frontend/src/shared/ui/README.md`
+- Complete: the no-bespoke-wrapper rule is now encoded in `.github/copilot-instructions.md`
+- Complete: `frontend/src/scripts/enforce-frontend-hygiene.mjs` now fails if `createPortal` is introduced outside `frontend/src/shared/ui/dialog-base.tsx`
+- Complete: `frontend/src/scripts/enforce-frontend-hygiene.mjs` now also flags bespoke fullscreen modal shells outside `frontend/src/shared/ui`, closing the gap where a custom wrapper could bypass the shared layer without using `createPortal`
+
 ## Recommended Immediate Actions
 
-If you want the smallest practical next step, do these three things first:
+If you want the smallest practical next step from the current branch state, do these three things first:
 
-1. Create `Dialog` in `frontend/src/shared/ui`
-2. Convert `BranchModal`, `BranchNameModal`, and `RenameBranchModal` to use it
-3. Standardize modal props across new or touched code to `open` and `onOpenChange`
+1. Decide whether device-flow cancellation should become a first-class shared modal policy instead of staying encoded in consumer-level `onOpenChange` handlers
 
-That will remove most of the structural inconsistency without forcing a risky all-at-once rewrite.
+That keeps the cleanup focused on the remaining architectural gap instead of redoing already completed migration work.
 
 ## Bottom Line
 
-The app already has a solid shared foundation for confirmation dialogs, but it does not yet have a unified modal architecture.
+The app now has a real shared modal architecture, and the original split between shared dialogs and bespoke fullscreen overlays has been reduced substantially.
 
 Today’s implementation is best described as:
 
 - Good shared standard for confirm dialogs
-- No shared standard for workflow dialogs
-- Several legacy bespoke overlays still carrying interaction, accessibility, and API inconsistency
+- Working shared standard for workflow dialogs
+- Remaining cleanup work around blocking-modal policy, a few lagging APIs, and shared-layer QA/documentation
 
-The remediation path is straightforward: establish one shared generic dialog primitive, migrate the bespoke overlays onto it, and standardize the public props to `open` and `onOpenChange`.
+The remediation path is now straightforward and incremental: finish the remaining cleanup consumers, codify modal behavior classes, and strengthen the shared-layer guarantees with tests and documentation.
