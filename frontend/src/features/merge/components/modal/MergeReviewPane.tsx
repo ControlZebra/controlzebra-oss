@@ -23,6 +23,7 @@ interface MergeReviewPaneProps {
   reviewDiff: MergeReviewDiffResult | null;
   isLoadingMergeReviewFiles: boolean;
   isLoadingReviewDiff: boolean;
+  conflictFilePaths?: string[];
   onToggleReviewFile: (filePath: string) => void;
   onToggleAllReviewFiles: () => void;
   onReviewFile: (filePath: string) => Promise<void>;
@@ -35,6 +36,9 @@ interface MergeReviewFileListProps {
   selectedReviewFiles: string[];
   reviewFilePath: string;
   isLoadingMergeReviewFiles: boolean;
+  conflictFilePaths?: string[];
+  title?: string;
+  description?: string;
   onToggleReviewFile: (filePath: string) => void;
   onToggleAllReviewFiles: () => void;
   onReviewFile: (filePath: string) => void;
@@ -45,11 +49,15 @@ export function MergeReviewFileList({
   selectedReviewFiles,
   reviewFilePath,
   isLoadingMergeReviewFiles,
+  conflictFilePaths = [],
+  title = 'Selected files',
+  description = 'These are the files that will be included when you continue the merge.',
   onToggleReviewFile,
   onToggleAllReviewFiles,
   onReviewFile,
 }: MergeReviewFileListProps): JSX.Element {
   const selectedReviewSet = useMemo(() => new Set(selectedReviewFiles), [selectedReviewFiles]);
+  const conflictFileSet = useMemo(() => new Set(conflictFilePaths), [conflictFilePaths]);
   const allReviewFilesSelected = useMemo(
     () => mergeReviewFiles.length > 0 && selectedReviewFiles.length === mergeReviewFiles.length,
     [mergeReviewFiles.length, selectedReviewFiles.length],
@@ -59,8 +67,8 @@ export function MergeReviewFileList({
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-theme-default px-4 py-2.5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-theme-primary text-sm font-medium">Selected files</p>
-          <p className="text-theme-secondary text-xs">These are the files that will be included when you continue the merge.</p>
+          <p className="text-theme-primary text-sm font-medium">{title}</p>
+          <p className="text-theme-secondary text-xs">{description}</p>
         </div>
         <Badge variant="outline">{selectedReviewFiles.length}/{mergeReviewFiles.length}</Badge>
       </div>
@@ -84,6 +92,7 @@ export function MergeReviewFileList({
         ) : mergeReviewFiles.map((file) => {
           const isSelected = selectedReviewSet.has(file.path);
           const isPreviewing = reviewFilePath === file.path;
+          const hasConflict = conflictFileSet.has(file.path);
 
           return (
             <div
@@ -102,7 +111,10 @@ export function MergeReviewFileList({
                   className="mt-1 rounded border-theme-default bg-theme-base"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-theme-primary text-sm break-all">{formatMergeReviewFileLabel(file)}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-theme-primary text-sm break-all">{formatMergeReviewFileLabel(file)}</p>
+                    {hasConflict && <Badge variant="warning">Needs a choice</Badge>}
+                  </div>
                 </div>
                 <Button
                   type="button"
@@ -132,6 +144,7 @@ function MergeReviewPane({
   reviewDiff,
   isLoadingMergeReviewFiles,
   isLoadingReviewDiff,
+  conflictFilePaths,
   onToggleReviewFile,
   onToggleAllReviewFiles,
   onReviewFile,
@@ -228,6 +241,7 @@ function MergeReviewPane({
                   selectedReviewFiles={selectedReviewFiles}
                   reviewFilePath={activeReviewPath}
                   isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
+                  conflictFilePaths={conflictFilePaths}
                   onToggleReviewFile={onToggleReviewFile}
                   onToggleAllReviewFiles={onToggleAllReviewFiles}
                   onReviewFile={(filePath) => handleReviewSelection(filePath, true)}

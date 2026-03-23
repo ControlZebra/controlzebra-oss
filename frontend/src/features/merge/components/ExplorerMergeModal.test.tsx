@@ -72,7 +72,7 @@ describe('ExplorerMergeModal', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the compact merge review header without the old review or merge-type labels', () => {
+  it('shows a changed files table with View changes buttons in the review state', () => {
     useMergeFlowControllerMock.mockReturnValue(createControllerValue({
       mergeReviewFiles: [
         { path: 'logic/alpha.L5X', status: 'modified' },
@@ -91,7 +91,10 @@ describe('ExplorerMergeModal', () => {
     expect(screen.getByText('2 files changed')).toBeInTheDocument();
     expect(screen.getByText('1 file to merge')).toBeInTheDocument();
     expect(screen.getByText('No conflicts')).toBeInTheDocument();
-    expect(screen.queryByText('Review available')).not.toBeInTheDocument();
+    expect(screen.getByText('logic/alpha.L5X')).toBeInTheDocument();
+    expect(screen.getByText('logic/beta.L5X')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /View changes/i }).length).toBe(2);
+    expect(screen.queryByText('No conflicts found. Review the files if you want, then merge when ready.')).not.toBeInTheDocument();
     expect(screen.queryByText('Squash merge')).not.toBeInTheDocument();
   });
 
@@ -120,7 +123,7 @@ describe('ExplorerMergeModal', () => {
     expect(handleTargetBranchChange).toHaveBeenCalledWith('release/v1');
   });
 
-  it('opens the selected files drawer from the upper review header and previews the chosen file', () => {
+  it('opens the diff viewer when clicking View changes on a file in the review table', () => {
     const handleReviewFile = vi.fn().mockResolvedValue(undefined);
 
     useMergeFlowControllerMock.mockReturnValue(createControllerValue({
@@ -129,43 +132,51 @@ describe('ExplorerMergeModal', () => {
         { path: 'logic/beta.L5X', status: 'modified' },
       ],
       selectedReviewFiles: ['logic/alpha.L5X'],
-      reviewFilePath: 'logic/alpha.L5X',
+      reviewFilePath: null,
       handleReviewFile,
     }));
 
     render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Selected files/ }));
+    const viewButtons = screen.getAllByRole('button', { name: /View changes/i });
+    fireEvent.click(viewButtons[1]);
 
-    expect(screen.getAllByText('Selected files').length).toBeGreaterThan(1);
-    expect(screen.getByText('These are the files that will be included when you continue the merge.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /Preview logic\/beta\.L5X/i }));
     expect(handleReviewFile).toHaveBeenCalledWith('logic/beta.L5X');
+    expect(screen.getByText('logic/beta.L5X')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to files/i })).toBeInTheDocument();
   });
 
-  it('closes the selected files drawer when clicking outside it', () => {
+  it('returns to the file table when clicking Back to files from the diff viewer', () => {
+    const handleReviewFile = vi.fn().mockResolvedValue(undefined);
+
     useMergeFlowControllerMock.mockReturnValue(createControllerValue({
       mergeReviewFiles: [
         { path: 'logic/alpha.L5X', status: 'modified' },
         { path: 'logic/beta.L5X', status: 'modified' },
       ],
       selectedReviewFiles: ['logic/alpha.L5X'],
-      reviewFilePath: 'logic/alpha.L5X',
+      reviewFilePath: null,
+      handleReviewFile,
     }));
 
     render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Selected files/ }));
-    expect(screen.getByText('These are the files that will be included when you continue the merge.')).toBeInTheDocument();
+    const viewButtons = screen.getAllByRole('button', { name: /View changes/i });
+    fireEvent.click(viewButtons[0]);
 
-    fireEvent.mouseDown(document.body);
+    expect(screen.getByRole('button', { name: /Back to files/i })).toBeInTheDocument();
 
-    expect(screen.queryByText('These are the files that will be included when you continue the merge.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Back to files/i }));
+
+    expect(screen.queryByRole('button', { name: /Back to files/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /View changes/i }).length).toBe(2);
   });
 
   it('shows the dry-run conflict summary before the live merge starts', () => {
     useMergeFlowControllerMock.mockReturnValue(createControllerValue({
+      conflictedFiles: [
+        { path: 'logic/alpha.L5X', status: 'both-modified' },
+      ],
       conflictCheckResult: {
         success: true,
         hasConflicts: true,
@@ -184,8 +195,10 @@ describe('ExplorerMergeModal', () => {
     render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'Needs decisions' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start guided merge' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Start guided merge/i })).toBeInTheDocument();
     expect(screen.getByText('logic/alpha.L5X')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /View changes/i })).toBeInTheDocument();
+    expect(screen.queryByText('Choose files for this merge')).not.toBeInTheDocument();
   });
 
   it('stays in the preparing state while the live conflict list is still being hydrated', () => {

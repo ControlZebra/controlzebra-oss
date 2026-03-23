@@ -80,10 +80,9 @@ export function useMergeFlowController() {
     [branches?.local],
   );
 
-  const canUseSelectiveReview = useMemo(
+  const canSelectMergeFiles = useMemo(
     () => Boolean(
       conflictCheckResult?.success
-      && !conflictCheckResult.hasConflicts
       && !conflictCheckResult.mergeStarted
       && mergeReviewFiles.length > 0,
     ),
@@ -100,13 +99,13 @@ export function useMergeFlowController() {
   }, [repoPath, detectedParentBranch, fetchParentBranch, branches, refreshBranches]);
 
   useEffect(() => {
-    if (canUseSelectiveReview) {
+    if (canSelectMergeFiles) {
       setSelectedReviewFiles(mergeReviewFiles.map((file) => file.path));
       return;
     }
 
     setSelectedReviewFiles([]);
-  }, [canUseSelectiveReview, mergeReviewFiles]);
+  }, [canSelectMergeFiles, mergeReviewFiles]);
 
   const effectiveTarget = targetBranch || detectedParentBranch?.name || 'main';
   const effectiveSource = conflictCheckResult?.sourceBranch || currentBranch;
@@ -204,31 +203,25 @@ export function useMergeFlowController() {
   const handleStartMerge = useCallback(async (): Promise<void> => {
     setError(null);
 
-    const isConflictMerge = Boolean(conflictCheckResult?.hasConflicts);
-    const shouldUseSelective = canUseSelectiveReview;
+    const canUseSelectedFiles = canSelectMergeFiles && mergeReviewFiles.length > 0;
+    const shouldUseSelective = canUseSelectedFiles && selectedReviewFiles.length < mergeReviewFiles.length;
 
-    if (shouldUseSelective && selectedReviewFiles.length === 0) {
+    if (canUseSelectedFiles && selectedReviewFiles.length === 0) {
       setError('Select at least one file to start merge.');
       return;
     }
 
-    const mergeOptions = isConflictMerge
+    const mergeOptions = shouldUseSelective
       ? {
+        squash: isSquashMerge,
+        selective: true,
+        selectedFiles: selectedReviewFiles,
+      }
+      : {
         squash: isSquashMerge,
         selective: false,
         selectedFiles: [],
-      }
-      : shouldUseSelective
-        ? {
-          squash: isSquashMerge,
-          selective: true,
-          selectedFiles: selectedReviewFiles,
-        }
-        : {
-          squash: isSquashMerge,
-          selective: false,
-          selectedFiles: [],
-        };
+      };
 
     const result = await startMerge(targetBranch, '', mergeOptions);
 
@@ -244,7 +237,8 @@ export function useMergeFlowController() {
   }, [
     targetBranch,
     conflictCheckResult,
-    canUseSelectiveReview,
+    canSelectMergeFiles,
+    mergeReviewFiles.length,
     selectedReviewFiles,
     startMerge,
     isSquashMerge,

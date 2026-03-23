@@ -48,7 +48,50 @@ describe('useMergeFlowController', () => {
     vi.clearAllMocks();
   });
 
-  it('uses selective merge only for the clean review path', async () => {
+  it('uses selective merge when the user narrows the clean review selection', async () => {
+    const startMerge = vi.fn().mockResolvedValue({ success: true });
+
+    useRepoMock.mockReturnValue(createRepoValue({
+      startMerge,
+      conflictCheckResult: {
+        success: true,
+        hasConflicts: false,
+        conflictedFiles: [],
+        parentBranch: 'main',
+        targetBranch: 'main',
+        sourceBranch: 'feature/tank-logic',
+        mergeStarted: false,
+        isSquashMerge: true,
+        liveMergePhase: 'dry-run',
+      },
+      mergeReviewFiles: [
+        { path: 'logic/alpha.L5X' },
+        { path: 'logic/beta.L5X' },
+      ],
+    }));
+
+    const { result } = renderHook(() => useMergeFlowController());
+
+    await waitFor(() => {
+      expect(result.current.selectedReviewFiles).toEqual(['logic/alpha.L5X', 'logic/beta.L5X']);
+    });
+
+    act(() => {
+      result.current.handleToggleReviewFile('logic/beta.L5X');
+    });
+
+    await act(async () => {
+      await result.current.handleStartMerge();
+    });
+
+    expect(startMerge).toHaveBeenCalledWith('', '', {
+      squash: true,
+      selective: true,
+      selectedFiles: ['logic/alpha.L5X'],
+    });
+  });
+
+  it('keeps a full clean selection on the regular merge path', async () => {
     const startMerge = vi.fn().mockResolvedValue({ success: true });
 
     useRepoMock.mockReturnValue(createRepoValue({
@@ -82,12 +125,12 @@ describe('useMergeFlowController', () => {
 
     expect(startMerge).toHaveBeenCalledWith('', '', {
       squash: true,
-      selective: true,
-      selectedFiles: ['logic/alpha.L5X', 'logic/beta.L5X'],
+      selective: false,
+      selectedFiles: [],
     });
   });
 
-  it('keeps conflict merges independent from review selection state', async () => {
+  it('uses selective merge for conflict merges when the user narrows the file set', async () => {
     const startMerge = vi.fn().mockResolvedValue({ success: true });
 
     useRepoMock.mockReturnValue(createRepoValue({
@@ -112,7 +155,11 @@ describe('useMergeFlowController', () => {
     const { result } = renderHook(() => useMergeFlowController());
 
     await waitFor(() => {
-      expect(result.current.selectedReviewFiles).toEqual([]);
+      expect(result.current.selectedReviewFiles).toEqual(['logic/alpha.L5X', 'logic/beta.L5X']);
+    });
+
+    act(() => {
+      result.current.handleToggleReviewFile('logic/beta.L5X');
     });
 
     await act(async () => {
@@ -121,8 +168,8 @@ describe('useMergeFlowController', () => {
 
     expect(startMerge).toHaveBeenCalledWith('', '', {
       squash: true,
-      selective: false,
-      selectedFiles: [],
+      selective: true,
+      selectedFiles: ['logic/alpha.L5X'],
     });
     expect(result.current.error).toBeNull();
   });
