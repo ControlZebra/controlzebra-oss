@@ -32,7 +32,10 @@ import {
   Textarea,
 } from '../../../shared/ui';
 import MergeConflictQueue from '../components/modal/MergeConflictQueue';
-import MergeReviewPane from '../components/modal/MergeReviewPane';
+import MergeReviewPane, {
+  MergeReviewFileList,
+} from '../components/modal/MergeReviewPane';
+import MergeReviewPreview from '../components/modal/MergeReviewPreview';
 import { useMergeFlowController, type MergeFlowStep as MergeStep } from '../hooks/useMergeFlowController';
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -292,8 +295,11 @@ const ReviewStepPanel = memo(function ReviewStepPanel({
   onCancel,
 }: ReviewStepPanelProps): JSX.Element {
   if (hasConflicts) {
+    const conflictFilePaths = conflictedFiles.map((file) => file.path);
+    const canStartConflictMerge = selectedReviewFiles.length > 0;
+
     return (
-      <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="flex flex-1 min-h-0 flex-col gap-4 p-6">
         <Card className="mx-auto w-full max-w-3xl">
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
@@ -301,28 +307,61 @@ const ReviewStepPanel = memo(function ReviewStepPanel({
               <div className="w-full">
                 <p className="mb-2 text-lg font-medium text-theme-primary">A few files need a choice</p>
                 <p className="mb-4 text-sm text-theme-secondary">
-                  Both branches changed the same files. Start the guided merge and resolve them one file at a time.
+                  Choose the files to bring over first. ControlZebra will only ask you to resolve conflicts for the files you keep selected.
                 </p>
-                <div className="space-y-2">
-                  {conflictedFiles.map((file) => (
-                    <div key={file.path} className="rounded-lg border border-theme-default px-3 py-2 text-sm text-theme-primary">
-                      {file.path}
-                    </div>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2 text-sm text-theme-secondary">
+                  <span>{conflictedFiles.length} file{conflictedFiles.length === 1 ? '' : 's'} need a choice</span>
+                  <span className="text-theme-muted">|</span>
+                  <span>{selectedReviewFiles.length} file{selectedReviewFiles.length === 1 ? '' : 's'} selected</span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <Card className="min-h-0 overflow-hidden">
+            <MergeReviewFileList
+              mergeReviewFiles={mergeReviewFiles}
+              selectedReviewFiles={selectedReviewFiles}
+              reviewFilePath={reviewFilePath || ''}
+              isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
+              conflictFilePaths={conflictFilePaths}
+              title="Files in this merge"
+              description="Keep only the files you want to bring over now. Files marked Needs a choice will open in the guided conflict step."
+              onToggleReviewFile={onToggleReviewFile}
+              onToggleAllReviewFiles={onToggleAllReviewFiles}
+              onReviewFile={(filePath) => {
+                void onReviewFile(filePath);
+              }}
+            />
+          </Card>
+
+          <Card className="min-h-0 overflow-hidden">
+            <CardHeader className="border-b border-theme-default px-4 py-3">
+              <p className="text-sm font-medium text-theme-primary">Preview</p>
+              <p className="text-xs text-theme-secondary">Review the selected file before you start the guided merge.</p>
+            </CardHeader>
+            <div className="min-h-0 flex-1 bg-theme-base/20">
+              <MergeReviewPreview
+                repoPath={repoPath}
+                reviewFilePath={reviewFilePath}
+                reviewDiff={reviewDiff}
+                isLoadingReviewDiff={isLoadingReviewDiff}
+                emptyLabel="Choose a file to preview before starting the merge."
+              />
+            </div>
+          </Card>
+        </div>
+
         <div className="flex justify-center gap-3">
           <Button onClick={onCancel} variant="outline" disabled={isProcessing}>
             <X style={iconSm} className="mr-2" />
             Cancel
           </Button>
-          <Button onClick={onStartMerge} disabled={isProcessing}>
+          <Button onClick={onStartMerge} disabled={isProcessing || !canStartConflictMerge}>
             <Check style={iconSm} className="mr-2" />
-            Start guided merge
+            Start guided merge for selected files
           </Button>
         </div>
       </div>

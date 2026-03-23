@@ -8,14 +8,13 @@ import {
   type CSSProperties,
 } from 'react';
 import {
-  AlertTriangle,
   ArrowRight,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  FileWarning,
+  Eye,
   Files,
   GitBranch,
   Loader2,
@@ -40,11 +39,18 @@ import {
   Card,
   CardContent,
   Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   Textarea,
 } from '../../../shared/ui';
 import { useMergeFlowController, type MergeOutcomeState } from '../hooks/useMergeFlowController';
 import MergeConflictQueue from './modal/MergeConflictQueue';
-import MergeReviewPane, { MergeReviewFileList } from './modal/MergeReviewPane';
+import { MergeReviewFileList } from './modal/MergeReviewPane';
+import MergeReviewPreview from './modal/MergeReviewPreview';
 import { getMergeReviewSelectedFilePath } from './modal/mergeReviewShared';
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -86,6 +92,25 @@ function buildOutcomeBadge(state: MergeOutcomeState): { label: string; variant: 
 
 function formatCountLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function getConflictStatusLabel(status?: string): string {
+  switch (status) {
+    case 'potential-conflict':
+      return 'Needs a choice';
+    case 'both-modified':
+      return 'Both changed';
+    case 'both-added':
+      return 'Both added';
+    case 'both-deleted':
+      return 'Both deleted';
+    case 'deleted-by-us':
+      return 'Deleted on your branch';
+    case 'deleted-by-them':
+      return 'Deleted on destination';
+    default:
+      return 'No conflict';
+  }
 }
 
 function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
@@ -140,6 +165,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   const [isAbandoningMerge, setIsAbandoningMerge] = useState(false);
   const [isReviewDrawerOpen, setIsReviewDrawerOpen] = useState(false);
   const [isTargetBranchDrawerOpen, setIsTargetBranchDrawerOpen] = useState(false);
+  const [viewingDiffForFile, setViewingDiffForFile] = useState<string | null>(null);
   const hasAutoAnalyzedRef = useRef(false);
   const reviewDrawerRef = useRef<HTMLDivElement | null>(null);
   const targetBranchDrawerRef = useRef<HTMLDivElement | null>(null);
@@ -234,29 +260,13 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   useEffect(() => {
     if (!open) {
       setIsTargetBranchDrawerOpen(false);
+      setViewingDiffForFile(null);
     }
   }, [open]);
 
   useEffect(() => {
-    if (
-      outcomeState !== 'review'
-      || isLoadingMergeReviewFiles
-      || mergeReviewFiles.length === 0
-      || reviewFilePath
-      || isLoadingReviewDiff
-    ) {
-      return;
-    }
-
-    void handleReviewFile(mergeReviewFiles[0].path);
-  }, [
-    handleReviewFile,
-    isLoadingMergeReviewFiles,
-    isLoadingReviewDiff,
-    mergeReviewFiles,
-    outcomeState,
-    reviewFilePath,
-  ]);
+    setViewingDiffForFile(null);
+  }, [outcomeState]);
 
   useEffect(() => {
     if (!isReviewDrawerOpen && !isTargetBranchDrawerOpen) {
@@ -291,6 +301,8 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
 
   const badge = buildOutcomeBadge(outcomeState);
   const isReviewState = outcomeState === 'review';
+  const isViewingDiff = viewingDiffForFile !== null;
+  const showReviewFileNav = isReviewState && isViewingDiff;
   const activeReviewPath = useMemo(
     () => getMergeReviewSelectedFilePath(reviewFilePath, reviewDiff) || mergeReviewFiles[0]?.path || '',
     [mergeReviewFiles, reviewDiff, reviewFilePath],
@@ -304,6 +316,26 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   const selectedConflict = useMemo(
     () => conflictedFiles.find((file) => file.path === selectedConflictFile) || conflictedFiles[0] || null,
     [conflictedFiles, selectedConflictFile],
+  );
+  const conflictStatusByPath = useMemo(
+    () => new Map(conflictedFiles.map((file) => [file.path, file.status])),
+    [conflictedFiles],
+  );
+  const needsDecisionFiles = useMemo(
+    () => (
+      mergeReviewFiles.length > 0
+        ? mergeReviewFiles
+        : conflictedFiles.map((file) => ({ path: file.path }))
+    ),
+    [conflictedFiles, mergeReviewFiles],
+  );
+  const allNeedsDecisionFilesSelected = useMemo(
+    () => needsDecisionFiles.length > 0 && selectedReviewFiles.length === needsDecisionFiles.length,
+    [needsDecisionFiles.length, selectedReviewFiles.length],
+  );
+  const allMergeReviewFilesSelected = useMemo(
+    () => mergeReviewFiles.length > 0 && selectedReviewFiles.length === mergeReviewFiles.length,
+    [mergeReviewFiles.length, selectedReviewFiles.length],
   );
 
   const requestClose = useCallback((): void => {
@@ -373,6 +405,15 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     void handleReviewFile(filePath);
   }, [handleReviewFile]);
 
+  const handleViewChanges = useCallback((filePath: string): void => {
+    setViewingDiffForFile(filePath);
+    void handleReviewFile(filePath);
+  }, [handleReviewFile]);
+
+  const handleBackToFileList = useCallback((): void => {
+    setViewingDiffForFile(null);
+  }, []);
+
   const handleTargetBranchSelection = useCallback((nextTargetBranch: string): void => {
     if (!nextTargetBranch || nextTargetBranch === effectiveTarget) {
       setIsTargetBranchDrawerOpen(false);
@@ -415,13 +456,13 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
       break;
     case 'review':
       title = 'Merge review';
-      description = 'No conflicts found. Review the files if you want, then merge when ready.';
+      description = '';
       footerNote = 'Note: Choose the files you want and preview them if needed.';
       break;
     case 'needs-decisions':
       title = 'Needs decisions';
-      description = 'A few files were changed in both branches. Start the guided merge to choose which version to keep.';
-      footerNote = 'Note: You will choose what to keep for each file.';
+      description = 'Choose the files to bring over first. ControlZebra will only ask you to resolve conflicts for the files you keep selected.';
+      footerNote = 'Note: Files marked Needs a choice will enter the guided conflict step.';
       break;
     case 'resolving':
       title = 'Resolve files';
@@ -537,7 +578,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                   </div>
                 </div>
 
-                {!isReviewState && <AlertDialogDescription className="mt-3">{description}</AlertDialogDescription>}
+                {!isReviewState && description && <AlertDialogDescription className="mt-3">{description}</AlertDialogDescription>}
               </div>
               <Button variant="ghost" size="icon" onClick={requestClose} aria-label="Close merge modal">
                 <X style={iconSm} />
@@ -555,69 +596,73 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                 </div>
 
                 <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStepReviewFile(-1)}
-                    disabled={!hasPreviousReviewFile || isLoadingReviewDiff}
-                    aria-label="Previous file"
-                    className="h-9 w-9 px-0 border-theme-default text-theme-primary"
-                  >
-                    <ChevronLeft className="h-4.5 w-4.5 stroke-[2.5]" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStepReviewFile(1)}
-                    disabled={!hasNextReviewFile || isLoadingReviewDiff}
-                    aria-label="Next file"
-                    className="h-9 w-9 px-0 border-theme-default text-theme-primary"
-                  >
-                    <ChevronRight className="h-4.5 w-4.5 stroke-[2.5]" />
-                  </Button>
-
-                  <div ref={reviewDrawerRef} className="relative">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsReviewDrawerOpen((current) => !current)}
-                      aria-expanded={isReviewDrawerOpen}
-                      aria-controls="merge-review-selected-files"
-                      className="h-9 border-theme-default text-theme-primary"
-                    >
-                      <Files style={iconSm} />
-                      Selected files
-                      <Badge variant="outline">{mergeReviewFiles.length}</Badge>
-                    </Button>
-
-                    {isReviewDrawerOpen && (
-                      <div
-                        id="merge-review-selected-files"
-                        className="absolute right-0 top-full z-20 mt-2 w-[min(24rem,calc(100vw-4rem))] overflow-hidden rounded-xl border border-theme-default bg-theme-surface shadow-xl"
+                  {showReviewFileNav ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStepReviewFile(-1)}
+                        disabled={!hasPreviousReviewFile || isLoadingReviewDiff}
+                        aria-label="Previous file"
+                        className="h-9 w-9 px-0 border-theme-default text-theme-primary"
                       >
-                        <MergeReviewFileList
-                          mergeReviewFiles={mergeReviewFiles}
-                          selectedReviewFiles={selectedReviewFiles}
-                          reviewFilePath={activeReviewPath}
-                          isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
-                          onToggleReviewFile={handleToggleReviewFile}
-                          onToggleAllReviewFiles={handleToggleAllReviewFiles}
-                          onReviewFile={handleReviewSelection}
-                        />
+                        <ChevronLeft className="h-4.5 w-4.5 stroke-[2.5]" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStepReviewFile(1)}
+                        disabled={!hasNextReviewFile || isLoadingReviewDiff}
+                        aria-label="Next file"
+                        className="h-9 w-9 px-0 border-theme-default text-theme-primary"
+                      >
+                        <ChevronRight className="h-4.5 w-4.5 stroke-[2.5]" />
+                      </Button>
+
+                      <div ref={reviewDrawerRef} className="relative">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsReviewDrawerOpen((current) => !current)}
+                          aria-expanded={isReviewDrawerOpen}
+                          aria-controls="merge-review-selected-files"
+                          className="h-9 border-theme-default text-theme-primary"
+                        >
+                          <Files style={iconSm} />
+                          Selected files
+                          <Badge variant="outline">{mergeReviewFiles.length}</Badge>
+                        </Button>
+
+                        {isReviewDrawerOpen && (
+                          <div
+                            id="merge-review-selected-files"
+                            className="absolute right-0 top-full z-20 mt-2 w-[min(24rem,calc(100vw-4rem))] overflow-hidden rounded-xl border border-theme-default bg-theme-surface shadow-xl"
+                          >
+                            <MergeReviewFileList
+                              mergeReviewFiles={mergeReviewFiles}
+                              selectedReviewFiles={selectedReviewFiles}
+                              reviewFilePath={activeReviewPath}
+                              isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
+                              onToggleReviewFile={handleToggleReviewFile}
+                              onToggleAllReviewFiles={handleToggleAllReviewFiles}
+                              onReviewFile={handleReviewSelection}
+                            />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             ) : null}
           </div>
 
-          <div className={isReviewState ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0 overflow-auto px-5 py-4'}>
+          <div className={isViewingDiff ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0 overflow-auto px-5 py-4'}>
             {error && (
-              <div className={isReviewState ? 'mx-4 mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300' : 'mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300'}>
+              <div className={isViewingDiff ? 'mx-5 mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300' : 'mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300'}>
                 {error}
               </div>
             )}
@@ -667,63 +712,199 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
               </div>
             )}
 
-            {outcomeState === 'ready' && (
-              <div className="max-w-3xl mx-auto space-y-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <CheckCircle2 style={iconLg} className="text-green-400 shrink-0" />
-                      <div>
-                        <p className="text-theme-primary text-lg font-medium mb-2">Everything looks good</p>
-                        <p className="text-theme-secondary text-sm">No conflicts were found. You can merge {effectiveSource} into {effectiveTarget} now.</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {(outcomeState === 'ready' || outcomeState === 'review') && (
+              isViewingDiff ? (
+                <div className="h-full flex flex-col px-5 py-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-theme-default mb-3">
+                    <Button variant="outline" size="sm" onClick={handleBackToFileList}>
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                      Back to files
+                    </Button>
+                    <span className="text-sm text-theme-primary font-medium truncate">{viewingDiffForFile}</span>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <MergeReviewPreview
+                      repoPath={repoPath}
+                      reviewFilePath={reviewFilePath}
+                      reviewDiff={reviewDiff}
+                      isLoadingReviewDiff={isLoadingReviewDiff}
+                    />
+                  </div>
+                </div>
+              ) : mergeReviewFiles.length > 0 ? (
+                <div className="h-full min-h-0 flex flex-col">
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-theme-default bg-theme-surface/30">
+                    <Table>
+                      <TableHeader className="bg-theme-elevated">
+                        <TableRow className="hover:bg-theme-elevated">
+                          <TableHead className="w-14">
+                            <input
+                              type="checkbox"
+                              checked={allMergeReviewFilesSelected}
+                              onChange={handleToggleAllReviewFiles}
+                              aria-label="Select all files for merge"
+                              className="rounded border-theme-default bg-theme-base"
+                            />
+                          </TableHead>
+                          <TableHead>File name</TableHead>
+                          <TableHead className="w-44">View changes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoadingMergeReviewFiles ? (
+                          <TableRow>
+                            <TableCell colSpan={3} className="py-8 text-center text-theme-muted">
+                              <span className="inline-flex items-center gap-2">
+                                <Loader2 style={iconSm} className="animate-spin" />
+                                Loading files...
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ) : mergeReviewFiles.map((file) => {
+                          const isSelected = selectedReviewFiles.includes(file.path);
 
-            {outcomeState === 'review' && (
-              <div className="h-full min-h-0">
-                <MergeReviewPane
-                  repoPath={repoPath}
-                  mergeReviewFiles={mergeReviewFiles}
-                  selectedReviewFiles={selectedReviewFiles}
-                  reviewFilePath={reviewFilePath}
-                  reviewDiff={reviewDiff}
-                  isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
-                  isLoadingReviewDiff={isLoadingReviewDiff}
-                  onToggleReviewFile={handleToggleReviewFile}
-                  onToggleAllReviewFiles={handleToggleAllReviewFiles}
-                  onReviewFile={handleReviewFile}
-                  showToolbar={false}
-                  showFrame={false}
-                />
-              </div>
+                          return (
+                            <TableRow key={file.path} data-state={isSelected ? 'selected' : undefined}>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleReviewFile(file.path)}
+                                  aria-label={`Select ${file.path} for merge`}
+                                  className="rounded border-theme-default bg-theme-base"
+                                />
+                              </TableCell>
+                              <TableCell className="break-all">{file.path}</TableCell>
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewChanges(file.path)}
+                                  className="gap-1.5"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View changes
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-3xl mx-auto space-y-4">
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <CheckCircle2 style={iconLg} className="text-green-400 shrink-0" />
+                        <div>
+                          <p className="text-theme-primary text-lg font-medium mb-2">Everything looks good</p>
+                          <p className="text-theme-secondary text-sm">No conflicts were found. You can merge {effectiveSource} into {effectiveTarget} now.</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )
             )}
 
             {outcomeState === 'needs-decisions' && (
-              <div className="max-w-3xl mx-auto space-y-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <AlertTriangle style={iconLg} className="text-amber-400 shrink-0" />
-                      <div>
-                        <p className="text-theme-primary text-lg font-medium mb-2">A few files need a choice</p>
-                        <p className="text-theme-secondary text-sm mb-4">Both branches changed the same files. Start the guided merge and ControlZebra will walk you through each file.</p>
-                        <div className="space-y-2">
-                          {conflictCheckResult?.conflictedFiles?.map((file) => (
-                            <div key={file.path} className="flex items-center gap-2 rounded-lg border border-theme-default px-3 py-2 text-sm">
-                              <FileWarning style={iconSm} className="text-amber-400 shrink-0" />
-                              <span className="text-theme-primary break-all">{file.path}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              isViewingDiff ? (
+                <div className="h-full flex flex-col px-5 py-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-theme-default mb-3">
+                    <Button variant="outline" size="sm" onClick={handleBackToFileList}>
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                      Back to files
+                    </Button>
+                    <span className="text-sm text-theme-primary font-medium truncate">{viewingDiffForFile}</span>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <MergeReviewPreview
+                      repoPath={repoPath}
+                      reviewFilePath={reviewFilePath}
+                      reviewDiff={reviewDiff}
+                      isLoadingReviewDiff={isLoadingReviewDiff}
+                    />
+                  </div>
+                </div>
+              ) : (
+              <div className="h-full min-h-0 flex flex-col">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-theme-default bg-theme-surface/30">
+                  <Table>
+                    <TableHeader className="bg-theme-elevated">
+                      <TableRow className="hover:bg-theme-elevated">
+                        <TableHead className="w-14">
+                          <input
+                            type="checkbox"
+                            checked={allNeedsDecisionFilesSelected}
+                            onChange={handleToggleAllReviewFiles}
+                            aria-label="Select all files for merge"
+                            className="rounded border-theme-default bg-theme-base"
+                          />
+                        </TableHead>
+                        <TableHead>File name</TableHead>
+                        <TableHead className="w-48">Conflict status</TableHead>
+                        <TableHead className="w-44">View changes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoadingMergeReviewFiles ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-8 text-center text-theme-muted">
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 style={iconSm} className="animate-spin" />
+                              Loading files...
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ) : needsDecisionFiles.length > 0 ? (
+                        needsDecisionFiles.map((file) => {
+                          const isSelected = selectedReviewFiles.includes(file.path);
+                          const conflictStatus = conflictStatusByPath.get(file.path);
+
+                          return (
+                            <TableRow key={file.path} data-state={isSelected ? 'selected' : undefined}>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleReviewFile(file.path)}
+                                  aria-label={`Select ${file.path} for merge`}
+                                  className="rounded border-theme-default bg-theme-base"
+                                />
+                              </TableCell>
+                              <TableCell className="break-all">{file.path}</TableCell>
+                              <TableCell className="text-theme-secondary">{getConflictStatusLabel(conflictStatus)}</TableCell>
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewChanges(file.path)}
+                                  className="gap-1.5"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View changes
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-8 text-center text-theme-muted">
+                            No files available for this merge.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
+              )
             )}
 
             {outcomeState === 'resolving' && (
@@ -853,9 +1034,9 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
               )}
 
               {outcomeState === 'needs-decisions' && (
-                <Button onClick={handleMergeNow}>
+                <Button onClick={handleMergeNow} disabled={selectedReviewFiles.length === 0}>
                   <ChevronRight style={iconSm} className="mr-2" />
-                  Start guided merge
+                  Start guided merge for selected files
                 </Button>
               )}
 
