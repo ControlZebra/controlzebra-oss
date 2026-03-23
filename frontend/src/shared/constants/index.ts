@@ -131,7 +131,7 @@ export const PROJECT_STATE_CONFIGS: Record<ProjectState, ProjectStateConfig> = {
   },
   [PROJECT_STATES.TRACKED_NO_REMOTE]: {
     id: PROJECT_STATES.TRACKED_NO_REMOTE,
-    title: 'Tracking changes locally. Next, create a cloud backup',
+    title: 'Tracking changes locally. Consider creating a cloud backup',
     subtitle: 'Publish to GitHub for cloud backup and collaboration.',
     actionLabel: 'Publish to GitHub',
   },
