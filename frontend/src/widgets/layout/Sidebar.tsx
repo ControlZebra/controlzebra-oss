@@ -2,8 +2,6 @@ import { memo, useMemo, useCallback, useRef, type MouseEvent, type ComponentType
 import { VIEWS, type ViewType } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
 import ExplorerView from '../../features/explorer/components/ExplorerView';
-import HistoryView from '../../features/history/components/HistoryView';
-import MergeChangesView from '../../features/merge/components/MergeChangesView';
 import RepoSettingsView from '../../features/repo-settings/components/RepoSettingsView';
 import SettingsView from '../../features/settings/components/SettingsView';
 import ProfileView from '../../features/profile/components/ProfileView';
@@ -26,8 +24,6 @@ interface ViewConfig {
 
 const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
   [VIEWS.EXPLORER]: { title: 'Next Step Advisor', Component: ExplorerView },
-  [VIEWS.HISTORY]: { title: 'Commit History', Component: HistoryView },
-  [VIEWS.MERGE_CHANGES]: { title: 'Merge changes', Component: MergeChangesView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
   [VIEWS.PROFILE]: { title: 'Profile', Component: ProfileView },
@@ -54,7 +50,7 @@ function Sidebar(): JSX.Element | null {
       if (isWelcomeMode) {
         return { title: 'Welcome', Component: WelcomeView as ComponentType };
       }
-      return VIEW_CONFIG[activeView] || VIEW_CONFIG[VIEWS.HISTORY];
+      return VIEW_CONFIG[activeView] || VIEW_CONFIG[VIEWS.EXPLORER];
     },
     [activeView, isWelcomeMode]
   );

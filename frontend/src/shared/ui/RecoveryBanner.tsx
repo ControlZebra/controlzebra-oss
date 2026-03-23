@@ -131,7 +131,7 @@ function RecoveryBanner() {
     abortCurrentOperation,
     removeAllStaleLocks,
   } = useRepo();
-  const { setActiveView, setSidebarCollapsed } = useLayout();
+  const { setActiveView, setSidebarCollapsed, openExplorerMergeModal } = useLayout();
   const [isProcessing, setIsProcessing] = useState(false);
   const [branchModalOpen, setBranchModalOpen] = useState(false);
 
@@ -155,9 +155,10 @@ function RecoveryBanner() {
   }, [mergeState]);
 
   const handleResolve = useCallback(() => {
-    setActiveView(VIEWS.MERGE_CHANGES);
+    setActiveView(VIEWS.EXPLORER);
     setSidebarCollapsed(false);
-  }, [setActiveView, setSidebarCollapsed]);
+    openExplorerMergeModal();
+  }, [openExplorerMergeModal, setActiveView, setSidebarCollapsed]);
 
   const handleAbort = useCallback(async () => {
     setIsProcessing(true);

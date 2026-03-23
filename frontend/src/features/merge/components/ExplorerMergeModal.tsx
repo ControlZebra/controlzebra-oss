@@ -247,7 +247,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     handleComplete,
     handleDismiss,
     handleDeleteMergedBranch,
-  } = useMergeFlowController();
+  } = useMergeFlowController({ enabled: open });
 
   const [message, setMessage] = useState('');
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);

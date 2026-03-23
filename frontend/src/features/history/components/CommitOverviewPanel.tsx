@@ -1,5 +1,5 @@
 /**
- * CommitOverviewPanel - Shared commit detail UI used by HistoryPage and Explorer commit tabs.
+ * CommitOverviewPanel - Shared commit detail UI used by Explorer commit tabs.
  */
 import { memo, useCallback, useMemo, useState, type CSSProperties } from 'react';
 import {
