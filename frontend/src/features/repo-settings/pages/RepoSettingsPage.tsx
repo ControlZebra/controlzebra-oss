@@ -643,7 +643,6 @@ const LargeFilesPanel = memo(function LargeFilesPanel({ settings, onUpdate, repo
         toast.error(result.error || 'Failed to initialize LFS');
         return;
       }
-      
       // If there are selected presets, track them
       const selectedPatterns = Array.from(panelState.selectedPresets);
       for (const pattern of selectedPatterns) {
@@ -1722,7 +1721,7 @@ const RenameBranchModal = memo(function RenameBranchModal({
 
   return (
     <div className="fixed inset-0 z-50" onKeyDown={handleKeyDown}>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/75 backdrop-blur-[1px]" onClick={onClose} />
 
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-theme-surface border border-theme-default rounded-lg shadow-xl overflow-hidden">

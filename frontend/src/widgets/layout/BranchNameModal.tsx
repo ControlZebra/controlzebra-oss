@@ -78,7 +78,7 @@ function BranchNameModal({
     >
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/75 backdrop-blur-[1px]"
         onClick={onClose}
         aria-hidden="true"
       />

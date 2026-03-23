@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { useMergeFlowControllerMock } = vi.hoisted(() => ({
   useMergeFlowControllerMock: vi.fn(),
@@ -70,6 +70,10 @@ function createControllerValue(overrides: Record<string, unknown> = {}) {
 describe('ExplorerMergeModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('shows a changed files table with View changes buttons in the review state', () => {
@@ -220,6 +224,54 @@ describe('ExplorerMergeModal', () => {
 
     expect(screen.getByRole('heading', { name: 'Preparing conflict list' })).toBeInTheDocument();
     expect(screen.queryByText('Save my choices and finish')).not.toBeInTheDocument();
+  });
+
+  it('keeps fast preflight results in preparing briefly before revealing the summary', () => {
+    vi.useFakeTimers();
+
+    let controllerValue = createControllerValue({
+      isCheckingConflicts: true,
+      conflictCheckResult: null,
+    });
+
+    useMergeFlowControllerMock.mockImplementation(() => controllerValue);
+
+    const { rerender } = render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Preparing merge' })).toBeInTheDocument();
+    expect(screen.getByText('processing')).toBeInTheDocument();
+
+    controllerValue = createControllerValue({
+      isCheckingConflicts: false,
+      conflictCheckResult: {
+        success: true,
+        hasConflicts: false,
+        conflictedFiles: [],
+        parentBranch: 'main',
+        targetBranch: 'main',
+        sourceBranch: 'feature/tank-logic',
+        mergeStarted: false,
+        isSquashMerge: true,
+        liveMergePhase: 'dry-run',
+      },
+    });
+
+    rerender(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Preparing merge' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ready to merge' })).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(599);
+    });
+
+    expect(screen.getByRole('heading', { name: 'Preparing merge' })).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(screen.getByRole('heading', { name: 'Ready to merge' })).toBeInTheDocument();
   });
 
   it('keeps conflict resolution inside the modal and does not trigger background file actions', () => {

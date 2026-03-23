@@ -132,7 +132,7 @@ function ProgressModal({ isOpen, operationId, title = "Processing...", onComplet
   return (
     <div className="fixed inset-0 z-50">
       {/* Backdrop - blocks all clicks */}
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-[1px]" />
 
       {/* Modal content */}
       <div className="fixed inset-0 flex items-center justify-center p-4">

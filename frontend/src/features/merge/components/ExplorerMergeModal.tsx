@@ -10,16 +10,14 @@ import {
 import {
   ArrowRight,
   Check,
-  CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
   Files,
   GitBranch,
+  Hourglass,
   Loader2,
   Search,
-  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -38,7 +36,6 @@ import {
   Button,
   Card,
   CardContent,
-  Select,
   Table,
   TableBody,
   TableCell,
@@ -47,18 +44,32 @@ import {
   TableRow,
   Textarea,
 } from '../../../shared/ui';
-import { useMergeFlowController, type MergeOutcomeState } from '../hooks/useMergeFlowController';
+import {
+  useMergeFlowController,
+  type MergeOutcomeState,
+} from '../hooks/useMergeFlowController';
 import MergeConflictQueue from './modal/MergeConflictQueue';
 import { MergeReviewFileList } from './modal/MergeReviewPane';
 import MergeReviewPreview from './modal/MergeReviewPreview';
+import TargetBranchDrawer, { type TargetBranchOption } from './modal/TargetBranchDrawer';
 import { getMergeReviewSelectedFilePath } from './modal/mergeReviewShared';
 
 const iconSm: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const iconLg: CSSProperties = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 };
+const PREPARING_STATUS_MIN_DURATION_MS = 600;
 
 interface ExplorerMergeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface PreflightStatusModel {
+  tone: 'neutral' | 'warning';
+  label: string;
+  detail: string;
+}
+
+function isPreflightResultState(state: MergeOutcomeState): boolean {
+  return state === 'ready' || state === 'review' || state === 'needs-decisions' || state === 'up-to-date';
 }
 
 function getDefaultMergeMessage(sourceBranch: string, targetBranch: string, isSquashMerge: boolean): string {
@@ -113,6 +124,85 @@ function getConflictStatusLabel(status?: string): string {
   }
 }
 
+function buildPreflightStatusModel({
+  outcomeState,
+  currentBranch,
+  effectiveSource,
+  effectiveTarget,
+  isDestinationReady,
+  mergeReviewFileCount,
+  conflictedFileCount,
+}: {
+  outcomeState: MergeOutcomeState;
+  currentBranch: string;
+  effectiveSource: string;
+  effectiveTarget: string;
+  isDestinationReady: boolean;
+  mergeReviewFileCount: number;
+  conflictedFileCount: number;
+}): PreflightStatusModel {
+  const taskName = !isDestinationReady
+    ? 'waiting for destination'
+    : effectiveSource === currentBranch
+      ? `checking ${currentBranch} against ${effectiveTarget}`
+      : `checking ${effectiveSource} against ${effectiveTarget}`;
+
+  switch (outcomeState) {
+    case 'setup':
+      return {
+        tone: 'neutral',
+        label: 'processing',
+        detail: taskName,
+      };
+    case 'preparing':
+      return {
+        tone: 'neutral',
+        label: 'processing',
+        detail: taskName,
+      };
+    case 'ready':
+      return {
+        tone: 'neutral',
+        label: 'summary',
+        detail: `No conflicts found. ${effectiveSource} can merge into ${effectiveTarget}.`,
+      };
+    case 'review':
+      return {
+        tone: 'neutral',
+        label: 'summary',
+        detail: `No conflicts found. ${formatCountLabel(mergeReviewFileCount, 'file is ready', 'files are ready')} for review.`,
+      };
+    case 'needs-decisions':
+      return {
+        tone: 'warning',
+        label: 'summary',
+        detail: `${formatCountLabel(conflictedFileCount, 'file needs a choice', 'files need choices')} before the merge can continue.`,
+      };
+    case 'up-to-date':
+      return {
+        tone: 'neutral',
+        label: 'summary',
+        detail: `${effectiveTarget} already contains the changes from ${effectiveSource}.`,
+      };
+    default:
+      return {
+        tone: 'neutral',
+        label: 'processing',
+        detail: taskName,
+      };
+  }
+}
+
+function getPreflightToneClasses(tone: PreflightStatusModel['tone']): string {
+  switch (tone) {
+    case 'warning':
+      return 'text-amber-500';
+    case 'neutral':
+    default:
+      return 'text-theme-muted';
+  }
+}
+
 function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
   const {
     repoPath,
@@ -127,7 +217,6 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     isResolvingConflict,
     conflictSidesInfo,
     isSquashMerge,
-    setIsSquashMerge,
     currentBranch,
     availableBranches,
     targetBranch,
@@ -164,11 +253,11 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [isAbandoningMerge, setIsAbandoningMerge] = useState(false);
   const [isReviewDrawerOpen, setIsReviewDrawerOpen] = useState(false);
-  const [isTargetBranchDrawerOpen, setIsTargetBranchDrawerOpen] = useState(false);
   const [viewingDiffForFile, setViewingDiffForFile] = useState<string | null>(null);
   const hasAutoAnalyzedRef = useRef(false);
+  const preparingShownAtRef = useRef<number | null>(null);
+  const displayedOutcomeTimerRef = useRef<number | null>(null);
   const reviewDrawerRef = useRef<HTMLDivElement | null>(null);
-  const targetBranchDrawerRef = useRef<HTMLDivElement | null>(null);
   const hasActiveMerge = hasActiveMergeFromController ?? (Boolean(conflictCheckResult?.mergeStarted) && !showSuccess && !conflictCheckResult?.autoCompleted);
   const defaultMergeMessage = defaultMergeMessageFromController ?? getDefaultMergeMessage(
     effectiveSource,
@@ -250,26 +339,73 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     showSuccess,
     targetBranch,
   ]);
+  const [displayedOutcomeState, setDisplayedOutcomeState] = useState<MergeOutcomeState>(outcomeState);
 
   useEffect(() => {
-    if (!open || outcomeState !== 'review') {
-      setIsReviewDrawerOpen(false);
+    return () => {
+      if (displayedOutcomeTimerRef.current !== null) {
+        window.clearTimeout(displayedOutcomeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (displayedOutcomeTimerRef.current !== null) {
+      window.clearTimeout(displayedOutcomeTimerRef.current);
+      displayedOutcomeTimerRef.current = null;
     }
+
+    if (!open) {
+      preparingShownAtRef.current = null;
+      setDisplayedOutcomeState(outcomeState);
+      return;
+    }
+
+    if (outcomeState === 'preparing') {
+      if (preparingShownAtRef.current === null) {
+        preparingShownAtRef.current = Date.now();
+      }
+
+      setDisplayedOutcomeState('preparing');
+      return;
+    }
+
+    if (preparingShownAtRef.current !== null && isPreflightResultState(outcomeState)) {
+      const elapsed = Date.now() - preparingShownAtRef.current;
+      const remaining = PREPARING_STATUS_MIN_DURATION_MS - elapsed;
+
+      if (remaining > 0) {
+        displayedOutcomeTimerRef.current = window.setTimeout(() => {
+          preparingShownAtRef.current = null;
+          displayedOutcomeTimerRef.current = null;
+          setDisplayedOutcomeState(outcomeState);
+        }, remaining);
+        return;
+      }
+    }
+
+    preparingShownAtRef.current = null;
+    setDisplayedOutcomeState(outcomeState);
   }, [open, outcomeState]);
 
   useEffect(() => {
+    if (!open || displayedOutcomeState !== 'review') {
+      setIsReviewDrawerOpen(false);
+    }
+  }, [displayedOutcomeState, open]);
+
+  useEffect(() => {
     if (!open) {
-      setIsTargetBranchDrawerOpen(false);
       setViewingDiffForFile(null);
     }
   }, [open]);
 
   useEffect(() => {
     setViewingDiffForFile(null);
-  }, [outcomeState]);
+  }, [displayedOutcomeState]);
 
   useEffect(() => {
-    if (!isReviewDrawerOpen && !isTargetBranchDrawerOpen) {
+    if (!isReviewDrawerOpen) {
       return undefined;
     }
 
@@ -277,16 +413,11 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
       if (isReviewDrawerOpen && !reviewDrawerRef.current?.contains(event.target as Node)) {
         setIsReviewDrawerOpen(false);
       }
-
-      if (isTargetBranchDrawerOpen && !targetBranchDrawerRef.current?.contains(event.target as Node)) {
-        setIsTargetBranchDrawerOpen(false);
-      }
     };
 
     const handleEscape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setIsReviewDrawerOpen(false);
-        setIsTargetBranchDrawerOpen(false);
       }
     };
 
@@ -297,10 +428,23 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
       document.removeEventListener('mousedown', handlePointerDown, true);
       document.removeEventListener('keydown', handleEscape, true);
     };
-  }, [isReviewDrawerOpen, isTargetBranchDrawerOpen]);
+  }, [isReviewDrawerOpen]);
 
-  const badge = buildOutcomeBadge(outcomeState);
-  const isReviewState = outcomeState === 'review';
+  const badge = buildOutcomeBadge(displayedOutcomeState);
+  const shouldShowInlinePreflight = useMemo(
+    () => (
+      open
+      && !hasActiveMerge
+      && !showSuccess
+      && (
+        displayedOutcomeState === 'setup'
+        || displayedOutcomeState === 'preparing'
+        || isPreflightResultState(displayedOutcomeState)
+      )
+    ),
+    [displayedOutcomeState, hasActiveMerge, open, showSuccess],
+  );
+  const isReviewState = displayedOutcomeState === 'review';
   const isViewingDiff = viewingDiffForFile !== null;
   const showReviewFileNav = isReviewState && isViewingDiff;
   const activeReviewPath = useMemo(
@@ -336,6 +480,30 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   const allMergeReviewFilesSelected = useMemo(
     () => mergeReviewFiles.length > 0 && selectedReviewFiles.length === mergeReviewFiles.length,
     [mergeReviewFiles.length, selectedReviewFiles.length],
+  );
+  const isDestinationReady = Boolean(targetBranch) && targetBranch !== currentBranch;
+  const preflightStatusModel = useMemo(
+    () => (shouldShowInlinePreflight
+      ? buildPreflightStatusModel({
+        outcomeState: displayedOutcomeState,
+        currentBranch,
+        effectiveSource,
+        effectiveTarget,
+        isDestinationReady,
+        mergeReviewFileCount: mergeReviewFiles.length,
+        conflictedFileCount: conflictedFiles.length,
+      })
+      : null),
+    [
+      conflictedFiles.length,
+      currentBranch,
+      effectiveSource,
+      effectiveTarget,
+      isDestinationReady,
+      mergeReviewFiles.length,
+      displayedOutcomeState,
+      shouldShowInlinePreflight,
+    ],
   );
 
   const requestClose = useCallback((): void => {
@@ -416,34 +584,27 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
 
   const handleTargetBranchSelection = useCallback((nextTargetBranch: string): void => {
     if (!nextTargetBranch || nextTargetBranch === effectiveTarget) {
-      setIsTargetBranchDrawerOpen(false);
       return;
     }
 
     hasAutoAnalyzedRef.current = false;
     setIsReviewDrawerOpen(false);
-    setIsTargetBranchDrawerOpen(false);
     handleTargetBranchChange(nextTargetBranch);
   }, [effectiveTarget, handleTargetBranchChange]);
 
-  const branchOptions = useMemo(
-    () => availableBranches.map((branch) => ({ value: branch.name, label: branch.name })),
-    [availableBranches],
-  );
-
-  const targetBranchOptions = useMemo(
+  const targetBranchOptions = useMemo<TargetBranchOption[]>(
     () => [{ name: currentBranch, isCurrent: true }, ...availableBranches],
     [availableBranches, currentBranch],
   );
 
-  const isTargetBranchLocked = hasActiveMerge || outcomeState === 'complete' || outcomeState === 'success';
+  const isTargetBranchLocked = hasActiveMerge || displayedOutcomeState === 'complete' || displayedOutcomeState === 'success';
 
   let footerNote = 'Note: Check this step, then continue when you are ready.';
 
   let title = 'Preparing merge';
   let description = 'Checking whether your work can be merged safely.';
 
-  switch (outcomeState) {
+  switch (displayedOutcomeState) {
     case 'setup':
       title = 'Choose where to merge';
       description = 'Pick the destination branch before checking the merge path.';
@@ -517,65 +678,13 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
 
                   <ArrowRight style={iconSm} className="text-theme-muted shrink-0" />
 
-                  <div ref={targetBranchDrawerRef} className="relative">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isTargetBranchLocked}
-                      onClick={() => setIsTargetBranchDrawerOpen((current) => !current)}
-                      aria-expanded={isTargetBranchDrawerOpen}
-                      aria-controls="merge-target-branch-drawer"
-                      aria-label={`Change target branch from ${effectiveTarget}`}
-                      className="h-9 rounded-xl border-theme-default bg-theme-surface/70 px-3 text-theme-primary"
-                    >
-                      <GitBranch style={iconSm} className="text-amber-400 shrink-0" />
-                      <span className="truncate">{effectiveTarget}</span>
-                      <ChevronDown
-                        style={iconSm}
-                        className={`shrink-0 text-theme-muted transition-transform ${isTargetBranchDrawerOpen ? 'rotate-180' : ''}`}
-                      />
-                    </Button>
-
-                    {isTargetBranchDrawerOpen && (
-                      <div
-                        id="merge-target-branch-drawer"
-                        className="absolute left-0 top-full z-20 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-theme-default bg-theme-surface shadow-xl"
-                      >
-                        <div className="border-b border-theme-default px-4 py-3">
-                          <p className="text-sm font-medium text-theme-primary">Choose a destination branch</p>
-                          <p className="mt-1 text-xs text-theme-secondary">Pick another branch before you continue the merge.</p>
-                        </div>
-                        <div className="max-h-72 overflow-auto p-2">
-                          {targetBranchOptions.map((branch) => {
-                            const isSelected = branch.name === effectiveTarget;
-
-                            return (
-                              <button
-                                key={branch.name}
-                                type="button"
-                                disabled={branch.isCurrent}
-                                onClick={() => handleTargetBranchSelection(branch.name)}
-                                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                                  branch.isCurrent
-                                    ? 'cursor-not-allowed bg-theme-muted/30 text-theme-muted opacity-100'
-                                    : isSelected
-                                      ? 'bg-theme-muted text-theme-primary'
-                                      : 'text-theme-secondary hover:bg-theme-muted/60 hover:text-theme-primary'
-                                }`}
-                              >
-                                <span className="min-w-0 truncate">
-                                  <span className="font-medium">{branch.name}</span>
-                                  {branch.isCurrent && <span className="ml-2 text-xs text-theme-muted">(Current branch)</span>}
-                                </span>
-                                {isSelected && <Check style={iconSm} className="shrink-0 text-blue-400" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <TargetBranchDrawer
+                    disabled={isTargetBranchLocked}
+                    onSelect={handleTargetBranchSelection}
+                    options={targetBranchOptions}
+                    selectedBranch={effectiveTarget}
+                    variant="header"
+                  />
                 </div>
 
                 {!isReviewState && description && <AlertDialogDescription className="mt-3">{description}</AlertDialogDescription>}
@@ -660,24 +769,29 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
             ) : null}
           </div>
 
-          <div className={isViewingDiff ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0 overflow-auto px-5 py-4'}>
+          <div className={isViewingDiff ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0 overflow-hidden px-5 py-4'}>
             {error && (
               <div className={isViewingDiff ? 'mx-5 mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300' : 'mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300'}>
                 {error}
               </div>
             )}
 
-            {outcomeState === 'preparing' && (
-              <div className="h-full min-h-80 flex items-center justify-center">
-                <div className="text-center max-w-md">
-                  <Loader2 style={iconLg} className="mx-auto mb-4 animate-spin text-blue-400" />
-                  <p className="text-theme-primary text-lg font-medium mb-2">Preparing merge</p>
-                  <p className="text-theme-secondary text-sm">Checking whether your work can be merged safely.</p>
-                </div>
-              </div>
+            {preflightStatusModel && !isViewingDiff && (
+              <Card className="mb-4 border-none bg-transparent shadow-none">
+                <CardContent className="px-0 py-0">
+                  <div className={`flex items-center gap-2 text-sm ${getPreflightToneClasses(preflightStatusModel.tone)}`}>
+                    {preflightStatusModel.label === 'processing' ? (
+                      <Hourglass className="h-4 w-4 shrink-0" />
+                    ) : null}
+                    <span className="shrink-0 lowercase">{preflightStatusModel.label}</span>
+                    <span className="shrink-0">:</span>
+                    <span className="min-w-0 truncate">{preflightStatusModel.detail}</span>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
-            {outcomeState === 'setup' && (
+            {displayedOutcomeState === 'setup' && (
               <div className="max-w-xl mx-auto">
                 <Card>
                   <CardContent className="p-6 space-y-4">
@@ -685,34 +799,28 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                       <p className="text-theme-primary text-base font-medium mb-1">Choose a destination branch</p>
                       <p className="text-theme-secondary text-sm">The merge check needs to know which branch should receive your changes.</p>
                     </div>
-                    <Select
-                      value={targetBranch}
-                      onValueChange={setTargetBranch}
-                      options={branchOptions}
-                      placeholder="Select a destination branch"
+                    <TargetBranchDrawer
+                      onSelect={handleTargetBranchSelection}
+                      options={targetBranchOptions}
+                      selectedBranch={targetBranch}
+                      variant="panel"
                     />
-                    <label className="flex items-center justify-between gap-4 rounded-lg border border-theme-default px-4 py-3">
+                    <div className="rounded-lg border border-theme-default bg-theme-surface/40 px-4 py-3">
                       <div>
-                        <p className="text-theme-primary text-sm font-medium">Combine changes into one save</p>
-                        <p className="text-theme-secondary text-xs">Use a squash merge to keep history simple for non-technical users.</p>
+                        <p className="text-theme-primary text-sm font-medium">Save style</p>
+                        <p className="text-theme-secondary text-xs">
+                          {isSquashMerge
+                            ? 'ControlZebra will combine these changes into one save by default.'
+                            : 'This merge is using the repository default merge style.'}
+                        </p>
                       </div>
-                      <button
-                        type="button"
-                        aria-pressed={isSquashMerge}
-                        onClick={() => setIsSquashMerge(!isSquashMerge)}
-                        className={`relative h-6 w-11 rounded-full transition-colors ${isSquashMerge ? 'bg-blue-500' : 'bg-gray-600'}`}
-                      >
-                        <span
-                          className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform ${isSquashMerge ? 'translate-x-5' : 'translate-x-0'}`}
-                        />
-                      </button>
-                    </label>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             )}
 
-            {(outcomeState === 'ready' || outcomeState === 'review') && (
+            {(displayedOutcomeState === 'ready' || displayedOutcomeState === 'review') && (
               isViewingDiff ? (
                 <div className="h-full flex flex-col px-5 py-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-theme-default mb-3">
@@ -732,9 +840,10 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                   </div>
                 </div>
               ) : mergeReviewFiles.length > 0 ? (
-                <div className="h-full min-h-0 flex flex-col">
+                <div className="h-full min-h-0 flex flex-col overflow-hidden">
                   <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-theme-default bg-theme-surface/30">
-                    <Table>
+                    <div className="h-full overflow-auto">
+                      <Table>
                       <TableHeader className="bg-theme-elevated">
                         <TableRow className="hover:bg-theme-elevated">
                           <TableHead className="w-14">
@@ -792,26 +901,13 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="max-w-3xl mx-auto space-y-4">
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <CheckCircle2 style={iconLg} className="text-green-400 shrink-0" />
-                        <div>
-                          <p className="text-theme-primary text-lg font-medium mb-2">Everything looks good</p>
-                          <p className="text-theme-secondary text-sm">No conflicts were found. You can merge {effectiveSource} into {effectiveTarget} now.</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )
+              ) : null
             )}
 
-            {outcomeState === 'needs-decisions' && (
+            {displayedOutcomeState === 'needs-decisions' && (
               isViewingDiff ? (
                 <div className="h-full flex flex-col px-5 py-4">
                   <div className="flex items-center gap-2 pb-3 border-b border-theme-default mb-3">
@@ -831,9 +927,10 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                   </div>
                 </div>
               ) : (
-              <div className="h-full min-h-0 flex flex-col">
+              <div className="h-full min-h-0 flex flex-col overflow-hidden">
                 <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-theme-default bg-theme-surface/30">
-                  <Table>
+                  <div className="h-full overflow-auto">
+                    <Table>
                     <TableHeader className="bg-theme-elevated">
                       <TableRow className="hover:bg-theme-elevated">
                         <TableHead className="w-14">
@@ -902,12 +999,13 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </div>
               )
             )}
 
-            {outcomeState === 'resolving' && (
+            {displayedOutcomeState === 'resolving' && (
               <MergeConflictQueue
                 conflictedFiles={conflictedFiles}
                 selectedConflictFile={selectedConflictFile}
@@ -921,33 +1019,10 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
               />
             )}
 
-            {outcomeState === 'resolving-preparing' && (
-              <div className="h-full min-h-80 flex items-center justify-center">
-                <div className="text-center max-w-md">
-                  <Loader2 style={iconLg} className="mx-auto mb-4 animate-spin text-amber-400" />
-                  <p className="text-theme-primary text-lg font-medium mb-2">Preparing the conflict list</p>
-                  <p className="text-theme-secondary text-sm">
-                    The merge is in progress. ControlZebra is checking which files still need a choice before it shows the resolution queue.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {outcomeState === 'complete' && (
+            {displayedOutcomeState === 'complete' && (
               <div className="max-w-3xl mx-auto space-y-4">
                 <Card>
                   <CardContent className="p-6 space-y-4">
-                    <div className="flex items-start gap-4">
-                      <Sparkles style={iconLg} className="text-blue-400 shrink-0" />
-                      <div>
-                        <p className="text-theme-primary text-lg font-medium mb-2">Everything is ready</p>
-                        <p className="text-theme-secondary text-sm">
-                          {conflictCheckResult?.liveMergePhase === 'ready-to-complete'
-                            ? 'The repository confirms there are no unresolved conflicts. Add a merge message and finish.'
-                            : 'No conflicts were found after the merge started. Add a message and finish.'}
-                        </p>
-                      </div>
-                    </div>
                     <div>
                       <p className="text-theme-muted text-xs uppercase tracking-wide mb-2">Merge message</p>
                       <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} />
@@ -957,30 +1032,8 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
               </div>
             )}
 
-            {outcomeState === 'up-to-date' && (
-              <div className="h-full min-h-80 flex items-center justify-center">
-                <div className="text-center max-w-md">
-                  <CheckCircle2 style={iconLg} className="mx-auto mb-4 text-blue-400" />
-                  <p className="text-theme-primary text-lg font-medium mb-2">Nothing to merge</p>
-                  <p className="text-theme-secondary text-sm">{effectiveTarget} already contains these changes.</p>
-                </div>
-              </div>
-            )}
-
-            {outcomeState === 'success' && (
+            {displayedOutcomeState === 'success' && (
               <div className="max-w-3xl mx-auto space-y-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <CheckCircle2 style={iconLg} className="text-green-400 shrink-0" />
-                      <div>
-                        <p className="text-theme-primary text-lg font-medium mb-2">Merge finished</p>
-                        <p className="text-theme-secondary text-sm">Your changes are now in {effectiveTarget}.</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {canDeleteMergedBranch && (
                   <Card>
                     <CardContent className="p-6 flex items-start justify-between gap-4 flex-col md:flex-row md:items-center">
@@ -1001,57 +1054,57 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
 
           <AlertDialogFooter className="border-t border-theme-default bg-theme-surface/60 px-5 py-3 justify-between">
             <div className="text-xs text-theme-muted">
-              {outcomeState === 'resolving' && selectedConflict
+              {displayedOutcomeState === 'resolving' && selectedConflict
                 ? `Note: Choose what to keep for ${selectedConflict.path}.`
                 : footerNote}
             </div>
             <div className="flex gap-2">
-              {(outcomeState === 'setup' || outcomeState === 'ready' || outcomeState === 'review' || outcomeState === 'needs-decisions' || outcomeState === 'complete' || outcomeState === 'resolving' || outcomeState === 'resolving-preparing') && (
+              {(displayedOutcomeState === 'setup' || displayedOutcomeState === 'ready' || displayedOutcomeState === 'review' || displayedOutcomeState === 'needs-decisions' || displayedOutcomeState === 'complete' || displayedOutcomeState === 'resolving' || displayedOutcomeState === 'resolving-preparing') && (
                 <Button variant="outline" onClick={requestClose} disabled={isResolvingConflict || isCompletingMerge}>
                   Cancel
                 </Button>
               )}
 
-              {outcomeState === 'setup' && (
+              {displayedOutcomeState === 'setup' && (
                 <Button onClick={handleRetryAnalysis} disabled={!targetBranch || targetBranch === currentBranch}>
                   <Search style={iconSm} className="mr-2" />
                   Check merge
                 </Button>
               )}
 
-              {outcomeState === 'ready' && (
+              {displayedOutcomeState === 'ready' && (
                 <Button onClick={handleMergeNow}>
                   <Check style={iconSm} className="mr-2" />
                   Merge now
                 </Button>
               )}
 
-              {outcomeState === 'review' && (
+              {displayedOutcomeState === 'review' && (
                 <Button onClick={handleMergeNow} disabled={selectedReviewFiles.length === 0}>
                   <Check style={iconSm} className="mr-2" />
                   Merge now
                 </Button>
               )}
 
-              {outcomeState === 'needs-decisions' && (
+              {displayedOutcomeState === 'needs-decisions' && (
                 <Button onClick={handleMergeNow} disabled={selectedReviewFiles.length === 0}>
                   <ChevronRight style={iconSm} className="mr-2" />
                   Start guided merge for selected files
                 </Button>
               )}
 
-              {outcomeState === 'complete' && (
+              {displayedOutcomeState === 'complete' && (
                 <Button onClick={handleFinishMerge} disabled={isCompletingMerge || !message.trim()}>
                   {isCompletingMerge ? <Loader2 style={iconSm} className="animate-spin mr-2" /> : <Check style={iconSm} className="mr-2" />}
                   Save my choices and finish
                 </Button>
               )}
 
-              {outcomeState === 'up-to-date' && (
+              {displayedOutcomeState === 'up-to-date' && (
                 <Button onClick={requestClose}>Close</Button>
               )}
 
-              {outcomeState === 'success' && (
+              {displayedOutcomeState === 'success' && (
                 <Button onClick={requestClose}>Done</Button>
               )}
             </div>
