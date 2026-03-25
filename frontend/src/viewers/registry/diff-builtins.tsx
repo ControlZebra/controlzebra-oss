@@ -5,7 +5,7 @@ import { isImageFile } from '../../shared/constants/file-utils';
 import TextDiffViewer from '../components/diff/TextDiffViewer';
 import { registerDiffViewer, type DiffRenderRequest } from './diff-registry';
 
-const L5XDiffViewer = lazy(() => import('../components/diff/l5x-diff/L5XDiffViewer'));
+const L5XDiffViewer = lazy(() => import('../components/diff/l5x-layout-diff/L5XLayoutDiffViewer'));
 const ImageDiffViewer = lazy(() => import('../components/diff/ImageDiffViewer'));
 const PDFDiffViewer = lazy(() => import('../components/diff/PDFDiffViewer'));
 const Model3DDiffViewer = lazy(() => import('../components/diff/Model3DDiffViewer'));
