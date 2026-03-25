@@ -2,7 +2,7 @@
  * Supabase Auth Client for ControlZebra Desktop
  *
  * Thin wrapper around @supabase/supabase-js that:
- * 1. Initialises the client with project URL + publishable key from env vars.
+ * 1. Initialises the client with project URL + publishable key from env vars when available.
  * 2. Disables built-in localStorage persistence (we use the Go keychain service instead).
  * 3. Exposes ergonomic helpers for sign-in, sign-out, session hydration, and refresh.
  *
@@ -10,10 +10,10 @@
  *   https://supabase.com/docs/guides/auth/quickstarts/react
  *
  * Usage:
- *   import { supabase, signIn, signOut, getSession, refreshSession } from './supabaseClient';
+ *   import { signIn, signOut, getSession, refreshSession } from './supabaseClient';
  */
 
-import { createClient, type Session } from '@supabase/supabase-js';
+import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 // These values come from frontend/.env.local (see .env.example for the template).
@@ -21,29 +21,45 @@ import { createClient, type Session } from '@supabase/supabase-js';
 // See: https://github.com/orgs/supabase/discussions/29260
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const isConfigured = Boolean(supabaseUrl && supabaseKey);
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    '[ControlZebra] Missing Supabase configuration. ' +
-    'Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY in frontend/.env.local'
-  );
+let supabaseClient: SupabaseClient | null = null;
+
+function getUnavailableError(): string {
+  return 'Account sign-in is unavailable in this build. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY to enable it.';
+}
+
+function getSupabaseClient(): SupabaseClient | null {
+  if (!isConfigured) {
+    return null;
+  }
+
+  if (!supabaseClient) {
+    supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        // Disable built-in persistence — we manage tokens through the Go keychain service
+        persistSession: false,
+        // Disable auto-refresh — we control refresh explicitly so we can persist
+        // the updated tokens back to the keychain
+        autoRefreshToken: false,
+        // No need to detect session from URL in a desktop app
+        detectSessionInUrl: false,
+      },
+    });
+  }
+
+  return supabaseClient;
+}
+
+export function isSupabaseConfigured(): boolean {
+  return isConfigured;
 }
 
 // ─── Client Initialisation ──────────────────────────────────────────────────
 // We disable the default browser-storage persistence because tokens are stored
 // securely via the Go backend (OS keychain). The frontend will explicitly
 // hydrate the session on startup from the backend store.
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    // Disable built-in persistence — we manage tokens through the Go keychain service
-    persistSession: false,
-    // Disable auto-refresh — we control refresh explicitly so we can persist
-    // the updated tokens back to the keychain
-    autoRefreshToken: false,
-    // No need to detect session from URL in a desktop app
-    detectSessionInUrl: false,
-  },
-});
+export const supabase = getSupabaseClient();
 
 // ─── Auth Result Types ──────────────────────────────────────────────────────
 
@@ -60,7 +76,12 @@ export interface AuthResult {
  * Returns the session on success so the caller can persist it via the backend.
  */
 export async function signIn(email: string, password: string): Promise<AuthResult> {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, session: null, error: getUnavailableError() };
+  }
+
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
 
   if (error) {
     return { success: false, session: null, error: error.message };
@@ -74,7 +95,12 @@ export async function signIn(email: string, password: string): Promise<AuthResul
  * The caller should also clear the backend keychain store after this call.
  */
 export async function signOut(): Promise<{ success: boolean; error: string | null }> {
-  const { error } = await supabase.auth.signOut();
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: true, error: null };
+  }
+
+  const { error } = await client.auth.signOut();
 
   if (error) {
     return { success: false, error: error.message };
@@ -88,7 +114,12 @@ export async function signOut(): Promise<{ success: boolean; error: string | nul
  * Returns null if no session has been hydrated.
  */
 export async function getSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession();
+  const client = getSupabaseClient();
+  if (!client) {
+    return null;
+  }
+
+  const { data } = await client.auth.getSession();
   return data.session;
 }
 
@@ -100,6 +131,11 @@ export async function getSession(): Promise<Session | null> {
  * access token is expired but the refresh token is still valid).
  */
 export async function hydrateSession(sessionJSON: string): Promise<AuthResult> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, session: null, error: getUnavailableError() };
+  }
+
   if (!sessionJSON) {
     return { success: false, session: null, error: 'No stored session' };
   }
@@ -112,7 +148,7 @@ export async function hydrateSession(sessionJSON: string): Promise<AuthResult> {
   }
 
   // setSession validates the tokens and refreshes if the access token is expired
-  const { data, error } = await supabase.auth.setSession({
+  const { data, error } = await client.auth.setSession({
     access_token: stored.access_token,
     refresh_token: stored.refresh_token,
   });
@@ -130,7 +166,12 @@ export async function hydrateSession(sessionJSON: string): Promise<AuthResult> {
  * Returns the new session so the caller can persist it.
  */
 export async function refreshSession(): Promise<AuthResult> {
-  const { data, error } = await supabase.auth.refreshSession();
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, session: null, error: getUnavailableError() };
+  }
+
+  const { data, error } = await client.auth.refreshSession();
 
   if (error) {
     return { success: false, session: null, error: error.message };

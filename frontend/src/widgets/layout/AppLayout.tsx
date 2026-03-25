@@ -10,6 +10,7 @@ import MainArea from './MainArea';
 import StatusBar from './StatusBar';
 import NonGitFolderPromptModal from './NonGitFolderPromptModal';
 import AdditionalPackagesModal from './AdditionalPackagesModal';
+import GitIdentityPromptModal from './GitIdentityPromptModal';
 
 /**
  * AppLayoutInner - Inner component that has access to RepoContext and LayoutContext.
@@ -34,6 +35,7 @@ function AppLayoutInner(): JSX.Element {
 
       <NonGitFolderPromptModal />
       <AdditionalPackagesModal />
+      <GitIdentityPromptModal />
       <ExplorerMergeModal
         open={explorerMergeModalOpen}
         onOpenChange={setExplorerMergeModalOpen}

@@ -1,6 +1,5 @@
 import { useAuth } from '../context';
 import { AppLayout } from '../widgets/layout';
-import LoginView from '../features/auth/components/LoginView';
 import Spinner from '../shared/ui/Spinner';
 import { useLoginTheme } from '../shared/hooks/useLoginTheme';
 import { AnalyticsProvider, AuthProvider, RepoProvider } from './providers';
@@ -18,7 +17,7 @@ function App(): JSX.Element {
 export default App;
 
 function AuthGate(): JSX.Element {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isLoading } = useAuth();
 
   // Apply theme before LayoutProvider is available (pre-auth screens)
   useLoginTheme();
@@ -32,10 +31,6 @@ function AuthGate(): JSX.Element {
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return <LoginView />;
   }
 
   return (

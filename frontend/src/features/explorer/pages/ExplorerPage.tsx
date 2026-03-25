@@ -14,6 +14,8 @@ import { memo, useState, useCallback, useMemo } from 'react';
 import { useRepo, useLayout } from '../../../context';
 import { OpenFolderDialog } from '../../../../bindings/controlzebra/services/filedialogservice';
 import { RecentProjectsPage, NewProjectPage, CloneProjectPage, OpenFolderPage } from '../../welcome/pages';
+import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import { useGitHubDeviceFlow } from '../../auth/hooks/useGitHubDeviceFlow';
 import SimpleFileBrowser from '../components/SimpleFileBrowser';
 import ExplorerTabsBar from '../components/ExplorerTabsBar';
 import ExplorerCommitTabContent from '../components/ExplorerCommitTabContent';
@@ -36,7 +38,6 @@ function ExplorerPage(): JSX.Element {
     startTracking,
     installRequiredPackages,
     publishToGitHub,
-    startGitHubLogin,
     loadUserOrganizations,
     refreshRemotes,
     hasRemote,
@@ -56,6 +57,12 @@ function ExplorerPage(): JSX.Element {
   } = useLayout();
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const {
+    deviceFlow,
+    startDeviceFlow,
+    closeDeviceFlow,
+    handleDeviceFlowOpenChange,
+  } = useGitHubDeviceFlow();
 
   const handleOpenFolder = useCallback(async (): Promise<void> => {
     setIsOpeningFolder(true);
@@ -107,8 +114,8 @@ function ExplorerPage(): JSX.Element {
 
   // Handle GitHub connect from banner
   const handleConnectGitHub = useCallback(async (): Promise<void> => {
-    await startGitHubLogin();
-  }, [startGitHubLogin]);
+    await startDeviceFlow();
+  }, [startDeviceFlow]);
 
   // Memoize file tabs - must be called before any conditional returns (Rules of Hooks)
   const fileTabs = useMemo(() => 
@@ -239,50 +246,60 @@ function ExplorerPage(): JSX.Element {
     && projectState !== PROJECT_STATES.NESTED_REPO;
 
   return (
-    <div className="flex flex-col h-full">
-      <ExplorerTabsBar />
+    <>
+      <div className="flex flex-col h-full">
+        <ExplorerTabsBar />
 
-      {/* State-aware project setup banner (Phase 12.2 / 12.4) */}
-      {showBanner && isFileBrowserActive && (
-        <ProjectSetupBanner
-          projectState={projectState}
-          folderName={folderName}
-          repoPath={repoPath}
-          fileCount={repoStatus?.changedFiles?.length}
-          onEnableVersionControl={startTracking}
-          onInstallRequiredPackages={installRequiredPackages}
-          onPublishToGitHub={handlePublishFromBanner}
-          onConnectGitHub={handleConnectGitHub}
-          onLoadOrganizations={loadUserOrganizations}
-          isLoading={isLoading}
-          gitInstalled={gitInstalled}
-          lfsInstalled={lfsInstalled}
-          isInstallingPackages={isInstallingPackages}
-          isPublishing={isPublishing}
-          ghInstalled={ghInstalled}
-          ghAuthStatus={ghAuthStatus}
-        />
-      )}
+        {/* State-aware project setup banner (Phase 12.2 / 12.4) */}
+        {showBanner && isFileBrowserActive && (
+          <ProjectSetupBanner
+            projectState={projectState}
+            folderName={folderName}
+            repoPath={repoPath}
+            fileCount={repoStatus?.changedFiles?.length}
+            onEnableVersionControl={startTracking}
+            onInstallRequiredPackages={installRequiredPackages}
+            onPublishToGitHub={handlePublishFromBanner}
+            onConnectGitHub={handleConnectGitHub}
+            onLoadOrganizations={loadUserOrganizations}
+            isLoading={isLoading}
+            gitInstalled={gitInstalled}
+            lfsInstalled={lfsInstalled}
+            isInstallingPackages={isInstallingPackages}
+            isPublishing={isPublishing}
+            ghInstalled={ghInstalled}
+            ghAuthStatus={ghAuthStatus}
+          />
+        )}
 
-      <div className="flex-1 min-h-0 overflow-hidden relative">
-        {/* File browser - always mounted, shown when active */}
-        <div 
-          className="h-full"
-          style={{ display: isFileBrowserActive ? 'block' : 'none' }}
-        >
-          <SimpleFileBrowser repoPath={repoPath} />
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          {/* File browser - always mounted, shown when active */}
+          <div 
+            className="h-full"
+            style={{ display: isFileBrowserActive ? 'block' : 'none' }}
+          >
+            <SimpleFileBrowser repoPath={repoPath} />
+          </div>
+
+          {/* All file tabs - mounted but hidden when not active */}
+          {renderedFileTabs}
+
+          {/* All diff tabs - mounted but hidden when not active */}
+          {renderedDiffTabs}
+
+          {/* Commit overview tabs - mounted but hidden when not active */}
+          {renderedCommitTabs}
         </div>
-        
-        {/* All file tabs - mounted but hidden when not active */}
-        {renderedFileTabs}
-        
-        {/* All diff tabs - mounted but hidden when not active */}
-        {renderedDiffTabs}
-
-        {/* Commit overview tabs - mounted but hidden when not active */}
-        {renderedCommitTabs}
       </div>
-    </div>
+
+      <GitHubDeviceFlowModal
+        open={deviceFlow.isOpen}
+        userCode={deviceFlow.userCode}
+        verificationUrl={deviceFlow.verificationUrl}
+        onComplete={closeDeviceFlow}
+        onOpenChange={handleDeviceFlowOpenChange}
+      />
+    </>
   );
 }
 

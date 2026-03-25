@@ -26,6 +26,7 @@ describe('LoginView', () => {
     mockUseAuth.mockReturnValue({
       loginWithPassword: vi.fn(),
       isLoading: true,
+      isAuthAvailable: true,
       authError: null,
     });
 
@@ -38,6 +39,7 @@ describe('LoginView', () => {
     mockUseAuth.mockReturnValue({
       loginWithPassword: vi.fn(),
       isLoading: false,
+      isAuthAvailable: true,
       authError: 'Invalid credentials',
     });
 
@@ -50,6 +52,7 @@ describe('LoginView', () => {
     mockUseAuth.mockReturnValue({
       loginWithPassword: vi.fn(),
       isLoading: false,
+      isAuthAvailable: true,
       authError: null,
     });
 
@@ -68,6 +71,7 @@ describe('LoginView', () => {
     mockUseAuth.mockReturnValue({
       loginWithPassword,
       isLoading: false,
+      isAuthAvailable: true,
       authError: null,
     });
 
@@ -88,6 +92,7 @@ describe('LoginView', () => {
     mockUseAuth.mockReturnValue({
       loginWithPassword,
       isLoading: false,
+      isAuthAvailable: true,
       authError: null,
     });
 
@@ -100,5 +105,19 @@ describe('LoginView', () => {
     await waitFor(() => {
       expect(screen.getByText('Bad login')).toBeInTheDocument();
     });
+  });
+
+  it('shows guest-safe messaging when account sign-in is unavailable', () => {
+    mockUseAuth.mockReturnValue({
+      loginWithPassword: vi.fn(),
+      isLoading: false,
+      isAuthAvailable: false,
+      authError: null,
+    });
+
+    render(<LoginView variant="embedded" />);
+
+    expect(screen.getByText('Account sign-in is unavailable in this build.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
   });
 });

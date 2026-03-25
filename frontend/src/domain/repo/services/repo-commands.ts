@@ -59,6 +59,8 @@ export {
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
+  GetUserProfile,
+  SetUserProfile,
 } from '../../../../bindings/controlzebra/services/settingsservice';
 
 export {

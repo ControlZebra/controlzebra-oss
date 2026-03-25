@@ -94,6 +94,8 @@ import {
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
+  GetUserProfile,
+  SetUserProfile,
   WriteRepoLocalConfig,
   EnsureControlZebraDir,
   StartBackgroundTasks,
@@ -159,6 +161,8 @@ import type {
   StartMergeResult,
   ParentBranchResult,
   BisectState,
+  GitIdentityPromptReason,
+  GitIdentityPromptState,
   GitHubAuthStatus,
   GitHubAuthResult,
   GitHubDeviceFlowResult,
@@ -204,6 +208,52 @@ const CLOSE_ALL_PREVIEW_TABS_EVENT = 'cz:explorer-close-all-previews';
 const CLOSE_FILE_PREVIEW_TABS_EVENT = 'cz:explorer-close-file-previews';
 const REPO_OPEN_SUCCESS_EVENT = 'cz:repo-open-success';
 
+interface CachedGitIdentity {
+  repoPath: string;
+  name: string;
+  email: string;
+}
+
+const EMPTY_GIT_IDENTITY: CachedGitIdentity = {
+  repoPath: '',
+  name: '',
+  email: '',
+};
+
+function getGitIdentityPromptMessage(reason: GitIdentityPromptReason): {
+  successLocal: string;
+  successGlobal: string;
+  cancel: string;
+} {
+  switch (reason) {
+    case 'initial-commit':
+      return {
+        successLocal: 'Name and email saved for this project. ControlZebra can make the first saved revision now.',
+        successGlobal: 'Name and email saved for all projects on this device. ControlZebra can make the first saved revision now.',
+        cancel: 'The first saved revision was skipped until a name and email are added.',
+      };
+    case 'merge-complete':
+      return {
+        successLocal: 'Name and email saved for this project. You can finish the merge now.',
+        successGlobal: 'Name and email saved for all projects on this device. You can finish the merge now.',
+        cancel: 'Merge completion was cancelled until a name and email are added.',
+      };
+    case 'branch-save':
+      return {
+        successLocal: 'Name and email saved for this project. ControlZebra can save to the new branch now.',
+        successGlobal: 'Name and email saved for all projects on this device. ControlZebra can save to the new branch now.',
+        cancel: 'Branch save was cancelled until a name and email are added.',
+      };
+    case 'save':
+    default:
+      return {
+        successLocal: 'Name and email saved for this project. ControlZebra can save changes now.',
+        successGlobal: 'Name and email saved for all projects on this device. ControlZebra can save changes now.',
+        cancel: 'Save was cancelled until a name and email are added.',
+      };
+  }
+}
+
 // Create context with null default
 const RepoContext = createContext<RepoContextValue | null>(null);
 
@@ -243,6 +293,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isCommitting, setIsCommitting] = useState(false);
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   const [nonGitFolderPromptPath, setNonGitFolderPromptPath] = useState<string | null>(null);
+  const [gitIdentityPrompt, setGitIdentityPrompt] = useState<GitIdentityPromptState | null>(null);
 
   // ===== Global Operation Lock =====
   // Prevents concurrent mutating git operations and provides UI feedback.
@@ -286,6 +337,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const startupAutoPullDueRef = useRef(false);
   const startupAutoPullDoneRef = useRef(false);
   const startupAutoPullDeadlineRef = useRef<number>(Date.now() + STARTUP_AUTO_PULL_DELAY_MS);
+  const gitIdentityPromptResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const gitIdentityRef = useRef<CachedGitIdentity>(EMPTY_GIT_IDENTITY);
 
   const isWindowsPlatform = useCallback((): boolean => {
     return navigator.userAgent.toLowerCase().includes('win');
@@ -606,6 +659,18 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [repoPath]);
 
+  const cacheGitIdentity = useCallback((path: string, name: string, email: string): void => {
+    gitIdentityRef.current = {
+      repoPath: path,
+      name: name.trim(),
+      email: email.trim(),
+    };
+  }, []);
+
+  const clearCachedGitIdentity = useCallback((): void => {
+    gitIdentityRef.current = EMPTY_GIT_IDENTITY;
+  }, []);
+
   // ===== Repo Operations =====
 
   // Open a folder by path
@@ -675,12 +740,16 @@ export function RepoProvider({ children }: RepoProviderProps) {
       if (info.isRepo) {
         try {
           const identity = await EnsureIdentity(path, userName || '', userEmail || '');
+          cacheGitIdentity(path, identity.name || '', identity.email || '');
           if (identity.wasAutoSet) {
             console.info('Git identity auto-configured from ControlZebra account:', identity.name, identity.email);
           }
         } catch (err) {
           console.warn('Failed to ensure git identity:', err);
+          clearCachedGitIdentity();
         }
+      } else {
+        clearCachedGitIdentity();
       }
       
       try {
@@ -717,7 +786,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [isLoading, repoPath, userName, userEmail, showMessage, refreshRepoSettings]);
+  }, [cacheGitIdentity, clearCachedGitIdentity, isLoading, repoPath, userName, userEmail, showMessage, refreshRepoSettings]);
 
   /**
    * Open folder entrypoint for user-driven folder selection.
@@ -743,6 +812,92 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const dismissNonGitFolderPrompt = useCallback((): void => {
     setNonGitFolderPromptPath(null);
   }, []);
+
+  const resolveGitIdentityPrompt = useCallback((value: boolean): void => {
+    const resolver = gitIdentityPromptResolverRef.current;
+    gitIdentityPromptResolverRef.current = null;
+    setGitIdentityPrompt(null);
+    resolver?.(value);
+  }, []);
+
+  const promptForGitIdentityIfMissing = useCallback(async (
+    path: string,
+    reason: GitIdentityPromptReason,
+  ): Promise<boolean> => {
+    const cachedIdentity = gitIdentityRef.current;
+    let suggestedName = cachedIdentity.repoPath === path ? cachedIdentity.name : (userName || '').trim();
+    let suggestedEmail = cachedIdentity.repoPath === path ? cachedIdentity.email : (userEmail || '').trim();
+
+    if (!suggestedName || !suggestedEmail) {
+      try {
+        const profile = await GetUserProfile(path);
+        suggestedName = (profile.name || suggestedName).trim();
+        suggestedEmail = (profile.email || suggestedEmail).trim();
+      } catch (err) {
+        console.warn('Failed to load git identity before save:', err);
+      }
+    }
+
+    if (suggestedName && suggestedEmail) {
+      cacheGitIdentity(path, suggestedName, suggestedEmail);
+      return true;
+    }
+
+    gitIdentityPromptResolverRef.current?.(false);
+
+    return new Promise<boolean>((resolve) => {
+      gitIdentityPromptResolverRef.current = resolve;
+      setGitIdentityPrompt({
+        isOpen: true,
+        repoPath: path,
+        name: suggestedName,
+        email: suggestedEmail,
+        reason,
+      });
+    });
+  }, [cacheGitIdentity, userName, userEmail]);
+
+  const submitGitIdentityPrompt = useCallback(async (
+    name: string,
+    email: string,
+    saveGlobally: boolean,
+  ): Promise<boolean> => {
+    if (!gitIdentityPrompt) {
+      return false;
+    }
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName || !trimmedEmail) {
+      showMessage('error', 'Name and email are required before ControlZebra can save changes.');
+      return false;
+    }
+
+    const targetPath = saveGlobally ? '' : gitIdentityPrompt.repoPath;
+    const result = await SetUserProfile(targetPath, { name: trimmedName, email: trimmedEmail }, saveGlobally);
+
+    if (!result.success) {
+      showMessage('error', result.error || 'Failed to save name and email');
+      return false;
+    }
+
+    cacheGitIdentity(gitIdentityPrompt.repoPath, trimmedName, trimmedEmail);
+    const messages = getGitIdentityPromptMessage(gitIdentityPrompt.reason);
+    showMessage('success', saveGlobally ? messages.successGlobal : messages.successLocal);
+    resolveGitIdentityPrompt(true);
+    return true;
+  }, [cacheGitIdentity, gitIdentityPrompt, resolveGitIdentityPrompt, showMessage]);
+
+  const cancelGitIdentityPrompt = useCallback((): void => {
+    if (!gitIdentityPrompt) {
+      return;
+    }
+
+    const messages = getGitIdentityPromptMessage(gitIdentityPrompt.reason);
+    showMessage('info', messages.cancel);
+    resolveGitIdentityPrompt(false);
+  }, [gitIdentityPrompt, resolveGitIdentityPrompt, showMessage]);
 
   /**
    * Start tracking a folder with version control.
@@ -822,24 +977,29 @@ export function RepoProvider({ children }: RepoProviderProps) {
       
       // Step 4: Ensure git identity from ControlZebra account
       try {
-        await EnsureIdentity(repoPath, userName || '', userEmail || '');
+        const identity = await EnsureIdentity(repoPath, userName || '', userEmail || '');
+        cacheGitIdentity(repoPath, identity.name || '', identity.email || '');
       } catch (err) {
         console.warn('Failed to ensure git identity:', err);
+        clearCachedGitIdentity();
       }
       
       // Step 5: Make initial commit with all files
       let initialCommitMade = false;
-      try {
-        const commitResult = await CommitAll(repoPath, 'Initial commit');
-        if (commitResult.success) {
-          initialCommitMade = true;
-        } else {
-          console.warn('Failed to make initial commit:', commitResult.error);
-          // Continue even if initial commit fails (might have no files to commit)
+      const canCreateInitialCommit = await promptForGitIdentityIfMissing(repoPath, 'initial-commit');
+      if (canCreateInitialCommit) {
+        try {
+          const commitResult = await CommitAll(repoPath, 'Initial commit');
+          if (commitResult.success) {
+            initialCommitMade = true;
+          } else {
+            console.warn('Failed to make initial commit:', commitResult.error);
+            // Continue even if initial commit fails (might have no files to commit)
+          }
+        } catch (err) {
+          console.warn('Failed to make initial commit:', err);
+          // Continue even if commit fails
         }
-      } catch (err) {
-        console.warn('Failed to make initial commit:', err);
-        // Continue even if commit fails
       }
       
       // Refresh repo info
@@ -877,7 +1037,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage, gitInstalled, lfsInstalled, installRequiredPackages]);
+  }, [cacheGitIdentity, clearCachedGitIdentity, repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage, gitInstalled, lfsInstalled, installRequiredPackages, promptForGitIdentityIfMissing]);
 
   // Close the current repository
   const closeRepo = useCallback(async (): Promise<void> => {
@@ -907,6 +1067,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedCommitFile(null);
     setCurrentDiff(null);
     setRepoSettings(null);
+    clearCachedGitIdentity();
     
     // Clear viewer cache and L5X tab states when closing repo to free memory
     clearViewerCache();
@@ -924,7 +1085,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     } catch (err) {
       console.error('Failed to clear settings:', err);
     }
-  }, []);
+  }, [clearCachedGitIdentity, repoPath]);
 
   // ===== Commit & Sync Operations =====
 
@@ -938,6 +1099,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
     
     if (!message || !message.trim()) {
       showMessage('error', 'Commit message is required');
+      return false;
+    }
+
+    const hasIdentity = await promptForGitIdentityIfMissing(repoPath, 'save');
+    if (!hasIdentity) {
       return false;
     }
     
@@ -997,7 +1163,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
     });
     return result ?? false;
-  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll, closeAllExplorerPreviews, withOperationLock]);
+  }, [repoPath, repoStatus, repoInfo, showMessage, refreshAll, closeAllExplorerPreviews, withOperationLock, promptForGitIdentityIfMissing]);
 
   // Generate unique operation ID
   const generateOperationId = useCallback((): string => {
@@ -1366,6 +1532,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', 'Commit message is required');
       return false;
     }
+
+    const hasIdentity = await promptForGitIdentityIfMissing(repoPath, 'branch-save');
+    if (!hasIdentity) {
+      return false;
+    }
     
     const result = await withOperationLock('Saving to new branch', async () => {
       const fromBranch = repoInfo?.branch || 'unknown';
@@ -1407,7 +1578,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
     });
     return result ?? false;
-  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews, withOperationLock]);
+  }, [repoPath, repoInfo, repoStatus, showMessage, clearSelection, refreshAll, refreshBranches, closeAllExplorerPreviews, withOperationLock, promptForGitIdentityIfMissing]);
 
   // ===== Recovery Operations =====
 
@@ -2032,6 +2203,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
         return false;
       }
 
+      const hasIdentity = await promptForGitIdentityIfMissing(repoPath, 'merge-complete');
+      if (!hasIdentity) {
+        return false;
+      }
+
       // CompleteMerge handles both regular and squash merges on the backend
       const result = await CompleteMerge(repoPath, message || '');
       
@@ -2085,6 +2261,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     repoInfo?.branch,
     reconcileLiveMergeState,
     isSquashMerge,
+    promptForGitIdentityIfMissing,
   ]);
 
   // Refresh merge state from backend
@@ -2678,9 +2855,11 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
         // Ensure git identity from ControlZebra account
         try {
-          await EnsureIdentity(path, userName || '', userEmail || '');
+          const identity = await EnsureIdentity(path, userName || '', userEmail || '');
+          cacheGitIdentity(path, identity.name || '', identity.email || '');
         } catch (err) {
           console.warn('Failed to ensure git identity:', err);
+          clearCachedGitIdentity();
         }
 
         // Apply selected .gitignore template before first commit
@@ -2709,6 +2888,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
       // ── Step 1: Commit ──────────────────────────────────────────────
       onStepChange?.(1);
+
+      const hasIdentity = await promptForGitIdentityIfMissing(path, 'initial-commit');
+      if (!hasIdentity) {
+        return {
+          success: false,
+          error: 'Add the name and email used for saved changes before ControlZebra can create the first revision.',
+        };
+      }
 
       const commitResult = await CommitAll(path, 'Initial commit');
       if (!commitResult.success) {
@@ -2795,7 +2982,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       showMessage('error', `Failed to create project: ${msg}`);
       return { success: false, error: msg };
     }
-  }, [userName, userEmail, openRepo, showMessage, gitInstalled, lfsInstalled, ghInstalled, installRequiredPackages]);
+  }, [cacheGitIdentity, clearCachedGitIdentity, userName, userEmail, openRepo, showMessage, gitInstalled, lfsInstalled, ghInstalled, installRequiredPackages, promptForGitIdentityIfMissing]);
 
   // ===== Effects =====
 
@@ -3105,6 +3292,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     // Non-git folder prompt state
     nonGitFolderPromptPath,
     dismissNonGitFolderPrompt,
+    gitIdentityPrompt,
+    submitGitIdentityPrompt,
+    cancelGitIdentityPrompt,
     
     // Actions
     openRepo,
@@ -3218,6 +3408,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     progressModal, handleProgressComplete,
     showMessage,
     nonGitFolderPromptPath, dismissNonGitFolderPrompt,
+    gitIdentityPrompt, submitGitIdentityPrompt, cancelGitIdentityPrompt,
     openRepo, openFolder, closeRepo, startTracking, installRequiredPackages, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, renameBranch, deleteBranch, branchAndCommit,

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 const {
   DetectRepo,
   Status,
+  CommitAll,
   GetCommitGraph,
   Branches,
   GetMergeState,
@@ -17,8 +18,9 @@ const {
   GetPresetPatterns,
   GetRemotes,
   GetSettings,
-  StartMergeWithOptions,
-  CompleteMerge,
+  InitializeLFS,
+  TrackPattern,
+  InitRepo,
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
@@ -29,12 +31,11 @@ const {
   EnsureControlZebraDir,
   WatchDirectory,
   StopWatching,
-  CheckoutBranch,
-  analyticsMocks,
   toastMocks,
 } = vi.hoisted(() => ({
   DetectRepo: vi.fn(),
   Status: vi.fn(),
+  CommitAll: vi.fn(),
   GetCommitGraph: vi.fn(),
   Branches: vi.fn(),
   GetMergeState: vi.fn(),
@@ -47,8 +48,9 @@ const {
   GetPresetPatterns: vi.fn(),
   GetRemotes: vi.fn(),
   GetSettings: vi.fn(),
-  StartMergeWithOptions: vi.fn(),
-  CompleteMerge: vi.fn(),
+  InitializeLFS: vi.fn(),
+  TrackPattern: vi.fn(),
+  InitRepo: vi.fn(),
   GetAppSettings: vi.fn(),
   SaveAppSettings: vi.fn(),
   EnsureIdentity: vi.fn(),
@@ -59,31 +61,6 @@ const {
   EnsureControlZebraDir: vi.fn(),
   WatchDirectory: vi.fn(),
   StopWatching: vi.fn(),
-  CheckoutBranch: vi.fn(),
-  analyticsMocks: {
-    trackRepoOpened: vi.fn(),
-    trackRepoClosed: vi.fn(),
-    trackRepoInitialized: vi.fn(),
-    trackCommitCreated: vi.fn(),
-    trackCommitBranchAndSave: vi.fn(),
-    trackCommitUndone: vi.fn(),
-    trackChangesDiscarded: vi.fn(),
-    trackSyncStarted: vi.fn(),
-    trackSyncCompleted: vi.fn(),
-    trackSyncFailed: vi.fn(),
-    trackBranchSwitched: vi.fn(),
-    trackBranchCreated: vi.fn(),
-    trackConflictDetected: vi.fn(),
-    trackConflictResolved: vi.fn(),
-    trackMergeCompleted: vi.fn(),
-    trackMergeAborted: vi.fn(),
-    trackErrorShown: vi.fn(),
-    trackProjectSetupStarted: vi.fn(),
-    trackProjectSetupCompleted: vi.fn(),
-    trackProjectPublishAttempted: vi.fn(),
-    trackProjectPublishFailed: vi.fn(),
-    trackProjectPublishCompleted: vi.fn(),
-  },
   toastMocks: {
     success: vi.fn(),
     error: vi.fn(),
@@ -120,8 +97,8 @@ vi.mock('../services/repo-queries', () => ({
 }));
 
 vi.mock('../services/repo-commands', () => ({
-  CommitAll: vi.fn(),
-  CheckoutBranch,
+  CommitAll,
+  CheckoutBranch: vi.fn(),
   CreateBranchAndCheckout: vi.fn(),
   RenameBranch: vi.fn(),
   DeleteBranch: vi.fn(),
@@ -130,13 +107,13 @@ vi.mock('../services/repo-commands', () => ({
   ResetHardHead: vi.fn(),
   DiscardAll: vi.fn(),
   DiscardFile: vi.fn(),
-  InitRepo: vi.fn(),
-  StartMergeWithOptions,
+  InitRepo,
+  StartMergeWithOptions: vi.fn(),
   ResolveConflictKeepOurs: vi.fn(),
   ResolveConflictKeepTheirs: vi.fn(),
   ResolveConflictKeepBoth: vi.fn(),
   AbortMerge: vi.fn(),
-  CompleteMerge,
+  CompleteMerge: vi.fn(),
   AbortCurrentOperation: vi.fn(),
   AbortCherryPick: vi.fn(),
   ContinueCherryPick: vi.fn(),
@@ -158,8 +135,8 @@ vi.mock('../services/repo-commands', () => ({
   AuthLogout: vi.fn(),
   RepoClone: vi.fn(),
   RepoCreateFromLocal: vi.fn(),
-  InitializeLFS: vi.fn(),
-  TrackPattern: vi.fn(),
+  InitializeLFS,
+  TrackPattern,
   EnsurePortableToolchainIfNeeded: vi.fn(),
   SyncWithProgress: vi.fn(),
   GetAppSettings,
@@ -182,12 +159,35 @@ vi.mock('../polling/useStatusPolling', () => ({
 
 vi.mock('../../auth/context/AuthContext', () => ({
   useAuth: () => ({
-    userName: 'Test User',
-    userEmail: 'test@controlzebra.com',
+    userName: null,
+    userEmail: null,
   }),
 }));
 
-vi.mock('../../analytics/analytics', () => analyticsMocks);
+vi.mock('../../analytics/analytics', () => ({
+  trackRepoOpened: vi.fn(),
+  trackRepoClosed: vi.fn(),
+  trackRepoInitialized: vi.fn(),
+  trackCommitCreated: vi.fn(),
+  trackCommitBranchAndSave: vi.fn(),
+  trackCommitUndone: vi.fn(),
+  trackChangesDiscarded: vi.fn(),
+  trackSyncStarted: vi.fn(),
+  trackSyncCompleted: vi.fn(),
+  trackSyncFailed: vi.fn(),
+  trackBranchSwitched: vi.fn(),
+  trackBranchCreated: vi.fn(),
+  trackConflictDetected: vi.fn(),
+  trackConflictResolved: vi.fn(),
+  trackMergeCompleted: vi.fn(),
+  trackMergeAborted: vi.fn(),
+  trackErrorShown: vi.fn(),
+  trackProjectSetupStarted: vi.fn(),
+  trackProjectSetupCompleted: vi.fn(),
+  trackProjectPublishAttempted: vi.fn(),
+  trackProjectPublishFailed: vi.fn(),
+  trackProjectPublishCompleted: vi.fn(),
+}));
 
 vi.mock('../../../../bindings/controlzebra/services/filewatcherservice', () => ({
   WatchDirectory,
@@ -216,20 +216,6 @@ vi.mock('sonner', () => ({
 
 import { RepoProvider, useRepo } from './RepoContext';
 
-function createMergeState(hasConflicts: boolean, inMerge = true) {
-  return {
-    inMerge,
-    inRebase: false,
-    hasConflicts,
-    inCherryPick: false,
-    inRevert: false,
-    inBisect: false,
-    inAM: false,
-    isDetached: false,
-    hasLockFile: false,
-  };
-}
-
 function CaptureRepoApi({ onReady }: { onReady: (api: ReturnType<typeof useRepo>) => void }): null {
   const api = useRepo();
   onReady(api);
@@ -245,7 +231,7 @@ function renderHarness(onReady: (api: ReturnType<typeof useRepo>) => void): void
   );
 }
 
-describe('RepoContext merge completion guards', () => {
+describe('RepoContext git identity prompts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -260,9 +246,10 @@ describe('RepoContext merge completion guards', () => {
       totalLocalCommits: 0,
       hasError: false,
     });
+    CommitAll.mockResolvedValue({ success: true, message: 'ok' });
     GetCommitGraph.mockResolvedValue({ hasError: false, commits: [] });
     Branches.mockResolvedValue({ hasError: false, current: 'main', local: [], remote: [] });
-    GetMergeState.mockResolvedValue(createMergeState(false, false));
+    GetMergeState.mockResolvedValue({ inMerge: false, inRebase: false, hasConflicts: false });
     GetConflictedFiles.mockResolvedValue([]);
     GetGitVersion.mockResolvedValue('2.45.0');
     IsGHInstalled.mockResolvedValue(false);
@@ -272,24 +259,22 @@ describe('RepoContext merge completion guards', () => {
     GetPresetPatterns.mockResolvedValue([]);
     GetRemotes.mockResolvedValue(['origin']);
     GetSettings.mockResolvedValue({ fetchSettings: { pruneStaleBranches: true, fetchTags: true } });
-
-    StartMergeWithOptions.mockResolvedValue({ success: true });
-    CompleteMerge.mockResolvedValue({ success: true });
-
+    InitializeLFS.mockResolvedValue({ success: true });
+    TrackPattern.mockResolvedValue({ success: true });
+    InitRepo.mockResolvedValue({ success: true });
     GetAppSettings.mockResolvedValue({ lastRepoPath: '' });
     SaveAppSettings.mockResolvedValue({ success: true });
     EnsureIdentity.mockResolvedValue({ wasAutoSet: false, name: '', email: '' });
-    GetUserProfile.mockResolvedValue({ name: 'Test User', email: 'test@controlzebra.com' });
+    GetUserProfile.mockResolvedValue({ name: '', email: '' });
     SetUserProfile.mockResolvedValue({ success: true, message: 'saved' });
     StartBackgroundTasks.mockResolvedValue({ success: true });
     StopBackgroundTasks.mockResolvedValue({ success: true });
     EnsureControlZebraDir.mockResolvedValue({ success: true });
     WatchDirectory.mockResolvedValue({ success: true });
     StopWatching.mockResolvedValue({ success: true });
-    CheckoutBranch.mockResolvedValue({ success: true });
   });
 
-  it('blocks completion when the live repository state still reports conflicts', async () => {
+  it('prompts before saving changes when git identity is missing', async () => {
     let api: ReturnType<typeof useRepo> | null = null;
     renderHarness((value) => {
       api = value;
@@ -301,116 +286,85 @@ describe('RepoContext merge completion guards', () => {
       await api!.openRepo('/tmp/repo');
     });
 
+    const commitPromise = api!.commitChanges('Save tank logic');
+
     await waitFor(() => {
-      expect(api!.repoPath).toBe('/tmp/repo');
+      expect(api!.gitIdentityPrompt?.isOpen).toBe(true);
     });
 
-    GetMergeState.mockResolvedValueOnce(createMergeState(false, true));
-    GetConflictedFiles.mockResolvedValueOnce([]);
+    expect(CommitAll).not.toHaveBeenCalled();
+    expect(api!.gitIdentityPrompt?.reason).toBe('save');
 
     await act(async () => {
-      await api!.startMerge('main', 'feature/tank-logic', { squash: true });
+      api!.cancelGitIdentityPrompt();
     });
 
-    await waitFor(() => {
-      expect(api!.conflictCheckResult?.liveMergePhase).toBe('ready-to-complete');
+    await expect(commitPromise).resolves.toBe(false);
+  });
+
+  it('continues saving after the user supplies a repo-local identity', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
     });
 
-    GetMergeState.mockResolvedValueOnce(createMergeState(true, true));
-    GetConflictedFiles.mockResolvedValueOnce([
-      { path: 'logic/alpha.L5X', status: 'both-modified' },
-    ]);
+    await waitFor(() => expect(api).not.toBeNull());
 
-    let result = false;
     await act(async () => {
-      result = await api!.completeMerge('Finish merge');
+      await api!.openRepo('/tmp/repo');
     });
 
-    expect(result).toBe(false);
-    expect(CompleteMerge).not.toHaveBeenCalled();
+    const commitPromise = api!.commitChanges('Save tank logic');
 
     await waitFor(() => {
-      expect(api!.conflictedFiles).toEqual([{ path: 'logic/alpha.L5X', status: 'both-modified' }]);
-      expect(api!.selectedConflictFile).toBe('logic/alpha.L5X');
-      expect(api!.conflictCheckResult?.liveMergePhase).toBe('resolving');
+      expect(api!.gitIdentityPrompt?.isOpen).toBe(true);
     });
 
-    expect(toastMocks.error).toHaveBeenCalledWith(
-      '1 file still needs a choice before you can finish this merge.',
+    await act(async () => {
+      await api!.submitGitIdentityPrompt('Guest User', 'guest@example.com', false);
+    });
+
+    await expect(commitPromise).resolves.toBe(true);
+    expect(SetUserProfile).toHaveBeenCalledWith(
+      '/tmp/repo',
+      { name: 'Guest User', email: 'guest@example.com' },
+      false,
+    );
+    expect(CommitAll).toHaveBeenCalledWith('/tmp/repo', 'Save tank logic');
+  });
+
+  it('skips the initial setup commit when the user cancels the identity prompt', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+
+    await waitFor(() => expect(api).not.toBeNull());
+
+    DetectRepo.mockResolvedValueOnce({ path: '/tmp/new-project', isRepo: false, branch: '', hasError: false });
+    await act(async () => {
+      await api!.openRepo('/tmp/new-project');
+    });
+
+    let startTrackingPromise!: Promise<boolean>;
+    act(() => {
+      startTrackingPromise = api!.startTracking();
+    });
+
+    await waitFor(() => {
+      expect(api!.gitIdentityPrompt?.isOpen).toBe(true);
+      expect(api!.gitIdentityPrompt?.reason).toBe('initial-commit');
+    });
+
+    await act(async () => {
+      api!.cancelGitIdentityPrompt();
+    });
+
+    await expect(startTrackingPromise).resolves.toBe(true);
+    expect(CommitAll).not.toHaveBeenCalled();
+    expect(toastMocks.info).toHaveBeenCalledWith(
+      'The first saved revision was skipped until a name and email are added.',
       expect.any(Object),
     );
-  });
-
-  it('hydrates live conflicted files after merge start before allowing the finish step', async () => {
-    let api: ReturnType<typeof useRepo> | null = null;
-    renderHarness((value) => {
-      api = value;
-    });
-
-    await waitFor(() => expect(api).not.toBeNull());
-
-    await act(async () => {
-      await api!.openRepo('/tmp/repo');
-    });
-
-    await waitFor(() => {
-      expect(api!.repoPath).toBe('/tmp/repo');
-    });
-
-    GetMergeState.mockResolvedValueOnce(createMergeState(false, true));
-    GetConflictedFiles.mockResolvedValueOnce([
-      { path: 'logic/alpha.L5X', status: 'both-modified' },
-    ]);
-
-    await act(async () => {
-      await api!.startMerge('main', 'feature/tank-logic', { squash: true });
-    });
-
-    await waitFor(() => {
-      expect(api!.conflictedFiles).toEqual([
-        { path: 'logic/alpha.L5X', status: 'both-modified' },
-      ]);
-      expect(api!.selectedConflictFile).toBe('logic/alpha.L5X');
-      expect(api!.conflictCheckResult?.liveMergePhase).toBe('resolving');
-    });
-  });
-
-  it('allows completion only after the live repository state is conflict-free', async () => {
-    let api: ReturnType<typeof useRepo> | null = null;
-    renderHarness((value) => {
-      api = value;
-    });
-
-    await waitFor(() => expect(api).not.toBeNull());
-
-    await act(async () => {
-      await api!.openRepo('/tmp/repo');
-    });
-
-    await waitFor(() => {
-      expect(api!.repoPath).toBe('/tmp/repo');
-    });
-
-    GetMergeState.mockResolvedValueOnce(createMergeState(false, true));
-    GetConflictedFiles.mockResolvedValueOnce([]);
-
-    await act(async () => {
-      await api!.startMerge('main', 'feature/tank-logic', { squash: true });
-    });
-
-    await waitFor(() => {
-      expect(api!.conflictCheckResult?.liveMergePhase).toBe('ready-to-complete');
-    });
-
-    GetMergeState.mockResolvedValueOnce(createMergeState(false, true));
-    GetConflictedFiles.mockResolvedValueOnce([]);
-
-    let result = false;
-    await act(async () => {
-      result = await api!.completeMerge('Finish merge');
-    });
-
-    expect(result).toBe(true);
-    expect(CompleteMerge).toHaveBeenCalledWith('/tmp/repo', 'Finish merge');
   });
 });

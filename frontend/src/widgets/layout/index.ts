@@ -9,4 +9,5 @@ export { default as MainArea } from './MainArea';
 export { default as StatusBar } from './StatusBar';
 export { default as BranchModal } from './BranchModal';
 export { default as BranchNameModal } from './BranchNameModal';
+export { default as GitIdentityPromptModal } from './GitIdentityPromptModal';
 export { default as RewindConfirmModal } from './RewindConfirmModal';

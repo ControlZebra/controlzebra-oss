@@ -3,22 +3,55 @@
  * Full GitHub/GitLab account connection management.
  */
 import { memo, useState, useCallback, type CSSProperties, type JSX } from 'react';
-import { UserCircle, Github, Check, AlertCircle, Loader2, LogOut } from 'lucide-react';
+import {
+  UserCircle,
+  Github,
+  Check,
+  AlertCircle,
+  Loader2,
+  LogOut,
+  Cloud,
+  Settings2,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { ICON_SIZES } from '../../../shared/constants';
-import { useRepo } from '../../../context';
+import { useAuth, useRepo } from '../../../context';
 import GitLabIcon from '../../../shared/icons/GitLabIcon';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
-import { Button } from '../../../shared/ui';
+import { useGitHubDeviceFlow } from '../../auth/hooks/useGitHubDeviceFlow';
+import LoginView from '../../auth/components/LoginView';
+import AccountFeatureGate from '../../auth/components/AccountFeatureGate';
+import { Badge, Button } from '../../../shared/ui';
 
-interface DeviceFlowState {
-  isOpen: boolean;
-  userCode: string;
-  verificationUrl: string;
+interface FutureCloudFeature {
+  title: string;
+  description: string;
+  Icon: LucideIcon;
 }
+
+const FUTURE_CLOUD_FEATURES: FutureCloudFeature[] = [
+  {
+    title: 'Settings Sync',
+    description: 'Keep app preferences and safety defaults aligned across devices tied to your ControlZebra account.',
+    Icon: Settings2,
+  },
+  {
+    title: 'Shared Workspaces',
+    description: 'Share project context and guided setup with teammates without changing the local Git workflow.',
+    Icon: Users,
+  },
+  {
+    title: 'Cloud Activity Feed',
+    description: 'See account-backed handoff history and collaboration events separate from the repository timeline.',
+    Icon: Cloud,
+  },
+];
 
 function ProfilePage(): JSX.Element {
   const avatarSize = ICON_SIZES.lg * 3;
   const avatarStyle: CSSProperties = { width: avatarSize, height: avatarSize };
+  const { isAuthenticated, isAuthAvailable, userEmail, userName, logout } = useAuth();
 
   const { 
     ghInstalled, 
@@ -26,55 +59,29 @@ function ProfilePage(): JSX.Element {
     installRequiredPackages,
     ghAuthStatus, 
     isCheckingGhAuth,
-    startGitHubLogin,
     logoutGitHub,
   } = useRepo();
   
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isDisconnectingGitHub, setIsDisconnectingGitHub] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
-    isOpen: false,
-    userCode: '',
-    verificationUrl: '',
-  });
+  const {
+    deviceFlow,
+    startDeviceFlow,
+    closeDeviceFlow,
+    handleDeviceFlowOpenChange,
+  } = useGitHubDeviceFlow({ onStartError: setError });
 
   // Start the GitHub login flow
   const handleGitHubConnect = useCallback(async () => {
     setError(null);
-    const result = await startGitHubLogin();
-    
-    if (result.success && result.userCode) {
-      setDeviceFlow({
-        isOpen: true,
-        userCode: result.userCode,
-        verificationUrl: result.verificationUrl || 'https://github.com/login/device',
-      });
-    } else {
-      setError(result.error || 'Failed to start authentication');
-    }
-  }, [startGitHubLogin]);
-
-  // Handle device flow completion
-  const handleDeviceFlowComplete = useCallback(() => {
-    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
-  }, []);
-
-  // Handle device flow cancel
-  const handleDeviceFlowCancel = useCallback(() => {
-    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
-  }, []);
-
-  const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
-    if (!open) {
-      handleDeviceFlowCancel();
-    }
-  }, [handleDeviceFlowCancel]);
+    await startDeviceFlow();
+  }, [startDeviceFlow]);
 
   // Disconnect from GitHub
   const handleGitHubDisconnect = useCallback(async () => {
     setError(null);
-    setIsLoggingOut(true);
+    setIsDisconnectingGitHub(true);
     try {
       const result = await logoutGitHub();
       if (!result.success) {
@@ -83,9 +90,24 @@ function ProfilePage(): JSX.Element {
     } catch (err) {
       setError(String(err));
     } finally {
-      setIsLoggingOut(false);
+      setIsDisconnectingGitHub(false);
     }
   }, [logoutGitHub]);
+
+  const handleAccountSignOut = useCallback(async () => {
+    setError(null);
+    setIsSigningOut(true);
+    try {
+      const result = await logout();
+      if (!result.success && result.error) {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [logout]);
 
   // Render GitHub status
   const renderGitHubStatus = () => {
@@ -139,15 +161,15 @@ function ProfilePage(): JSX.Element {
           variant="secondary" 
           size="sm"
           onClick={handleGitHubDisconnect}
-          disabled={isLoggingOut}
+          disabled={isDisconnectingGitHub}
         >
-          {isLoggingOut ? (
+          {isDisconnectingGitHub ? (
             <Loader2 className="animate-spin" size={14} />
           ) : (
             <LogOut style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
           )}
           <span className="ml-1.5">
-            {isLoggingOut ? 'Disconnecting...' : 'Disconnect'}
+            {isDisconnectingGitHub ? 'Disconnecting...' : 'Disconnect'}
           </span>
         </Button>
       );
@@ -170,21 +192,14 @@ function ProfilePage(): JSX.Element {
       <div className="max-w-2xl mx-auto p-8">
         {/* Header */}
         <div className="text-center mb-8">
-          {ghAuthStatus?.loggedIn ? (
-            <div className="relative inline-block mb-4">
-              <Github style={avatarStyle} className="text-theme-secondary" />
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full border-4 border-gray-900 flex items-center justify-center">
-                <Check size={16} className="text-white" />
-              </div>
-            </div>
-          ) : (
-            <UserCircle style={avatarStyle} className="text-theme-muted mx-auto mb-4" />
-          )}
+          <UserCircle style={avatarStyle} className="text-theme-muted mx-auto mb-4" />
           <h2 className="text-xl text-theme-primary font-medium">
-            {ghAuthStatus?.loggedIn ? `@${ghAuthStatus.username}` : 'Your Profile'}
+            {isAuthenticated ? (userName || userEmail || 'Your Profile') : 'Accounts'}
           </h2>
           <p className="text-theme-muted mt-1">
-            {ghAuthStatus?.loggedIn ? 'Connected to GitHub' : 'Connect your accounts to push and pull'}
+            {isAuthenticated
+              ? 'Manage optional account connections for this device.'
+              : 'Use ControlZebra without an account, then connect optional services when you need them.'}
           </p>
         </div>
 
@@ -195,6 +210,98 @@ function ProfilePage(): JSX.Element {
             <span className="text-red-400 text-sm">{error}</span>
           </div>
         )}
+
+        <div className="bg-theme-surface rounded-lg p-6 border border-theme-default mb-4">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h3 className="text-theme-primary font-medium">ControlZebra Account</h3>
+              <p className="text-sm text-theme-muted mt-1">
+                {isAuthenticated
+                  ? 'Signed in for optional cloud features. Local Git workflows stay available even if you sign out.'
+                  : 'A ControlZebra account is optional. Sign in here only when you need cloud-backed features.'}
+              </p>
+            </div>
+            {isAuthenticated ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={isSigningOut}
+                onClick={handleAccountSignOut}
+              >
+                <LogOut style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
+                <span className="ml-1.5">Sign out</span>
+              </Button>
+            ) : (
+              <span className="text-theme-muted text-xs uppercase tracking-wide">
+                {isAuthAvailable ? 'Guest mode' : 'Unavailable'}
+              </span>
+            )}
+          </div>
+
+          {isAuthenticated ? (
+            <div className="rounded-lg border border-theme-default bg-theme-base/40 px-4 py-3">
+              <p className="text-sm text-theme-primary font-medium">{userName || 'ControlZebra User'}</p>
+              <p className="text-sm text-theme-muted mt-1">{userEmail || 'Signed in'}</p>
+            </div>
+          ) : (
+            <LoginView
+              variant="embedded"
+              title={isAuthAvailable ? 'Sign in later if you need it' : 'Account sign-in unavailable'}
+              description={
+                isAuthAvailable
+                  ? 'Keep using ControlZebra as a guest for local work, or sign in to prepare for future cloud features.'
+                  : 'This build still supports guest mode for local Git workflows.'
+              }
+            />
+          )}
+        </div>
+
+        <div className="mb-4">
+          <AccountFeatureGate
+            title="Future cloud features"
+            description="These features will check for a ControlZebra account at the feature entry point. Local Git work, Git identity, and GitHub sync stay separate."
+            lockedMessage="Keep using guest mode for local work. Sign in from this page only when you want to prepare for cloud-backed features."
+            readyMessage="Your account is connected. These cloud-backed features remain disabled until their implementation ships."
+          >
+            {FUTURE_CLOUD_FEATURES.map(({ title, description, Icon }) => (
+              <div
+                key={title}
+                className="rounded-lg border border-theme-default bg-theme-base/40 px-4 py-3 flex items-start gap-3"
+              >
+                <div className="rounded-md border border-theme-default bg-theme-surface p-2 shrink-0">
+                  <Icon size={ICON_SIZES.sm} className="text-theme-secondary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-theme-primary">{title}</p>
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-400">
+                      Account required
+                    </Badge>
+                    <Badge variant="outline" className="border-theme-default text-theme-muted">
+                      Coming soon
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-theme-muted mt-1">{description}</p>
+                </div>
+                <Button variant="secondary" size="sm" disabled>
+                  <span>Coming soon</span>
+                </Button>
+              </div>
+            ))}
+          </AccountFeatureGate>
+        </div>
+
+        <div className="bg-theme-surface rounded-lg p-4 border border-theme-default mb-4">
+          <div className="flex items-start gap-3">
+            <Check size={ICON_SIZES.md} className="text-green-400 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-theme-primary font-medium">Still available in guest mode</h3>
+              <p className="text-sm text-theme-muted mt-1">
+                Open folders, start tracking, save changes, sync with GitHub, inspect history, and resolve merges without a ControlZebra account.
+              </p>
+            </div>
+          </div>
+        </div>
         
         {/* GitHub Section */}
         <div className="bg-theme-surface rounded-lg p-4 border border-theme-default mb-4">
@@ -206,6 +313,9 @@ function ProfilePage(): JSX.Element {
               {renderGitHubButton()}
             </div>
           </div>
+          <p className="text-sm text-theme-muted mt-3">
+            GitHub connection is separate from your ControlZebra account and is only needed for GitHub sync.
+          </p>
         </div>
         
         {/* GitLab Section */}
@@ -229,7 +339,7 @@ function ProfilePage(): JSX.Element {
           open={deviceFlow.isOpen}
           userCode={deviceFlow.userCode}
           verificationUrl={deviceFlow.verificationUrl}
-          onComplete={handleDeviceFlowComplete}
+          onComplete={closeDeviceFlow}
           onOpenChange={handleDeviceFlowOpenChange}
         />
       </div>
