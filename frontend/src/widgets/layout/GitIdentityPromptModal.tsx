@@ -49,7 +49,7 @@ function getPromptCopy(reason: NonNullable<ReturnType<typeof useRepo>['gitIdenti
   }
 }
 
-function GitIdentityPromptModal(): JSX.Element {
+function GitIdentityPromptModal(): JSX.Element | null {
   const {
     gitIdentityPrompt,
     submitGitIdentityPrompt,
