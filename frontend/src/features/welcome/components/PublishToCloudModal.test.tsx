@@ -12,7 +12,7 @@ describe('PublishToCloudModal', () => {
         onOpenChange={vi.fn()}
         onConnectGitHub={onConnectGitHub}
         ghInstalled
-        ghAuthStatus={{ loggedIn: false, username: '', hasGitHubCli: true }}
+        ghAuthStatus={{ loggedIn: false, username: '' }}
       />,
     );
 
@@ -30,7 +30,7 @@ describe('PublishToCloudModal', () => {
         onOpenChange={vi.fn()}
         onInstallRequiredPackages={vi.fn()}
         ghInstalled={false}
-        ghAuthStatus={{ loggedIn: false, username: '', hasGitHubCli: false }}
+        ghAuthStatus={{ loggedIn: false, username: '' }}
       />,
     );
 

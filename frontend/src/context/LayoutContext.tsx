@@ -2,10 +2,11 @@
  * LayoutContext - Global UI state management for the application layout.
  * 
  * Manages:
- * - Active sidebar view (Explorer, Repository Settings, Profile, Settings)
+ * - Active sidebar view (Explorer, Repository Settings, Settings, Debug)
  * - Sidebar collapse state and width
  * - Bottom panel collapse state, height, and active tab
  * - Theme preference (light/dark/system)
+ * - Shared account dialog visibility
  * - Responsive auto-collapse based on window size
  */
 import { 
@@ -46,6 +47,11 @@ interface LayoutContextValue {
   // Settings
   selectedSettingsCategory: string;
   setSelectedSettingsCategory: (category: string) => void;
+
+  // Account dialog
+  accountDialogOpen: boolean;
+  setAccountDialogOpen: (open: boolean) => void;
+  openAccountDialog: () => void;
   
   // Repository Settings
   selectedRepoSettingsCategory: string;
@@ -147,6 +153,11 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   
   // Settings category state (shared between sidebar and main area)
   const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('general');
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+
+  const openAccountDialog = useCallback(() => {
+    setAccountDialogOpen(true);
+  }, []);
   
   // Repository settings category state (for repo-specific settings view)
   const [selectedRepoSettingsCategory, setSelectedRepoSettingsCategory] = useState('about');
@@ -311,6 +322,11 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     // Settings
     selectedSettingsCategory,
     setSelectedSettingsCategory,
+
+    // Account dialog
+    accountDialogOpen,
+    setAccountDialogOpen,
+    openAccountDialog,
     
     // Repository Settings
     selectedRepoSettingsCategory,
@@ -340,6 +356,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     sidebarCollapsed, 
     sidebarWidth, 
     selectedSettingsCategory,
+    accountDialogOpen,
     selectedRepoSettingsCategory,
     selectedWelcomeCategory,
     newProjectPrefillPath,
@@ -350,6 +367,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     explorerMergeModalOpen,
     openExplorerMergeModal,
     theme, 
+    openAccountDialog,
     toggleSidebar,
   ]);
 

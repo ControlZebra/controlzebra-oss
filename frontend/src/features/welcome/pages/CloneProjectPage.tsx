@@ -61,6 +61,8 @@ interface GroupedRepo {
 // ============================================================================
 
 
+const REPO_FETCH_LIMIT = 100;
+
 /** Matches `https://github.com/owner/repo` or `git@github.com:owner/repo.git` */
 const GIT_URL_RE =
   /^(?:https?:\/\/[^/]+\/[^/]+\/[^/]+(?:\.git)?|git@[^:]+:[^/]+\/[^/]+(?:\.git)?)$/i;
@@ -180,6 +182,7 @@ function CloneProjectPage(): JSX.Element {
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [ownerFilter, setOwnerFilter] = useState(''); // '' = all
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([]);
+  const [repoLoadError, setRepoLoadError] = useState<string | null>(null);
   const reposLoaded = useRef(false);
 
   // ── Manual URL state ──────────────────────────────────────────────────
@@ -238,6 +241,7 @@ function CloneProjectPage(): JSX.Element {
   const loadReposAndOrgs = useCallback(async () => {
     if (!isLoggedIn) return;
     setIsLoadingRepos(true);
+    setRepoLoadError(null);
 
     try {
       // Load personal repos + orgs in parallel
@@ -260,6 +264,8 @@ function CloneProjectPage(): JSX.Element {
           const owner = repo.fullName.split('/')[0] || ghUsername;
           allRepos.push({ repo, owner });
         }
+      } else if (repoResult.error) {
+        throw new Error(repoResult.error);
       }
 
       // Org repos
@@ -283,6 +289,8 @@ function CloneProjectPage(): JSX.Element {
           }
         });
         await Promise.all(orgFetches);
+      } else if (orgResult.error) {
+        throw new Error(orgResult.error);
       }
 
       // Deduplicate by fullName (personal list may include org repos)
@@ -306,7 +314,11 @@ function CloneProjectPage(): JSX.Element {
       setOwnerOptions(options);
       setRepos(deduplicated);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load repositories';
       console.error('Failed to load repositories:', err);
+      setRepoLoadError(message);
+      setRepos([]);
+      setOwnerOptions(ghUsername ? [{ value: '', label: 'All' }, { value: ghUsername, label: `${ghUsername} (personal)` }] : [{ value: '', label: 'All' }]);
     } finally {
       setIsLoadingRepos(false);
     }
@@ -327,6 +339,7 @@ function CloneProjectPage(): JSX.Element {
       setOwnerOptions([]);
       setOwnerFilter('');
       setSelectedRepo(null);
+      setRepoLoadError(null);
     }
   }, [isLoggedIn]);
 
@@ -435,10 +448,10 @@ function CloneProjectPage(): JSX.Element {
         </div>
 
         {/* Error banner */}
-        {cloneError && (
+        {(repoLoadError || cloneError) && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3 mb-6">
             <AlertCircle className="text-red-400 shrink-0 mt-0.5" size={16} />
-            <span className="text-red-400 text-sm">{cloneError}</span>
+            <span className="text-red-400 text-sm">{repoLoadError || cloneError}</span>
           </div>
         )}
 

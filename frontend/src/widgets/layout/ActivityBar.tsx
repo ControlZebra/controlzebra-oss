@@ -1,6 +1,6 @@
 /**
  * ActivityBar - Vertical navigation sidebar (leftmost panel).
- * Provides navigation between main views: Explorer, Repository Settings, Profile, Settings.
+ * Provides navigation between main views: Explorer, Repository Settings, Settings, Debug Logs.
  * Clicking an active view toggles the sidebar collapsed state.
  * Repository-specific views are disabled when no git repo is open.
  */
@@ -9,7 +9,6 @@ import {
   House,
   Sliders,
   Settings,
-  UserCircle,
   Bug,
   type LucideIcon,
 } from 'lucide-react';
@@ -48,7 +47,6 @@ const TOP_NAV_ITEMS: NavItem[] = [
 
 // Bottom navigation items (user-specific)
 const BOTTOM_NAV_ITEMS: NavItem[] = [
-  { id: VIEWS.PROFILE, Icon: UserCircle, label: 'Profile', requiresGit: false },
   { id: VIEWS.DEBUG, Icon: Bug, label: 'Debug Logs', requiresGit: false },
   { id: VIEWS.SETTINGS, Icon: Settings, label: 'Settings', requiresGit: false },
 ];

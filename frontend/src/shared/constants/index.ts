@@ -40,7 +40,6 @@ export const VIEWS = {
   EXPLORER: 'explorer',
   REPO_SETTINGS: 'repo-settings',
   SETTINGS: 'settings',
-  PROFILE: 'profile',
   DEBUG: 'debug',
 } as const;
 
@@ -77,6 +76,7 @@ export const FILE_STATUS_COLORS: Record<FileStatusType, string> = {
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   { id: 'general', name: 'General', description: 'App preferences' },
   { id: 'git-config', name: 'Git Configuration', description: 'Name and email for commits' },
+  { id: 'integrations', name: 'Integrations', description: 'Connect optional remote services' },
 ];
 
 // ============================================================================

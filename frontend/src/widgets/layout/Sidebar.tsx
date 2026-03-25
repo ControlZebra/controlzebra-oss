@@ -4,7 +4,6 @@ import { useLayout, useRepo } from '../../context';
 import ExplorerView from '../../features/explorer/components/ExplorerView';
 import RepoSettingsView from '../../features/repo-settings/components/RepoSettingsView';
 import SettingsView from '../../features/settings/components/SettingsView';
-import ProfileView from '../../features/profile/components/ProfileView';
 import WelcomeView from '../../features/welcome/components/WelcomeView';
 import DebugView from '../../features/debug/components/DebugView';
 import RepoSwitcher from '../../features/welcome/components/RepoSwitcher';
@@ -26,7 +25,6 @@ const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
   [VIEWS.EXPLORER]: { title: 'Next step advisor', Component: ExplorerView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
-  [VIEWS.PROFILE]: { title: 'Profile', Component: ProfileView },
   [VIEWS.DEBUG]: { title: 'Debug Logs', Component: DebugView },
 };
 
