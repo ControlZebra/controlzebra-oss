@@ -35,6 +35,7 @@ import { ICON_SIZES } from '../../../shared/constants';
 import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
 import { useRepo } from '../../../context';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import { useGitHubDeviceFlow } from '../../auth/hooks/useGitHubDeviceFlow';
 import ProjectCreationStepper, { type StepperStatus } from '../components/ProjectCreationStepper';
 import { Button, Input, Select, Switch } from '../../../shared/ui';
 import type { SelectOption } from '../../../shared/ui';
@@ -49,13 +50,6 @@ import type { GitHubRepo } from '../../../../bindings/controlzebra/services/mode
 /** Tracks which input mode the user is using. */
 type InputMode = 'browse' | 'url';
 
-/** Mirrors the device flow modal state from NewProjectPage. */
-interface DeviceFlowState {
-  isOpen: boolean;
-  userCode: string;
-  verificationUrl: string;
-}
-
 /** A repo entry enriched with its display group (owner). */
 interface GroupedRepo {
   repo: GitHubRepo;
@@ -66,7 +60,6 @@ interface GroupedRepo {
 // Constants
 // ============================================================================
 
-const REPO_FETCH_LIMIT = 100;
 
 /** Matches `https://github.com/owner/repo` or `git@github.com:owner/repo.git` */
 const GIT_URL_RE =
@@ -114,14 +107,12 @@ function RepoRow({
           : 'hover-bg-theme-interactive border border-transparent'
       }`}
     >
-      {/* Visibility icon */}
       {repo.private ? (
         <Lock size={13} className="text-yellow-400 shrink-0" />
       ) : (
         <Globe size={13} className="text-theme-muted shrink-0" />
       )}
 
-      {/* Repo info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm text-theme-primary font-medium truncate">
           {repo.fullName}
@@ -133,7 +124,6 @@ function RepoRow({
         )}
       </div>
 
-      {/* Meta badges */}
       <div className="flex items-center gap-3 shrink-0 text-xs text-theme-muted">
         {repo.language && (
           <span className="hidden sm:inline">{repo.language}</span>
@@ -167,7 +157,6 @@ function CloneProjectPage(): JSX.Element {
     installRequiredPackages,
     ghAuthStatus,
     isCheckingGhAuth,
-    startGitHubLogin,
     loadUserOrganizations,
   } = useRepo();
 
@@ -175,10 +164,13 @@ function CloneProjectPage(): JSX.Element {
   const [inputMode, setInputMode] = useState<InputMode>('browse');
 
   // ── GitHub auth (device flow modal) ───────────────────────────────────
-  const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
-    isOpen: false,
-    userCode: '',
-    verificationUrl: '',
+  const {
+    deviceFlow,
+    startDeviceFlow,
+    closeDeviceFlow,
+    handleDeviceFlowOpenChange,
+  } = useGitHubDeviceFlow({
+    onStartError: (message) => setCloneError(message),
   });
 
   // ── Repository browsing state ─────────────────────────────────────────
@@ -342,31 +334,8 @@ function CloneProjectPage(): JSX.Element {
 
   const handleGitHubConnect = useCallback(async () => {
     setCloneError(null);
-    const result = await startGitHubLogin();
-    if (result.success && result.userCode) {
-      setDeviceFlow({
-        isOpen: true,
-        userCode: result.userCode,
-        verificationUrl: result.verificationUrl || 'https://github.com/login/device',
-      });
-    } else {
-      setCloneError(result.error || 'Failed to start GitHub authentication');
-    }
-  }, [startGitHubLogin]);
-
-  const handleDeviceFlowComplete = useCallback(() => {
-    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
-  }, []);
-
-  const handleDeviceFlowCancel = useCallback(() => {
-    setDeviceFlow({ isOpen: false, userCode: '', verificationUrl: '' });
-  }, []);
-
-  const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
-    if (!open) {
-      handleDeviceFlowCancel();
-    }
-  }, [handleDeviceFlowCancel]);
+    await startDeviceFlow();
+  }, [startDeviceFlow]);
 
   // ── Manual URL validation ─────────────────────────────────────────────
 
@@ -732,7 +701,7 @@ function CloneProjectPage(): JSX.Element {
           open={deviceFlow.isOpen}
           userCode={deviceFlow.userCode}
           verificationUrl={deviceFlow.verificationUrl}
-          onComplete={handleDeviceFlowComplete}
+          onComplete={closeDeviceFlow}
           onOpenChange={handleDeviceFlowOpenChange}
         />
       </div>

@@ -5,7 +5,7 @@
  * - Session hydration from backend keychain
  * - Login/logout actions
  * - Session refresh + persistence
- * - Derived auth flags for UI gating
+ * - Derived auth flags for optional account UX
  */
 import {
   createContext,
@@ -23,6 +23,7 @@ import {
   hydrateSession,
   refreshSession as refreshSupabaseSession,
   serialiseSession,
+  isSupabaseConfigured,
 } from '../supabaseClient';
 import {
   LoadSession,
@@ -33,6 +34,8 @@ import {
 interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
+  isGuest: boolean;
+  isAuthAvailable: boolean;
   userEmail: string | null;
   userName: string | null;
   authError: string | null;
@@ -51,12 +54,18 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const authAvailable = isSupabaseConfigured();
 
   const hydrateFromKeychain = useCallback(async () => {
     setIsLoading(true);
     setAuthError(null);
 
     try {
+      if (!authAvailable) {
+        setSession(null);
+        return;
+      }
+
       const stored = await LoadSession();
       if (!stored) {
         setSession(null);
@@ -70,16 +79,19 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       } else {
         await ClearSession();
         setSession(null);
-        setAuthError(result.error || 'Session expired. Please sign in again.');
+        if (result.error) {
+          setAuthError(result.error);
+        }
       }
     } catch (err) {
       console.error('Failed to hydrate auth session:', err);
+      await ClearSession().catch(() => {});
       setSession(null);
-      setAuthError('Failed to load session. Please sign in again.');
+      setAuthError('Failed to load stored session. Continuing in guest mode.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [authAvailable]);
 
   useEffect(() => {
     void hydrateFromKeychain();
@@ -87,6 +99,13 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
   const loginWithPassword = useCallback(async (email: string, password: string) => {
     setAuthError(null);
+
+    if (!authAvailable) {
+      const msg = 'Account sign-in is unavailable in this build.';
+      setAuthError(msg);
+      return { success: false, error: msg };
+    }
+
     try {
       const result = await signIn(email, password);
       if (result.success && result.session) {
@@ -105,7 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       setAuthError(msg);
       return { success: false, error: msg };
     }
-  }, []);
+  }, [authAvailable]);
 
   const logout = useCallback(async () => {
     setAuthError(null);
@@ -131,6 +150,11 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
   }, []);
 
   const refreshSession = useCallback(async () => {
+    if (!authAvailable) {
+      setSession(null);
+      return { success: false, error: 'Account sign-in is unavailable in this build.' };
+    }
+
     try {
       const result = await refreshSupabaseSession();
       if (result.success && result.session) {
@@ -141,16 +165,20 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
 
       if (result.error) {
         setAuthError(result.error);
+        setSession(null);
+        await ClearSession().catch(() => {});
       }
 
       return { success: false, error: result.error || 'Failed to refresh session' };
     } catch (err) {
       console.error('Session refresh failed:', err);
+      await ClearSession().catch(() => {});
+      setSession(null);
       const msg = 'Failed to refresh session';
       setAuthError(msg);
       return { success: false, error: msg };
     }
-  }, []);
+  }, [authAvailable]);
 
   const value = useMemo<AuthContextValue>(() => {
     const userEmail = session?.user?.email ?? null;
@@ -162,6 +190,8 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
     return {
       isLoading,
       isAuthenticated: Boolean(session),
+      isGuest: !session,
+      isAuthAvailable: authAvailable,
       userEmail,
       userName,
       authError,
@@ -169,7 +199,7 @@ export function AuthProvider({ children }: AuthProviderProps): JSX.Element {
       logout,
       refreshSession,
     };
-  }, [session, isLoading, authError, loginWithPassword, logout, refreshSession]);
+  }, [session, isLoading, authAvailable, authError, loginWithPassword, logout, refreshSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

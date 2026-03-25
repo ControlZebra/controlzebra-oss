@@ -27,6 +27,8 @@ const {
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
+  GetUserProfile,
+  SetUserProfile,
   WatchDirectory,
   StopWatching,
   GetRemotes,
@@ -82,6 +84,8 @@ const {
   GetAppSettings: vi.fn(),
   SaveAppSettings: vi.fn(),
   EnsureIdentity: vi.fn(),
+  GetUserProfile: vi.fn(),
+  SetUserProfile: vi.fn(),
   WatchDirectory: vi.fn(),
   StopWatching: vi.fn(),
   GetRemotes: vi.fn(),
@@ -182,6 +186,8 @@ vi.mock('../../../../bindings/controlzebra/services/settingsservice', () => ({
   GetAppSettings,
   SaveAppSettings,
   EnsureIdentity,
+  GetUserProfile,
+  SetUserProfile,
 }));
 
 vi.mock('../../../../bindings/controlzebra/services/filewatcherservice', () => ({
@@ -291,6 +297,8 @@ describe('RepoContext analytics validation', () => {
     GetAppSettings.mockResolvedValue({ lastRepoPath: '' });
     SaveAppSettings.mockResolvedValue({ success: true });
     EnsureIdentity.mockResolvedValue({ wasAutoSet: false, name: '', email: '' });
+    GetUserProfile.mockResolvedValue({ name: 'Test User', email: 'test@controlzebra.com' });
+    SetUserProfile.mockResolvedValue({ success: true, message: 'saved' });
 
     WatchDirectory.mockResolvedValue({ success: true });
     StopWatching.mockResolvedValue({ success: true });

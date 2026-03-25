@@ -53,6 +53,9 @@ function PublishToCloudModal({
   const [username, setUsername] = useState('');
   const [organizations, setOrganizations] = useState<GitHubOrganization[]>([]);
   const [isLoadingOrgs, setIsLoadingOrgs] = useState(false);
+  const isAuthenticated = ghAuthStatus?.loggedIn === true;
+  const showConnectButton = !isAuthenticated && ghInstalled;
+  const showInstallButton = !isAuthenticated && !ghInstalled;
 
   const ownerOptions = useMemo((): SelectOption[] => {
     const options: SelectOption[] = [];
@@ -108,7 +111,11 @@ function PublishToCloudModal({
   }, [handlePublish]);
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      closeOnInteractOutside={!isAuthenticated}
+    >
       <AlertDialogContent size="lg">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -121,27 +128,36 @@ function PublishToCloudModal({
         </AlertDialogHeader>
 
         <div className="px-6 pb-2 space-y-4">
-          {!ghAuthStatus?.loggedIn ? (
-            <div className="text-center py-2">
-              <p className="text-theme-muted text-xs mb-3">
-                Connect your GitHub account to publish this project.
+          {!isAuthenticated ? (
+            <div className="flex min-h-44 flex-col items-center justify-center rounded-lg border border-theme-default bg-theme-surface px-6 py-6 text-center">
+              <p className="text-sm font-medium text-theme-primary">
+                Connect GitHub to publish this project.
               </p>
-              <Button
-                size="sm"
-                onClick={onConnectGitHub}
-                disabled={!ghInstalled || isInstallingPackages}
-              >
-                <Github size={ICON_SIZES.xs} />
-                Connect GitHub
-              </Button>
-              {!ghInstalled && (
-                <div className="mt-2 space-y-2">
-                  <p className="text-yellow-400 text-xs">
-                    {isInstallingPackages ? 'Installing GitHub CLI… Please wait.' : 'GitHub CLI is required to publish.'}
+              <p className="mt-2 max-w-sm text-xs leading-5 text-theme-muted">
+                Publishing creates a remote backup and makes it easier to share this project with collaborators.
+              </p>
+
+              {showConnectButton && (
+                <Button
+                  size="sm"
+                  className="mt-4 min-w-40"
+                  onClick={onConnectGitHub}
+                  disabled={!onConnectGitHub || isInstallingPackages}
+                >
+                  <Github size={ICON_SIZES.xs} />
+                  Connect GitHub
+                </Button>
+              )}
+
+              {showInstallButton && (
+                <>
+                  <p className="mt-4 text-xs text-yellow-400">
+                    {isInstallingPackages ? 'Installing GitHub CLI. Please wait.' : 'GitHub CLI is required before you can connect and publish.'}
                   </p>
                   <Button
                     size="sm"
                     variant="secondary"
+                    className="mt-3 min-w-40"
                     onClick={onInstallRequiredPackages}
                     loading={isInstallingPackages}
                     disabled={!onInstallRequiredPackages || isInstallingPackages}
@@ -149,7 +165,7 @@ function PublishToCloudModal({
                     <Github size={ICON_SIZES.xs} />
                     {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
                   </Button>
-                </div>
+                </>
               )}
             </div>
           ) : (
@@ -203,18 +219,20 @@ function PublishToCloudModal({
           )}
         </div>
 
-        <AlertDialogFooter className="gap-2">
-          <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="default"
-            onClick={handlePublishAction}
-            loading={isPublishing}
-            disabled={!ghAuthStatus?.loggedIn || !repoName.trim() || !selectedOwner}
-          >
-            <Github size={ICON_SIZES.xs} />
-            Publish to Cloud
-          </AlertDialogAction>
-        </AlertDialogFooter>
+        {isAuthenticated && (
+          <AlertDialogFooter className="items-center gap-2">
+            <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="default"
+              onClick={handlePublishAction}
+              loading={isPublishing}
+              disabled={!repoName.trim() || !selectedOwner}
+            >
+              <Github size={ICON_SIZES.xs} />
+              Publish to Cloud
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        )}
       </AlertDialogContent>
     </AlertDialog>
   );

@@ -12,7 +12,7 @@ const avatarSize = ICON_SIZES.lg * 2;
 const avatarStyle: CSSProperties = { width: avatarSize, height: avatarSize };
 
 function ProfileView(): JSX.Element {
-  const { isAuthenticated, userName, userEmail, logout } = useAuth();
+  const { isAuthenticated, isAuthAvailable, userName, userEmail, logout } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
   type Plan = 'Free' | 'Pro' | 'Super Contributor' | 'Team';
   const plan: Plan = isAuthenticated ? 'Super Contributor' : 'Free';
@@ -75,8 +75,14 @@ function ProfileView(): JSX.Element {
             <div className="flex items-center gap-3">
               <UserCircle style={avatarStyle} className="text-theme-muted" />
               <div>
-                <p className="text-theme-primary text-sm font-medium">Not signed in</p>
-                <p className="text-theme-muted text-xs">Sign in to sync settings</p>
+                <p className="text-theme-primary text-sm font-medium">
+                  {isAuthAvailable ? 'Using guest mode' : 'Account unavailable'}
+                </p>
+                <p className="text-theme-muted text-xs">
+                  {isAuthAvailable
+                    ? 'Local Git workflows are ready now. Sign in from the main Profile page if you need cloud features.'
+                    : 'This build still supports local Git workflows without a ControlZebra account.'}
+                </p>
               </div>
             </div>
           </div>

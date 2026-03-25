@@ -19,6 +19,15 @@ export type ResolutionStrategy = 'mine' | 'theirs' | 'both';
 export type MessageType = 'success' | 'error' | 'info' | 'warning';
 export type ProjectSetupStartSource = 'status_bar_nudge' | 'setup_banner';
 export type LiveMergePhase = 'dry-run' | 'starting' | 'resolving' | 'ready-to-complete' | 'auto-completed';
+export type GitIdentityPromptReason = 'save' | 'branch-save' | 'initial-commit' | 'merge-complete';
+
+export interface GitIdentityPromptState {
+  isOpen: boolean;
+  repoPath: string;
+  name: string;
+  email: string;
+  reason: GitIdentityPromptReason;
+}
 
 // ============================================================================
 // GitHub Types (for Phase 2: GitHub Integration)
@@ -537,6 +546,9 @@ export interface RepoContextValue {
   // Non-git folder prompt state
   nonGitFolderPromptPath: string | null;
   dismissNonGitFolderPrompt: () => void;
+  gitIdentityPrompt: GitIdentityPromptState | null;
+  submitGitIdentityPrompt: (name: string, email: string, saveGlobally: boolean) => Promise<boolean>;
+  cancelGitIdentityPrompt: () => void;
 
   // ===== Actions =====
   openRepo: (path: string) => Promise<boolean>;

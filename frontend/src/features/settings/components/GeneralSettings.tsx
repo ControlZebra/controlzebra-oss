@@ -4,7 +4,7 @@
 import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
 import { Sun, Moon, Monitor, BarChart3, LogOut, Info, FolderTree, type LucideIcon } from 'lucide-react';
 import { useLayout, useAuth, type Theme } from '../../../context';
-import { ICON_SIZES } from '../../../shared/constants';
+import { ICON_SIZES, VIEWS } from '../../../shared/constants';
 import { 
   getAnalyticsConsent, 
   setAnalyticsConsent, 
@@ -62,8 +62,8 @@ const ANALYTICS_OPTIONS: AnalyticsOption[] = [
 ];
 
 function GeneralSettings(): JSX.Element {
-  const { theme, setTheme } = useLayout();
-  const { isAuthenticated, userEmail, logout } = useAuth();
+  const { theme, setTheme, setActiveView } = useLayout();
+  const { isAuthenticated, isAuthAvailable, userEmail, logout } = useAuth();
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(getAnalyticsConsent);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [dataLocations, setDataLocations] = useState<DataLocations | null>(null);
@@ -191,28 +191,40 @@ function GeneralSettings(): JSX.Element {
           </div>
           <p className="text-theme-muted text-sm mb-4">
             {isAuthenticated
-              ? `Signed in as ${userEmail || 'your account'}.`
-              : 'Sign in required to use the app.'}
+              ? `Signed in as ${userEmail || 'your account'}. ControlZebra account features are optional, and local Git work stays available if you sign out.`
+              : isAuthAvailable
+                ? 'A ControlZebra account is optional. You can keep using local Git workflows as a guest and sign in later from Profile if you need cloud features.'
+                : 'Account sign-in is unavailable in this build. Local Git workflows remain fully available.'}
           </p>
 
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!isAuthenticated}
-            loading={isSigningOut}
-            onClick={async () => {
-              if (!isAuthenticated) return;
-              setIsSigningOut(true);
-              try {
-                await logout();
-              } finally {
-                setIsSigningOut(false);
-              }
-            }}
-          >
-            <LogOut style={iconStyle} />
-            <span className="ml-1.5">Sign out</span>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {isAuthenticated ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={isSigningOut}
+                onClick={async () => {
+                  setIsSigningOut(true);
+                  try {
+                    await logout();
+                  } finally {
+                    setIsSigningOut(false);
+                  }
+                }}
+              >
+                <LogOut style={iconStyle} />
+                <span className="ml-1.5">Sign out</span>
+              </Button>
+            ) : isAuthAvailable ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setActiveView(VIEWS.PROFILE)}
+              >
+                <span>Open Profile</span>
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
