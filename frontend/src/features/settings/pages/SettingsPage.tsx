@@ -8,6 +8,7 @@ import { SETTINGS_CATEGORIES, type SettingsCategory } from '../../../shared/cons
 import { useLayout } from '../../../context';
 import GitConfigForm from '../components/GitConfigForm';
 import GeneralSettings from '../components/GeneralSettings';
+import IntegrationsSettings from '../components/IntegrationsSettings';
 
 function SettingsPage(): JSX.Element {
   const { selectedSettingsCategory } = useLayout();
@@ -22,6 +23,8 @@ function SettingsPage(): JSX.Element {
         return <GeneralSettings />;
       case 'git-config':
         return <GitConfigForm />;
+      case 'integrations':
+        return <IntegrationsSettings />;
       default:
         return null;
     }
@@ -29,7 +32,7 @@ function SettingsPage(): JSX.Element {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="max-w-2xl mx-auto p-8">
+      <div className="max-w-4xl mx-auto p-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">

@@ -4,7 +4,7 @@
 import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
 import { Sun, Moon, Monitor, BarChart3, LogOut, Info, FolderTree, type LucideIcon } from 'lucide-react';
 import { useLayout, useAuth, type Theme } from '../../../context';
-import { ICON_SIZES, VIEWS } from '../../../shared/constants';
+import { ICON_SIZES } from '../../../shared/constants';
 import { 
   getAnalyticsConsent, 
   setAnalyticsConsent, 
@@ -62,7 +62,7 @@ const ANALYTICS_OPTIONS: AnalyticsOption[] = [
 ];
 
 function GeneralSettings(): JSX.Element {
-  const { theme, setTheme, setActiveView } = useLayout();
+  const { theme, setTheme, openAccountDialog } = useLayout();
   const { isAuthenticated, isAuthAvailable, userEmail, logout } = useAuth();
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(getAnalyticsConsent);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -193,7 +193,7 @@ function GeneralSettings(): JSX.Element {
             {isAuthenticated
               ? `Signed in as ${userEmail || 'your account'}. ControlZebra account features are optional, and local Git work stays available if you sign out.`
               : isAuthAvailable
-                ? 'A ControlZebra account is optional. You can keep using local Git workflows as a guest and sign in later from Profile if you need cloud features.'
+                ? 'A ControlZebra account is optional. You can keep using local Git workflows as a guest and sign in later from the account menu if you need cloud features.'
                 : 'Account sign-in is unavailable in this build. Local Git workflows remain fully available.'}
           </p>
 
@@ -219,9 +219,9 @@ function GeneralSettings(): JSX.Element {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setActiveView(VIEWS.PROFILE)}
+                onClick={openAccountDialog}
               >
-                <span>Open Profile</span>
+                <span>Sign in</span>
               </Button>
             ) : null}
           </div>

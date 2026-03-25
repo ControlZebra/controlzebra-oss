@@ -1,6 +1,6 @@
 /**
  * TopBar - Application header with repo name and action controls.
- * Shows repository name, current branch, and action buttons.
+ * Shows the current branch, action buttons, and the account menu.
  * 
  * v2 additions:
  * - Branch modal trigger
@@ -16,19 +16,26 @@ import {
   PanelLeftOpen,
   Trash2,
   Menu,
+  UserCircle,
+  Settings,
+  PlugZap,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { openExternalUrl } from '../../shared/runtime/browser';
 import { ICON_SIZES, VIEWS } from '../../shared/constants';
-import { useLayout, useRepo } from '../../context';
+import { useAuth, useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
 import { UndoLastSaveDialog } from '../../shared/ui';
+import AccountDialog from '../../features/auth/components/AccountDialog';
 import BranchModal from './BranchModal';
-import RewindConfirmModal from './RewindConfirmModal';
 import SwitchProjectModal from './SwitchProjectModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../shared/ui/dropdown-menu';
@@ -55,13 +62,23 @@ function TopBar(): JSX.Element {
   const { 
     repoPath, 
     repoInfo, 
-    repoStatus,
     closeRepo,
     commits,
     undoLastCommit,
     operationInProgress,
   } = useRepo();
-  const { sidebarCollapsed, sidebarWidth, toggleSidebar, setActiveView } = useLayout();
+  const {
+    sidebarCollapsed,
+    sidebarWidth,
+    toggleSidebar,
+    setActiveView,
+    setSidebarCollapsed,
+    setSelectedSettingsCategory,
+    accountDialogOpen,
+    setAccountDialogOpen,
+    openAccountDialog,
+  } = useLayout();
+  const { isAuthenticated, userEmail, userName, logout } = useAuth();
 
   // Responsive state
   const { isCompactTopBar } = useWindowSize();
@@ -70,6 +87,7 @@ function TopBar(): JSX.Element {
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   const [switchProjectModalOpen, setSwitchProjectModalOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSwitchProject = useCallback(async (): Promise<void> => {
     await closeRepo();
@@ -79,6 +97,31 @@ function TopBar(): JSX.Element {
   const handleOpenCommunity = useCallback(async (): Promise<void> => {
     await openExternalUrl(COMMUNITY_DISCORD_URL);
   }, []);
+
+  const handleOpenSettings = useCallback((category: string): void => {
+    setSelectedSettingsCategory(category);
+    setActiveView(VIEWS.SETTINGS);
+    setSidebarCollapsed(false);
+  }, [setActiveView, setSelectedSettingsCategory, setSidebarCollapsed]);
+
+  const handleAccountAction = useCallback(async (): Promise<void> => {
+    if (!isAuthenticated) {
+      openAccountDialog();
+      return;
+    }
+
+    setIsSigningOut(true);
+    try {
+      const result = await logout();
+      if (!result.success) {
+        toast.error(result.error || 'Failed to sign out');
+      }
+    } catch {
+      toast.error('Failed to sign out');
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [isAuthenticated, logout, openAccountDialog]);
 
   const handleUndo = useCallback(async (): Promise<void> => {
     await undoLastCommit();
@@ -173,32 +216,59 @@ function TopBar(): JSX.Element {
                   <Trash2 style={iconStyle} className="mr-2" />
                   Undo Last Save
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleOpenCommunity}
-                >
-                  <DiscordIcon style={iconStyle} className="mr-2" />
-                  Community
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
         </div>
 
-        {/* Right: Community button (hidden on compact - moved to burger menu) */}
+        {/* Right: Account menu */}
         <div className="flex items-center gap-2 justify-end shrink-0">
-          {repoPath && isGitRepo && !isCompactTopBar && (
-            <button 
-              onClick={handleOpenCommunity}
-              title="Community"
-              className="flex items-center justify-center gap-2 h-8 px-2 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
-            >
-              <DiscordIcon style={iconStyle} />
-              <span className="text-sm font-medium">
-                Community
-              </span>
-            </button>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                title={isAuthenticated ? (userEmail || 'Account menu') : 'Account menu'}
+                className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
+              >
+                <UserCircle style={iconStyle} className="currentColor" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {isAuthenticated && (
+                <>
+                  <DropdownMenuLabel className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-theme-primary">
+                      {userName || userEmail || 'ControlZebra User'}
+                    </span>
+                    {userEmail ? (
+                      <span className="text-xs font-normal text-theme-muted">{userEmail}</span>
+                    ) : null}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem onClick={() => handleOpenSettings('general')}>
+                <Settings style={iconStyle} className="mr-2" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleOpenSettings('integrations')}>
+                <PlugZap style={iconStyle} className="mr-2" />
+                Integrations
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenCommunity}>
+                <DiscordIcon style={iconStyle} className="mr-2" />
+                Discord
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void handleAccountAction()} disabled={isSigningOut}>
+                {isAuthenticated ? (
+                  <LogOut style={iconStyle} className="mr-2" />
+                ) : (
+                  <LogIn style={iconStyle} className="mr-2" />
+                )}
+                {isAuthenticated ? 'Sign out' : 'Sign in'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -220,6 +290,11 @@ function TopBar(): JSX.Element {
         open={switchProjectModalOpen}
         onOpenChange={setSwitchProjectModalOpen}
         onConfirm={handleSwitchProject}
+      />
+
+      <AccountDialog
+        open={accountDialogOpen}
+        onOpenChange={setAccountDialogOpen}
       />
     </>
   );
