@@ -81,7 +81,7 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                 onClick={() => handleSelect(option.value)}
                 className={cn(
                   "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
-                  "hover:bg-theme-muted focus:bg-theme-muted",
+                  "hover:bg-theme-muted focus-visible:bg-theme-muted",
                   option.value === value
                     ? "bg-theme-muted text-theme-primary"
                     : "text-theme-secondary"

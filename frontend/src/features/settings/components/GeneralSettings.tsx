@@ -1,8 +1,8 @@
 /**
  * GeneralSettings - App preferences including theme selection and analytics consent.
  */
-import { memo, useEffect, useState, type CSSProperties, type JSX } from 'react';
-import { Sun, Moon, Monitor, BarChart3, LogOut, Info, FolderTree, type LucideIcon } from 'lucide-react';
+import { memo, useCallback, useEffect, useState, type CSSProperties, type JSX } from 'react';
+import { BarChart3, FolderTree, Info, LogOut, Palette } from 'lucide-react';
 import { useLayout, useAuth, type Theme } from '../../../context';
 import { ICON_SIZES } from '../../../shared/constants';
 import { 
@@ -10,7 +10,16 @@ import {
   setAnalyticsConsent, 
   type AnalyticsConsent 
 } from '../../../domain/analytics/analytics';
-import { Button } from '../../../shared/ui';
+import {
+  Button,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../shared/ui';
 import {
   GetDataLocations,
 } from '../../../../bindings/controlzebra/services/settingsservice';
@@ -28,13 +37,12 @@ function formatDisplayVersion(version: string | undefined): string {
 interface ThemeOption {
   id: Theme;
   label: string;
-  Icon: LucideIcon;
 }
 
 const THEME_OPTIONS: ThemeOption[] = [
-  { id: 'light', label: 'Light', Icon: Sun },
-  { id: 'dark', label: 'Dark', Icon: Moon },
-  { id: 'system', label: 'System', Icon: Monitor },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'system', label: 'System' },
 ];
 
 interface AnalyticsOption {
@@ -61,6 +69,16 @@ const ANALYTICS_OPTIONS: AnalyticsOption[] = [
   },
 ];
 
+const THEME_SELECT_OPTIONS = THEME_OPTIONS.map(({ id, label }) => ({
+  value: id,
+  label,
+}));
+
+const ANALYTICS_SELECT_OPTIONS = ANALYTICS_OPTIONS.map(({ id, label }) => ({
+  value: id,
+  label,
+}));
+
 function GeneralSettings(): JSX.Element {
   const { theme, setTheme, openAccountDialog } = useLayout();
   const { isAuthenticated, isAuthAvailable, userEmail, logout } = useAuth();
@@ -68,11 +86,15 @@ function GeneralSettings(): JSX.Element {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [dataLocations, setDataLocations] = useState<DataLocations | null>(null);
 
-  // Handle analytics consent change
-  const handleAnalyticsChange = (level: AnalyticsConsent) => {
+  const handleThemeChange = useCallback((value: string) => {
+    setTheme(value as Theme);
+  }, [setTheme]);
+
+  const handleAnalyticsChange = useCallback((value: string) => {
+    const level = value as AnalyticsConsent;
     setAnalyticsConsent(level);
     setAnalyticsConsentState(level);
-  };
+  }, []);
 
   useEffect(() => {
     GetDataLocations()
@@ -85,100 +107,69 @@ function GeneralSettings(): JSX.Element {
   }, []);
 
   const DATA_LOCATION_ITEMS: Array<{ label: string; path: string | undefined }> = [
-    { label: 'Roaming config', path: dataLocations?.roamingConfigDir },
-    { label: 'Repository settings', path: dataLocations?.repositorySettingsDir },
+    { label: 'Config', path: dataLocations?.roamingConfigDir },
+    { label: 'Repo settings', path: dataLocations?.repositorySettingsDir },
     { label: 'Settings file', path: dataLocations?.settingsFile },
-    { label: 'Local logs', path: dataLocations?.logsDir },
-    { label: 'Local cache', path: dataLocations?.cacheDir },
-    { label: 'Portable tools bin', path: dataLocations?.toolsBinDir },
-    { label: 'WebView2 data', path: dataLocations?.webView2Dir },
+    { label: 'Logs', path: dataLocations?.logsDir },
+    { label: 'Cache', path: dataLocations?.cacheDir },
+    { label: 'Tools', path: dataLocations?.toolsBinDir },
+    { label: 'WebView2', path: dataLocations?.webView2Dir },
   ];
 
   return (
     <div className="space-y-4">
       <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
-        {/* Theme Selection */}
-        <div className="mb-6">
-          <label className="block text-theme-primary text-sm font-medium mb-3">
-            Appearance
-          </label>
-          <p className="text-theme-muted text-sm mb-4">
-            Choose how ControlZebra looks on your device.
-          </p>
-
-          <div className="flex gap-3">
-            {THEME_OPTIONS.map(({ id, label, Icon }) => {
-              const isSelected = theme === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setTheme(id)}
-                  className={`
-                    flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all min-w-[100px]
-                    ${isSelected
-                      ? 'border-blue-500 bg-blue-500/10 text-blue-500 dark:text-blue-400'
-                      : 'border-theme-default bg-theme-surface hover:border-theme-muted text-theme-secondary hover:text-theme-primary'
-                    }
-                  `}
-                >
-                  <Icon style={iconStyle} />
-                  <span className="text-sm font-medium">{label}</span>
-                </button>
-              );
-            })}
+        <div className="space-y-6">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Palette style={iconStyle} className="text-theme-secondary" />
+                <label className="block text-theme-primary text-sm font-medium">
+                  Theme
+                </label>
+              </div>
+              <p className="text-theme-muted text-sm">
+                Choose the app look.
+              </p>
+            </div>
+            <Select
+              value={theme}
+              onValueChange={handleThemeChange}
+              options={THEME_SELECT_OPTIONS}
+              placeholder="Select theme"
+              className="lg:mt-0"
+            />
           </div>
-        </div>
 
-        {/* Analytics Consent */}
-        <div className="border-t border-theme-default pt-6">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 style={iconStyle} className="text-theme-secondary" />
-            <label className="block text-theme-primary text-sm font-medium">
-              Privacy & Analytics
-            </label>
-          </div>
-          <p className="text-theme-muted text-sm mb-4">
-            Help improve ControlZebra by sharing anonymous usage data.
-          </p>
+          <div className="border-t border-theme-default" />
 
-          <div className="flex flex-col gap-2">
-            {ANALYTICS_OPTIONS.map(({ id, label, description }) => {
-              const isSelected = analyticsConsent === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => handleAnalyticsChange(id)}
-                  className={`
-                    flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left
-                    ${isSelected
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-theme-default bg-theme-surface hover:border-theme-muted'
-                    }
-                  `}
-                >
-                  <div className={`
-                    w-4 h-4 rounded-full border-2 mt-0.5 flex items-center justify-center flex-shrink-0
-                    ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-theme-muted'}
-                  `}>
-                    {isSelected && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <div>
-                    <span className={`text-sm font-medium block ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-theme-primary'}`}>
-                      {label}
-                    </span>
-                    <span className="text-theme-muted text-xs">
-                      {description}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 style={iconStyle} className="text-theme-secondary" />
+                <label className="block text-theme-primary text-sm font-medium">
+                  Analytics
+                </label>
+              </div>
+              <p className="text-theme-muted text-sm">
+                Choose what anonymous app data can be shared.
+              </p>
+              <p className="text-theme-muted text-xs mt-2">
+                No personal information or file contents are ever collected.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Select
+                value={analyticsConsent}
+                onValueChange={handleAnalyticsChange}
+                options={ANALYTICS_SELECT_OPTIONS}
+                placeholder="Select analytics"
+              />
+              <p className="text-theme-muted text-xs">
+                {ANALYTICS_OPTIONS.find(({ id }) => id === analyticsConsent)?.description}
+              </p>
+            </div>
           </div>
-          <p className="text-theme-muted text-xs mt-3">
-            No personal information or file contents are ever collected.
-          </p>
         </div>
 
         {/* Account */}
@@ -186,7 +177,7 @@ function GeneralSettings(): JSX.Element {
           <div className="flex items-center gap-2 mb-3">
             <LogOut style={iconStyle} className="text-theme-secondary" />
             <label className="block text-theme-primary text-sm font-medium">
-              ControlZebra Account
+              Account
             </label>
           </div>
           <p className="text-theme-muted text-sm mb-4">
@@ -233,7 +224,7 @@ function GeneralSettings(): JSX.Element {
         <div className="flex items-center gap-2 mb-3">
           <Info style={iconStyle} className="text-theme-secondary" />
           <label className="block text-theme-primary text-sm font-medium">
-            App Updates
+            Updates
           </label>
         </div>
         <div className="space-y-2 mb-4 text-sm">
@@ -253,21 +244,31 @@ function GeneralSettings(): JSX.Element {
         <div className="flex items-center gap-2 mb-3">
           <FolderTree style={iconStyle} className="text-theme-secondary" />
           <label className="block text-theme-primary text-sm font-medium">
-            Data Locations
+            Data
           </label>
         </div>
         <p className="text-theme-muted text-sm mb-4">
           Active storage paths used by ControlZebra on this machine.
         </p>
 
-        <div className="space-y-2 text-sm">
-          {DATA_LOCATION_ITEMS.map(({ label, path }) => (
-            <div key={label} className="grid grid-cols-[180px_1fr] gap-2 items-start">
-              <span className="text-theme-muted">{label}:</span>
-              <span className="text-theme-primary break-all">{path || 'Unavailable'}</span>
-            </div>
-          ))}
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[180px]">Location</TableHead>
+              <TableHead>Path</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {DATA_LOCATION_ITEMS.map(({ label, path }) => (
+              <TableRow key={label}>
+                <TableCell className="text-theme-secondary">{label}</TableCell>
+                <TableCell className="text-sm break-all">
+                  {path || <span className="text-theme-muted">Unavailable</span>}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
