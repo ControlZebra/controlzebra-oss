@@ -1,30 +1,39 @@
-import { memo, useState, useEffect, useMemo, useCallback } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react';
 import {
   AlertCircle,
   Cpu,
+  ChevronLeft,
+  ChevronRight,
   FileWarning,
-  GitCompareArrows,
   Loader2,
   RefreshCw,
-  Tags,
-  Workflow,
 } from 'lucide-react';
 import {
   clearAOIs,
+  ProgramNavigator,
   diffControllers,
   parseString,
   registerAOIsFromController,
+  TagTable,
+  type ColumnDefinition,
   type L5XDiff,
   type NormalizedController,
+  type NormalizedProgram,
+  type NormalizedTag,
 } from 'ladder-visualizer';
 
+import { useLayout } from '../../../../context/LayoutContext';
 import { ICON_SIZES } from '../../../../shared/constants';
 import { onEvent } from '../../../../shared/runtime/events';
+import { TabBar } from '../../file/l5x';
+import { ViewerHeader } from '../../shared/ViewerHeader';
 import { getPathFileName } from '../../shared/path-utils';
 import type { DiffSide } from '../../../registry/diff-registry';
 import { loadTextSide, serializeDiffSide } from '../diff-side-loaders';
 import { buildL5XDiffLayoutViewModel } from './adapter';
+import { RoutineDiffInspector } from './RoutineDiffInspector';
 import type { L5XDiffAggregateChangeKind, L5XDiffRenderableEntity } from './types';
+import { useDiffTabs } from './useDiffTabs';
 
 interface CachedController {
   controller: NormalizedController;
@@ -167,120 +176,169 @@ function getChangeTone(kind: L5XDiffAggregateChangeKind): string {
   }
 }
 
-function StatCard({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: string | number;
-  icon: JSX.Element;
-}): JSX.Element {
-  return (
-    <div className="rounded-md border border-theme-default bg-theme-surface px-3 py-2">
-      <div className="flex items-center gap-2 text-theme-secondary text-xs uppercase tracking-wide">
-        {icon}
-        <span>{title}</span>
-      </div>
-      <div className="mt-2 text-lg font-semibold text-theme-primary">{value}</div>
-    </div>
-  );
+function formatChangeKind(kind: L5XDiffAggregateChangeKind): string {
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
-function RenderEntityDetails({ entity }: { entity: L5XDiffRenderableEntity }): JSX.Element {
+function getTagRowStyle(tagDiffKind: L5XDiffAggregateChangeKind | undefined): CSSProperties | undefined {
+  if (!tagDiffKind || tagDiffKind === 'mixed') {
+    return undefined;
+  }
+
+  if (tagDiffKind === 'added') {
+    return {
+      ['--table-cell-bg' as '--table-cell-bg']: 'rgba(42, 123, 77, 0.12)',
+    };
+  }
+
+  if (tagDiffKind === 'removed') {
+    return {
+      ['--table-cell-bg' as '--table-cell-bg']: 'rgba(167, 50, 63, 0.12)',
+    };
+  }
+
+  return {
+    ['--table-cell-bg' as '--table-cell-bg']: 'rgba(186, 127, 38, 0.12)',
+  };
+}
+
+function buildTagDiffColumns(entity: Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' | 'program-tags' }>): ColumnDefinition<NormalizedTag>[] {
+  const tagDiffsByName = new Map(entity.changedTagDiffs.map((tagDiff) => [tagDiff.name, tagDiff]));
+
+  return [
+    {
+      key: 'diffKind',
+      header: 'Change',
+      sortKey: 'name',
+      render: (tag) => {
+        const diff = tagDiffsByName.get(tag.name);
+        if (!diff) {
+          return <span className="text-theme-muted">Unchanged</span>;
+        }
+
+        return (
+          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${getChangeTone(diff.kind)}`}>
+            {formatChangeKind(diff.kind)}
+          </span>
+        );
+      },
+      cellStyle: { width: '112px' },
+    },
+    {
+      key: 'propertyChanges',
+      header: 'Changed Fields',
+      sortKey: 'name',
+      render: (tag) => {
+        const diff = tagDiffsByName.get(tag.name);
+        if (!diff || !diff.propertyChanges || diff.propertyChanges.length === 0) {
+          return <span className="text-theme-muted">-</span>;
+        }
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {diff.propertyChanges.map((propertyChange) => (
+              <span
+                key={`${tag.name}:${propertyChange.property}`}
+                className="rounded border border-theme-default bg-theme-elevated px-1.5 py-0.5 text-[11px] text-theme-secondary"
+              >
+                {propertyChange.property}
+              </span>
+            ))}
+          </div>
+        );
+      },
+      cellStyle: { minWidth: '220px' },
+    },
+  ];
+}
+
+function buildNavigatorController(viewModel: NonNullable<ReturnType<typeof buildL5XDiffLayoutViewModel>>): NormalizedController {
+  const routineEntities = Object.values(viewModel.entitiesByTabId).filter(
+    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'routine' }> => entity.kind === 'routine',
+  );
+  const programTagEntities = Object.values(viewModel.entitiesByTabId).filter(
+    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'program-tags' }> => entity.kind === 'program-tags',
+  );
+  const controllerTagsEntity = Object.values(viewModel.entitiesByTabId).find(
+    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' }> => entity.kind === 'controller-tags',
+  );
+
+  const programsByName = new Map<string, NormalizedProgram>();
+
+  for (const routineEntity of routineEntities) {
+    const sourceProgram = routineEntity.newProgram ?? routineEntity.oldProgram;
+    const sourceRoutine = routineEntity.newRoutine ?? routineEntity.oldRoutine;
+    if (!sourceProgram || !sourceRoutine) {
+      continue;
+    }
+
+    const existingProgram = programsByName.get(routineEntity.programName);
+    if (existingProgram) {
+      existingProgram.routines.push(sourceRoutine);
+      continue;
+    }
+
+    programsByName.set(routineEntity.programName, {
+      ...sourceProgram,
+      routines: [sourceRoutine],
+      tags: [],
+    });
+  }
+
+  for (const programTagEntity of programTagEntities) {
+    const existingProgram = programsByName.get(programTagEntity.programName);
+    if (existingProgram) {
+      existingProgram.tags = programTagEntity.fullContextTags;
+      continue;
+    }
+
+    const sourceProgram = programTagEntity.newProgram ?? programTagEntity.oldProgram;
+    if (!sourceProgram) {
+      continue;
+    }
+
+    programsByName.set(programTagEntity.programName, {
+      ...sourceProgram,
+      routines: [],
+      tags: programTagEntity.fullContextTags,
+    });
+  }
+
+  return {
+    ...viewModel.newController,
+    tags: controllerTagsEntity?.fullContextTags ?? [],
+    programs: [...programsByName.values()].sort((left, right) => left.name.localeCompare(right.name)),
+    aois: [],
+    dataTypes: [],
+    modules: [],
+  };
+}
+
+function RenderEntityDetails({
+  entity,
+  isDarkMode,
+}: {
+  entity: L5XDiffRenderableEntity;
+  isDarkMode: boolean;
+}): JSX.Element {
   if (entity.kind === 'routine') {
     return (
-      <div className="space-y-4">
-        <div className="rounded-md border border-theme-default bg-theme-surface p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-theme-secondary">Routine</p>
-              <h3 className="text-lg font-semibold text-theme-primary">{entity.routineName}</h3>
-              <p className="text-sm text-theme-secondary">{entity.programName}</p>
-            </div>
-            <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getChangeTone(entity.changeKind)}`}>
-              {entity.changeKind}
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <StatCard title="Stable Tab Id" value={entity.tab.id} icon={<Workflow size={14} />} />
-            <StatCard title="Old Rungs" value={entity.oldRoutine?.rungs.length ?? 0} icon={<GitCompareArrows size={14} />} />
-            <StatCard title="New Rungs" value={entity.newRoutine?.rungs.length ?? 0} icon={<GitCompareArrows size={14} />} />
-          </div>
-        </div>
-
-        <div className="rounded-md border border-theme-default bg-theme-surface p-4">
-          <p className="text-sm font-medium text-theme-primary">Changed Rungs</p>
-          {entity.changedRungNumbers.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {entity.changedRungNumbers.map((rungNumber) => (
-                <span
-                  key={rungNumber}
-                  className="rounded border border-theme-default bg-theme-elevated px-2 py-1 text-xs text-theme-secondary"
-                >
-                  Rung {rungNumber}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-theme-secondary">No rung-level changes were emitted for this routine diff.</p>
-          )}
-        </div>
+      <div className="h-full min-h-0">
+        <RoutineDiffInspector entity={entity} isDarkMode={isDarkMode} />
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="rounded-md border border-theme-default bg-theme-surface p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-theme-secondary">Tag Group</p>
-            <h3 className="text-lg font-semibold text-theme-primary">{entity.title}</h3>
-            {entity.kind === 'program-tags' ? (
-              <p className="text-sm text-theme-secondary">{entity.programName}</p>
-            ) : null}
-          </div>
-          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getChangeTone(entity.changeKind)}`}>
-            {entity.changeKind}
-          </span>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <StatCard title="Stable Tab Id" value={entity.tab.id} icon={<Workflow size={14} />} />
-          <StatCard title="Changed Tags" value={entity.changedTagDiffs.length} icon={<Tags size={14} />} />
-          <StatCard title="Full Context Tags" value={entity.fullContextTags.length} icon={<Tags size={14} />} />
-        </div>
-      </div>
+  const tagDiffsByName = new Map(entity.changedTagDiffs.map((tagDiff) => [tagDiff.name, tagDiff]));
 
-      <div className="rounded-md border border-theme-default bg-theme-surface overflow-hidden">
-        <div className="border-b border-theme-default px-4 py-3">
-          <p className="text-sm font-medium text-theme-primary">Changed Tags</p>
-        </div>
-        <div className="max-h-[420px] overflow-auto">
-          <table className="min-w-full divide-y divide-theme-default text-sm">
-            <thead className="bg-theme-elevated">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-theme-secondary">Tag</th>
-                <th className="px-4 py-2 text-left font-medium text-theme-secondary">Change</th>
-                <th className="px-4 py-2 text-left font-medium text-theme-secondary">Property Changes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-theme-default bg-theme-surface">
-              {entity.changedTagDiffs.map((tagDiff) => (
-                <tr key={tagDiff.name}>
-                  <td className="px-4 py-2 text-theme-primary">{tagDiff.name}</td>
-                  <td className="px-4 py-2">
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${getChangeTone(tagDiff.kind)}`}>
-                      {tagDiff.kind}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-theme-secondary">{tagDiff.propertyChanges?.length ?? 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-4">
+      <TagTable
+        tags={entity.fullContextTags}
+        extraColumns={buildTagDiffColumns(entity)}
+        getRowStyle={(tag) => getTagRowStyle(tagDiffsByName.get(tag.name)?.kind)}
+        className="h-full"
+      />
     </div>
   );
 }
@@ -292,16 +350,39 @@ function L5XLayoutDiffViewer({
   newSide,
   fileStatus,
 }: L5XLayoutDiffViewerProps): JSX.Element {
+  const { theme } = useLayout();
   const [loadState, setLoadState] = useState<LoadState>({ phase: 'idle' });
   const [bundle, setBundle] = useState<CachedDiffBundle | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [showNavigator, setShowNavigator] = useState(true);
+
+  const isDarkMode = useMemo(() => {
+    if (theme === 'dark') {
+      return true;
+    }
+    if (theme === 'light') {
+      return false;
+    }
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('dark');
+    }
+    return false;
+  }, [theme]);
 
   const cacheKeys = useMemo(() => ({
     oldController: buildControllerCacheKey(repoPath, oldSide),
     newController: buildControllerCacheKey(repoPath, newSide),
     diff: buildDiffCacheKey(repoPath, oldSide, newSide),
   }), [repoPath, oldSide, newSide]);
+  const diffTabCacheKey = useMemo(() => `${repoPath}|${filePath}`, [repoPath, filePath]);
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    selectTab,
+    pruneTabs,
+  } = useDiffTabs(diffTabCacheKey);
 
   const normalizedWorkingPaths = useMemo(
     () => [oldSide, newSide]
@@ -320,6 +401,10 @@ function L5XLayoutDiffViewer({
     diffCache.delete(cacheKeys.diff);
     setRetryCount((prev) => prev + 1);
   }, [cacheKeys]);
+
+  const toggleNavigator = useCallback(() => {
+    setShowNavigator((previousState) => !previousState);
+  }, []);
 
   useEffect(() => {
     if (normalizedWorkingPaths.length === 0) {
@@ -452,13 +537,137 @@ function L5XLayoutDiffViewer({
       return;
     }
 
-    setActiveTabId((current) => {
-      if (current && viewModel.entitiesByTabId[current]) {
-        return current;
-      }
-      return viewModel.initialTabId;
-    });
+    pruneTabs(new Set(viewModel.tabs.map((tab) => tab.id)));
+  }, [pruneTabs, viewModel]);
+
+  useEffect(() => {
+    if (!viewModel || tabs.length > 0 || !viewModel.initialTabId) {
+      return;
+    }
+
+    const initialEntity = viewModel.entitiesByTabId[viewModel.initialTabId];
+    if (initialEntity) {
+      openTab(initialEntity.tab);
+    }
+  }, [openTab, tabs.length, viewModel]);
+
+  const handleOpenItem = useCallback((tabId: string) => {
+    if (!viewModel) {
+      return;
+    }
+
+    const entity = viewModel.entitiesByTabId[tabId];
+    if (!entity) {
+      return;
+    }
+
+    openTab(entity.tab);
+  }, [openTab, viewModel]);
+
+  const activeEntity = activeTabId && viewModel ? viewModel.entitiesByTabId[activeTabId] : undefined;
+  const unsupportedTotal = viewModel
+    ? viewModel.unsupportedChanges.stRoutineCount + viewModel.unsupportedChanges.otherRoutineCount
+    : 0;
+  const navigatorController = useMemo(() => {
+    if (!viewModel) {
+      return null;
+    }
+
+    return buildNavigatorController(viewModel);
   }, [viewModel]);
+  const controllerTagsEntity = useMemo(() => {
+    if (!viewModel) {
+      return undefined;
+    }
+
+    return Object.values(viewModel.entitiesByTabId).find(
+      (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' }> => entity.kind === 'controller-tags',
+    );
+  }, [viewModel]);
+  const programTagEntitiesByName = useMemo(() => {
+    if (!viewModel) {
+      return new Map<string, Extract<L5XDiffRenderableEntity, { kind: 'program-tags' }>>();
+    }
+
+    return new Map(
+      Object.values(viewModel.entitiesByTabId)
+        .filter((entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'program-tags' }> => entity.kind === 'program-tags')
+        .map((entity) => [entity.programName, entity]),
+    );
+  }, [viewModel]);
+  const routineEntitiesByKey = useMemo(() => {
+    if (!viewModel) {
+      return new Map<string, Extract<L5XDiffRenderableEntity, { kind: 'routine' }>>();
+    }
+
+    return new Map(
+      Object.values(viewModel.entitiesByTabId)
+        .filter((entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'routine' }> => entity.kind === 'routine')
+        .map((entity) => [`${entity.programName}::${entity.routineName}`, entity]),
+    );
+  }, [viewModel]);
+
+  const selectedNavigatorItemId = useMemo(() => {
+    if (!activeEntity || !navigatorController) {
+      return null;
+    }
+
+    if (activeEntity.kind === 'controller-tags') {
+      return 'controller-tags';
+    }
+
+    const programIndex = navigatorController.programs.findIndex((program) => program.name === activeEntity.programName);
+    if (programIndex < 0) {
+      return null;
+    }
+
+    if (activeEntity.kind === 'program-tags') {
+      return `program-tags-${programIndex}`;
+    }
+
+    const routineIndex = navigatorController.programs[programIndex]?.routines.findIndex((routine) => routine.name === activeEntity.routineName) ?? -1;
+    if (routineIndex < 0) {
+      return null;
+    }
+
+    return `routine-${programIndex}-${routineIndex}`;
+  }, [activeEntity, navigatorController]);
+
+  // Auto-expand only the ancestry paths of changed items
+  const navigatorInitialExpanded = useMemo(() => {
+    if (!navigatorController) {
+      return undefined;
+    }
+
+    const keys = new Set<string>();
+    const hasControllerTags = Boolean(controllerTagsEntity);
+
+    if (hasControllerTags) {
+      keys.add('controller');
+    }
+
+    // Check each program for changed routines or tags
+    let hasAnyProgramChanges = false;
+    navigatorController.programs.forEach((program, pIdx) => {
+      const hasChangedRoutines = program.routines.some(
+        (routine) => routineEntitiesByKey.has(`${program.name}::${routine.name}`),
+      );
+      const hasChangedTags = programTagEntitiesByName.has(program.name);
+
+      if (hasChangedRoutines || hasChangedTags) {
+        keys.add(`program-${pIdx}`);
+        hasAnyProgramChanges = true;
+      }
+    });
+
+    // Show Tasks > MainTask ancestry if any program has changes
+    if (hasAnyProgramChanges) {
+      keys.add('tasks');
+      keys.add('mainTask');
+    }
+
+    return keys;
+  }, [navigatorController, controllerTagsEntity, programTagEntitiesByName, routineEntitiesByKey]);
 
   if (loadState.phase !== 'done' && loadState.phase !== 'error') {
     const phaseLabel = PHASE_LABELS[loadState.phase] ?? 'Preparing…';
@@ -502,53 +711,22 @@ function L5XLayoutDiffViewer({
     );
   }
 
-  const activeEntity = activeTabId ? viewModel.entitiesByTabId[activeTabId] : undefined;
-  const unsupportedTotal = viewModel.unsupportedChanges.stRoutineCount + viewModel.unsupportedChanges.otherRoutineCount;
-
   return (
     <div className="flex flex-col h-full min-h-0 bg-theme-bg">
-      <div className="flex items-center justify-between px-4 py-2 bg-theme-surface border-b border-theme-default">
-        <div className="flex items-center gap-2 min-w-0">
-          <Cpu size={ICON_SIZES.sm} className="text-theme-secondary shrink-0" />
-          <span className="text-sm text-theme-primary font-medium shrink-0">L5X Diff</span>
-          <span className="text-xs text-theme-muted truncate">{filePath}</span>
-        </div>
-        <button
-          type="button"
-          onClick={handleReload}
-          title="Reload diff"
-          className="p-1.5 rounded text-theme-muted hover:text-theme-primary hover:bg-theme-elevated transition-colors"
-        >
-          <RefreshCw size={ICON_SIZES.sm} />
-        </button>
-      </div>
-
-      {viewModel.tabs.length > 0 ? (
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-theme-default bg-theme-elevated px-3 py-2">
-          {viewModel.tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTabId(tab.id)}
-              className={[
-                'rounded-md border px-3 py-1.5 text-sm transition-colors whitespace-nowrap',
-                activeTabId === tab.id
-                  ? 'border-accent-primary bg-theme-surface text-theme-primary'
-                  : 'border-theme-default bg-theme-elevated text-theme-secondary hover:bg-theme-surface',
-              ].join(' ')}
-              title={tab.subtitle ? `${tab.title} · ${tab.subtitle}` : tab.title}
-            >
-              {tab.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {unsupportedTotal > 0 ? (
-        <div className="border-b border-theme-default bg-theme-warning/10 px-4 py-2 text-xs text-theme-secondary">
-          Phase 1 only maps RLL routine changes. Hidden routine changes: {viewModel.unsupportedChanges.stRoutineCount} ST, {viewModel.unsupportedChanges.otherRoutineCount} other.
-        </div>
-      ) : null}
+      <ViewerHeader
+        filePath={filePath}
+        icon={Cpu}
+        extraContent={(
+          <button
+            type="button"
+            onClick={handleReload}
+            title="Reload diff"
+            className="rounded border border-theme-default bg-theme-elevated p-1.5 text-theme-muted transition-colors hover:bg-theme-muted hover:text-theme-primary"
+          >
+            <RefreshCw size={ICON_SIZES.sm} />
+          </button>
+        )}
+      />
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewModel.navigatorSections.length === 0 ? (
@@ -559,66 +737,96 @@ function L5XLayoutDiffViewer({
             </div>
           </div>
         ) : (
-          <div className="grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="min-h-0 overflow-auto border-r border-theme-default bg-theme-surface">
-              <div className="p-3 space-y-4">
-                {viewModel.navigatorSections.map((section) => (
-                  <section key={section.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xs font-semibold uppercase tracking-wide text-theme-secondary">{section.title}</h2>
-                      <span className="text-xs text-theme-muted">{section.itemCount}</span>
-                    </div>
-                    <div className="space-y-1">
-                      {section.items.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setActiveTabId(item.tabId)}
-                          className={[
-                            'w-full rounded-md border px-3 py-2 text-left transition-colors',
-                            activeTabId === item.tabId
-                              ? 'border-accent-primary bg-theme-elevated'
-                              : 'border-theme-default bg-theme-surface hover:bg-theme-elevated',
-                          ].join(' ')}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-theme-primary">{item.title}</p>
-                              {item.description ? (
-                                <p className="truncate text-xs text-theme-secondary">{item.description}</p>
-                              ) : null}
-                            </div>
-                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${getChangeTone(item.changeKind)}`}>
-                              {item.badge ?? item.changeKind}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between text-[11px] text-theme-muted">
-                            <span>{item.changedCount} changed</span>
-                            {item.totalCount !== undefined ? <span>{item.totalCount} total</span> : null}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </aside>
+          <div className="flex h-full min-h-0 overflow-hidden">
+            {showNavigator ? (
+              <aside className="w-72 min-h-0 overflow-hidden border-r border-theme-default bg-theme-surface shrink-0">
+                <ProgramNavigator
+                  controller={navigatorController ?? emptyController}
+                  programs={navigatorController?.programs ?? []}
+                  selectedItemId={selectedNavigatorItemId}
+                  initialExpanded={navigatorInitialExpanded}
+                  filter={{
+                    showController: Boolean(controllerTagsEntity),
+                    showControllerTags: Boolean(controllerTagsEntity),
+                    showPrograms: (program) => Boolean(programTagEntitiesByName.get(program.name) || program.routines.length > 0),
+                    showProgramTags: (program) => Boolean(programTagEntitiesByName.get(program.name)),
+                    showRoutine: (_program, _programIndex, routine, _routineIndex) => routineEntitiesByKey.has(`${_program.name}::${routine.name}`),
+                    showUnscheduled: false,
+                    showMotionGroups: false,
+                    showAOIs: false,
+                    showDataTypes: false,
+                    showIO: false,
+                  }}
+                  badges={{
+                    controllerTags: controllerTagsEntity ? `${controllerTagsEntity.changedTagDiffs.length} changed` : undefined,
+                    programTags: (program) => {
+                      const entity = programTagEntitiesByName.get(program.name);
+                      return entity ? `${entity.changedTagDiffs.length} changed` : undefined;
+                    },
+                    routine: (program, _programIndex, routine) => {
+                      const entity = routineEntitiesByKey.get(`${program.name}::${routine.name}`);
+                      return entity ? formatChangeKind(entity.changeKind) : undefined;
+                    },
+                  }}
+                  onControllerTagsSelect={() => {
+                    const entity = controllerTagsEntity;
+                    if (entity) {
+                      handleOpenItem(entity.tab.id);
+                    }
+                  }}
+                  onProgramTagsSelect={(programIndex) => {
+                    const program = navigatorController?.programs[programIndex];
+                    const entity = program ? programTagEntitiesByName.get(program.name) : undefined;
+                    if (entity) {
+                      handleOpenItem(entity.tab.id);
+                    }
+                  }}
+                  onRoutineSelect={(programIndex, routineIndex, routine) => {
+                    const program = navigatorController?.programs[programIndex];
+                    if (!program) {
+                      return;
+                    }
 
-            <main className="min-h-0 overflow-auto bg-theme-bg p-4">
-              <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
-                <StatCard title="Total Changes" value={viewModel.diff.summary.totalChanges} icon={<GitCompareArrows size={14} />} />
-                <StatCard title="Changed Routines" value={viewModel.navigatorSections.find((section) => section.kind === 'routines')?.itemCount ?? 0} icon={<Workflow size={14} />} />
-                <StatCard title="Controller Tag Groups" value={viewModel.navigatorSections.find((section) => section.kind === 'controller-tags')?.itemCount ?? 0} icon={<Tags size={14} />} />
-                <StatCard title="Program Tag Groups" value={viewModel.navigatorSections.find((section) => section.kind === 'program-tags')?.itemCount ?? 0} icon={<Tags size={14} />} />
-              </div>
+                    const entity = routineEntitiesByKey.get(`${program.name}::${routine.name}`);
+                    if (entity) {
+                      handleOpenItem(entity.tab.id);
+                    }
+                  }}
+                  className="h-full border-0"
+                />
+              </aside>
+            ) : null}
 
-              {activeEntity ? (
-                <RenderEntityDetails entity={activeEntity} />
+            <button
+              type="button"
+              onClick={toggleNavigator}
+              className="w-6 border-r border-theme-default bg-theme-surface hover:bg-theme-elevated transition-colors flex items-center justify-center shrink-0"
+              title={showNavigator ? 'Hide navigator' : 'Show navigator'}
+            >
+              {showNavigator ? (
+                <ChevronLeft size={ICON_SIZES.xs} className="text-theme-muted" />
               ) : (
-                <div className="flex h-full items-center justify-center rounded-md border border-dashed border-theme-default bg-theme-surface text-theme-secondary">
-                  Select a changed routine or tag group.
-                </div>
+                <ChevronRight size={ICON_SIZES.xs} className="text-theme-muted" />
               )}
+            </button>
+
+            <main className="flex-1 min-h-0 overflow-hidden bg-theme-bg">
+              <TabBar
+                tabs={tabs.map((tab) => ({ id: tab.id, title: tab.title }))}
+                activeTabId={activeTabId}
+                onTabSelect={selectTab}
+                onTabClose={closeTab}
+              />
+
+              <div className="flex-1 overflow-hidden relative">
+                {activeEntity ? (
+                  <RenderEntityDetails entity={activeEntity} isDarkMode={isDarkMode} />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-theme-elevated text-theme-secondary">
+                    Select a changed routine or tag group.
+                  </div>
+                )}
+              </div>
             </main>
           </div>
         )}
