@@ -5,7 +5,7 @@
  * falls back to legacy commit/working-tree metadata during migration.
  */
 import { memo, useState, useEffect, useMemo, useCallback } from 'react';
-import { Cpu, AlertCircle, FileWarning, Loader2, RefreshCw } from 'lucide-react';
+import { Cpu, AlertCircle, ChevronLeft, ChevronRight, FileWarning, Loader2, RefreshCw } from 'lucide-react';
 import {
   parseString,
   diffControllers,
@@ -20,12 +20,17 @@ import { ICON_SIZES } from '../../../../shared/constants';
 import { useLayout } from '../../../../context/LayoutContext';
 import { getPathFileName } from '../../shared/path-utils';
 import type { DiffSide } from '../../../registry/diff-registry';
+import { TabBar } from '../../file/l5x';
 import {
   loadTextSide,
   serializeDiffSide,
 } from '../diff-side-loaders';
 
-import DiffChangeStream from './DiffChangeStream';
+import DiffNavigator from './DiffNavigator';
+import RoutineDiffSection from './RoutineDiffSection';
+import TagDiffSection from './TagDiffSection';
+import { buildDiffNavigatorModel, type DiffTabData, type DiffTabDescriptor } from './diff-view-model';
+import { useDiffTabs } from './useDiffTabs';
 
 interface CachedController {
   controller: NormalizedController;
@@ -159,6 +164,21 @@ const PHASE_LABELS: Record<string, string> = {
   diffing: 'Computing changes…',
 };
 
+const EMPTY_NAVIGATOR_MODEL = {
+  routineGroups: [],
+  tagGroups: [],
+  totalItems: 0,
+  validTabIds: [],
+  unsupported: {
+    stRoutineCount: 0,
+    otherRoutineCount: 0,
+    dataTypeCount: 0,
+    aoiCount: 0,
+    moduleCount: 0,
+    controllerInfoChangeCount: 0,
+  },
+};
+
 function L5XDiffViewer({
   repoPath,
   filePath,
@@ -169,6 +189,7 @@ function L5XDiffViewer({
   const [loadState, setLoadState] = useState<LoadState>({ phase: 'idle' });
   const [diff, setDiff] = useState<L5XDiff | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [showNavigator, setShowNavigator] = useState(true);
 
   const cacheKeys = useMemo(() => {
     return {
@@ -195,6 +216,15 @@ function L5XDiffViewer({
   }, [theme]);
 
   const ladderTheme = isDarkMode ? DARK_THEME : CONTROL_ZEBRA_THEME;
+  const diffTabCacheKey = useMemo(() => `${repoPath}|${filePath}`, [repoPath, filePath]);
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    selectTab,
+    pruneTabs,
+  } = useDiffTabs(diffTabCacheKey);
 
   const handleRetry = useCallback(() => {
     setRetryCount((prev) => prev + 1);
@@ -208,6 +238,10 @@ function L5XDiffViewer({
     }
     setRetryCount((prev) => prev + 1);
   }, [cacheKeys]);
+
+  const toggleNavigator = useCallback(() => {
+    setShowNavigator((previousState) => !previousState);
+  }, []);
 
   useEffect(() => {
     if (normalizedWorkingPaths.length === 0) {
@@ -338,6 +372,138 @@ function L5XDiffViewer({
     };
   }, [cacheKeys, fileStatus, newSide, oldSide, repoPath, retryCount]);
 
+  const navigatorModel = useMemo(
+    () => (diff ? buildDiffNavigatorModel(diff) : EMPTY_NAVIGATOR_MODEL),
+    [diff],
+  );
+
+  useEffect(() => {
+    pruneTabs(new Set(navigatorModel.validTabIds));
+  }, [navigatorModel.validTabIds, pruneTabs]);
+
+  const openDescriptor = useCallback((descriptor: DiffTabDescriptor) => {
+    openTab(descriptor);
+  }, [openTab]);
+
+  const renderUnsupportedPhaseContent = useCallback((title: string, description: string) => {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-center text-theme-secondary">
+        <div className="max-w-md space-y-2">
+          <p className="text-sm font-medium text-theme-primary">{title}</p>
+          <p className="text-xs text-theme-muted">{description}</p>
+        </div>
+      </div>
+    );
+  }, []);
+
+  const renderTabContent = useCallback((tabData: DiffTabData, isActive: boolean) => {
+    if (!diff) {
+      return null;
+    }
+
+    const containerClass = `flex-1 min-h-0 overflow-auto bg-theme-elevated ${isActive ? '' : 'hidden'}`;
+
+    if (tabData.type === 'controller-tags') {
+      return (
+        <div key="controller-tags" className={containerClass}>
+          <div className="p-4">
+            <TagDiffSection tagDiffs={diff.tags} title="Controller Tags" />
+          </div>
+        </div>
+      );
+    }
+
+    if (tabData.type === 'program-tags') {
+      const programDiff = diff.programs.find((program) => program.name === tabData.programName);
+
+      if (!programDiff || programDiff.tagDiffs.length === 0) {
+        return (
+          <div key={`program-tags-${tabData.programName}`} className={containerClass}>
+            {renderUnsupportedPhaseContent('Tag changes unavailable', 'This program no longer has tag changes in the current diff.')}
+          </div>
+        );
+      }
+
+      return (
+        <div key={`program-tags-${tabData.programName}`} className={containerClass}>
+          <div className="p-4">
+            <TagDiffSection
+              tagDiffs={programDiff.tagDiffs}
+              title="Program Tags"
+              scopeName={programDiff.name}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    const programDiff = diff.programs.find((program) => program.name === tabData.programName);
+    const routineDiff = programDiff?.routineDiffs.find((routine) => routine.name === tabData.routineName);
+
+    if (!programDiff || !routineDiff) {
+      return (
+        <div key={`routine-${tabData.programName}-${tabData.routineName}`} className={containerClass}>
+          {renderUnsupportedPhaseContent('Routine changes unavailable', 'This routine no longer exists in the current diff result.')}
+        </div>
+      );
+    }
+
+    const routineType = routineDiff.routineType ?? routineDiff.newRoutine?.type ?? routineDiff.oldRoutine?.type;
+    if (routineType !== 'RLL') {
+      return (
+        <div key={`routine-${tabData.programName}-${tabData.routineName}`} className={containerClass}>
+          {renderUnsupportedPhaseContent(
+            'Routine diff not available in this phase',
+            `${routineType ?? 'This'} routine type will move into the navigator after the RLL layout is complete.`,
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div key={`routine-${tabData.programName}-${tabData.routineName}`} className={containerClass}>
+        <div className="p-4">
+          <RoutineDiffSection
+            routineDiff={routineDiff}
+            programName={programDiff.name}
+            theme={ladderTheme}
+            isDarkMode={isDarkMode}
+          />
+        </div>
+      </div>
+    );
+  }, [diff, isDarkMode, ladderTheme, renderUnsupportedPhaseContent]);
+
+  const renderMainContent = useCallback(() => {
+    if (navigatorModel.totalItems === 0) {
+      return (
+        <div className="flex h-full items-center justify-center px-6 text-center text-theme-secondary">
+          <div className="max-w-md space-y-2">
+            <p className="text-sm font-medium text-theme-primary">No changed routines or tags to inspect</p>
+            <p className="text-xs text-theme-muted">
+              This diff does not contain RLL routine or tag changes that Phase 2 can open in tabs yet.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (tabs.length === 0) {
+      return (
+        <div className="flex h-full items-center justify-center px-6 text-center text-theme-secondary">
+          <div className="max-w-md space-y-2">
+            <p className="text-sm font-medium text-theme-primary">No diff tab selected</p>
+            <p className="text-xs text-theme-muted">
+              Choose a changed routine or tag group from the navigator to inspect it here.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return tabs.map((tab) => renderTabContent(tab.data, tab.id === activeTabId));
+  }, [activeTabId, navigatorModel.totalItems, renderTabContent, tabs]);
+
   if (loadState.phase !== 'done' && loadState.phase !== 'error') {
     const phaseLabel = PHASE_LABELS[loadState.phase] ?? 'Preparing…';
     return (
@@ -400,8 +566,42 @@ function L5XDiffViewer({
         </button>
       </div>
 
-      <div className="flex-1 overflow-hidden min-h-0">
-        <DiffChangeStream diff={diff} theme={ladderTheme} isDarkMode={isDarkMode} />
+      <div className="flex-1 overflow-hidden min-h-0 flex">
+        {showNavigator && (
+          <div className="w-72 border-r border-theme-default bg-theme-surface overflow-hidden shrink-0">
+            <DiffNavigator
+              model={navigatorModel}
+              activeTabId={activeTabId}
+              onOpenItem={openDescriptor}
+            />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={toggleNavigator}
+          className="w-6 border-r border-theme-default bg-theme-surface hover:bg-theme-elevated transition-colors flex items-center justify-center shrink-0"
+          title={showNavigator ? 'Hide navigator' : 'Show navigator'}
+        >
+          {showNavigator ? (
+            <ChevronLeft size={ICON_SIZES.xs} className="text-theme-muted" />
+          ) : (
+            <ChevronRight size={ICON_SIZES.xs} className="text-theme-muted" />
+          )}
+        </button>
+
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-theme-elevated">
+          <TabBar
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onTabSelect={selectTab}
+            onTabClose={closeTab}
+          />
+
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {renderMainContent()}
+          </div>
+        </div>
       </div>
     </div>
   );
