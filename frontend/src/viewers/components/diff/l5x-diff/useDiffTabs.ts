@@ -1,6 +1,9 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-
 import type { DiffTabData, DiffTabDescriptor } from './diff-view-model';
+import {
+  clearCachedPersistentTabState,
+  getCachedPersistentTabState,
+  usePersistentTabs,
+} from '../../shared/usePersistentTabs';
 
 export interface DiffTab {
   id: string;
@@ -17,14 +20,26 @@ interface DiffTabStateCache {
   activeTabId: string | null;
 }
 
-const diffTabStateCache = new Map<string, DiffTabStateCache>();
+const DIFF_TAB_CACHE_NAMESPACE = 'l5x-diff';
+
+function createDiffTab(descriptor: DiffTabDescriptor): DiffTab {
+  return {
+    id: descriptor.id,
+    type: descriptor.data.type,
+    title: descriptor.title,
+    subtitle: descriptor.subtitle,
+    kind: descriptor.kind,
+    changeCount: descriptor.changeCount,
+    data: descriptor.data,
+  };
+}
 
 export function getCachedDiffTabState(cacheKey: string): DiffTabStateCache | undefined {
-  return diffTabStateCache.get(cacheKey);
+  return getCachedPersistentTabState<DiffTab>(DIFF_TAB_CACHE_NAMESPACE, cacheKey);
 }
 
 export function clearCachedDiffTabState(cacheKey: string): void {
-  diffTabStateCache.delete(cacheKey);
+  clearCachedPersistentTabState(DIFF_TAB_CACHE_NAMESPACE, cacheKey);
 }
 
 export interface UseDiffTabsResult {
@@ -37,89 +52,9 @@ export interface UseDiffTabsResult {
 }
 
 export function useDiffTabs(cacheKey?: string): UseDiffTabsResult {
-  const cachedState = cacheKey ? getCachedDiffTabState(cacheKey) : undefined;
-
-  const [tabs, setTabs] = useState<DiffTab[]>(cachedState?.tabs ?? []);
-  const [activeTabId, setActiveTabId] = useState<string | null>(cachedState?.activeTabId ?? null);
-
-  const cacheKeyRef = useRef(cacheKey);
-  cacheKeyRef.current = cacheKey;
-
-  useEffect(() => {
-    if (cacheKeyRef.current) {
-      diffTabStateCache.set(cacheKeyRef.current, { tabs, activeTabId });
-    }
-  }, [tabs, activeTabId]);
-
-  const openTab = useCallback((descriptor: DiffTabDescriptor) => {
-    setTabs((previousTabs) => {
-      const existingTab = previousTabs.find((tab) => tab.id === descriptor.id);
-      if (existingTab) {
-        return previousTabs;
-      }
-
-      return [
-        ...previousTabs,
-        {
-          id: descriptor.id,
-          type: descriptor.data.type,
-          title: descriptor.title,
-          subtitle: descriptor.subtitle,
-          kind: descriptor.kind,
-          changeCount: descriptor.changeCount,
-          data: descriptor.data,
-        },
-      ];
-    });
-
-    setActiveTabId(descriptor.id);
-  }, []);
-
-  const closeTab = useCallback((tabId: string) => {
-    setTabs((previousTabs) => {
-      const tabIndex = previousTabs.findIndex((tab) => tab.id === tabId);
-      if (tabIndex === -1) {
-        return previousTabs;
-      }
-
-      const nextTabs = previousTabs.filter((tab) => tab.id !== tabId);
-
-      setActiveTabId((currentActiveTabId) => {
-        if (currentActiveTabId !== tabId) {
-          return currentActiveTabId;
-        }
-
-        if (nextTabs.length === 0) {
-          return null;
-        }
-
-        return nextTabs[Math.min(tabIndex, nextTabs.length - 1)].id;
-      });
-
-      return nextTabs;
-    });
-  }, []);
-
-  const selectTab = useCallback((tabId: string) => {
-    setActiveTabId(tabId);
-  }, []);
-
-  const pruneTabs = useCallback((validTabIds: Set<string>) => {
-    setTabs((previousTabs) => previousTabs.filter((tab) => validTabIds.has(tab.id)));
-    setActiveTabId((currentActiveTabId) => {
-      if (!currentActiveTabId || validTabIds.has(currentActiveTabId)) {
-        return currentActiveTabId;
-      }
-      return null;
-    });
-  }, []);
-
-  return {
-    tabs,
-    activeTabId,
-    openTab,
-    closeTab,
-    selectTab,
-    pruneTabs,
-  };
+  return usePersistentTabs<DiffTab, DiffTabDescriptor>({
+    namespace: DIFF_TAB_CACHE_NAMESPACE,
+    cacheKey,
+    createTab: createDiffTab,
+  });
 }

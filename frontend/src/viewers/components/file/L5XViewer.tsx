@@ -48,35 +48,9 @@ import {
 
 // Import local tab components
 import { TabBar, useTabs, DataTypeTable, type TabData } from './l5x';
+import { CONTROL_ZEBRA_LADDER_THEME } from './l5x/theme';
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
-
-// ============================================================================
-// Theme Configuration
-// ============================================================================
-
-/**
- * ControlZebra theme for ladder-visualizer that uses CSS variables.
- * Maps ControlZebra's design system to ladder-visualizer colors.
- */
-const CONTROL_ZEBRA_THEME = {
-  powerRailColor: 'var(--color-accent-primary)',
-  wireColor: 'var(--color-text-secondary)',
-  contactColor: 'var(--color-text-primary)',
-  contactNCColor: '#d32f2f',
-  coilColor: 'var(--color-text-primary)',
-  boxBorderColor: 'var(--color-border-default)',
-  boxBgColor: 'var(--color-bg-surface)',
-  boxTextColor: 'var(--color-text-primary)',
-  rungNumberBg: 'var(--color-bg-elevated)',
-  rungNumberColor: 'var(--color-text-muted)',
-  labelColor: 'var(--color-text-primary)',
-  addressColor: 'var(--color-text-secondary)',
-  branchConnectorColor: 'var(--color-text-secondary)',
-  bgPrimary: 'var(--color-bg-surface)',
-  borderColor: 'var(--color-border-default)',
-  textMuted: 'var(--color-text-muted)',
-};
 
 // ============================================================================
 // Types
@@ -367,7 +341,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
                 ) : routine.type === 'RLL' ? (
                   <VirtualizedLadderDiagram
                     routine={routine}
-                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_THEME}
+                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
                     className="h-full"
                   />
                 ) : (
@@ -395,7 +369,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
                 ) : routine.type === 'RLL' ? (
                   <VirtualizedLadderDiagram
                     routine={routine}
-                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_THEME}
+                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
                     className="h-full"
                   />
                 ) : (
