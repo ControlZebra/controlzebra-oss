@@ -187,19 +187,19 @@ function getTagRowStyle(tagDiffKind: L5XDiffAggregateChangeKind | undefined): CS
 
   if (tagDiffKind === 'added') {
     return {
-      ['--table-cell-bg' as '--table-cell-bg']: 'rgba(42, 123, 77, 0.12)',
-    };
+      '--table-cell-bg': 'rgba(42, 123, 77, 0.12)',
+    } as CSSProperties;
   }
 
   if (tagDiffKind === 'removed') {
     return {
-      ['--table-cell-bg' as '--table-cell-bg']: 'rgba(167, 50, 63, 0.12)',
-    };
+      '--table-cell-bg': 'rgba(167, 50, 63, 0.12)',
+    } as CSSProperties;
   }
 
   return {
-    ['--table-cell-bg' as '--table-cell-bg']: 'rgba(186, 127, 38, 0.12)',
-  };
+    '--table-cell-bg': 'rgba(186, 127, 38, 0.12)',
+  } as CSSProperties;
 }
 
 function buildTagDiffColumns(entity: Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' | 'program-tags' }>): ColumnDefinition<NormalizedTag>[] {
@@ -337,7 +337,7 @@ function RenderEntityDetails({
         tags={entity.fullContextTags}
         extraColumns={buildTagDiffColumns(entity)}
         getRowStyle={(tag) => getTagRowStyle(tagDiffsByName.get(tag.name)?.kind)}
-        className="h-full"
+        className="min-h-0 flex-1"
       />
     </div>
   );
@@ -565,9 +565,6 @@ function L5XLayoutDiffViewer({
   }, [openTab, viewModel]);
 
   const activeEntity = activeTabId && viewModel ? viewModel.entitiesByTabId[activeTabId] : undefined;
-  const unsupportedTotal = viewModel
-    ? viewModel.unsupportedChanges.stRoutineCount + viewModel.unsupportedChanges.otherRoutineCount
-    : 0;
   const navigatorController = useMemo(() => {
     if (!viewModel) {
       return null;
@@ -781,7 +778,7 @@ function L5XLayoutDiffViewer({
                       handleOpenItem(entity.tab.id);
                     }
                   }}
-                  onRoutineSelect={(programIndex, routineIndex, routine) => {
+                  onRoutineSelect={(programIndex, _routineIndex, routine) => {
                     const program = navigatorController?.programs[programIndex];
                     if (!program) {
                       return;
@@ -810,7 +807,7 @@ function L5XLayoutDiffViewer({
               )}
             </button>
 
-            <main className="flex-1 min-h-0 overflow-hidden bg-theme-bg">
+            <main className="flex h-full flex-1 min-h-0 flex-col overflow-hidden bg-theme-bg">
               <TabBar
                 tabs={tabs.map((tab) => ({ id: tab.id, title: tab.title }))}
                 activeTabId={activeTabId}
@@ -818,7 +815,7 @@ function L5XLayoutDiffViewer({
                 onTabClose={closeTab}
               />
 
-              <div className="flex-1 overflow-hidden relative">
+              <div className="relative flex-1 min-h-0 overflow-hidden">
                 {activeEntity ? (
                   <RenderEntityDetails entity={activeEntity} isDarkMode={isDarkMode} />
                 ) : (

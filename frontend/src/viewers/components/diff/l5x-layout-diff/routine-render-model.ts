@@ -1,4 +1,11 @@
-import type { NormalizedRung, PropertyChange } from 'ladder-visualizer';
+import {
+  buildInlineDiffModel,
+  measureRoutineDiffRowHeight,
+  MIN_RUNG_HEIGHT,
+  type InlineDiffRungModel,
+  type NormalizedRung,
+  type PropertyChange,
+} from 'ladder-visualizer';
 
 import type { L5XDiffRoutineEntity } from './types';
 
@@ -8,8 +15,10 @@ export interface L5XDiffRoutineRow {
   key: string;
   rungNumber: number;
   state: L5XDiffRoutineRowState;
+  measuredHeight: number;
   oldRung?: NormalizedRung;
   newRung?: NormalizedRung;
+  inlineDiffModel?: InlineDiffRungModel;
   propertyChanges: PropertyChange[];
 }
 
@@ -34,6 +43,24 @@ function buildRungMap(rungs: NormalizedRung[] | undefined): Map<number, Normaliz
   }
 
   return map;
+}
+
+function getMeasuredRoutineDiffRowHeight(
+  state: L5XDiffRoutineRowState,
+  oldRung: NormalizedRung | undefined,
+  newRung: NormalizedRung | undefined,
+  inlineDiffModel: InlineDiffRungModel | undefined,
+): number {
+  if (state === 'modified') {
+    return inlineDiffModel
+      ? measureRoutineDiffRowHeight({ state, inlineDiffModel })
+      : MIN_RUNG_HEIGHT;
+  }
+
+  const rung = newRung ?? oldRung;
+  return rung
+    ? measureRoutineDiffRowHeight({ state, rung })
+    : MIN_RUNG_HEIGHT;
 }
 
 export function buildRoutineDiffRenderModel(entity: L5XDiffRoutineEntity): L5XDiffRoutineRenderModel {
@@ -64,12 +91,21 @@ export function buildRoutineDiffRenderModel(entity: L5XDiffRoutineEntity): L5XDi
     const newRung = rungDiff?.newRung ?? newRungs.get(rungNumber);
 
     if (rungDiff) {
+      const inlineDiffModel = rungDiff.kind === 'modified'
+        ? buildInlineDiffModel({
+            oldRung,
+            newRung,
+            rungNumber,
+          })
+        : undefined;
       const row = {
         key: `${entity.semanticId}:rung:${rungNumber}`,
         rungNumber,
         state: rungDiff.kind,
+        measuredHeight: getMeasuredRoutineDiffRowHeight(rungDiff.kind, oldRung, newRung, inlineDiffModel),
         oldRung,
         newRung,
+        inlineDiffModel,
         propertyChanges: rungDiff.propertyChanges ?? [],
       } satisfies L5XDiffRoutineRow;
       counts[row.state] += 1;
@@ -79,6 +115,7 @@ export function buildRoutineDiffRenderModel(entity: L5XDiffRoutineEntity): L5XDi
         key: `${entity.semanticId}:rung:${rungNumber}`,
         rungNumber,
         state: 'added',
+        measuredHeight: getMeasuredRoutineDiffRowHeight('added', oldRung, newRung, undefined),
         oldRung,
         newRung,
         propertyChanges: [],
@@ -90,6 +127,7 @@ export function buildRoutineDiffRenderModel(entity: L5XDiffRoutineEntity): L5XDi
         key: `${entity.semanticId}:rung:${rungNumber}`,
         rungNumber,
         state: 'removed',
+        measuredHeight: getMeasuredRoutineDiffRowHeight('removed', oldRung, newRung, undefined),
         oldRung,
         newRung,
         propertyChanges: [],

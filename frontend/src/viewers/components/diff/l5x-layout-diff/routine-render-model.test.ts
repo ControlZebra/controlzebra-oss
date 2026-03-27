@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { diffControllers, type NormalizedController, type NormalizedProgram, type NormalizedRoutine, type NormalizedRung } from 'ladder-visualizer';
+import {
+  buildInlineDiffModel,
+  diffControllers,
+  measureRoutineDiffRowHeight,
+  type Instruction,
+  type NormalizedController,
+  type NormalizedProgram,
+  type NormalizedRoutine,
+  type NormalizedRung,
+} from 'ladder-visualizer';
 
 import { buildL5XDiffLayoutViewModel, buildRoutineSemanticId, buildTabId } from './adapter';
 import { buildRoutineDiffRenderModel } from './routine-render-model';
@@ -35,12 +44,20 @@ function makeRoutine(name: string, rungs: NormalizedRung[], overrides: Partial<N
   };
 }
 
-function makeRung(number: number, raw: string): NormalizedRung {
+function instruction(mnemonic: string, category: Instruction['category'], operands: string[]): Instruction {
+  return {
+    mnemonic,
+    category,
+    operands,
+  };
+}
+
+function makeRung(number: number, raw: string, elements: Instruction[] = []): NormalizedRung {
   return {
     number,
     raw,
-    elements: [],
-    instructions: [],
+    elements,
+    instructions: elements,
   };
 }
 
@@ -133,5 +150,52 @@ describe('buildRoutineDiffRenderModel', () => {
 
     expect(renderModel.rows.map((row) => row.state)).toEqual(['removed', 'removed']);
     expect(renderModel.counts.removed).toBe(2);
+  });
+
+  it('stores measured library-owned heights for modified and non-modified rows', () => {
+    const oldModifiedRung = makeRung(0, 'XIC(Start)OTE(Run)', [
+      instruction('XIC', 'input', ['StartPB']),
+      instruction('OTE', 'output', ['RunCommand']),
+    ]);
+    const newModifiedRung = makeRung(0, 'XIC(Start)OTE(Alarm)', [
+      instruction('XIC', 'input', ['UpdatedStartPermissive']),
+      instruction('OTE', 'output', ['RunCommand']),
+    ]);
+    const addedRung = makeRung(1, 'XIC(Run)OTE(Alarm)', [
+      instruction('XIC', 'input', ['RunFeedback']),
+      instruction('OTE', 'output', ['AlarmHorn']),
+    ]);
+
+    const oldController = makeController({
+      programs: [makeProgram('Main', {
+        routines: [makeRoutine('Motor', [oldModifiedRung])],
+      })],
+    });
+    const newController = makeController({
+      programs: [makeProgram('Main', {
+        routines: [makeRoutine('Motor', [newModifiedRung, addedRung])],
+      })],
+    });
+
+    const entity = getRoutineEntity(oldController, newController, 'Main', 'Motor');
+    const renderModel = buildRoutineDiffRenderModel(entity);
+
+    expect(renderModel.rows).toHaveLength(2);
+    expect(renderModel.rows[0]?.measuredHeight).toBe(
+      measureRoutineDiffRowHeight({
+        state: 'modified',
+        inlineDiffModel: buildInlineDiffModel({
+          oldRung: oldModifiedRung,
+          newRung: newModifiedRung,
+          rungNumber: 0,
+        }),
+      }),
+    );
+    expect(renderModel.rows[1]?.measuredHeight).toBe(
+      measureRoutineDiffRowHeight({
+        state: 'added',
+        rung: addedRung,
+      }),
+    );
   });
 });
