@@ -1,7 +1,8 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   DARK_THEME,
+  InlineDiffRung,
   VirtualizedLadderDiagram,
   type LadderDiagramTheme,
   type NormalizedRung,
@@ -12,8 +13,36 @@ import { buildRoutineDiffRenderModel, type L5XDiffRoutineRow } from './routine-r
 import type { L5XDiffRoutineEntity } from './types';
 
 const OVERSCAN_ROWS = 6;
-const SINGLE_RUNG_HEIGHT = 150;
-const MODIFIED_RUNG_HEIGHT = 292;
+
+function useMeasuredElementWidth<T extends HTMLElement>(): [React.RefObject<T>, number | undefined] {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState<number>();
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return undefined;
+    }
+
+    const updateWidth = () => {
+      const nextWidth = element.clientWidth;
+      if (nextWidth <= 0) {
+        return;
+      }
+
+      setWidth((currentWidth) => (currentWidth === nextWidth ? currentWidth : nextWidth));
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, width];
+}
 
 function getChangeTone(kind: L5XDiffRoutineEntity['changeKind'] | L5XDiffRoutineRow['state']): string {
   switch (kind) {
@@ -44,12 +73,14 @@ function RungDiagram({
   rung,
   label,
   tone,
+  height,
   theme,
   isDarkMode,
 }: {
   rung: NormalizedRung;
   label: string;
   tone: 'added' | 'removed';
+  height: number;
   theme: LadderDiagramTheme;
   isDarkMode: boolean;
 }): JSX.Element {
@@ -63,13 +94,39 @@ function RungDiagram({
       <div className="border-b border-theme-default/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-theme-secondary">
         {label}
       </div>
-      <div className={isDarkMode ? 'ladder-visualizer-dark' : ''} style={{ height: SINGLE_RUNG_HEIGHT }}>
+      <div className={isDarkMode ? 'ladder-visualizer-dark' : ''} style={{ height }}>
         <VirtualizedLadderDiagram
           rungs={rungs}
           theme={theme}
-          height={SINGLE_RUNG_HEIGHT}
+          height={height}
           className="h-full"
         />
+      </div>
+    </div>
+  );
+}
+
+function InlineDiffDiagram({
+  row,
+  theme,
+}: {
+  row: L5XDiffRoutineRow;
+  theme: LadderDiagramTheme;
+}): JSX.Element {
+  const [containerRef, containerWidth] = useMeasuredElementWidth<HTMLDivElement>();
+
+  if (!row.inlineDiffModel) {
+    return (
+      <div className="rounded-md border border-dashed border-theme-default px-3 py-6 text-sm text-theme-secondary">
+        Rung diff data is unavailable for this row.
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="overflow-x-auto border border-theme-modified/40 bg-theme-elevated/30">
+      <div className="min-w-fit">
+        <InlineDiffRung model={row.inlineDiffModel} width={containerWidth} theme={theme} />
       </div>
     </div>
   );
@@ -122,19 +179,13 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
 
       <div className="space-y-2 px-3 py-2">
         {row.state === 'modified' ? (
-          <>
-            {row.oldRung ? (
-              <RungDiagram rung={row.oldRung} label="Old" tone="removed" theme={theme} isDarkMode={isDarkMode} />
-            ) : null}
-            {row.newRung ? (
-              <RungDiagram rung={row.newRung} label="New" tone="added" theme={theme} isDarkMode={isDarkMode} />
-            ) : null}
-          </>
+          <InlineDiffDiagram row={row} theme={theme} />
         ) : primaryRung ? (
           <RungDiagram
             rung={primaryRung}
             label={row.state === 'removed' ? 'Removed' : 'Added'}
             tone={row.state === 'removed' ? 'removed' : 'added'}
+            height={row.measuredHeight}
             theme={theme}
             isDarkMode={isDarkMode}
           />
@@ -162,7 +213,7 @@ export const RoutineDiffInspector = memo(function RoutineDiffInspector({
   const rowVirtualizer = useVirtualizer({
     count: model.rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (model.rows[index]?.state === 'modified' ? MODIFIED_RUNG_HEIGHT : SINGLE_RUNG_HEIGHT),
+    estimateSize: (index) => model.rows[index]?.measuredHeight ?? 0,
     overscan: OVERSCAN_ROWS,
     paddingStart: 8,
     paddingEnd: 8,
@@ -202,6 +253,7 @@ export const RoutineDiffInspector = memo(function RoutineDiffInspector({
                 return (
                   <div
                     key={row.key}
+                    data-index={virtualRow.index}
                     ref={rowVirtualizer.measureElement}
                     className="absolute left-0 top-0 w-full"
                     style={{ transform: `translateY(${virtualRow.start}px)` }}
