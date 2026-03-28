@@ -21,6 +21,7 @@ import { useLayout } from '../../../../context/LayoutContext';
 import { getPathFileName } from '../../shared/path-utils';
 import type { DiffSide } from '../../../registry/diff-registry';
 import { TabBar } from '../../file/l5x';
+import { CONTROL_ZEBRA_LADDER_THEME } from '../../file/l5x/theme';
 import {
   loadTextSide,
   serializeDiffSide,
@@ -130,25 +131,6 @@ interface LoadState {
   error?: string;
 }
 
-const CONTROL_ZEBRA_THEME = {
-  powerRailColor: 'var(--color-accent-primary)',
-  wireColor: 'var(--color-text-secondary)',
-  contactColor: 'var(--color-text-primary)',
-  contactNCColor: '#d32f2f',
-  coilColor: 'var(--color-text-primary)',
-  boxBorderColor: 'var(--color-border-default)',
-  boxBgColor: 'var(--color-bg-surface)',
-  boxTextColor: 'var(--color-text-primary)',
-  rungNumberBg: 'var(--color-bg-elevated)',
-  rungNumberColor: 'var(--color-text-muted)',
-  labelColor: 'var(--color-text-primary)',
-  addressColor: 'var(--color-text-secondary)',
-  branchConnectorColor: 'var(--color-text-secondary)',
-  bgPrimary: 'var(--color-bg-surface)',
-  borderColor: 'var(--color-border-default)',
-  textMuted: 'var(--color-text-muted)',
-};
-
 function parseL5X(content: string, label: string): NormalizedController {
   const result = parseString(content, 'l5x');
   if (!result.success || !result.data) {
@@ -215,7 +197,7 @@ function L5XDiffViewer({
     return false;
   }, [theme]);
 
-  const ladderTheme = isDarkMode ? DARK_THEME : CONTROL_ZEBRA_THEME;
+  const ladderTheme = isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME;
   const diffTabCacheKey = useMemo(() => `${repoPath}|${filePath}`, [repoPath, filePath]);
   const {
     tabs,

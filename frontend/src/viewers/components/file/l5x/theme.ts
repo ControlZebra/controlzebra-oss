@@ -6,7 +6,7 @@ export const CONTROL_ZEBRA_LADDER_THEME: LadderDiagramTheme = {
   contactColor: 'var(--color-text-primary)',
   contactNCColor: '#d32f2f',
   coilColor: 'var(--color-text-primary)',
-  boxBorderColor: 'var(--color-border-default)',
+  boxBorderColor: 'var(--color-ladder-box-border)',
   boxBgColor: 'var(--color-bg-surface)',
   boxTextColor: 'var(--color-text-primary)',
   rungNumberBg: 'var(--color-bg-elevated)',
