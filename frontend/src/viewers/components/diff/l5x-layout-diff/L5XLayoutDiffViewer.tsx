@@ -330,11 +330,13 @@ function RenderEntityDetails({
   }
 
   const tagDiffsByName = new Map(entity.changedTagDiffs.map((tagDiff) => [tagDiff.name, tagDiff]));
+  const changedTagNames = new Set(entity.changedTagDiffs.map((td) => td.name));
+  const changedTags = entity.fullContextTags.filter((t) => changedTagNames.has(t.name));
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-4">
       <TagTable
-        tags={entity.fullContextTags}
+        tags={changedTags}
         extraColumns={buildTagDiffColumns(entity)}
         getRowStyle={(tag) => getTagRowStyle(tagDiffsByName.get(tag.name)?.kind)}
         className="min-h-0 flex-1"

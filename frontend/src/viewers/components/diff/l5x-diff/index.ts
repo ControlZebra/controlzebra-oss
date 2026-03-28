@@ -15,6 +15,7 @@ export { default as RoutineDiffSection } from './RoutineDiffSection';
 export { default as RungChangeCard } from './RungChangeCard';
 export { default as ContextRung } from './ContextRung';
 export { default as CollapsedRange } from './CollapsedRange';
-export { default as TagDiffSection } from './TagDiffSection';
+export { default as DiffTagTable } from './DiffTagTable';
+export type { DiffTagTableProps } from './DiffTagTable';
 export { buildDiffNavigatorModel, getDiffTabId, type DiffNavigatorModel, type DiffTabData, type DiffTabDescriptor } from './diff-view-model';
 export { useDiffTabs, clearCachedDiffTabState, getCachedDiffTabState, type DiffTab } from './useDiffTabs';
