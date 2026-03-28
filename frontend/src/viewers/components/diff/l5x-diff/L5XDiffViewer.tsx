@@ -29,7 +29,7 @@ import {
 
 import DiffNavigator from './DiffNavigator';
 import RoutineDiffSection from './RoutineDiffSection';
-import TagDiffSection from './TagDiffSection';
+import DiffTagTable from './DiffTagTable';
 import { buildDiffNavigatorModel, type DiffTabData, type DiffTabDescriptor } from './diff-view-model';
 import { useDiffTabs } from './useDiffTabs';
 
@@ -389,7 +389,7 @@ function L5XDiffViewer({
       return (
         <div key="controller-tags" className={containerClass}>
           <div className="p-4">
-            <TagDiffSection tagDiffs={diff.tags} title="Controller Tags" />
+            <DiffTagTable tagDiffs={diff.tags} title="Controller Tags" />
           </div>
         </div>
       );
@@ -409,7 +409,7 @@ function L5XDiffViewer({
       return (
         <div key={`program-tags-${tabData.programName}`} className={containerClass}>
           <div className="p-4">
-            <TagDiffSection
+            <DiffTagTable
               tagDiffs={programDiff.tagDiffs}
               title="Program Tags"
               scopeName={programDiff.name}

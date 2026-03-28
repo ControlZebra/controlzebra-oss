@@ -22,7 +22,7 @@ import type { L5XDiff, ProgramDiff, RoutineDiff, LadderDiagramTheme } from 'ladd
 import { ICON_SIZES } from '../../../../shared/constants';
 
 import RoutineDiffSection from './RoutineDiffSection';
-import TagDiffSection from './TagDiffSection';
+import DiffTagTable from './DiffTagTable';
 
 // ============================================================================
 // Types
@@ -197,7 +197,7 @@ const ProgramSection = memo(function ProgramSection({
         <div className="space-y-3 p-3">
           {/* Program-scoped tags */}
           {hasTags && (
-            <TagDiffSection
+            <DiffTagTable
               tagDiffs={programDiff.tagDiffs}
               title="Program Tags"
               scopeName={programDiff.name}
@@ -294,7 +294,7 @@ function DiffChangeStream({ diff, theme, isDarkMode }: DiffChangeStreamProps): J
             {/* Controller-scoped tags */}
             {diff.tags.length > 0 && (
               <div className="p-3">
-                <TagDiffSection
+                <DiffTagTable
                   tagDiffs={diff.tags}
                   title="Controller Tags"
                   forceCollapsed={allCollapsed ? true : undefined}
