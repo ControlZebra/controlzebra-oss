@@ -78,7 +78,7 @@ interface ViewerConfig {
 | `ImageDiffViewer` | Image files (png, jpg, etc.) | 0 |
 | `PDFDiffViewer` | PDF | 0 |
 | `Model3DDiffViewer` | 3D model files | 0 |
-| `L5XDiffViewer` | L5X/L5K files | 1 |
+| `L5XLayoutDiffViewer` | L5X/L5K files | 1 |
 
 ## Registry API
 
