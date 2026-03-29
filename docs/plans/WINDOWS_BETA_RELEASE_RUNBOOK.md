@@ -37,6 +37,11 @@ From `ControlZebra-Desktop`:
 - `osslsigncode` installed (required for local self-signed artifact signing)
 - Signing key available if signing `update.json` (`CZ_SIGNING_KEY`)
 
+Installer expectation for the current Windows channel:
+
+- Per-user install root is `%LOCALAPPDATA%\Programs\ControlZebra`
+- Standard-user install/update should not prompt for UAC
+
 ---
 
 ## Step 1 — Bump app metadata version
@@ -220,6 +225,13 @@ Push to default branch used by GitHub Pages.
 ```
 
 Expected: `available: true` and new version details.
+
+Installer smoke checks on Windows:
+
+1. Fresh install lands under `%LOCALAPPDATA%\Programs\ControlZebra`
+2. Installer runs without UAC on a standard user account
+3. Reinstall over the same path succeeds without manual cleanup
+4. Uninstall removes app files without elevation
 
 ---
 

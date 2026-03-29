@@ -1001,7 +1001,7 @@ go build -o bin/cz-updater ./cmd/updater
 | 4 | **First auto-update version?** | Current is `0.0.1` / `0.2.0` (inconsistent) | ✅ **`0.1.0`** — version injection fixed in Phase 1. |
 | 5 | **Beta channel?** | Yes (two manifests), No (stable only) | Stable only for v1. |
 | 6 | **Mandatory updates?** | Always optional, sometimes mandatory | Always optional. Reserve mandatory for critical security fixes. |
-| 7 | **Windows admin privileges?** | Needed if in `Program Files` | NSIS should install to user-writable location (`AppData\Local`). |
+| 7 | **Windows admin privileges?** | Needed if in `Program Files` | NSIS should install to `%LOCALAPPDATA%\Programs\ControlZebra` for a user-writable, non-elevated path. |
 
 ---
 

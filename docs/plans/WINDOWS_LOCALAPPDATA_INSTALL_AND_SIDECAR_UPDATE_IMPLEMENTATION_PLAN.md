@@ -1,7 +1,21 @@
 # Windows LocalAppData Install And Sidecar Update Implementation Plan
 
-Status: Proposed  
+Status: Phase 1 packaging validated  
 Last updated: 2026-03-29
+
+## Progress update
+
+As of 2026-03-29, Phase 1 packaging foundation work has been validated in smoke testing.
+
+Completed in this phase:
+
+1. NSIS install root moved to `%LOCALAPPDATA%\Programs\ControlZebra`
+2. NSIS execution level changed to `user`
+3. Uninstall registry metadata moved to `HKCU`
+4. Installer build validation completed for `windows-amd64`
+5. Manual smoke checks succeeded for fresh install, reinstall, and uninstall behavior under the per-user install model
+
+Remaining work in this plan is for Phases 2 through 4.
 
 ## Purpose
 
@@ -409,6 +423,11 @@ Exit criteria:
 2. Move uninstall registry writes to `HKCU`
 3. Build signed test installers for amd64 and arm64
 4. Validate fresh install, reinstall, uninstall
+
+Status update:
+
+1. Packaging changes are implemented
+2. Smoke validation is complete for the per-user installer behavior
 
 Exit criteria:
 
