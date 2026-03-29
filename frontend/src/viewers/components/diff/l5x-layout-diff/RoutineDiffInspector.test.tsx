@@ -95,10 +95,7 @@ function getRoutineEntity(
 describe('RoutineDiffInspector', () => {
   beforeEach(() => {
     globalThis.ResizeObserver = class ResizeObserver {
-      private readonly callback: ResizeObserverCallback;
-
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback;
+      constructor(_callback: ResizeObserverCallback) {
       }
 
       observe() {}
@@ -170,7 +167,8 @@ describe('RoutineDiffInspector', () => {
     expect(container.querySelector('[data-inline-diff-rung="0"]')).not.toBeNull();
     expect(container.querySelector('[data-inline-diff-native-text="label"]')).not.toBeNull();
     expect(container.querySelector('[data-inline-diff-native-text="operand"]')).not.toBeNull();
-    expect(container.querySelector('[data-inline-diff-text-change="comment"]')).not.toBeNull();
+    expect(container.querySelector('[data-inline-diff-native-text="comment"]')).not.toBeNull();
+    expect(container.querySelector('[data-inline-diff-text-change="comment"]')).toBeNull();
     expect(screen.queryByText('Old')).toBeNull();
     expect(screen.queryByText('New')).toBeNull();
   });

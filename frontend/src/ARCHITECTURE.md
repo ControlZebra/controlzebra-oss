@@ -94,7 +94,7 @@ src/
 │       ├── file/                 # TextViewer, ImageViewer, PDFViewer, Model3DViewer
 │       │   └── l5x/             # L5X sub-components
 │       ├── diff/                 # TextDiffViewer, ImageDiffViewer, PDFDiffViewer
-│       │   └── l5x-diff/        # L5X diff sub-components
+│       │   └── l5x-layout-diff/ # L5X layout diff sub-components
 │       └── shared/               # ViewerHeader, ViewerRenderer, DiffRenderer
 │
 ├── widgets/
