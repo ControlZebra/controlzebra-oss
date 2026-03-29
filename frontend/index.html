@@ -5,39 +5,226 @@
     <link rel="icon" type="image/svg+xml" href="/wails.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ControlZebra</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --cz-bg: #0f1720;
+        --cz-panel: rgba(16, 24, 32, 0.92);
+        --cz-border: rgba(130, 148, 168, 0.18);
+        --cz-border-strong: rgba(130, 148, 168, 0.28);
+        --cz-text: #edf3f8;
+        --cz-text-muted: #9caec0;
+        --cz-primary: #3b82f6;
+        --cz-primary-hover: #60a5fa;
+        --cz-button-text: #eff6ff;
+        --cz-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top left, rgba(70, 99, 129, 0.22), transparent 32%),
+          linear-gradient(180deg, #101821 0%, #0c1218 100%);
+        color: var(--cz-text);
+        font-family: 'SF Pro Text', 'Segoe UI', sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      .cz-startup-shell {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 34%),
+          linear-gradient(180deg, rgba(12, 18, 24, 0.92), rgba(12, 18, 24, 0.98));
+      }
+
+      .cz-startup-shell[data-visible='true'] {
+        display: flex;
+      }
+
+      .cz-recovery-card {
+        display: flex;
+        width: min(480px, 100%);
+        flex-direction: column;
+        gap: 18px;
+        padding: 24px;
+        border: 1px solid var(--cz-border-strong);
+        border-radius: 16px;
+        background:
+          radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 30%),
+          linear-gradient(180deg, rgba(19, 27, 36, 0.98), rgba(14, 20, 28, 0.98));
+        box-shadow: var(--cz-shadow);
+      }
+
+      .cz-recovery-card h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+      }
+
+      .cz-recovery-card p {
+        margin: 0;
+        color: var(--cz-text-muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .cz-recovery-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .cz-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding-top: 2px;
+      }
+
+      .cz-button {
+        appearance: none;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 11px 16px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
+      }
+
+      .cz-button:hover {
+        transform: translateY(-1px);
+      }
+
+      .cz-button:focus-visible,
+      .cz-button-tertiary:focus-visible {
+        outline: 2px solid rgba(96, 165, 250, 0.8);
+        outline-offset: 2px;
+      }
+
+      .cz-button-primary {
+        background: var(--cz-primary);
+        color: var(--cz-button-text);
+      }
+
+      .cz-button-primary:hover {
+        background: var(--cz-primary-hover);
+      }
+
+      .cz-button-tertiary {
+        border-color: transparent;
+        background: transparent;
+        color: var(--cz-text-muted);
+        padding-left: 0;
+        padding-right: 0;
+        width: fit-content;
+      }
+
+      .cz-button-tertiary:hover {
+        color: var(--cz-text);
+        background: transparent;
+      }
+
+      .cz-log-box {
+        border: 1px solid var(--cz-border);
+        border-radius: 12px;
+        background: var(--cz-panel);
+      }
+
+      .cz-log-label {
+        display: block;
+        padding: 12px 14px 0;
+        color: var(--cz-text);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .cz-log-box pre {
+        margin: 0;
+        padding: 12px 14px 14px;
+        max-height: 180px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: #d5deea;
+        font-family: 'SFMono-Regular', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 900px) {
+        .cz-startup-shell {
+          padding: 18px;
+        }
+
+        .cz-recovery-card {
+          padding: 22px;
+        }
+
+        .cz-recovery-card h1 {
+          font-size: 24px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .cz-startup-shell {
+          padding: 14px;
+        }
+
+        .cz-actions {
+          flex-direction: column;
+        }
+
+        .cz-button {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <div id="error-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#1a1a2e;color:#e94560;font-family:monospace;padding:40px;overflow:auto;">
-      <h2 style="color:#e94560;margin:0 0 16px;">⚠ Startup Error</h2>
-      <pre id="error-msg" style="white-space:pre-wrap;word-break:break-all;font-size:13px;line-height:1.6;color:#eee;"></pre>
+    <div id="startup-recovery-shell" class="cz-startup-shell" data-visible="false" aria-live="polite">
+      <section class="cz-recovery-card" aria-labelledby="startup-recovery-title">
+        <div class="cz-recovery-stack">
+          <div>
+            <h1 id="startup-recovery-title">Something went wrong</h1>
+          </div>
+
+          <p id="startup-recovery-body">Your data is safe.</p>
+
+          <div class="cz-actions">
+            <button id="startup-restart-button" type="button" class="cz-button cz-button-primary">Restart</button>
+            <button id="startup-copy-reference-button" type="button" class="cz-button cz-button-tertiary">Copy reference</button>
+          </div>
+
+          <div class="cz-log-box" aria-labelledby="startup-log-label">
+            <span id="startup-log-label" class="cz-log-label">Log</span>
+            <pre id="startup-technical-details-body"></pre>
+          </div>
+        </div>
+      </section>
     </div>
-    <script>
-      // Catch any JS errors that prevent React from mounting
-      function showErr(prefix, detail) {
-        var el = document.getElementById('error-overlay');
-        var pre = document.getElementById('error-msg');
-        if (el && pre) {
-          el.style.display = 'block';
-          pre.textContent += prefix + ' ' + detail + '\n\n';
-        }
-        // Also set document title for programmatic detection
-        document.title = 'CZ_ERROR: ' + prefix;
-      }
-      window.onerror = function(msg, src, line, col, err) {
-        showErr('[onerror]', msg + '\nSource: ' + src + ':' + line + ':' + col + (err && err.stack ? '\n' + err.stack : ''));
-      };
-      window.onunhandledrejection = function(e) {
-        showErr('[unhandledrejection]', e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : String(e));
-      };
-      // Monitor: if root is still empty after 5 seconds, something went wrong
-      setTimeout(function() {
-        var root = document.getElementById('root');
-        if (root && root.children.length === 0) {
-          showErr('[mount-timeout]', 'React did not mount within 5 seconds. The root element is empty. Check for module import errors.');
-        }
-      }, 5000);
-    </script>
+    <script type="module" src="/src/app/startup/installStartupGuard.ts"></script>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>
 </html>

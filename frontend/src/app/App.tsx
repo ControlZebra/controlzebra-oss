@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAuth } from '../context';
 import { AppLayout } from '../widgets/layout';
 import Spinner from '../shared/ui/Spinner';
@@ -21,6 +22,15 @@ function AuthGate(): JSX.Element {
 
   // Apply theme before LayoutProvider is available (pre-auth screens)
   useLoginTheme();
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    document.documentElement.dataset.czAppReady = 'true';
+    window.dispatchEvent(new CustomEvent('cz:app-shell-ready'));
+  }, [isLoading]);
 
   if (isLoading) {
     return (
