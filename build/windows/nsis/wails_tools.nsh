@@ -28,7 +28,7 @@
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINST_KEY_NAME}"
 
 !ifndef REQUEST_EXECUTION_LEVEL
-    !define REQUEST_EXECUTION_LEVEL "admin"
+    !define REQUEST_EXECUTION_LEVEL "user"
 !endif
 
 RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
@@ -115,23 +115,23 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     WriteUninstaller "$INSTDIR\uninstall.exe"
 
     SetRegView 64
-    WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
-    WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${INFO_PRODUCTNAME}"
-    WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${INFO_PRODUCTVERSION}"
-    WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${PRODUCT_EXECUTABLE}"
-    WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
-    WriteRegStr HKLM "${UNINST_KEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
+    WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
+    WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${INFO_PRODUCTNAME}"
+    WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${INFO_PRODUCTVERSION}"
+    WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
+    WriteRegStr HKCU "${UNINST_KEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
 
     ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
     IntFmt $0 "0x%08X" $0
-    WriteRegDWORD HKLM "${UNINST_KEY}" "EstimatedSize" "$0"
+    WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
 !macroend
 
 !macro wails.deleteUninstaller
     Delete "$INSTDIR\uninstall.exe"
 
     SetRegView 64
-    DeleteRegKey HKLM "${UNINST_KEY}"
+    DeleteRegKey HKCU "${UNINST_KEY}"
 !macroend
 
 !macro wails.setShellContext
