@@ -31,7 +31,7 @@ viewers/
     │   ├── ImageDiffViewer.tsx
     │   ├── PDFDiffViewer.tsx
     │   ├── Model3DDiffViewer.tsx
-    │   └── l5x-diff/           # L5X diff sub-components
+    │   └── l5x-layout-diff/    # L5X layout diff sub-components
     │
     └── shared/                 # Shared utilities
         ├── ViewerRenderer.tsx   # Renders correct viewer for a file
