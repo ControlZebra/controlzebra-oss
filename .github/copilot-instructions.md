@@ -149,7 +149,7 @@ The app has a pluggable viewer system for opening files in the main area:
 | `L5XViewer` | Rockwell L5X/L5K files | Yes (ladder-visualizer) |
 | `UnsupportedViewer` | Fallback for unknown types | No |
 
-**Diff viewers:** `TextDiffViewer`, `ImageDiffViewer`, `PDFDiffViewer`, `Model3DDiffViewer`, `L5XDiffViewer`
+**Diff viewers:** `TextDiffViewer`, `ImageDiffViewer`, `PDFDiffViewer`, `Model3DDiffViewer`, `L5XLayoutDiffViewer`
 
 **Registry:** `frontend/src/lib/viewers.ts` — `registerViewer()` / `getViewerForFile()`
 **Built-in registrations:** `frontend/src/lib/viewers-builtin.ts`

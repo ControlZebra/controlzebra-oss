@@ -268,8 +268,7 @@ This removes duplicate loading logic from specialized viewers.
 
 **Files**:
 
-- `L5XDiffViewer`
-- `L5XWorkingDiffViewer`
+- `L5XLayoutDiffViewer`
 - `ImageDiffViewer`
 - `PDFDiffViewer`
 - `Model3DDiffViewer`
@@ -278,14 +277,14 @@ This removes duplicate loading logic from specialized viewers.
 **Tasks**:
 
 1. Replace separate working/commit viewer variants with single viewers where practical.
-2. Convert L5X to one viewer that accepts two sides.
+2. Keep L5X on the layout diff viewer and finish moving its loading path fully onto the two-side contract.
 3. Convert PDF to load old/new PDFs from sides rather than from mode assumptions.
 4. Convert image diff loading to use side-based assets.
 5. Leave text fallback intact throughout the migration.
 
 **Acceptance**:
 
-- `.l5x` merge review opens the structured viewer.
+- `.l5x` merge review opens the layout diff viewer.
 - PDF/image merge review compares `target` vs `source`, not `HEAD` vs working tree.
 - History and explorer flows still work.
 
@@ -316,11 +315,11 @@ This removes duplicate loading logic from specialized viewers.
 
 Target end state:
 
-- one L5X diff viewer,
+- one L5X layout diff viewer,
 - loads both sides as text using the shared text loader,
 - runs the existing parse/diff pipeline on the loaded contents.
 
-This removes the need for a separate working-tree L5X viewer.
+This keeps the current layout-based L5X experience while removing the last scenario-specific loader assumptions.
 
 ### 8.2 PDF
 

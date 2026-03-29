@@ -29,21 +29,18 @@ This is not just an isolated L5X wiring bug. The current merge review modal is r
 ### Diff registry rules
 
 - `frontend/src/viewers/registry/diff-builtins.tsx`
-  - L5X working diff viewer only activates when all of these are true:
+  - The L5X layout diff entry activates when all of these are true:
     - file kind is `l5x`
-    - `mode === 'working'`
     - `repoPath` exists
-    - `absoluteFilePath` exists
+    - both `oldSide` and `newSide` are available
   - Image and PDF diff viewers only require:
     - matching file type
     - `repoPath`
 
-### L5X working diff implementation
+### Legacy working-tree L5X implementation
 
-- `frontend/src/viewers/components/diff/l5x-diff/L5XWorkingDiffViewer.tsx`
-  - Loads old side from `HEAD` using `ReadFileAtRevision`
-  - Loads new side from the filesystem using `ReadTextFile(absoluteFilePath)`
-  - This viewer is explicitly designed for **HEAD vs working tree**, not **target branch vs source branch**
+- The predecessor working-tree-only L5X implementation loaded old side from `HEAD` and new side from the filesystem.
+- That design was explicitly built for **HEAD vs working tree**, not **target branch vs source branch**.
 
 ### Merge-review backend payload
 
@@ -67,9 +64,9 @@ There are **two layers** to the failure.
 
 ### Root Cause A: L5X viewer is never selected
 
-The merge review modal passes `mode="working"` but does not pass `absoluteFilePath`.
+The merge review modal historically passed a working-tree-shaped request instead of a normalized old-side/new-side diff request.
 
-The diff registry requires `absoluteFilePath` for `l5x-working`, so `.l5x` files do not match the L5X viewer entry and fall through to the text diff renderer.
+That meant `.l5x` files could fall through to the text diff renderer because the specialized L5X path was being fed the wrong contract.
 
 ### Root Cause B: Merge review is using the wrong diff contract
 
@@ -77,7 +74,7 @@ Merge review is comparing `target..source`, but the specialized viewer path is b
 
 That means:
 
-- L5X cannot work because it needs a real filesystem path for the working-tree side.
+- L5X cannot work correctly when branch compare is forced through working-tree assumptions.
 - Image/PDF can render because their viewers do not require `absoluteFilePath`, but they still load data using working-tree assumptions (`HEAD` vs local file), not true branch-to-branch data.
 
 So the visible L5X failure is real, but the larger issue is that merge review currently lacks a dedicated **branch-compare diff contract** for specialized viewers.
@@ -91,7 +88,7 @@ Do **not** fix this by simply inventing an `absoluteFilePath` in the merge modal
 Example of the wrong approach:
 
 - constructing `absoluteFilePath = repoPath + '/' + filePath`
-- letting `L5XWorkingDiffViewer` read the current working tree file
+- letting a working-tree-only L5X loader read the current checked-out file
 
 That would make L5X render in some cases, but it would still compare:
 
@@ -158,8 +155,7 @@ Implement merge review as a **branch-compare** viewer mode instead of pretending
 
 **Files**:
 
-- `frontend/src/viewers/components/diff/l5x-diff/L5XDiffViewer.tsx`
-- `frontend/src/viewers/components/diff/l5x-diff/L5XWorkingDiffViewer.tsx`
+- `frontend/src/viewers/components/diff/l5x-layout-diff/L5XLayoutDiffViewer.tsx`
 - `frontend/src/viewers/registry/diff-builtins.tsx`
 
 **Preferred implementation**:
@@ -179,7 +175,7 @@ Create a merge-review-specific L5X entry that:
 
 **Implementation note**:
 
-This can be a new component, or `L5XDiffViewer` can be extended with an explicit branch-compare mode. Reusing the existing commit-style loader is preferable to reusing the working-tree loader.
+This can be handled inside the current layout diff viewer, or through a thin adapter in front of it. Reusing the explicit ref-based loader path is preferable to reviving working-tree-only behavior.
 
 **Done when**:
 

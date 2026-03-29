@@ -56,12 +56,12 @@ This plan should be treated as a parallel successor to the earlier unified chang
 
 ## Delivery Strategy
 
-The safest implementation path is to keep the current data-loading contract in place and replace only the rendering architecture. That means L5X diff entry, old/new file loading, parsing, diff generation, caching, and file-watcher-triggered reload remain in the existing L5X diff viewer. The new work should sit on top as a new diff-specific shell and view-model layer.
+The safest implementation path is to keep the current data-loading contract in place and replace only the rendering architecture. That means L5X diff entry, old/new file loading, parsing, diff generation, caching, and file-watcher-triggered reload remain in the existing L5X diff infrastructure. The new work should sit on top as a new diff-specific shell and view-model layer.
 
 ## Current Implementation Audit
 
 ### Snapshot
-- The live diff registry entry already routes L5X diffs to `frontend/src/viewers/components/diff/l5x-layout-diff/L5XLayoutDiffViewer.tsx`, not to the older `frontend/src/viewers/components/diff/l5x-diff/L5XDiffViewer.tsx` path named earlier in this plan.
+- The live diff registry entry routes L5X diffs to `frontend/src/viewers/components/diff/l5x-layout-diff/L5XLayoutDiffViewer.tsx`.
 - Phase 1 is implemented in the new `l5x-layout-diff` adapter layer with deterministic semantic ids, navigator sections, entity render data, and unit tests.
 - Phase 2 is partially implemented. The layout viewer already has a navigator shell and tab affordance, and now also has a diff-specific cached tab hook, shared `TabBar` reuse, and a collapsible navigator. The remaining work is visual parity and navigator behavior parity with the standard L5X viewer.
 - Phase 3 is complete. Routine tabs now render a full-context, virtualized ladder inspector backed by a pure rung-row render-model with explicit unchanged, added, removed, and modified states.
@@ -84,12 +84,12 @@ The safest implementation path is to keep the current data-loading contract in p
 ### Performance
 - Completed in Phase 3: a dedicated routine render-model layer now computes rung classification once per entity and keeps per-row rendering independent from diff derivation.
 - Before Phase 4 lands, keep full-context tag rendering on shared or virtualized table primitives so large tag groups do not create one local state island per row.
-- During Phase 5, profile large L5X files and cap or centralize controller/diff cache policy so old and new diff viewers do not drift into separate memory behaviors.
+- During Phase 5, profile large L5X files and cap or centralize controller/diff cache policy so diff reload behavior stays consistent across history and working-tree flows.
 
 ### DRY And Maintenance
-- Consolidate shared L5X diff loading, controller caching, diff caching, and file-watcher reload logic between `l5x-diff` and `l5x-layout-diff` before release hardening. Right now the two viewers duplicate the same lifecycle and eviction behavior.
+- Consolidate shared L5X diff loading, controller caching, diff caching, and file-watcher reload logic inside the layout diff pipeline before release hardening.
 - Reuse the normal L5X viewer seams where practical instead of growing a second bespoke shell. `TabBar` reuse is started; navigator rendering and future routine/tag inspectors should continue in that direction.
-- Once the layout diff viewer reaches production readiness, either remove or clearly demote the older `l5x-diff` implementation so the team is not maintaining two divergent L5X diff UIs.
+- Once the layout diff viewer reaches production readiness, remove or clearly demote any remaining predecessor stream-based implementation so the team is not maintaining two divergent L5X diff UIs.
 
 ## Phase Overview
 
@@ -112,10 +112,10 @@ Status: Complete
 Create the adapter layer that bridges raw L5X diff output and the new navigator/tab-based UI.
 
 ### Why This Comes First
-The current L5X diff viewer owns loading, parsing, caching, and diff creation, but the new UX needs a very different presentation contract. If the team starts with UI components first, tab identity and navigator behavior will drift or get coupled to raw diff arrays.
+The current L5X diff stack owns loading, parsing, caching, and diff creation, but the new UX needs a very different presentation contract. If the team starts with UI components first, tab identity and navigator behavior will drift or get coupled to raw diff arrays.
 
 ### Implementation
-- Preserve the existing entry flow in frontend/src/viewers/components/diff/l5x-diff/L5XDiffViewer.tsx.
+- Preserve the existing diff entry flow and side-loading behavior.
 - Add a diff-specific adapter that combines:
   - old parsed controller
   - new parsed controller
@@ -147,7 +147,7 @@ The current L5X diff viewer owns loading, parsing, caching, and diff creation, b
 ### Completion Notes
 - Implemented under `frontend/src/viewers/components/diff/l5x-layout-diff/adapter.ts` and `frontend/src/viewers/components/diff/l5x-layout-diff/types.ts`.
 - Covered by `frontend/src/viewers/components/diff/l5x-layout-diff/adapter.test.ts`.
-- The original Phase 1 file target in `l5x-diff` is now a superseded predecessor, not the active implementation seam.
+- The original Phase 1 stream-first target is now a superseded predecessor, not the active implementation seam.
 
 ## Phase 2 — Navigator Shell And Tab Framework
 
@@ -207,7 +207,7 @@ Implement the main value path for the redesigned diff experience: full-context l
 
 ### Implementation
 - Build a routine tab renderer that shows the whole selected RLL routine rather than only changed rungs plus a small context window.
-- Reuse current change semantics from frontend/src/viewers/components/diff/l5x-diff/RoutineDiffSection.tsx where useful, but do not preserve the current stream layout.
+- Reuse current change semantics from the earlier stream-based routine diff implementation where useful, but do not preserve the current stream layout.
 - Introduce a routine render model that marks each rung as:
   - unchanged
   - added
@@ -249,7 +249,7 @@ Deliver full-context tag views for controller and program tags.
 ### Implementation
 - Build tag tab renderers that resemble the normal tag table experience in the L5X viewer.
 - Surface changed rows from diff data while keeping the tab scoped to the full relevant tag group.
-- Add field-level change disclosure per tag using current property-diff data from frontend/src/viewers/components/diff/l5x-diff/TagDiffSection.tsx.
+- Add field-level change disclosure per tag using the current property-diff data already available in the L5X diff model.
 - Support both controller-level tag tabs and program-level tag tabs.
 - Ensure change styling remains legible for large tag tables.
 
@@ -362,9 +362,6 @@ Do not start this phase until routine and tag behavior have shipped and been val
 - frontend/src/viewers/components/diff/l5x-layout-diff/adapter.ts
 - frontend/src/viewers/components/diff/l5x-layout-diff/types.ts
 - frontend/src/viewers/components/diff/l5x-layout-diff/useDiffTabs.ts
-- frontend/src/viewers/components/diff/l5x-diff/L5XDiffViewer.tsx
-- frontend/src/viewers/components/diff/l5x-diff/RoutineDiffSection.tsx
-- frontend/src/viewers/components/diff/l5x-diff/TagDiffSection.tsx
 - frontend/src/viewers/components/file/L5XViewer.tsx
 - frontend/src/viewers/components/file/l5x/useTabs.ts
 - frontend/src/viewers/components/file/l5x/TabBar.tsx

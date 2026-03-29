@@ -141,8 +141,8 @@ frontend/src/
         ImageDiffViewer.tsx
         PDFDiffViewer.tsx
         Model3DDiffViewer.tsx
-        L5XDiffViewer.tsx
-        L5XWorkingDiffViewer.tsx
+        l5x-layout-diff/
+          L5XLayoutDiffViewer.tsx
       shared/
         ViewerRenderer.tsx
         ViewerHeader.tsx

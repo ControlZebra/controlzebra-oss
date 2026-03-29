@@ -120,9 +120,8 @@ The diff registry and `DiffRenderer` are already built. This phase moves the vie
 | `components/viewers/ImageDiffViewer.tsx` | `viewers/components/diff/ImageDiffViewer.tsx` |
 | `components/viewers/PDFDiffViewer.tsx` | `viewers/components/diff/PDFDiffViewer.tsx` |
 | `components/viewers/Model3DDiffViewer.tsx` | `viewers/components/diff/Model3DDiffViewer.tsx` |
-| `components/viewers/l5x-diff/L5XDiffViewer.tsx` | `viewers/components/diff/l5x-diff/L5XDiffViewer.tsx` |
-| `components/viewers/l5x-diff/L5XWorkingDiffViewer.tsx` | `viewers/components/diff/l5x-diff/L5XWorkingDiffViewer.tsx` |
-| `components/viewers/l5x-diff/` (all sub-components) | `viewers/components/diff/l5x-diff/` |
+| `components/viewers/l5x-layout-diff/L5XLayoutDiffViewer.tsx` | `viewers/components/diff/l5x-layout-diff/L5XLayoutDiffViewer.tsx` |
+| `components/viewers/l5x-layout-diff/` (all sub-components) | `viewers/components/diff/l5x-layout-diff/` |
 
 - **Update imports in:** `viewers/registry/diff-builtins.tsx` (the only file that imports these — 6 imports on lines 5–12).
 
@@ -481,7 +480,7 @@ Each PR should pass `npm run build`, `npm run lint`, and `npm test` before merge
 | `components/layout/` | 6 shell + 6 modals + sidebar-panels | `widgets/layout/` |
 | `components/layout/pages/` | ~20 files across subdirs | `features/*/pages/` |
 | `components/layout/views/` | 10 views + debug subdir | `features/*/components/` |
-| `components/viewers/` | 12 viewers + l5x/ + l5x-diff/ + utils | `viewers/components/` |
+| `components/viewers/` | 11 viewers + l5x/ + l5x-layout-diff/ + utils | `viewers/components/` |
 | `components/ui/` | 20 primitives | `shared/ui/` |
 | `lib/` | 12 files | `shared/utils/`, `viewers/registry/`, `domain/` |
 | `context/` | 5 files (+ 2 tests) | `domain/repo/context/`, `domain/auth/context/` |

@@ -1,4 +1,4 @@
-# L5X Diff Viewer — Implementation Plan (Unified Change Stream)
+# L5X Layout Diff Viewer — Implementation Plan (Unified Change Stream Concept)
 
 > **Status**: 📋 PLANNING  
 > **Created**: February 2026  
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-We will implement the **Unified Change Stream** approach for L5X diffs. This provides a single, scrollable review experience where each change is rendered as a focused card (old/new stacked), with minimal contextual rungs and collapsible unchanged ranges. It offers the best balance of usability, performance, and engineering effort for industrial automation users.
+The current ControlZebra implementation uses a layout-based L5X diff viewer with a navigator, tabs, and focused content panel. This document preserves the earlier **Unified Change Stream** concept that informed the redesign, but the active production seam is the layout diff viewer rather than a standalone stream-only viewer.
 
 ---
 
@@ -94,7 +94,7 @@ L5X file diff → Read old/new content → parseString() → diffControllers() �
 
 #### New Components
 
-- `L5XDiffViewer.tsx` (orchestrator)
+- `L5XLayoutDiffViewer.tsx` (orchestrator shell)
 - `DiffChangeStream.tsx` (main scrollable stream)
 - `RoutineDiffSection.tsx` (program/routine container)
 - `RungChangeCard.tsx` (old/new stacked diagram)
@@ -143,7 +143,7 @@ L5X file diff → Read old/new content → parseString() → diffControllers() �
 
 #### Viewer Registration
 
-- Register `l5x-diff` viewer in `lib/viewers-builtin.ts`
+- Register the layout diff viewer in `frontend/src/viewers/registry/diff-builtins.tsx`
 - Ensure it only activates in diff context for `.l5x`/`.l5k` files
 - Route diff flow from History view and working tree
 

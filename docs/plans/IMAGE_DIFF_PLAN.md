@@ -69,18 +69,18 @@ User selects image file diff (history or working tree)
 
 ```
 Existing:
-  HistoryPage  → isL5XFile?  → L5XDiffViewer
+  HistoryPage  → isL5XFile?  → L5XLayoutDiffViewer
                → else        → DiffViewer (text)
                → binary?     → "Binary file" placeholder  ← DEAD END
 
 New:
   HistoryPage  → isImageFile? → ImageDiffViewer  ← NEW
-               → isL5XFile?   → L5XDiffViewer
+               → isL5XFile?   → L5XLayoutDiffViewer
                → binary?      → "Binary file" placeholder
                → else         → DiffViewer (text)
 
   ExplorerPage → diff tab + isImageFile? → ImageDiffViewer  ← NEW
-               → diff tab + isL5XFile?   → L5XWorkingDiffViewer
+               → diff tab + isL5XFile?   → L5XLayoutDiffViewer
 ```
 
 ---
@@ -387,13 +387,13 @@ function cacheKey(repoPath: string, filePath: string, commitHash?: string): stri
 
 Currently:
 ```
-if (isL5XFile) → L5XDiffViewer
+if (isL5XFile) → L5XLayoutDiffViewer
 else → DiffViewer
 ```
 
 Change to:
 ```
-if (isL5XFile) → L5XDiffViewer
+if (isL5XFile) → L5XLayoutDiffViewer
 else if (isImageFile) → ImageDiffViewer  ← NEW
 else → DiffViewer
 ```
@@ -409,7 +409,7 @@ When `currentDiff.binary === true && isImageFile(selectedCommitFile)`, skip the 
 Currently, diff tabs for non-L5X files render a placeholder. Add image diff support:
 
 ```
-if (isL5XFile) → L5XWorkingDiffViewer
+if (isL5XFile) → L5XLayoutDiffViewer
 else if (isImageFile) → ImageDiffViewer (isWorkingTree=true)  ← NEW
 else → placeholder (future: generic text diff)
 ```
