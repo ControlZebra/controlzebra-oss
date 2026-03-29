@@ -423,7 +423,7 @@ frontend/
         L5XViewer.tsx, UnsupportedViewer.tsx, ViewerHeader.tsx
         TextDiffViewer.tsx, ImageDiffViewer.tsx, PDFDiffViewer.tsx, Model3DDiffViewer.tsx
         l5x/                 # L5X viewer sub-components
-        l5x-diff/            # L5X diff viewer sub-components
+        l5x-layout-diff/     # L5X layout diff viewer sub-components
   bindings/                  # Auto-generated Wails bindings (DO NOT EDIT)
     controlzebra/services/   # TypeScript bindings for all 13 services + models.ts
 docs/

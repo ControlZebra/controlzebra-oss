@@ -20,8 +20,9 @@ import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../../shared/constants';
 import { useLayout } from '../../../context/LayoutContext';
+import { onEvent } from '../../../shared/runtime/events';
 import type { ViewerProps } from '../../registry/viewer-registry';
-import { useCachedContent } from '../../registry/viewer-cache';
+import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
 import { ViewerHeader } from '../shared/ViewerHeader';
 import { getPathFileName } from '../shared/path-utils';
 
@@ -74,6 +75,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   const [uiState, setUIState] = useState<L5XViewerUIState>({
     showNavigator: true,
   });
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   // Tab management - internal to L5X viewer, cached by filePath
   const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
@@ -90,6 +92,42 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
     }
     return false;
   }, [theme]);
+
+  const normalizedFilePath = useMemo(() => filePath.replace(/\\/g, '/'), [filePath]);
+
+  useEffect(() => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+
+      const samePath =
+        changedPath === normalizedFilePath ||
+        changedPath.toLowerCase() === normalizedFilePath.toLowerCase();
+
+      if (!samePath) return;
+
+      invalidateCachedContent(filePath);
+      setRefreshCounter((current) => current + 1);
+    };
+
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [filePath, normalizedFilePath]);
 
   // Loader function for cached content - parses L5X file
   const loadAndParseFile = useCallback(async (): Promise<NormalizedController> => {
@@ -111,7 +149,8 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   // Use cached content - persists across tab/view switches
   const { data: controller, error, isLoading } = useCachedContent<NormalizedController>(
     filePath,
-    loadAndParseFile
+    loadAndParseFile,
+    [refreshCounter]
   );
 
   // Register AOIs when controller data is available (from cache or fresh load)
