@@ -2,6 +2,8 @@
 
 This document describes how to implement automatic updates for ControlZebra using an **updater sidecar** — a small, separate Go binary that manages update checks, downloads, and binary replacement. It is written for senior engineers and covers every concept, file, and decision involved.
 
+For Windows installed builds, this document is no longer the source of truth for the apply step. Windows now follows [WINDOWS_LOCALAPPDATA_INSTALL_AND_SIDECAR_UPDATE_PLAN.md](./WINDOWS_LOCALAPPDATA_INSTALL_AND_SIDECAR_UPDATE_PLAN.md) and [WINDOWS_LOCALAPPDATA_INSTALL_AND_SIDECAR_UPDATE_IMPLEMENTATION_PLAN.md](./WINDOWS_LOCALAPPDATA_INSTALL_AND_SIDECAR_UPDATE_IMPLEMENTATION_PLAN.md), which replace raw binary swap with sidecar-orchestrated silent NSIS installer handoff under `%LOCALAPPDATA%\Programs\ControlZebra`.
+
 ---
 
 ## Table of Contents
