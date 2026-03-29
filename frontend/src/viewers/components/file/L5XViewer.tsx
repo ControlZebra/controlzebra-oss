@@ -20,8 +20,9 @@ import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../../shared/constants';
 import { useLayout } from '../../../context/LayoutContext';
+import { onEvent } from '../../../shared/runtime/events';
 import type { ViewerProps } from '../../registry/viewer-registry';
-import { useCachedContent } from '../../registry/viewer-cache';
+import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
 import { ViewerHeader } from '../shared/ViewerHeader';
 import { getPathFileName } from '../shared/path-utils';
 
@@ -48,35 +49,9 @@ import {
 
 // Import local tab components
 import { TabBar, useTabs, DataTypeTable, type TabData } from './l5x';
+import { CONTROL_ZEBRA_LADDER_THEME } from './l5x/theme';
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
-
-// ============================================================================
-// Theme Configuration
-// ============================================================================
-
-/**
- * ControlZebra theme for ladder-visualizer that uses CSS variables.
- * Maps ControlZebra's design system to ladder-visualizer colors.
- */
-const CONTROL_ZEBRA_THEME = {
-  powerRailColor: 'var(--color-accent-primary)',
-  wireColor: 'var(--color-text-secondary)',
-  contactColor: 'var(--color-text-primary)',
-  contactNCColor: '#d32f2f',
-  coilColor: 'var(--color-text-primary)',
-  boxBorderColor: 'var(--color-border-default)',
-  boxBgColor: 'var(--color-bg-surface)',
-  boxTextColor: 'var(--color-text-primary)',
-  rungNumberBg: 'var(--color-bg-elevated)',
-  rungNumberColor: 'var(--color-text-muted)',
-  labelColor: 'var(--color-text-primary)',
-  addressColor: 'var(--color-text-secondary)',
-  branchConnectorColor: 'var(--color-text-secondary)',
-  bgPrimary: 'var(--color-bg-surface)',
-  borderColor: 'var(--color-border-default)',
-  textMuted: 'var(--color-text-muted)',
-};
 
 // ============================================================================
 // Types
@@ -100,6 +75,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   const [uiState, setUIState] = useState<L5XViewerUIState>({
     showNavigator: true,
   });
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   // Tab management - internal to L5X viewer, cached by filePath
   const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
@@ -116,6 +92,42 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
     }
     return false;
   }, [theme]);
+
+  const normalizedFilePath = useMemo(() => filePath.replace(/\\/g, '/'), [filePath]);
+
+  useEffect(() => {
+    const handleFilesChanged = (event: {
+      data?: {
+        path?: string;
+        eventType?: string;
+        isDir?: boolean;
+      };
+    }) => {
+      const changedPath = event.data?.path?.replace(/\\/g, '/');
+      const eventType = event.data?.eventType;
+      const isDir = event.data?.isDir;
+
+      if (!changedPath || isDir) return;
+      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
+
+      const samePath =
+        changedPath === normalizedFilePath ||
+        changedPath.toLowerCase() === normalizedFilePath.toLowerCase();
+
+      if (!samePath) return;
+
+      invalidateCachedContent(filePath);
+      setRefreshCounter((current) => current + 1);
+    };
+
+    const unsubscribe = onEvent('files-changed', handleFilesChanged);
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [filePath, normalizedFilePath]);
 
   // Loader function for cached content - parses L5X file
   const loadAndParseFile = useCallback(async (): Promise<NormalizedController> => {
@@ -137,7 +149,8 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   // Use cached content - persists across tab/view switches
   const { data: controller, error, isLoading } = useCachedContent<NormalizedController>(
     filePath,
-    loadAndParseFile
+    loadAndParseFile,
+    [refreshCounter]
   );
 
   // Register AOIs when controller data is available (from cache or fresh load)
@@ -367,7 +380,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
                 ) : routine.type === 'RLL' ? (
                   <VirtualizedLadderDiagram
                     routine={routine}
-                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_THEME}
+                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
                     className="h-full"
                   />
                 ) : (
@@ -395,7 +408,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
                 ) : routine.type === 'RLL' ? (
                   <VirtualizedLadderDiagram
                     routine={routine}
-                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_THEME}
+                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
                     className="h-full"
                   />
                 ) : (

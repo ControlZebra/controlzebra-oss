@@ -4,14 +4,18 @@
  */
 import { memo, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
-import type { Tab } from './useTabs';
+
+export interface TabBarTab {
+  id: string;
+  title: string;
+}
 
 // ============================================================================
 // TAB ITEM
 // ============================================================================
 
 interface TabItemProps {
-  tab: Tab;
+  tab: TabBarTab;
   isActive: boolean;
   onSelect: () => void;
   onClose: () => void;
@@ -69,7 +73,7 @@ const TabItem = memo(function TabItem({
 // ============================================================================
 
 interface TabBarProps {
-  tabs: Tab[];
+  tabs: TabBarTab[];
   activeTabId: string | null;
   onTabSelect: (tabId: string) => void;
   onTabClose: (tabId: string) => void;
