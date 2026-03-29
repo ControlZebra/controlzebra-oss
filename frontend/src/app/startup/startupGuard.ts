@@ -20,6 +20,7 @@ export interface StartupGuardDependencies {
   document?: Document;
   window?: Window;
   isDev?: boolean;
+  previewFailure?: boolean;
   startupTimeoutMs?: number;
   now?: () => Date;
   random?: () => number;
@@ -138,6 +139,7 @@ export function installStartupGuard(dependencies: StartupGuardDependencies = {})
   const documentRef = dependencies.document ?? document;
   const windowRef = dependencies.window ?? window;
   const isDev = dependencies.isDev ?? import.meta.env.DEV;
+  const previewFailure = dependencies.previewFailure ?? import.meta.env.VITE_CZ_STARTUP_ERROR_PREVIEW === '1';
   const startupTimeoutMs = dependencies.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
   const now = dependencies.now ?? (() => new Date());
   const random = dependencies.random ?? Math.random;
@@ -233,6 +235,10 @@ export function installStartupGuard(dependencies: StartupGuardDependencies = {})
   };
 
   const handleReady = () => {
+    if (previewFailure) {
+      return;
+    }
+
     hideRecoveryShell();
   };
 
@@ -293,6 +299,13 @@ export function installStartupGuard(dependencies: StartupGuardDependencies = {})
   windowRef.addEventListener('cz:app-shell-ready', handleReady, { once: true });
   windowRef.addEventListener('error', handleWindowError as EventListener);
   windowRef.addEventListener('unhandledrejection', handleUnhandledRejection as EventListener);
+
+  if (previewFailure) {
+    showStartupFailure(
+      '[preview]',
+      'Simulated startup recovery screen. Disable VITE_CZ_STARTUP_ERROR_PREVIEW to return to the normal app.',
+    );
+  }
 
   return {
     failureReference,
