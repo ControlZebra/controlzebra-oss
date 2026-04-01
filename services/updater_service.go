@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultUpdateChannel  = "beta"
+	defaultUpdateChannel  = "stable"
 	defaultUpdateURLBase  = "https://controlzebra.github.io/controlzebra-releases/desktop"
 	appUpdateEventName    = "app-update:progress"
 	updaterStateFileName  = "updater-state.json"
@@ -32,7 +32,6 @@ const (
 )
 
 var updateChannelBaseURLs = map[string]string{
-	"beta":   defaultUpdateURLBase + "/beta/",
 	"stable": defaultUpdateURLBase + "/stable/",
 }
 
@@ -828,7 +827,7 @@ func (u *UpdateService) emitError(operationID, phase, message string, err error)
 
 func normalizeUpdateChannel(channel string) string {
 	channel = strings.TrimSpace(strings.ToLower(channel))
-	if channel == "" {
+	if channel == "" || channel == "beta" {
 		return defaultUpdateChannel
 	}
 	return channel

@@ -16,7 +16,7 @@ import type {
 } from '../../bindings/controlzebra/services/models';
 import { onEvent } from '../shared/runtime/events';
 
-const DEFAULT_UPDATE_CHANNEL = 'beta';
+const DEFAULT_UPDATE_CHANNEL = 'stable';
 const BACKGROUND_OPERATION_ID = 'app-update-background';
 
 export type UpdateStatus =

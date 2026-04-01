@@ -15,8 +15,8 @@ func TestNormalizeUpdateChannel(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"", "beta"},
-		{"BETA", "beta"},
+		{"", "stable"},
+		{"BETA", "stable"},
 		{" stable ", "stable"},
 	}
 
@@ -35,8 +35,8 @@ func TestResolveManifestBaseURL(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"", "https://controlzebra.github.io/controlzebra-releases/desktop/beta/", false},
-		{"beta", "https://controlzebra.github.io/controlzebra-releases/desktop/beta/", false},
+		{"", "https://controlzebra.github.io/controlzebra-releases/desktop/stable/", false},
+		{"beta", "https://controlzebra.github.io/controlzebra-releases/desktop/stable/", false},
 		{"stable", "https://controlzebra.github.io/controlzebra-releases/desktop/stable/", false},
 		{"preview", "", true},
 	}
@@ -105,7 +105,7 @@ func TestFindReusableStagedArtifactClearsMismatch(t *testing.T) {
 	}
 
 	if err := service.saveStagedArtifactState(StagedArtifactState{
-		Channel:      "beta",
+		Channel:      "stable",
 		Version:      "1.2.3",
 		DownloadURL:  "https://example.com/control-zebra.pkg",
 		Checksum:     "sha256:stale",
@@ -115,7 +115,7 @@ func TestFindReusableStagedArtifactClearsMismatch(t *testing.T) {
 		t.Fatalf("failed to save staged artifact state: %v", err)
 	}
 
-	_, ok, err := service.findReusableStagedArtifact("beta", UpdateCheckResult{
+	_, ok, err := service.findReusableStagedArtifact("stable", UpdateCheckResult{
 		Available:   true,
 		Version:     "1.2.3",
 		DownloadURL: "https://example.com/control-zebra.pkg",
@@ -138,7 +138,7 @@ func TestCheckForUpdateStartsBackgroundDownloadWhenEnabled(t *testing.T) {
 	stagedPath := filepath.Join(t.TempDir(), "staged", "control-zebra.pkg")
 	service.sidecarPath = writeFakeUpdaterSidecar(t, stagedPath, downloadCountPath)
 
-	result, err := service.CheckForUpdate("beta")
+	result, err := service.CheckForUpdate("stable")
 	if err != nil {
 		t.Fatalf("CheckForUpdate returned error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestCheckForUpdateStartsBackgroundDownloadWhenEnabled(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool {
-		_, ok, err := service.findReusableStagedArtifact("beta", result)
+		_, ok, err := service.findReusableStagedArtifact("stable", result)
 		return err == nil && ok
 	}, "background download to persist reusable staged artifact state")
 
@@ -170,7 +170,7 @@ func TestCheckForUpdateSkipsBackgroundDownloadWhenDisabled(t *testing.T) {
 		t.Fatalf("failed to save disabled auto-download setting: %v", err)
 	}
 
-	result, err := service.CheckForUpdate("beta")
+	result, err := service.CheckForUpdate("stable")
 	if err != nil {
 		t.Fatalf("CheckForUpdate returned error: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestCheckForUpdateReturnsReadyToInstallWhenReusableArtifactExists(t *testin
 		t.Fatalf("failed to seed staged artifact: %v", err)
 	}
 	if err := service.saveStagedArtifactState(StagedArtifactState{
-		Channel:      "beta",
+		Channel:      "stable",
 		Version:      "1.2.3",
 		DownloadURL:  "https://example.com/control-zebra.pkg",
 		Checksum:     "sha256:test-checksum",
@@ -210,7 +210,7 @@ func TestCheckForUpdateReturnsReadyToInstallWhenReusableArtifactExists(t *testin
 		t.Fatalf("failed to save staged artifact state: %v", err)
 	}
 
-	result, err := service.CheckForUpdate("beta")
+	result, err := service.CheckForUpdate("stable")
 	if err != nil {
 		t.Fatalf("CheckForUpdate returned error: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestCheckForUpdateRetriesFailedBackgroundDownloadOnLaterCheck(t *testing.T)
 	stagedPath := filepath.Join(t.TempDir(), "staged", "control-zebra.pkg")
 	service.sidecarPath = writeRetryingFakeUpdaterSidecar(t, stagedPath, downloadCountPath)
 
-	firstResult, err := service.CheckForUpdate("beta")
+	firstResult, err := service.CheckForUpdate("stable")
 	if err != nil {
 		t.Fatalf("first CheckForUpdate returned error: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestCheckForUpdateRetriesFailedBackgroundDownloadOnLaterCheck(t *testing.T)
 		t.Fatalf("expected failed background download to leave no reusable state, stat err=%v", err)
 	}
 
-	secondResult, err := service.CheckForUpdate("beta")
+	secondResult, err := service.CheckForUpdate("stable")
 	if err != nil {
 		t.Fatalf("second CheckForUpdate returned error: %v", err)
 	}
@@ -262,11 +262,11 @@ func TestCheckForUpdateRetriesFailedBackgroundDownloadOnLaterCheck(t *testing.T)
 		if err != nil || strings.TrimSpace(string(countData)) != "2" {
 			return false
 		}
-		_, ok, stateErr := service.findReusableStagedArtifact("beta", secondResult)
+		_, ok, stateErr := service.findReusableStagedArtifact("stable", secondResult)
 		return stateErr == nil && ok
 	}, "successful retry background download on later check")
 
-	refreshed, err := service.CheckForUpdate("beta")
+	refreshed, err := service.CheckForUpdate("stable")
 	if err != nil {
 		t.Fatalf("final CheckForUpdate returned error: %v", err)
 	}

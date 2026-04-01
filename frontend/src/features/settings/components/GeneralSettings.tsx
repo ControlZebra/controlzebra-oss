@@ -28,10 +28,10 @@ import {
   GetDataLocations,
   SaveAppSettings,
 } from '../../../../bindings/controlzebra/services/settingsservice';
+import { GetCurrentVersion } from '../../../../bindings/controlzebra/services/updateservice';
 import type { AppSettings, DataLocations } from '../../../../bindings/controlzebra/services/models';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || '0.0.0-dev';
 
 function formatDisplayVersion(version: string | undefined): string {
   const value = (version ?? '').trim();
@@ -104,6 +104,7 @@ function GeneralSettings(): JSX.Element {
   const [dataLocations, setDataLocations] = useState<DataLocations | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
 
   const handleThemeChange = useCallback((value: string) => {
     setTheme(value as Theme);
@@ -116,6 +117,14 @@ function GeneralSettings(): JSX.Element {
   }, []);
 
   useEffect(() => {
+    GetCurrentVersion()
+      .then((version) => {
+        setCurrentVersion(version);
+      })
+      .catch(() => {
+        // Non-fatal version display fallback
+      });
+
     GetAppSettings()
       .then((settings) => {
         setAppSettings(settings);
@@ -199,6 +208,7 @@ function GeneralSettings(): JSX.Element {
                 : 'Not checked yet';
   const updatePrimaryActionLabel = readyToInstall ? 'Install update' : 'Download and install';
   const updateVersionLabel = latestResult?.version ? formatDisplayVersion(latestResult.version) : null;
+  const currentVersionLabel = formatDisplayVersion(currentVersion ?? latestResult?.currentVersion);
   const updateProgressPercent = typeof updateProgress?.percent === 'number' ? Math.max(0, Math.min(100, updateProgress.percent)) : null;
   const lastCheckedLabel = lastCheckedAt ? new Date(lastCheckedAt).toLocaleString() : null;
 
@@ -326,7 +336,7 @@ function GeneralSettings(): JSX.Element {
         <div className="space-y-2 mb-4 text-sm">
           <p className="text-theme-secondary">
             <span className="text-theme-muted">Current app version:</span>{' '}
-            <span className="text-theme-primary font-medium">{formatDisplayVersion(APP_VERSION)}</span>
+            <span className="text-theme-primary font-medium">{currentVersionLabel}</span>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-theme-muted">Status:</span>

@@ -100,6 +100,7 @@ Section
     SetOutPath $INSTDIR
     
     !insertmacro wails.files
+    File /oname=cz-updater.exe "..\..\..\bin\cz-updater.exe"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

@@ -32,6 +32,10 @@ const settingsServiceMock = vi.hoisted(() => ({
   SaveAppSettings: vi.fn(),
 }));
 
+const updateServiceMock = vi.hoisted(() => ({
+  GetCurrentVersion: vi.fn(),
+}));
+
 const layoutMock = vi.hoisted(() => ({
   theme: 'dark',
   setTheme: vi.fn(),
@@ -74,6 +78,7 @@ vi.mock('../../../domain/analytics/analytics', () => ({
 }));
 
 vi.mock('../../../../bindings/controlzebra/services/settingsservice', () => settingsServiceMock);
+vi.mock('../../../../bindings/controlzebra/services/updateservice', () => updateServiceMock);
 
 vi.mock('sonner', () => ({
   toast: toastMock,
@@ -129,6 +134,7 @@ vi.mock('../../../shared/ui', () => ({
 describe('GeneralSettings auto-download toggle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    updateServiceMock.GetCurrentVersion.mockResolvedValue('v0.13.0-beta');
     settingsServiceMock.GetDataLocations.mockResolvedValue({
       roamingConfigDir: '/tmp/config',
       repositorySettingsDir: '/tmp/repositories',
@@ -198,5 +204,19 @@ describe('GeneralSettings auto-download toggle', () => {
 
     expect(settingsServiceMock.SaveAppSettings).toHaveBeenCalledTimes(1);
     expect(toastMock.error).not.toHaveBeenCalled();
+  });
+
+  it('shows the backend current version instead of the frontend dev fallback', async () => {
+    settingsServiceMock.GetAppSettings.mockResolvedValue({
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      autoDownloadUpdates: true,
+    });
+
+    render(<GeneralSettings />);
+
+    expect(await screen.findByText('v0.13.0-beta')).toBeInTheDocument();
+    expect(updateServiceMock.GetCurrentVersion).toHaveBeenCalledTimes(1);
   });
 });
