@@ -1,8 +1,9 @@
 import { memo } from 'react';
-import { LayoutProvider, useLayout, useRepo } from '../../context';
+import { LayoutProvider, UpdateProvider, useLayout, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../../shared/ui';
 import RecoveryBanner from '../../shared/ui/RecoveryBanner';
 import ExplorerMergeModal from '../../features/merge/components/ExplorerMergeModal';
+import TitleBar from './TitleBar';
 import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
@@ -21,6 +22,7 @@ function AppLayoutInner(): JSX.Element {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-theme-base text-theme-primary overflow-hidden">
+      <TitleBar />
       <TopBar />
       <RecoveryBanner />
       <Toaster />
@@ -61,9 +63,11 @@ function AppLayoutInner(): JSX.Element {
  */
 function AppLayout(): JSX.Element {
   return (
-    <LayoutProvider>
-      <AppLayoutInner />
-    </LayoutProvider>
+    <UpdateProvider>
+      <LayoutProvider>
+        <AppLayoutInner />
+      </LayoutProvider>
+    </UpdateProvider>
   );
 }
 

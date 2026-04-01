@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -38,6 +39,7 @@ func runApply(args []string) error {
 		pidStr     string
 		launch     bool
 		logPath    string
+		stateFile  string
 	)
 
 	fs.StringVar(&stagedPath, "staged", "", "Path to the downloaded staged binary (required)")
@@ -45,6 +47,7 @@ func runApply(args []string) error {
 	fs.StringVar(&pidStr, "pid", "", "PID of the main app process to wait for (required)")
 	fs.BoolVar(&launch, "launch", false, "Relaunch the app after applying the update")
 	fs.StringVar(&logPath, "log", "", "Path to log file (default: <temp>/cz-updater.log)")
+	fs.StringVar(&stateFile, "state-file", "", "Path to the updater state file to clear after a successful apply")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -158,11 +161,12 @@ func runApply(args []string) error {
 	}
 
 	stagingDir := filepath.Dir(stagedPath)
-	if filepath.Base(stagingDir) == "cz-update-staging" {
+	if isManagedUpdateStagingDir(stagingDir) {
 		if err := os.RemoveAll(stagingDir); err != nil {
 			log.Printf("warning: could not remove staging dir %s: %v", stagingDir, err)
 		}
 	}
+	removeUpdaterStateFile(stateFile)
 
 	log.Println("update applied successfully")
 	return nil
@@ -234,4 +238,26 @@ func copyFile(src, dst string) error {
 	}
 
 	return nil
+}
+
+func isManagedUpdateStagingDir(path string) bool {
+	base := filepath.Base(path)
+	if base == "cz-update-staging" || strings.HasPrefix(base, "cz-update-staging-") {
+		return true
+	}
+	if base != "updates" {
+		return false
+	}
+	parent := filepath.Base(filepath.Dir(path))
+	return parent == "ControlZebra"
+}
+
+func removeUpdaterStateFile(path string) {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return
+	}
+	if err := os.Remove(trimmedPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("warning: could not remove updater state file %s: %v", trimmedPath, err)
+	}
 }

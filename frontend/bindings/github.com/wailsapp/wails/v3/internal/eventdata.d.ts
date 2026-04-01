@@ -12,6 +12,7 @@ import type * as services$0 from "../../../../../controlzebra/services/models.js
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "app-update:progress": services$0.AppUpdateProgress;
             "file:open-in-terminal": string;
             "file:reveal-in-finder": string;
             "folder-closed": string;
