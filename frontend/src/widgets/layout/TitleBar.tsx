@@ -118,11 +118,11 @@ function TitleBar(): JSX.Element {
       data-testid="title-bar"
     >
       <div
-        className="flex min-w-0 items-center gap-2 text-[13px]"
+        className="flex min-w-0 items-center gap-2 text-xs"
         style={isMac ? { paddingLeft: macTrafficLightInset } : undefined}
       >
         <span className="shrink-0 font-medium text-theme-primary">
-          ControlZebra
+          ControlZebra Beta
         </span>
         {repoName ? (
           <span className="truncate font-medium text-theme-primary">({repoName})</span>

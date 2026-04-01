@@ -1,6 +1,11 @@
 # ControlZebra Desktop Plans Summary
 
-This document replaces the previous collection of detailed plan files in this folder.
+This document replaces the previous collection of detailed plan files in this folder, while newer targeted follow-up plans may still be added when active implementation work needs a dedicated design document.
+
+## Active Follow-Up Plans
+
+- [[L5X Git Diff Noise Reduction Plan]] - Active implementation plan for reducing Studio 5000 L5X Git diff noise through semantic canonicalization and Git textconv integration.
+- [[Python Automation MVP Plan]] - Active implementation plan for repo-scoped Python automations with managed runtime, isolated dependencies, and non-blocking app-driven triggers.
 
 The original plans captured several generations of product design, implementation sequencing, wireframes, and operational notes. Many of them were written before the related work shipped, and several retained stale status markers long after the repository moved on. This summary keeps the durable outcomes, major architectural decisions, and remaining roadmap themes in one place.
 
@@ -157,4 +162,4 @@ Reasons for consolidation:
 - Some documents overlapped heavily and fragmented the same topic across multiple drafts, wireframes, and follow-up plans.
 - A single high-level summary is easier to maintain and more accurately reflects the current state of the product.
 
-The folder is now intended to hold this archival summary rather than granular implementation plans.
+The folder primarily holds this archival summary, with occasional focused follow-up plans when a current implementation topic benefits from a dedicated design document.
