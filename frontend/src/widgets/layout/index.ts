@@ -2,6 +2,7 @@
  * Layout components barrel export.
  */
 export { default as AppLayout } from './AppLayout';
+export { default as TitleBar } from './TitleBar';
 export { default as TopBar } from './TopBar';
 export { default as ActivityBar } from './ActivityBar';
 export { default as Sidebar } from './Sidebar';

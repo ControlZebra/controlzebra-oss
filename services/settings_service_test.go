@@ -27,6 +27,9 @@ func TestGetAppSettings_Default(t *testing.T) {
 	if settings.LastRepoPath != "" {
 		t.Errorf("Expected empty LastRepoPath, got '%s'", settings.LastRepoPath)
 	}
+	if !settings.AutoDownloadUpdates {
+		t.Error("Expected AutoDownloadUpdates to default to true")
+	}
 }
 
 func TestSaveAndGetAppSettings(t *testing.T) {
@@ -42,8 +45,9 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 
 	// Save settings
 	settings := AppSettings{
-		Theme:        "light",
-		LastRepoPath: "/path/to/repo",
+		Theme:               "light",
+		LastRepoPath:        "/path/to/repo",
+		AutoDownloadUpdates: false,
 	}
 	err = svc.SaveAppSettings(settings)
 	if err != nil {
@@ -63,6 +67,30 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 	}
 	if loadedSettings.LastRepoPath != "/path/to/repo" {
 		t.Errorf("Expected LastRepoPath '/path/to/repo', got '%s'", loadedSettings.LastRepoPath)
+	}
+	if loadedSettings.AutoDownloadUpdates {
+		t.Error("Expected AutoDownloadUpdates to round-trip as false")
+	}
+}
+
+func TestGetAppSettings_MissingAutoDownloadDefaultsTrue(t *testing.T) {
+	svc := NewSettingsService()
+	tmpDir, err := os.MkdirTemp("", "settings-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	svc.settingsDir = tmpDir
+	svc.legacyDir = tmpDir
+
+	settingsPath := filepath.Join(tmpDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"theme":"light","lastRepoPath":"/tmp/repo"}`), 0o644); err != nil {
+		t.Fatalf("Failed to seed settings file: %v", err)
+	}
+
+	settings := svc.GetAppSettings()
+	if !settings.AutoDownloadUpdates {
+		t.Error("Expected AutoDownloadUpdates to default to true when the field is missing")
 	}
 }
 

@@ -1,11 +1,11 @@
 # Windows LocalAppData Install And Sidecar Update Implementation Plan
 
-Status: Phase 1 packaging validated  
+Status: Phase 1 complete; Phase 2 backend and sidecar in progress  
 Last updated: 2026-03-29
 
 ## Progress update
 
-As of 2026-03-29, Phase 1 packaging foundation work has been validated in smoke testing.
+As of 2026-03-29, Phase 1 packaging foundation work is complete and validated in smoke testing.
 
 Completed in this phase:
 
@@ -15,7 +15,7 @@ Completed in this phase:
 4. Installer build validation completed for `windows-amd64`
 5. Manual smoke checks succeeded for fresh install, reinstall, and uninstall behavior under the per-user install model
 
-Remaining work in this plan is for Phases 2 through 4.
+Phase 2 implementation is now underway with the backend update service and Windows sidecar installer-handoff wiring.
 
 ## Purpose
 
@@ -428,6 +428,7 @@ Status update:
 
 1. Packaging changes are implemented
 2. Smoke validation is complete for the per-user installer behavior
+3. Phase 1 is complete
 
 Exit criteria:
 
@@ -441,6 +442,11 @@ Exit criteria:
 3. Wire progress events from service to frontend
 4. Keep existing non-Windows updater flows intact
 5. Implement installer completion wait and relaunch verification inside the sidecar
+
+Status update:
+
+1. Backend and sidecar implementation has started
+2. Current work is focused on the service contract, progress events, and Windows installer handoff path
 
 Exit criteria:
 

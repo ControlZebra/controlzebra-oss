@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { VIEWS } from '../../shared/constants';
+import { ICON_SIZES, VIEWS } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
 import {
   AlertDialog,
@@ -64,7 +64,7 @@ function NonGitFolderPromptModal(): JSX.Element {
       <AlertDialogContent>
         <AlertDialogHeader>
           <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle size={16} className="text-yellow-400" />
+            <AlertTriangle size={ICON_SIZES.sm} className="text-yellow-400" />
             <AlertDialogTitle>Git version control is not enabled</AlertDialogTitle>
           </div>
           <AlertDialogDescription>

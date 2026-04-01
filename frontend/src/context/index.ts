@@ -1,5 +1,6 @@
 export { LayoutProvider, useLayout } from './LayoutContext';
 export type { Theme } from './LayoutContext';
+export { UpdateProvider, useAppUpdate } from './UpdateContext';
 export { AuthProvider, useAuth } from '../domain/auth/context/AuthContext';
 export { RepoProvider, useRepo } from '../domain/repo/context/RepoContext';
 export type {
