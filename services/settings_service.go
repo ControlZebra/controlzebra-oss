@@ -36,9 +36,17 @@ func (s *SettingsService) SetApp(app *application.App) {
 
 // AppSettings contains application preferences
 type AppSettings struct {
-	Theme         string   `json:"theme"`         // "dark", "light", "system"
-	LastRepoPath  string   `json:"lastRepoPath"`  // Last opened repository path
-	RecentFolders []string `json:"recentFolders"` // Recently opened folders (max 10)
+	Theme               string   `json:"theme"`               // "dark", "light", "system"
+	LastRepoPath        string   `json:"lastRepoPath"`        // Last opened repository path
+	RecentFolders       []string `json:"recentFolders"`       // Recently opened folders (max 10)
+	AutoDownloadUpdates bool     `json:"autoDownloadUpdates"` // Automatically download app updates while ControlZebra is open
+}
+
+func defaultAppSettings() AppSettings {
+	return AppSettings{
+		Theme:               "dark",
+		AutoDownloadUpdates: true,
+	}
 }
 
 // UserProfile contains git user configuration
@@ -62,9 +70,7 @@ func (s *SettingsService) GetAppSettings() AppSettings {
 	done := LogMethod("SettingsService.GetAppSettings", nil)
 	defer func() { done(nil, nil) }()
 
-	settings := AppSettings{
-		Theme: "dark", // default
-	}
+	settings := defaultAppSettings()
 
 	settingsPath := filepath.Join(s.settingsDir, "settings.json")
 	data, err := os.ReadFile(settingsPath)
@@ -74,12 +80,23 @@ func (s *SettingsService) GetAppSettings() AppSettings {
 		if legacyErr != nil {
 			return settings
 		}
-		_ = json.Unmarshal(legacyData, &settings)
+		decodeAppSettings(legacyData, &settings)
 		return settings
 	}
 
-	_ = json.Unmarshal(data, &settings)
+	decodeAppSettings(data, &settings)
 	return settings
+}
+
+func decodeAppSettings(data []byte, settings *AppSettings) {
+	defaults := defaultAppSettings()
+	settings.Theme = defaults.Theme
+	settings.AutoDownloadUpdates = defaults.AutoDownloadUpdates
+	_ = json.Unmarshal(data, settings)
+
+	if strings.TrimSpace(settings.Theme) == "" {
+		settings.Theme = defaults.Theme
+	}
 }
 
 // GetDataLocations returns the active and legacy data locations for diagnostics.

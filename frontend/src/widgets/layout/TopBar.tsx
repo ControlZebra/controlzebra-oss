@@ -21,11 +21,13 @@ import {
   PlugZap,
   LogIn,
   LogOut,
+  Download,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openExternalUrl } from '../../shared/runtime/browser';
 import { ICON_SIZES, VIEWS } from '../../shared/constants';
-import { useAuth, useLayout, useRepo } from '../../context';
+import { useAppUpdate, useAuth, useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
 import { UndoLastSaveDialog } from '../../shared/ui';
 import AccountDialog from '../../features/auth/components/AccountDialog';
@@ -42,7 +44,13 @@ import {
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
+const iconSmStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 const COMMUNITY_DISCORD_URL = 'https://discord.com/channels/1470750950552633466/1470779539696390205';
+const noDragRegionStyle = { '--wails-draggable': 'no-drag' } as CSSProperties;
+const noDragControlProps = {
+  style: noDragRegionStyle,
+  'data-window-control': 'true',
+} as const;
 
 function DiscordIcon({ style, className = '' }: { style?: CSSProperties; className?: string }): JSX.Element {
   return (
@@ -79,6 +87,7 @@ function TopBar(): JSX.Element {
     openAccountDialog,
   } = useLayout();
   const { isAuthenticated, userEmail, userName, logout } = useAuth();
+  const { isBusy: isUpdateBusy, isUpdateAvailable, readyToInstall, startUpdate, status: updateStatus } = useAppUpdate();
 
   // Responsive state
   const { isCompactTopBar } = useWindowSize();
@@ -127,15 +136,38 @@ function TopBar(): JSX.Element {
     await undoLastCommit();
   }, [undoLastCommit]);
 
+  const handleStartUpdate = useCallback((): void => {
+    void startUpdate();
+  }, [startUpdate]);
+
   // Derive display values from repo state
   const branchName = repoInfo?.branch || 'main';
   const hasCommits = (commits?.length ?? 0) > 0;
   const isGitRepo = repoInfo?.isRepo ?? false;
   const leftPanelWidth = BREAKPOINTS.ACTIVITY_BAR_WIDTH + (sidebarCollapsed ? 0 : sidebarWidth);
+  const showUpdateButton = isUpdateAvailable || isUpdateBusy;
+  const updateButtonTitle = readyToInstall
+    ? 'Install downloaded update'
+    : isUpdateBusy
+      ? 'Update in progress'
+      : 'Download and install update';
+  const updateButtonLabel = readyToInstall
+    ? 'Install update'
+    : updateStatus === 'downloading'
+      ? 'Downloading update'
+      : updateStatus === 'installing'
+        ? 'Installing update'
+        : 'Update available';
+  const updateButtonClassName = readyToInstall
+    ? 'border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/15'
+    : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/15';
 
   return (
     <>
-      <header className="h-[52px] bg-theme-elevated border-b border-theme-default flex items-center justify-between px-3 select-none shrink-0 gap-2">
+      <header
+        className="h-[52px] bg-theme-elevated border-b border-theme-default flex items-center justify-between px-3 shrink-0 gap-2"
+        data-testid="top-bar"
+      >
         {/* Left: Undo and Discard buttons aligned with sidebar (hidden when sidebar collapsed or compact) */}
         <div
           className="flex items-center shrink-0 transition-[width,opacity] duration-150"
@@ -150,6 +182,7 @@ function TopBar(): JSX.Element {
                 <>
                   {/* Switch Project */}
                   <button 
+                    {...noDragControlProps}
                     onClick={() => setSwitchProjectModalOpen(true)}
                     title="Switch Project"
                     className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
@@ -159,6 +192,7 @@ function TopBar(): JSX.Element {
 
                   {/* Undo Last Save */}
                   <button 
+                    {...noDragControlProps}
                     onClick={() => setUndoDialogOpen(true)}
                     disabled={!hasCommits || operationInProgress}
                     title="Undo Last Save"
@@ -170,6 +204,7 @@ function TopBar(): JSX.Element {
               )}
             </div>
             <button
+              {...noDragControlProps}
               onClick={toggleSidebar}
               title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
@@ -186,6 +221,7 @@ function TopBar(): JSX.Element {
         {/* Center: Branch selector + burger menu (on compact) */}
         <div className="flex-1 flex justify-center items-center gap-2 min-w-0 px-2">
           <button 
+            {...noDragControlProps}
             onClick={() => repoPath && isGitRepo && setBranchModalOpen(true)}
             disabled={!repoPath || !isGitRepo}
             className="group flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
@@ -194,7 +230,7 @@ function TopBar(): JSX.Element {
             <span className="font-medium text-sm truncate text-center transition-colors">
               {repoPath && isGitRepo ? branchName : 'No branch'}
             </span>
-            <ChevronDown style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} className="transition-colors shrink-0" />
+            <ChevronDown style={iconSmStyle} className="transition-colors shrink-0" />
           </button>
           
           {/* Burger menu - right of branch selector on compact view */}
@@ -202,6 +238,7 @@ function TopBar(): JSX.Element {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  {...noDragControlProps}
                   title="Actions Menu"
                   className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 shrink-0 text-theme-muted hover:text-theme-primary"
                 >
@@ -223,9 +260,28 @@ function TopBar(): JSX.Element {
 
         {/* Right: Account menu */}
         <div className="flex items-center gap-2 justify-end shrink-0">
+          {showUpdateButton && (
+            <button
+              {...noDragControlProps}
+              type="button"
+              onClick={handleStartUpdate}
+              disabled={isUpdateBusy}
+              title={updateButtonTitle}
+              className={`flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${updateButtonClassName}`}
+            >
+              {readyToInstall ? (
+                <ArrowDownToLine style={iconSmStyle} />
+              ) : (
+                <Download style={iconSmStyle} />
+              )}
+              <span>{updateButtonLabel}</span>
+            </button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
+                {...noDragControlProps}
                 title={isAuthenticated ? (userEmail || 'Account menu') : 'Account menu'}
                 className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
               >

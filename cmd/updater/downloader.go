@@ -15,6 +15,14 @@ import (
 	"time"
 )
 
+const (
+	managedUpdatesDirName    = "updates"
+	managedUpdatesParentDir  = "ControlZebra"
+	updateStagingDirPrefix   = "cz-update-staging-"
+	staleStagingDirMaxAge    = 72 * time.Hour
+	defaultDownloadAssetName = "cz-update-download"
+)
+
 // downloadProgress is emitted as JSON lines to stdout during download.
 type downloadProgress struct {
 	Progress progressInfo `json:"progress"`
@@ -111,17 +119,46 @@ func createStagingDir(base string) (string, error) {
 	if base == "" {
 		base = os.TempDir()
 	}
-	dir := filepath.Join(base, "cz-update-staging")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	rootDir := filepath.Join(base, managedUpdatesParentDir, managedUpdatesDirName)
+	if err := os.MkdirAll(rootDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create staging directory: %w", err)
+	}
+	cleanupStaleManagedStagingDirs(rootDir, time.Now(), staleStagingDirMaxAge)
+
+	dir, err := os.MkdirTemp(rootDir, updateStagingDirPrefix)
+	if err != nil {
 		return "", fmt.Errorf("failed to create staging directory: %w", err)
 	}
 	return dir, nil
 }
 
+func cleanupStaleManagedStagingDirs(rootDir string, now time.Time, maxAge time.Duration) {
+	entries, err := os.ReadDir(rootDir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), updateStagingDirPrefix) {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if now.Sub(info.ModTime()) < maxAge {
+			continue
+		}
+
+		_ = os.RemoveAll(filepath.Join(rootDir, entry.Name()))
+	}
+}
+
 // downloadWithProgress performs the HTTP download, streams progress to stdout,
 // computes a SHA-256 hash inline, and returns the path to the staged file.
-func downloadWithProgress(url, stagingDir, expectedHash string) (string, error) {
-	resp, finalURL, err := fetchDownloadResponse(url)
+func downloadWithProgress(downloadURL, stagingDir, expectedHash string) (string, error) {
+	resp, finalURL, err := fetchDownloadResponse(downloadURL)
 	if err != nil {
 		return "", err
 	}
@@ -130,18 +167,31 @@ func downloadWithProgress(url, stagingDir, expectedHash string) (string, error) 
 	totalSize := resp.ContentLength // -1 if unknown
 
 	// Determine the output filename from the URL path
-	filename := filepath.Base(finalURL)
+	filename := ""
+	if parsedURL, err := url.Parse(finalURL); err == nil {
+		filename = filepath.Base(parsedURL.Path)
+	} else {
+		filename = filepath.Base(finalURL)
+	}
 	if filename == "" || filename == "." || filename == "/" {
-		filename = "cz-update-download"
+		filename = defaultDownloadAssetName
 	}
 	stagedPath := filepath.Join(stagingDir, filename)
+	partialPath := stagedPath + ".part"
 
 	// Create the output file
-	f, err := os.Create(stagedPath)
+	f, err := os.Create(partialPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create staged file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if _, err := os.Stat(partialPath); err == nil {
+			_ = os.Remove(partialPath)
+		}
+	}()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	// Stream download: hash inline, report progress periodically
 	hasher := sha256.New()
@@ -185,8 +235,12 @@ func downloadWithProgress(url, stagingDir, expectedHash string) (string, error) 
 	actualHash := hex.EncodeToString(hasher.Sum(nil))
 	if actualHash != expectedHash {
 		// Clean up the bad download
-		os.Remove(stagedPath)
+		os.Remove(partialPath)
 		return "", fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHash)
+	}
+
+	if err := os.Rename(partialPath, stagedPath); err != nil {
+		return "", fmt.Errorf("failed to finalize staged file: %w", err)
 	}
 
 	return stagedPath, nil

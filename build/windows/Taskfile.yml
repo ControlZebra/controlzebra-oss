@@ -22,6 +22,10 @@ vars:
 tasks:
   build:
     summary: Builds the application for Windows
+    deps:
+      - task: build:updater
+        vars:
+          ARCH: '{{.ARCH}}'
     cmds:
       # Auto-detect CGO: if CGO_ENABLED=1, use Docker; otherwise use native Go cross-compile
       - task: '{{if and (ne OS "windows") (eq .CGO_ENABLED "1")}}build:docker{{else}}build:native{{end}}'

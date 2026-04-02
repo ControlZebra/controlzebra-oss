@@ -10,6 +10,7 @@
 //	cz-updater check    — fetch manifest, compare versions, report if update available
 //	cz-updater download — download a binary with progress streaming and checksum verification
 //	cz-updater apply    — wait for main app to exit, swap binaries, relaunch
+//	cz-updater apply-windows-installer — wait for the main app to exit, run a silent NSIS installer, relaunch
 //	cz-updater version  — print the sidecar version
 package main
 
@@ -44,6 +45,8 @@ func main() {
 		err = runDownload(os.Args[2:])
 	case "apply":
 		err = runApply(os.Args[2:])
+	case "apply-windows-installer":
+		err = runApplyWindowsInstaller(os.Args[2:])
 	case "version":
 		fmt.Println(Version)
 		if PublicKey != "" {
@@ -77,6 +80,8 @@ Commands:
   check      Check for available updates
   download   Download an update binary
   apply      Replace the running binary and relaunch
+	apply-windows-installer
+						 Run a silent Windows installer and relaunch the installed app
   version    Print the sidecar version
 
 Run "cz-updater <command> --help" for details on each command.

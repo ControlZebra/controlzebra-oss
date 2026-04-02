@@ -17,6 +17,8 @@ import (
 // Defaults to "0.0.0-dev" for local development builds.
 var Version = "0.0.0-dev"
 
+const mainTitleBarHeight = 40
+
 // Wails uses Go's `embed` package to embed the frontend files into the binary.
 // Any files in the frontend/dist folder will be embedded into the binary and
 // made available to the frontend.
@@ -37,6 +39,7 @@ func init() {
 	application.RegisterEvent[string]("file:reveal-in-finder")
 	application.RegisterEvent[string]("file:open-in-terminal")
 	application.RegisterEvent[services.LocalBinProgress]("local-bin:progress")
+	application.RegisterEvent[services.AppUpdateProgress]("app-update:progress")
 
 	// Terminal events - dynamic event names based on session ID
 	// These are registered as patterns, actual events use session-specific suffixes
@@ -60,6 +63,7 @@ func main() {
 	authService := services.NewAuthService()
 	debugService := services.NewDebugService()
 	localBinService := services.NewLocalBinService()
+	updateService := services.NewUpdateService(Version)
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -83,6 +87,7 @@ func main() {
 			application.NewService(authService),
 			application.NewService(debugService),
 			application.NewService(localBinService),
+			application.NewService(updateService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -99,6 +104,7 @@ func main() {
 	repoSettingsService.SetApp(app)
 	fileWatcherService.SetApp(app)
 	localBinService.SetApp(app)
+	updateService.SetApp(app)
 
 	if runtime.GOOS == "windows" {
 		go func() {
@@ -264,22 +270,30 @@ h1 { font-size: 24px; margin: 0 0 8px 0; color: #fff; }
 	// Set the application menu
 	app.Menu.SetApplicationMenu(menu)
 
-	// Create a new window with the necessary options.
-	// 'Title' is the title of the window.
-	// 'Mac' options tailor the window when running on macOS.
-	// 'BackgroundColour' is the background colour of the window.
-	// 'URL' is the URL that will be loaded into the webview.
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	// Create the main application window.
+	// Windows uses a frameless shell so the existing frontend top bar can own the
+	// drag region and caption buttons. macOS keeps the native titlebar controls
+	// and uses an inset/transparent titlebar for integrated content.
+	mainWindowOptions := application.WebviewWindowOptions{
 		Title:              "ControlZebra (Beta)",
 		UseApplicationMenu: true,
+		BackgroundColour:   application.NewRGB(10, 10, 10),
+		URL:                "/",
 		Mac: application.MacWindow{
-			InvisibleTitleBarHeight: 50,
+			InvisibleTitleBarHeight: mainTitleBarHeight,
 			Backdrop:                application.MacBackdropTranslucent,
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
-		BackgroundColour: application.NewRGB(10, 10, 10),
-		URL:              "/",
-	})
+	}
+
+	if runtime.GOOS == "windows" {
+		mainWindowOptions.Frameless = true
+		mainWindowOptions.Windows = application.WindowsWindow{
+			DisableFramelessWindowDecorations: false,
+		}
+	}
+
+	app.Window.NewWithOptions(mainWindowOptions)
 
 	// Create a goroutine that emits an event containing the current time every second.
 	// The frontend can listen to this event and update the UI accordingly.
