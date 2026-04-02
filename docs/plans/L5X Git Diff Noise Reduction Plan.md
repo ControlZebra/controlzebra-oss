@@ -6,121 +6,123 @@
 
 Studio 5000 exported L5X files produce noisy Git diffs even when the underlying ladder logic has not meaningfully changed. The two main sources are:
 
-- Volatile export metadata such as export timestamps, software revision, and export options.
-- Non-semantic ordering changes in the XML that cause large text diffs even when the controller model is effectively the same.
+- volatile export metadata such as export timestamps, software revision, and export options
+- non-semantic ordering changes in the XML that cause large text diffs even when the controller model is effectively the same
 
-ControlZebra already has a strong semantic foundation for L5X parsing and diffing through the linked `ladder-visualizer` package. That package parses L5X into a normalized controller model and already isolates vendor-specific metadata from core logic structures. This plan extends that foundation to Git-side review so ordinary `git diff` output becomes more useful.
+ControlZebra already has a strong semantic foundation for L5X parsing and diffing through the linked `ladder-visualizer` package. That package parses L5X into a normalized controller model and now has a package-side implementation checklist that locks the phase 1 canonicalization contract. This desktop plan exists to wire that package output into ordinary repository review.
 
 ## Problem Statement
 
 Raw text diff is the wrong comparison layer for L5X exports.
 
-- Metadata-only re-exports appear as meaningful file changes.
-- XML sibling reordering creates distracting churn.
-- Reviewers have to mentally reconstruct whether a diff reflects real ladder logic changes or only Studio export behavior.
-- The repository currently has no L5X-specific Git diff driver or canonicalization step.
+- metadata-only re-exports appear as meaningful file changes
+- XML sibling and collection reordering creates distracting churn
+- reviewers have to mentally reconstruct whether a diff reflects real ladder logic changes or only Studio export behavior
+- the repository currently has no L5X-specific Git diff driver or contributor setup flow
 
 ## Goals
 
-- Reduce Git diff noise for `.l5x` files without rewriting the stored source files in the first phase.
-- Reuse the existing L5X parsing and normalization pipeline instead of building a second interpretation of the format.
-- Preserve real logic changes such as operand edits, rung additions or removals, rung comment changes, and structural branch edits.
-- Keep the approach safe for non-technical contributors and straightforward to document.
+- reduce Git diff noise for `.l5x` files without rewriting stored source files in phase 1
+- consume the existing ladder-visualizer parsing and canonicalization pipeline instead of building desktop-specific L5X logic
+- preserve real logic changes such as operand edits, rung additions or removals, rung comment changes, and structural branch edits
+- make repository setup understandable for ordinary contributors
 
 ## Non-Goals
 
-- Do not introduce a clean or smudge filter that rewrites committed L5X content in phase 1.
-- Do not hide behaviorally meaningful ordering changes inside a rung.
-- Do not solve only the in-app diff viewer while leaving normal Git review noisy.
+- do not implement L5X canonicalization logic in ControlZebra Desktop
+- do not introduce a clean or smudge filter that rewrites committed L5X content in phase 1
+- do not hide behaviorally meaningful ordering changes inside a rung
+- do not expand this plan into a second copy of the package serializer specification
 
-## Current State
+## Package Contract This Plan Depends On
 
-The current architecture already provides several seams we should reuse:
+The linked ladder-visualizer package is the source of truth for canonicalization behavior. Desktop integration assumes the package-side contract is as follows:
 
-- `ladder-visualizer/src/parsers/parse.ts` is the existing parse entry point.
-- `ladder-visualizer/src/parsers/l5x/l5x-to-normalized.ts` converts L5X into `NormalizedController` and stores volatile L5X export details under `vendorMetadata`.
-- `ladder-visualizer/src/diff/diffControllers.ts` already compares controller entities by semantic keys such as program name, routine name, and rung number.
-- `ladder-visualizer/src/diff/inline/` contains render-oriented rung traversal logic that can inform canonical serialization.
+- the canonicalizer is exposed as a short executable command suitable for `git config diff.l5x.textconv <command>`
+- the canonicalizer always excludes `createdDate` and `modifiedDate`
+- the canonicalizer excludes export metadata such as `exportDate`, `exportOptions`, `softwareRevision`, and `schemaRevision`
+- the canonicalizer uses a narrow allowlist per section instead of serializing full normalized entities
+- the canonicalizer preserves top-level rung instruction order and branch ordering in phase 1
+- unsupported or ambiguous rung serialization remains visible through an explicit raw-rung fallback marker
+- approved nested collection normalization is handled inside the package, including data type members, AOI parameters, AOI local tags, AOI routines, module ports, and module connections
 
-This means we do not need a new XML-specific diff engine. We need a deterministic serializer for Git.
+This desktop plan must not redefine those rules. It should only reference and consume them.
 
 ## Proposed Approach
 
-Use a Git `textconv` diff driver for L5X files.
+Use a Git `textconv` diff driver for L5X files and point it at the packaged ladder-visualizer canonicalizer executable.
 
-Instead of asking Git to compare raw XML, configure Git to run a small CLI that:
+Instead of asking Git to compare raw XML, configure the repository and contributor environment so Git runs the package CLI, which:
 
-1. Parses the L5X file with the existing ladder-visualizer parser.
-2. Converts it into the normalized controller model.
-3. Emits a canonical plain-text representation with stable ordering and filtered metadata.
+1. parses the L5X file with the existing ladder-visualizer parser
+2. converts it into the normalized controller model
+3. emits canonical plain text with the package-defined filtering, ordering, and rung fallback rules
 
 Git then diffs that canonical text while leaving the original `.l5x` file unchanged in the repository.
 
-This gives the safest first implementation because:
+This is the safest first implementation because:
 
-- It improves review output without altering source files.
-- It keeps the semantics aligned with the app's L5X viewer and diff stack.
-- It can be enabled per-repository with `.gitattributes` plus a documented local Git config step.
+- it improves review output without altering source files
+- it keeps Git review semantics aligned with the package that already powers L5X viewing and diffing
+- it keeps desktop ownership focused on repository wiring, docs, and verification rather than format logic
 
-## Canonical Diff Contract
+## Desktop-Owned Scope
 
-The canonical serializer should treat the following as noise and exclude them from diff output:
+This plan owns:
 
-- Export date
-- Export options
-- Software revision
-- Schema revision
-- Controller created date
-- Controller modified date when it only reflects export churn
+- committing `.gitattributes` entries for L5X diff handling
+- documenting the one-time local Git config needed to enable the diff driver
+- documenting the expected executable command name provided by ladder-visualizer
+- documenting verification steps for contributors
+- verifying that the linked workspace consumption model can expose the package executable without ad hoc patching
 
-The canonical serializer must preserve:
+This plan does not own:
 
-- Controller identity and meaningful description fields
-- Programs, routines, and their membership relationships
-- Rungs ordered by rung number
-- Rung comments
-- Instruction mnemonics and operands
-- Tags, data types, AOIs, and modules
-- Structural branch changes that alter ladder behavior or review meaning
+- serializer field allowlists
+- timestamp filtering rules
+- nested collection normalization rules
+- rung fallback serialization logic
+- package CLI implementation details beyond the executable contract it must satisfy
 
-## Ordering Rules
+## Repository Integration Contract
 
-### Safe To Normalize
+The repository integration phase must match the package-side contract exactly.
 
-- Programs by name
-- Routines by name within program
-- Controller and program tags by stable scope plus name
-- Data types by name
-- AOIs by name
-- Modules by name
-- Rungs by rung number
+### Diff Driver Shape
 
-### Preserve Source Order
+- the repository uses `diff=l5x` for `*.l5x` and `*.L5X`
+- contributors configure `diff.l5x.textconv` to call the short executable name exposed by ladder-visualizer
+- the recommended Git config must not rely on `node path/to/script`, workspace-relative internals, or contributor-specific patching
 
-- Top-level instruction sequence inside a rung
-- Any branch layout where semantic equivalence cannot be proven confidently
+### Contributor Setup Contract
 
-### Conditional Normalization
+- `.gitattributes` is committed to the repository
+- local Git config remains a one-time contributor step in phase 1
+- setup docs explain what the command does in plain language without requiring knowledge of ladder-visualizer internals
+- setup docs clearly state that the canonicalizer changes Git review output only and does not rewrite the stored `.l5x` file
 
-Parallel branch leg ordering may be normalized later, but only after tests prove that the serializer does not hide meaningful changes. Phase 1 should default to preserving branch order unless a stable semantic fingerprint makes equivalence obvious.
+### Linked Workspace Contract
+
+- the desktop repo consumes ladder-visualizer through its built package outputs
+- repository guidance must account for the linked package workflow so contributors do not accidentally use stale build artifacts
+- validation steps must include rebuilding ladder-visualizer when testing new canonicalizer behavior from the linked workspace
 
 ## Implementation Phases
 
-## Phase 1: Canonical Serializer And CLI
+## Phase 1: Consume Package Canonicalizer
 
-Add a serializer inside `ladder-visualizer` that converts `NormalizedController` into deterministic plain text for diffing.
+Wait for ladder-visualizer to ship the canonicalizer executable and lock the package-facing usage note.
 
 Deliverables:
 
-- A canonical serializer module for normalized controllers.
-- L5X-specific canonical serialization rules that drop volatile export metadata.
-- A small Node CLI entry point that Git can call for `textconv`.
-- Tests covering metadata-only churn and real logic changes.
+- confirmed executable command name from ladder-visualizer
+- confirmed expectation that the package executable works from the linked workspace model used by ControlZebra Desktop
+- clear note in desktop planning that canonicalization rules are package-owned, not repo-owned
 
 Notes:
 
-- This phase should not modify the tracked `.l5x` file.
-- The CLI should be packaged with ladder-visualizer so ControlZebra does not duplicate parsing logic.
+- this phase does not add repository wiring yet if the package executable contract is not ready
+- desktop should not invent a temporary Node-path invocation that diverges from the package plan
 
 ## Phase 2: Git Integration In The Repository
 
@@ -128,67 +130,73 @@ Add repository guidance and attributes so contributors can enable the L5X diff d
 
 Deliverables:
 
-- A root `.gitattributes` entry mapping `*.l5x` and `*.L5X` to `diff=l5x`.
-- Setup documentation describing how to configure `diff.l5x.textconv` to invoke the CLI.
-- Verification steps showing the difference between `git diff` and `git diff --no-textconv`.
+- a root `.gitattributes` entry mapping `*.l5x` and `*.L5X` to `diff=l5x`
+- setup documentation describing how to configure `diff.l5x.textconv` to invoke the short ladder-visualizer executable
+- setup documentation that explicitly states the repository depends on the package executable contract
+- verification steps showing the difference between `git diff` and `git diff --no-textconv`
+- verification steps for linked-workspace contributors that include rebuilding ladder-visualizer before validation when package code changes
 
 Notes:
 
-- `.gitattributes` can be committed, but the `textconv` command usually still needs local Git config.
-- The documentation should target ordinary contributors and avoid requiring them to understand the ladder-visualizer internals.
+- `.gitattributes` can be committed, but the `textconv` command still needs local Git config in phase 1
+- the documentation should target ordinary contributors and avoid requiring them to understand the package internals
+- docs ownership for exact setup examples lives here in ControlZebra Desktop, not in ladder-visualizer package docs
 
-## Phase 3: Optional Advanced Normalization
+## Phase 3: Verification And Rollout
 
-Evaluate whether harmless branch-leg reorder can be normalized safely.
+Validate the repository wiring against representative L5X fixtures and confirm the contributor workflow is reasonable.
 
 Deliverables:
 
-- A branch-leg equivalence strategy backed by fixtures.
-- Additional tests for safe semantic reordering.
-- A clear fallback path that preserves source order when normalization confidence is low.
+- manual verification on representative metadata-only churn, reorder churn, and true logic change cases
+- confirmation that raw-rung fallback remains visible in Git diff output when canonicalization cannot safely reduce a rung
+- confirmation that `git diff --no-textconv` still shows raw XML for troubleshooting
+- final contributor guidance that covers install, verify, and disable steps
 
 Notes:
 
-- This is optional follow-up work, not a requirement for the first release.
-- We should prefer false negatives over hiding real logic changes.
+- this phase validates the integration contract; it does not expand canonicalization rules
+- any request to change serialization semantics should route back to ladder-visualizer plan work, not desktop-only patches
 
 ## Validation Plan
 
-The implementation is complete only when these cases are verified:
+The desktop integration is complete only when these cases are verified:
 
-1. Metadata-only re-export produces no canonical diff.
-2. Non-semantic XML collection reorder produces no canonical diff.
-3. Operand changes produce canonical diff output.
-4. Rung comment changes produce canonical diff output.
-5. Rung add and remove operations produce canonical diff output.
-6. Unsafe ordering cases still surface as diffs rather than being incorrectly normalized away.
+1. contributors can enable the diff driver with committed `.gitattributes` plus one-time local Git config
+2. the configured `diff.l5x.textconv` command is the short package executable, not a fragile Node-path command
+3. metadata-only re-export produces no meaningful canonical diff through ordinary `git diff`
+4. approved non-semantic reorder produces no meaningful canonical diff through ordinary `git diff`
+5. true logic changes still produce canonical diff output
+6. unsupported or ambiguous rung cases remain visible through the package raw-rung fallback in Git output
+7. `git diff --no-textconv` still exposes raw XML when a contributor needs to debug the canonicalizer behavior
+8. linked-workspace contributors can verify changes reliably after rebuilding ladder-visualizer
 
-Validation should include both automated tests in `ladder-visualizer` and a manual Git verification pass against representative L5X fixtures.
+Validation should include both package automated coverage in ladder-visualizer and a manual Git verification pass in this repository.
 
 ## Risks And Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Canonicalization hides a real logic change | High | Preserve top-level instruction order and gate advanced normalization behind tests |
+| Desktop docs drift from the package executable contract | High | Treat ladder-visualizer as the source of truth for command shape and serialization behavior |
 | Git setup is too manual for contributors | Medium | Commit `.gitattributes`, add one-time setup documentation, and provide verification commands |
-| A second parser path drifts from the viewer | High | Reuse the existing ladder-visualizer parser and normalized model only |
-| Textconv output is hard to read | Medium | Keep the canonical text structured, grouped, and stable rather than emitting raw JSON |
+| Linked workspace testing uses stale package artifacts | High | Require ladder-visualizer rebuild steps when validating package changes from the desktop repo |
+| Contributors fall back to raw XML and lose trust in the workflow | Medium | Document `git diff --no-textconv` as a troubleshooting tool, not the normal review path |
 
 ## Open Questions
 
-- Should controller `modifiedDate` always be excluded, or only when no other semantic changes exist?
-- Should the CLI live as a published package bin, a workspace script, or both?
 - Do we want a future repository bootstrap step that configures the L5X diff driver automatically for contributors?
+- Do we want repository docs to include a troubleshooting section for stale linked-package builds beyond the initial verification steps?
 
 ## Recommended First Cut
 
-Start with the smallest safe version:
+Start with the smallest safe desktop integration:
 
-1. Canonicalize controller, program, routine, tag, AOI, module, and rung ordering.
-2. Strip volatile export metadata and timestamps from canonical output.
-3. Preserve branch order and top-level rung instruction order.
-4. Wire Git through `textconv` only.
+1. wait for the ladder-visualizer short executable contract to land
+2. commit `.gitattributes` for `diff=l5x`
+3. document one-time local Git config using the package executable name
+4. document linked-workspace verification steps, including rebuilding ladder-visualizer when package code changes
+5. verify `git diff` versus `git diff --no-textconv` on representative L5X fixtures
 
-This first cut removes the highest-volume noise without taking on unnecessary semantic risk.
+This first cut keeps repository work narrow and aligned to the package-owned canonicalization contract.
 
 **Related:** [[PLANS_SUMMARY]] | [[Viewer System]] | [[Git Workflows]] | [[Frontend Architecture]]
