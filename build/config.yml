@@ -11,7 +11,7 @@ info:
   description: "ControlZebra" # The application description
   copyright: "(c) 2025, ControlZebra" # Copyright text
   comments: "ControlZebra" # Comments
-  version: "v0.0.1" # The application version
+  version: "v0.0.2" # The application version
 
 # Dev mode configuration
 dev_mode:

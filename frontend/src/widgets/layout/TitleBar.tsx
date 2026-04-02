@@ -122,7 +122,7 @@ function TitleBar(): JSX.Element {
         style={isMac ? { paddingLeft: macTrafficLightInset } : undefined}
       >
         <span className="shrink-0 font-medium text-theme-primary">
-          ControlZebra Beta
+          ControlZebra
         </span>
         {repoName ? (
           <span className="truncate font-medium text-theme-primary">({repoName})</span>
