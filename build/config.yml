@@ -10,8 +10,8 @@ info:
   productIdentifier: "com.controlzebra.controlzebra" # The unique product identifier
   description: "ControlZebra" # The application description
   copyright: "(c) 2025, ControlZebra" # Copyright text
-  comments: "Democratizing git for everyone" # Comments
-  version: "v0.13.0-beta" # The application version
+  comments: "ControlZebra" # Comments
+  version: "v0.0.2" # The application version
 
 # Dev mode configuration
 dev_mode:

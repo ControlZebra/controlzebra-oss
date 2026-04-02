@@ -14,6 +14,7 @@ import * as LocalBinService from "./localbinservice.js";
 import * as ProgressService from "./progressservice.js";
 import * as RepositorySettingsService from "./repositorysettingsservice.js";
 import * as SettingsService from "./settingsservice.js";
+import * as UpdateService from "./updateservice.js";
 export {
     AuthService,
     DebugService,
@@ -27,11 +28,13 @@ export {
     LocalBinService,
     ProgressService,
     RepositorySettingsService,
-    SettingsService
+    SettingsService,
+    UpdateService
 };
 
 export {
     AppSettings,
+    AppUpdateProgress,
     BackgroundTaskConfig,
     BackgroundTaskStatus,
     BackgroundTaskType,
@@ -102,8 +105,10 @@ export {
     RepoPersonalConfig,
     RepoStatus,
     RepositorySettings,
+    StartUpdateOptions,
     StashEntry,
     TrackedPattern,
     UntrackedLargeFile,
+    UpdateCheckResult,
     UserProfile
 } from "./models.js";

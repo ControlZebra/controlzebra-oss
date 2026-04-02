@@ -13,7 +13,7 @@ ControlZebra is a simplified desktop Git client targeting **non-technical users*
 - v3 (Planned): Industrial file diffing (structured diff for proprietary binary formats)
 - v4 (Planned): ControlZebra accounts + collaboration features
 
-See [docs/plans/REVISION_PLAN.md](../docs/plans/REVISION_PLAN.md) for detailed implementation status and [docs/product/ROADMAP.md](../docs/product/ROADMAP.md) for the product roadmap.
+See [docs/plans/summary/PLANS_SUMMARY.md](../docs/plans/summary/PLANS_SUMMARY.md) for implementation status and [docs/product/ROADMAP.md](../docs/product/ROADMAP.md) for the product roadmap.
 
 ---
 
@@ -68,6 +68,7 @@ See [docs/plans/REVISION_PLAN.md](../docs/plans/REVISION_PLAN.md) for detailed i
 | App settings | `services/settings_service.go` (354 lines) |
 | CLI execution engine | `services/runner.go` (422 lines, `CommandRunner`) |
 | CLI binary resolution | `services/cli_resolver.go` (bundled → PATH → fallback) |
+| Build & release workflow | `build/config.yml`, `build/windows/Taskfile.yml`, `docs/technical/guides/Build and Release.md`, `docs/technical/infrastructure/Auto-Updater.md` |
 | Data paths & migration | `services/data_paths.go` |
 | Frontend git state | `frontend/src/context/RepoContext.tsx` (3,052 lines) |
 | Frontend UI state | `frontend/src/context/LayoutContext.tsx` (365 lines) |
@@ -210,7 +211,35 @@ go test ./services/... -coverprofile=coverage.out && go tool cover -html=coverag
 
 # Run frontend tests
 cd frontend && npm test
+
+# Refresh version-stamped Wails build assets after changing build/config.yml
+task common:update:build-assets
+
+# Build the Windows NSIS installer used by the updater feed
+DISABLE_AUTO_UPDATE=true task windows:create:nsis:installer ARCH=amd64
 ```
+
+## Release Workflow
+
+### Windows Manual Release (Current Production Path)
+
+1. Bump `info.version` in `build/config.yml` to `v<version>`.
+2. Run `task common:update:build-assets` so Wails refreshes version-stamped platform files.
+3. Immediately inspect `build/windows/nsis/wails_tools.nsh` after that refresh. Keep the current per-user installer behavior (`REQUEST_EXECUTION_LEVEL "user"` and uninstall keys under `HKCU`) unless the product explicitly decides to move to machine-wide installs.
+4. Build the release installer with `DISABLE_AUTO_UPDATE=true task windows:create:nsis:installer ARCH=amd64`.
+5. Compute installer metadata from `bin/control-zebra-amd64-installer.exe`:
+  - byte size: `stat -f "%z" bin/control-zebra-amd64-installer.exe`
+  - checksum: `shasum -a 256 bin/control-zebra-amd64-installer.exe`
+6. Update the release feed in the sibling `controlzebra-releases` repo:
+  - canonical manifest: `../controlzebra-releases/desktop/stable/update.json`
+  - compatibility alias: `../controlzebra-releases/desktop/beta/update.json`
+7. Keep both manifests identical until the desktop app stops defaulting to the `beta` channel.
+8. Manifest contract:
+  - `version` is plain semver like `0.0.2`
+  - GitHub release tag stays `v0.0.2`
+  - Windows asset URL must point at the NSIS installer, not the raw `.exe`
+9. Upload `bin/control-zebra-amd64-installer.exe` to the GitHub release tagged `v<version>`.
+10. If manifest signing is enabled, publish matching `update.json.sig` files for both channels.
 
 ---
 

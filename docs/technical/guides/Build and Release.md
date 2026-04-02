@@ -29,6 +29,16 @@ task common:generate:bindings
 # Build the auto-updater sidecar
 task build:updater
 
+# Refresh Wails-generated version metadata after changing build/config.yml
+task common:update:build-assets
+
+# Build the Windows NSIS installer used for releases
+DISABLE_AUTO_UPDATE=true task windows:create:nsis:installer ARCH=amd64
+
+# Collect the Windows installer byte size and SHA-256 for update manifests
+stat -f "%z" bin/control-zebra-amd64-installer.exe
+shasum -a 256 bin/control-zebra-amd64-installer.exe
+
 # Run backend tests
 go test ./services/... -v
 
@@ -54,7 +64,7 @@ cd frontend && npm run lint
 ### Production Build (`task build`)
 
 1. Frontend build: `cd frontend && npm run build` (Vite production build)
-2. Go build: `go build -ldflags "-X main.Version=v0.13.0-beta" -o bin/control-zebra`
+2. Go build: `go build -ldflags "-X main.Version=<version>" -o bin/control-zebra`
 3. Assets embedded in binary
 
 ### Package (`task package`)
@@ -72,16 +82,119 @@ Platform-specific packaging:
 - Includes: main app + `cz-updater.exe` + WebView2 bootstrapper
 - Optional: code signing with certificate
 
+## Manual Windows Release Workflow
+
+This is the current production release path used for customer builds.
+
+### 1. Bump the app version
+
+Update `build/config.yml`:
+
+```yaml
+version: "v<version>"
+```
+
+Examples:
+- config version: `v0.0.2`
+- GitHub release tag: `v0.0.2`
+- manifest version: `0.0.2`
+
+### 2. Refresh Wails build assets
+
+Run:
+
+```bash
+task common:update:build-assets
+```
+
+This updates version-stamped platform files such as Windows manifests and platform plist files.
+
+Important: re-check `build/windows/nsis/wails_tools.nsh` after this step. The generated file can switch the installer from the current per-user model to admin/HKLM settings. Unless there is an explicit product decision to change installer scope, keep:
+
+- `REQUEST_EXECUTION_LEVEL "user"`
+- uninstall registry keys under `HKCU`
+
+### 3. Build the Windows NSIS installer
+
+Run:
+
+```bash
+DISABLE_AUTO_UPDATE=true task windows:create:nsis:installer ARCH=amd64
+```
+
+Expected output:
+
+```text
+bin/control-zebra-amd64-installer.exe
+```
+
+### 4. Collect artifact metadata
+
+Run:
+
+```bash
+stat -f "%z" bin/control-zebra-amd64-installer.exe
+shasum -a 256 bin/control-zebra-amd64-installer.exe
+```
+
+Use those exact values in the updater manifests.
+
+### 5. Update the release feed repo
+
+The updater manifest lives in the sibling `controlzebra-releases` repository, not this repo.
+
+Update both files:
+
+- `../controlzebra-releases/desktop/stable/update.json`
+- `../controlzebra-releases/desktop/beta/update.json`
+
+Keep them identical until the desktop app stops defaulting to the `beta` channel.
+
+Manifest rules:
+
+- `version` is plain semver, for example `0.0.2`
+- the GitHub release tag is `v0.0.2`
+- `platforms.windows-amd64.url` must point to the NSIS installer asset
+- `size` must be the installer byte size
+- `checksum` must be `sha256:<hash>`
+
+Example:
+
+```json
+{
+	"version": "0.0.2",
+	"releaseDate": "2026-04-01T00:00:00Z",
+	"releaseNotes": "ControlZebra 0.0.2 includes guided Git workflows, visual L5X and PDF diffs, history, merge review, and GitHub publish support.",
+	"platforms": {
+		"windows-amd64": {
+			"url": "https://github.com/ControlZebra/controlzebra-releases/releases/download/v0.0.2/control-zebra-amd64-installer.exe",
+			"size": 10331957,
+			"checksum": "sha256:cc487849901b2fe9050f6a691931c7cfa9aba60a8847b2b4572ef3377c009bf2"
+		}
+	}
+}
+```
+
+### 6. Publish the GitHub release
+
+Upload this installer to the GitHub release tagged `v<version>`:
+
+```text
+bin/control-zebra-amd64-installer.exe
+```
+
+If manifest signing is enabled, publish matching `update.json.sig` files beside both manifests.
+
 ## Version Management
 
 Version defined in `build/config.yml`:
 ```yaml
-version: "v0.13.0-beta"
+version: "v<version>"
 ```
 
 Injected at compile time:
 ```bash
-go build -ldflags "-X main.Version=v0.13.0-beta"
+go build -ldflags "-X main.Version=v0.0.2"
 ```
 
 Accessible in Go via `main.Version` variable, passed to frontend via settings.
@@ -113,9 +226,10 @@ This regenerates `frontend/bindings/controlzebra/services/*.ts`. **Never edit th
 ## CI/CD Considerations
 
 - **Never commit** `.env` files or API keys
-- Auto-updater checks GitHub releases for new versions
+- Auto-updater reads the GitHub Pages-backed manifest feed in the `controlzebra-releases` repo, and those manifests point to GitHub release assets
 - Release artifacts: DMG (macOS), NSIS installer (Windows)
-- Version tagged in git and `build/config.yml`
+- Windows release feed currently requires both `desktop/stable/update.json` and `desktop/beta/update.json`
+- Version must stay aligned across the git tag, `build/config.yml`, and updater manifests
 
 ## Project Dependencies
 
