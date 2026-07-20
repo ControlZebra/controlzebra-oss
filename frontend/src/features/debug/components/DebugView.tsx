@@ -32,7 +32,7 @@ function DebugView(): JSX.Element {
         </div>
       </div>
 
-      <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200">
+      <div className="mt-3 rounded-md border border-theme-warning bg-theme-warning p-2.5 text-xs text-theme-warning">
         Debug logs can include repository paths and error details. Share only with trusted support.
       </div>
     </div>

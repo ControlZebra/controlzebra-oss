@@ -78,10 +78,6 @@ vi.mock('../../shared/ui/dropdown-menu', () => ({
   DropdownMenuSeparator: () => <hr />,
 }));
 
-vi.mock('../../features/auth/components/AccountDialog', () => ({
-  default: () => null,
-}));
-
 vi.mock('./BranchModal', () => ({
   default: () => null,
 }));
@@ -126,5 +122,11 @@ describe('TopBar window chrome', () => {
     render(<TopBar />);
 
     expect(screen.getByRole('button', { name: 'Install update' })).toBeInTheDocument();
+  });
+
+  it('does not expose a sign-in action during the initial release', () => {
+    render(<TopBar />);
+
+    expect(screen.queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument();
   });
 });

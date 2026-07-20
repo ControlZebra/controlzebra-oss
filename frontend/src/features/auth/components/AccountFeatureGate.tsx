@@ -1,8 +1,8 @@
 import { memo, type JSX, type ReactNode } from 'react';
 import { Lock, ShieldCheck } from 'lucide-react';
-import { useAuth, useLayout } from '../../../context';
-import { ICON_SIZES, VIEWS } from '../../../shared/constants';
-import { Badge, Button } from '../../../shared/ui';
+import { useAuth } from '../../../context';
+import { ICON_SIZES } from '../../../shared/constants';
+import { Badge } from '../../../shared/ui';
 
 interface AccountFeatureGateProps {
   title: string;
@@ -20,7 +20,6 @@ function AccountFeatureGate({
   readyMessage = 'This device is signed in and ready when this feature becomes available.',
 }: AccountFeatureGateProps): JSX.Element {
   const { isAuthenticated, isAuthAvailable } = useAuth();
-  const { setActiveView } = useLayout();
 
   return (
     <section className="bg-theme-surface rounded-lg p-6 border border-theme-default">
@@ -59,11 +58,6 @@ function AccountFeatureGate({
               </p>
             </div>
           </div>
-          {isAuthAvailable ? (
-            <Button variant="secondary" size="sm" onClick={() => setActiveView(VIEWS.PROFILE)}>
-              <span>Open Profile</span>
-            </Button>
-          ) : null}
         </div>
       )}
 
