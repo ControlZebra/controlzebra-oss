@@ -2,7 +2,7 @@
  * GeneralSettings - App preferences including theme selection and analytics consent.
  */
 import { memo, useCallback, useEffect, useState, type CSSProperties, type JSX } from 'react';
-import { ArrowDownToLine, BarChart3, CheckCircle2, Download, FolderTree, Info, LogOut, Palette, RefreshCw } from 'lucide-react';
+import { ArrowDownToLine, BarChart3, CheckCircle2, Code2, Download, FolderTree, Info, LogOut, Palette, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppUpdate, useLayout, useAuth, type Theme } from '../../../context';
 import { ICON_SIZES } from '../../../shared/constants';
@@ -105,6 +105,7 @@ function GeneralSettings(): JSX.Element {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 
   const handleThemeChange = useCallback((value: string) => {
     setTheme(value as Theme);
@@ -311,6 +312,28 @@ function GeneralSettings(): JSX.Element {
                 <span className="ml-1.5">Sign out</span>
               </Button>
             ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Developer Mode */}
+      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Code2 style={iconStyle} className="text-theme-secondary" />
+              <label className="block text-theme-primary text-sm font-medium">Developer Mode</label>
+            </div>
+            <p className="text-theme-muted text-sm">
+              Developer tools are planned for a future release.
+            </p>
+          </div>
+          <div className="pt-1">
+            <Switch
+              checked={developerModeEnabled}
+              onCheckedChange={setDeveloperModeEnabled}
+              aria-label="Developer Mode"
+            />
           </div>
         </div>
       </div>

@@ -219,4 +219,25 @@ describe('GeneralSettings auto-download toggle', () => {
     expect(await screen.findByText('v0.13.0-beta')).toBeInTheDocument();
     expect(updateServiceMock.GetCurrentVersion).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps Developer Mode local to the current session', async () => {
+    settingsServiceMock.GetAppSettings.mockResolvedValue({
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      autoDownloadUpdates: true,
+    });
+
+    render(<GeneralSettings />);
+
+  await screen.findByText('v0.13.0-beta');
+
+    const toggle = screen.getByRole('switch', { name: 'Developer Mode' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(settingsServiceMock.SaveAppSettings).not.toHaveBeenCalled();
+  });
 });
