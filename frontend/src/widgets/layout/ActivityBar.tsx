@@ -10,10 +10,14 @@ import {
   Sliders,
   Settings,
   Bug,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { ICON_SIZES, VIEWS, type ViewType } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
+import { openExternalUrl } from '../../shared/runtime/browser';
+
+const DOCUMENTATION_URL = 'https://controlzebra.com/docs/';
 
 // ============================================================================
 // Types
@@ -114,6 +118,10 @@ function ActivityBar(): JSX.Element {
     }
   }, [activeView, sidebarCollapsed, setActiveView, setSidebarCollapsed]);
 
+  const handleOpenDocumentation = useCallback((): void => {
+    void openExternalUrl(DOCUMENTATION_URL);
+  }, []);
+
   // Memoize button lists to prevent unnecessary re-renders
   const topNavButtons = useMemo(() => 
     TOP_NAV_ITEMS.map(item => {
@@ -150,6 +158,14 @@ function ActivityBar(): JSX.Element {
     <nav className="w-10 bg-theme-elevated border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
       {topNavButtons}
       <div className="flex-1" />
+      <button
+        onClick={handleOpenDocumentation}
+        title="Documentation"
+        aria-label="Documentation"
+        className="w-10 h-10 flex items-center justify-center rounded transition-colors text-theme-muted hover:text-theme-secondary hover-bg-theme-interactive"
+      >
+        <BookOpen style={{ width: ICON_SIZES.lg * 0.7, height: ICON_SIZES.lg * 0.7 }} />
+      </button>
       {bottomNavButtons}
     </nav>
   );

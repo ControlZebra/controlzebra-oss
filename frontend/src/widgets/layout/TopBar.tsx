@@ -19,7 +19,6 @@ import {
   UserCircle,
   Settings,
   PlugZap,
-  LogIn,
   LogOut,
   Download,
   ArrowDownToLine,
@@ -30,7 +29,6 @@ import { ICON_SIZES, VIEWS } from '../../shared/constants';
 import { useAppUpdate, useAuth, useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
 import { UndoLastSaveDialog } from '../../shared/ui';
-import AccountDialog from '../../features/auth/components/AccountDialog';
 import BranchModal from './BranchModal';
 import SwitchProjectModal from './SwitchProjectModal';
 import {
@@ -82,9 +80,6 @@ function TopBar(): JSX.Element {
     setActiveView,
     setSidebarCollapsed,
     setSelectedSettingsCategory,
-    accountDialogOpen,
-    setAccountDialogOpen,
-    openAccountDialog,
   } = useLayout();
   const { isAuthenticated, userEmail, userName, logout } = useAuth();
   const { isBusy: isUpdateBusy, isUpdateAvailable, readyToInstall, startUpdate, status: updateStatus } = useAppUpdate();
@@ -113,12 +108,7 @@ function TopBar(): JSX.Element {
     setSidebarCollapsed(false);
   }, [setActiveView, setSelectedSettingsCategory, setSidebarCollapsed]);
 
-  const handleAccountAction = useCallback(async (): Promise<void> => {
-    if (!isAuthenticated) {
-      openAccountDialog();
-      return;
-    }
-
+  const handleSignOut = useCallback(async (): Promise<void> => {
     setIsSigningOut(true);
     try {
       const result = await logout();
@@ -130,7 +120,7 @@ function TopBar(): JSX.Element {
     } finally {
       setIsSigningOut(false);
     }
-  }, [isAuthenticated, logout, openAccountDialog]);
+  }, [logout]);
 
   const handleUndo = useCallback(async (): Promise<void> => {
     await undoLastCommit();
@@ -314,15 +304,15 @@ function TopBar(): JSX.Element {
                 <DiscordIcon style={iconStyle} className="mr-2" />
                 Discord
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void handleAccountAction()} disabled={isSigningOut}>
-                {isAuthenticated ? (
+              {isAuthenticated ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => void handleSignOut()} disabled={isSigningOut}>
                   <LogOut style={iconStyle} className="mr-2" />
-                ) : (
-                  <LogIn style={iconStyle} className="mr-2" />
-                )}
-                {isAuthenticated ? 'Sign out' : 'Sign in'}
-              </DropdownMenuItem>
+                    Sign out
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -348,10 +338,6 @@ function TopBar(): JSX.Element {
         onConfirm={handleSwitchProject}
       />
 
-      <AccountDialog
-        open={accountDialogOpen}
-        onOpenChange={setAccountDialogOpen}
-      />
     </>
   );
 }

@@ -5,6 +5,7 @@
 import { memo } from 'react';
 import { Download, Trash2 } from 'lucide-react';
 import { ICON_SIZES } from '../../../shared/constants';
+import { Button } from '../../../shared/ui';
 import type { DebugStats } from '../../../../bindings/controlzebra/services/models';
 
 interface StatsBarProps {
@@ -30,17 +31,16 @@ function StatsBar({ stats, onExport, onClear, isExporting }: StatsBarProps): JSX
 
       {/* Right: actions */}
       <div className="flex items-center gap-1">
-        <button
+        <Button
           onClick={onExport}
           disabled={isExporting || stats.totalEntries === 0}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-theme-muted
-                     hover:text-theme-secondary hover:bg-theme-muted/50
-                     disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          loading={isExporting}
+          size="sm"
           title="Export logs to JSON file"
         >
           <Download size={iconSize} />
           <span>{isExporting ? 'Exporting…' : 'Export'}</span>
-        </button>
+        </Button>
         <button
           onClick={onClear}
           disabled={stats.totalEntries === 0}

@@ -85,8 +85,8 @@ const ANALYTICS_SELECT_OPTIONS = ANALYTICS_OPTIONS.map(({ id, label }) => ({
 }));
 
 function GeneralSettings(): JSX.Element {
-  const { theme, setTheme, openAccountDialog } = useLayout();
-  const { isAuthenticated, isAuthAvailable, userEmail, logout } = useAuth();
+  const { theme, setTheme } = useLayout();
+  const { isAuthenticated, userEmail, logout } = useAuth();
   const {
     checkForUpdates,
     errorMessage: updateErrorMessage,
@@ -288,10 +288,8 @@ function GeneralSettings(): JSX.Element {
           </div>
           <p className="text-theme-muted text-sm mb-4">
             {isAuthenticated
-              ? `Signed in as ${userEmail || 'your account'}. ControlZebra account features are optional, and local Git work stays available if you sign out.`
-              : isAuthAvailable
-                ? 'A ControlZebra account is optional. You can keep using local Git workflows as a guest and sign in later from the account menu if you need cloud features.'
-                : 'Account sign-in is unavailable in this build. Local Git workflows remain fully available.'}
+              ? `Signed in as ${userEmail || 'your account'}. Local Git work stays available if you sign out.`
+              : 'Controlzebra Account sign-in is not available in this release.'}
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -311,14 +309,6 @@ function GeneralSettings(): JSX.Element {
               >
                 <LogOut style={iconStyle} />
                 <span className="ml-1.5">Sign out</span>
-              </Button>
-            ) : isAuthAvailable ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={openAccountDialog}
-              >
-                <span>Sign in</span>
               </Button>
             ) : null}
           </div>
