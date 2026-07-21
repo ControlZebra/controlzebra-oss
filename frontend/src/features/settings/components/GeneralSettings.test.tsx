@@ -245,6 +245,32 @@ describe('GeneralSettings auto-download toggle', () => {
     expect(updateServiceMock.GetCurrentVersion).toHaveBeenCalledTimes(1);
   });
 
+  it('loads and shows data paths only when Developer Mode is enabled', async () => {
+    settingsServiceMock.GetAppSettings.mockResolvedValue({
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      autoDownloadUpdates: true,
+      developerModeEnabled: false,
+    });
+
+    const { unmount } = render(<GeneralSettings />);
+
+    await screen.findByText('v0.13.0-beta');
+    expect(screen.queryByText('Active storage paths used by ControlZebra on this machine.')).not.toBeInTheDocument();
+    expect(settingsServiceMock.GetDataLocations).not.toHaveBeenCalled();
+
+    layoutMock.developerModeEnabled = true;
+  unmount();
+  render(<GeneralSettings />);
+
+    await screen.findByText('v0.13.0-beta');
+    await waitFor(() => {
+      expect(settingsServiceMock.GetDataLocations).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText('Active storage paths used by ControlZebra on this machine.')).toBeInTheDocument();
+  });
+
   it('persists Developer Mode and updates the effective runtime setting', async () => {
     const initialSettings: AppSettings = {
       theme: 'dark',

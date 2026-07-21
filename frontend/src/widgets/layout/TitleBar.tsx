@@ -19,6 +19,7 @@ const macTitleBarHeight = 40;
 const windowsTitleBarHeight = 32;
 const macTrafficLightInset = 76;
 const captionButtonClassName = 'flex h-full w-9 items-center justify-center border border-transparent text-theme-muted transition-colors duration-75 hover:bg-theme-hover hover:text-theme-primary';
+const titleTextClassName = 'font-sans text-xs font-medium leading-none text-theme-primary';
 const noDragControlProps = {
   style: noDragRegionStyle,
   'data-window-control': 'true',
@@ -118,14 +119,14 @@ function TitleBar(): JSX.Element {
       data-testid="title-bar"
     >
       <div
-        className="flex min-w-0 items-center gap-2 text-xs"
+        className="flex min-w-0 items-center gap-2"
         style={isMac ? { paddingLeft: macTrafficLightInset } : undefined}
       >
-        <span className="shrink-0 font-medium text-theme-primary">
+        <span className={`shrink-0 ${titleTextClassName}`}>
           ControlZebra
         </span>
         {repoName ? (
-          <span className="truncate font-medium text-theme-primary">({repoName})</span>
+          <span className={`truncate ${titleTextClassName}`}>({repoName})</span>
         ) : null}
       </div>
 
