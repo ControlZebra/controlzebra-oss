@@ -7,6 +7,7 @@ type AppSettings = {
   lastRepoPath: string;
   recentFolders: string[];
   autoDownloadUpdates: boolean;
+  developerModeEnabled: boolean;
 };
 
 type Deferred<T> = {
@@ -36,9 +37,17 @@ const updateServiceMock = vi.hoisted(() => ({
   GetCurrentVersion: vi.fn(),
 }));
 
+const debugServiceMock = vi.hoisted(() => ({
+  IsEnabled: vi.fn(),
+  SetEnabled: vi.fn(),
+}));
+
 const layoutMock = vi.hoisted(() => ({
   theme: 'dark',
   setTheme: vi.fn(),
+  developerModeEnabled: false,
+  setDeveloperModeEnabled: vi.fn(),
+  setActiveView: vi.fn(),
   openAccountDialog: vi.fn(),
 }));
 
@@ -79,6 +88,7 @@ vi.mock('../../../domain/analytics/analytics', () => ({
 
 vi.mock('../../../../bindings/controlzebra/services/settingsservice', () => settingsServiceMock);
 vi.mock('../../../../bindings/controlzebra/services/updateservice', () => updateServiceMock);
+vi.mock('../../../../bindings/controlzebra/services/debugservice', () => debugServiceMock);
 
 vi.mock('sonner', () => ({
   toast: toastMock,
@@ -87,6 +97,14 @@ vi.mock('sonner', () => ({
 vi.mock('../../../shared/ui', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Button: ({ children, loading: _loading, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => <button type="button" {...props}>{children}</button>,
+  AlertDialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => open ? <>{children}</> : null,
+  AlertDialogAction: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props}>{children}</button>,
+  AlertDialogCancel: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props}>{children}</button>,
+  AlertDialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+  AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
   Select: ({ value, onValueChange, options, placeholder, className }: {
     value: string;
     onValueChange: (value: string) => void;
@@ -145,6 +163,9 @@ describe('GeneralSettings auto-download toggle', () => {
       webView2Dir: '/tmp/webview2',
     });
     settingsServiceMock.SaveAppSettings.mockResolvedValue(undefined);
+    debugServiceMock.IsEnabled.mockResolvedValue(false);
+    debugServiceMock.SetEnabled.mockResolvedValue(undefined);
+    layoutMock.developerModeEnabled = false;
   });
 
   it('disables the toggle until app settings finish loading', async () => {
@@ -161,6 +182,7 @@ describe('GeneralSettings auto-download toggle', () => {
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
       autoDownloadUpdates: true,
+      developerModeEnabled: false,
     });
 
     await waitFor(() => {
@@ -174,12 +196,14 @@ describe('GeneralSettings auto-download toggle', () => {
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
       autoDownloadUpdates: true,
+      developerModeEnabled: false,
     };
     const refreshedSettings: AppSettings = {
       theme: 'dark',
       lastRepoPath: '/repos/bravo',
       recentFolders: ['/repos/bravo', '/repos/alpha'],
       autoDownloadUpdates: true,
+      developerModeEnabled: false,
     };
 
     settingsServiceMock.GetAppSettings
@@ -212,6 +236,7 @@ describe('GeneralSettings auto-download toggle', () => {
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
       autoDownloadUpdates: true,
+      developerModeEnabled: false,
     });
 
     render(<GeneralSettings />);
@@ -220,24 +245,93 @@ describe('GeneralSettings auto-download toggle', () => {
     expect(updateServiceMock.GetCurrentVersion).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps Developer Mode local to the current session', async () => {
-    settingsServiceMock.GetAppSettings.mockResolvedValue({
+  it('persists Developer Mode and updates the effective runtime setting', async () => {
+    const initialSettings: AppSettings = {
       theme: 'dark',
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
       autoDownloadUpdates: true,
-    });
+      developerModeEnabled: false,
+    };
+    const refreshedSettings: AppSettings = {
+      ...initialSettings,
+      recentFolders: ['/repos/bravo', '/repos/alpha'],
+    };
+    settingsServiceMock.GetAppSettings
+      .mockResolvedValueOnce(initialSettings)
+      .mockResolvedValueOnce(refreshedSettings);
 
     render(<GeneralSettings />);
 
-  await screen.findByText('v0.13.0-beta');
+    await screen.findByText('v0.13.0-beta');
 
     const toggle = screen.getByRole('switch', { name: 'Developer Mode' });
     expect(toggle).toHaveAttribute('aria-checked', 'false');
 
     fireEvent.click(toggle);
 
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
-    expect(settingsServiceMock.SaveAppSettings).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(settingsServiceMock.SaveAppSettings).toHaveBeenCalledWith({
+        ...refreshedSettings,
+        developerModeEnabled: true,
+      });
+    });
+    expect(layoutMock.setDeveloperModeEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps Developer Mode enabled when saving the disabled state fails', async () => {
+    const settings: AppSettings = {
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      autoDownloadUpdates: true,
+      developerModeEnabled: true,
+    };
+    layoutMock.developerModeEnabled = true;
+    settingsServiceMock.GetAppSettings
+      .mockResolvedValueOnce(settings)
+      .mockRejectedValueOnce(new Error('disk unavailable'));
+
+    render(<GeneralSettings />);
+
+    await screen.findByText('v0.13.0-beta');
+    fireEvent.click(screen.getByRole('switch', { name: 'Developer Mode' }));
+
+    await waitFor(() => {
+      expect(toastMock.error).toHaveBeenCalledWith('Could not save Developer Mode setting.');
+    });
+    expect(layoutMock.setDeveloperModeEnabled).not.toHaveBeenCalled();
+  });
+
+  it('stops active debug logging before disabling Developer Mode', async () => {
+    const settings: AppSettings = {
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      autoDownloadUpdates: true,
+      developerModeEnabled: true,
+    };
+    layoutMock.developerModeEnabled = true;
+    debugServiceMock.IsEnabled.mockResolvedValue(true);
+    settingsServiceMock.GetAppSettings
+      .mockResolvedValueOnce(settings)
+      .mockResolvedValueOnce(settings);
+
+    render(<GeneralSettings />);
+
+    await screen.findByText('v0.13.0-beta');
+    fireEvent.click(screen.getByRole('switch', { name: 'Developer Mode' }));
+    expect(await screen.findByRole('button', { name: 'Stop logging and disable' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop logging and disable' }));
+
+    await waitFor(() => {
+      expect(debugServiceMock.SetEnabled).toHaveBeenCalledWith(false);
+      expect(settingsServiceMock.SaveAppSettings).toHaveBeenCalledWith({
+        ...settings,
+        developerModeEnabled: false,
+      });
+    });
+    expect(layoutMock.setDeveloperModeEnabled).toHaveBeenCalledWith(false);
   });
 });

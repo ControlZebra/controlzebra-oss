@@ -30,6 +30,9 @@ func TestGetAppSettings_Default(t *testing.T) {
 	if !settings.AutoDownloadUpdates {
 		t.Error("Expected AutoDownloadUpdates to default to true")
 	}
+	if settings.DeveloperModeEnabled {
+		t.Error("Expected DeveloperModeEnabled to default to false")
+	}
 }
 
 func TestSaveAndGetAppSettings(t *testing.T) {
@@ -48,6 +51,7 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 		Theme:               "light",
 		LastRepoPath:        "/path/to/repo",
 		AutoDownloadUpdates: false,
+		DeveloperModeEnabled: true,
 	}
 	err = svc.SaveAppSettings(settings)
 	if err != nil {
@@ -71,6 +75,9 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 	if loadedSettings.AutoDownloadUpdates {
 		t.Error("Expected AutoDownloadUpdates to round-trip as false")
 	}
+	if !loadedSettings.DeveloperModeEnabled {
+		t.Error("Expected DeveloperModeEnabled to round-trip as true")
+	}
 }
 
 func TestGetAppSettings_MissingAutoDownloadDefaultsTrue(t *testing.T) {
@@ -91,6 +98,9 @@ func TestGetAppSettings_MissingAutoDownloadDefaultsTrue(t *testing.T) {
 	settings := svc.GetAppSettings()
 	if !settings.AutoDownloadUpdates {
 		t.Error("Expected AutoDownloadUpdates to default to true when the field is missing")
+	}
+	if settings.DeveloperModeEnabled {
+		t.Error("Expected DeveloperModeEnabled to default to false when the field is missing")
 	}
 }
 

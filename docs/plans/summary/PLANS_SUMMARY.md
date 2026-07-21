@@ -6,6 +6,7 @@ This document replaces the previous collection of detailed plan files in this fo
 
 - [[L5X Git Diff Noise Reduction Plan]] - Active implementation plan for reducing Studio 5000 L5X Git diff noise through semantic canonicalization and Git textconv integration.
 - [[Python Automation MVP Plan]] - Active implementation plan for repo-scoped Python automations with managed runtime, isolated dependencies, and non-blocking app-driven triggers.
+- [[Developer Mode Implementation Plan]] - Proposed plan for a persisted, global developer-tools gate, beginning with controlled access to Debug Logs.
 
 The original plans captured several generations of product design, implementation sequencing, wireframes, and operational notes. Many of them were written before the related work shipped, and several retained stale status markers long after the repository moved on. This summary keeps the durable outcomes, major architectural decisions, and remaining roadmap themes in one place.
 

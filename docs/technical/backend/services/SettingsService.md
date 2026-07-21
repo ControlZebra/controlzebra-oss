@@ -25,9 +25,11 @@ Stored at `<config>/settings.json`:
 
 ```go
 type AppSettings struct {
-    Theme         string   `json:"theme"`         // "dark", "light", "system"
-    LastRepoPath  string   `json:"lastRepoPath"`
-    RecentFolders []string `json:"recentFolders"` // Max 10, most recent first
+    Theme                string   `json:"theme"`                // "dark", "light", "system"
+    LastRepoPath         string   `json:"lastRepoPath"`
+    RecentFolders        []string `json:"recentFolders"`        // Max 10, most recent first
+    AutoDownloadUpdates  bool     `json:"autoDownloadUpdates"`
+    DeveloperModeEnabled bool     `json:"developerModeEnabled"` // Enables internal developer tools
 }
 ```
 

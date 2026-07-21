@@ -136,7 +136,7 @@ function StatusBar(): JSX.Element {
     lfsInstalled,
     isInstallingPackages,
   } = useRepo();
-  const { setActiveView, setSidebarCollapsed } = useLayout();
+  const { setActiveView, setSidebarCollapsed, developerModeEnabled } = useLayout();
 
   // ---------------------------------------------------------------------------
   // Debug logging indicator state
@@ -145,6 +145,11 @@ function StatusBar(): JSX.Element {
 
   // Fetch initial state and listen for changes
   useEffect(() => {
+    if (!developerModeEnabled) {
+      setDebugEnabled(false);
+      return;
+    }
+
     let cancelled = false;
     IsEnabled().then((v) => { if (!cancelled) setDebugEnabled(v); }).catch(() => {});
 
@@ -153,7 +158,7 @@ function StatusBar(): JSX.Element {
       setDebugEnabled(data as boolean);
     });
     return () => { cancelled = true; unsub(); };
-  }, []);
+  }, [developerModeEnabled]);
 
   // Toggle debug logging directly from StatusBar
   const handleDebugClick = useCallback(() => {
@@ -218,20 +223,20 @@ function StatusBar(): JSX.Element {
     <footer className="h-6 bg-theme-surface border-t border-theme-default flex items-center justify-between px-2 select-none shrink-0 min-w-0 text-theme-muted">
       {/* Left: Debug indicator */}
       <div className="flex items-center gap-1.5 text-xs shrink-0">
-        <button
-          onClick={handleDebugClick}
-          onContextMenu={(e) => { e.preventDefault(); handleDebugToggle(); }}
-          className="flex items-center gap-1 px-1 rounded text-theme-muted transition-colors hover:text-theme-secondary"
-          title={debugEnabled ? 'Debug: ON — Click to view, right-click to toggle' : 'Debug: OFF — Click to view, right-click to toggle'}
-        >
-          <Bug style={iconStyle} className="text-theme-muted" />
-          <span className="hidden sm:inline text-[11px]">
-            {debugEnabled ? 'Debug' : 'Debug'}
-          </span>
-          <span
-            className={`inline-block w-1.5 h-1.5 rounded-full ${debugEnabled ? 'bg-green-400' : 'bg-gray-600'}`}
-          />
-        </button>
+        {developerModeEnabled ? (
+          <button
+            onClick={handleDebugClick}
+            onContextMenu={(e) => { e.preventDefault(); handleDebugToggle(); }}
+            className="flex items-center gap-1 px-1 rounded text-theme-muted transition-colors hover:text-theme-secondary"
+            title={debugEnabled ? 'Debug: ON — Click to view, right-click to toggle' : 'Debug: OFF — Click to view, right-click to toggle'}
+          >
+            <Bug style={iconStyle} className="text-theme-muted" />
+            <span className="hidden sm:inline text-[11px]">Debug</span>
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full ${debugEnabled ? 'bg-green-400' : 'bg-gray-600'}`}
+            />
+          </button>
+        ) : null}
       </div>
 
       {/* Right: Status indicators */}
