@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useState, type CSSProperties, type JSX } 
 import { ArrowDownToLine, BarChart3, CheckCircle2, Code2, Download, FolderTree, Info, LogOut, Palette, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppUpdate, useLayout, useAuth, type Theme } from '../../../context';
-import { ICON_SIZES } from '../../../shared/constants';
+import { ICON_SIZES, VIEWS } from '../../../shared/constants';
 import { 
   getAnalyticsConsent, 
   setAnalyticsConsent, 
@@ -14,6 +14,14 @@ import {
 import {
   Badge,
   Button,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Select,
   Switch,
   Table,
@@ -29,6 +37,7 @@ import {
   SaveAppSettings,
 } from '../../../../bindings/controlzebra/services/settingsservice';
 import { GetCurrentVersion } from '../../../../bindings/controlzebra/services/updateservice';
+import { IsEnabled, SetEnabled } from '../../../../bindings/controlzebra/services/debugservice';
 import type { AppSettings, DataLocations } from '../../../../bindings/controlzebra/services/models';
 
 const iconStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -85,7 +94,13 @@ const ANALYTICS_SELECT_OPTIONS = ANALYTICS_OPTIONS.map(({ id, label }) => ({
 }));
 
 function GeneralSettings(): JSX.Element {
-  const { theme, setTheme } = useLayout();
+  const {
+    theme,
+    setTheme,
+    developerModeEnabled,
+    setDeveloperModeEnabled,
+    setActiveView,
+  } = useLayout();
   const { isAuthenticated, userEmail, logout } = useAuth();
   const {
     checkForUpdates,
@@ -105,7 +120,9 @@ function GeneralSettings(): JSX.Element {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
-  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
+  const [isSavingDeveloperMode, setIsSavingDeveloperMode] = useState(false);
+  const [isCheckingDeveloperMode, setIsCheckingDeveloperMode] = useState(false);
+  const [developerModeDisableConfirmOpen, setDeveloperModeDisableConfirmOpen] = useState(false);
 
   const handleThemeChange = useCallback((value: string) => {
     setTheme(value as Theme);
@@ -174,6 +191,65 @@ function GeneralSettings(): JSX.Element {
         toast.error('Could not save update settings.');
       });
   }, [appSettings]);
+
+  const persistDeveloperMode = useCallback(async (enabled: boolean): Promise<void> => {
+    if (!appSettings) {
+      return;
+    }
+
+    setIsSavingDeveloperMode(true);
+    try {
+      const currentSettings = await GetAppSettings();
+      const nextSettings: AppSettings = {
+        ...currentSettings,
+        developerModeEnabled: enabled,
+      };
+
+      await SaveAppSettings(nextSettings);
+      setAppSettings(nextSettings);
+      setDeveloperModeEnabled(enabled);
+
+      if (!enabled) {
+        setActiveView(VIEWS.SETTINGS);
+      }
+    } catch {
+      toast.error('Could not save Developer Mode setting.');
+    } finally {
+      setIsSavingDeveloperMode(false);
+    }
+  }, [appSettings, setActiveView, setDeveloperModeEnabled]);
+
+  const handleDeveloperModeChange = useCallback(async (enabled: boolean): Promise<void> => {
+    if (enabled) {
+      await persistDeveloperMode(true);
+      return;
+    }
+
+    setIsCheckingDeveloperMode(true);
+    try {
+      if (await IsEnabled()) {
+        setDeveloperModeDisableConfirmOpen(true);
+        return;
+      }
+
+      await persistDeveloperMode(false);
+    } catch {
+      toast.error('Could not check whether debug logging is active.');
+    } finally {
+      setIsCheckingDeveloperMode(false);
+    }
+  }, [persistDeveloperMode]);
+
+  const handleConfirmDisableDeveloperMode = useCallback(async (): Promise<void> => {
+    try {
+      await SetEnabled(false);
+    } catch {
+      toast.error('Could not stop debug logging. Developer Mode remains enabled.');
+      return;
+    }
+
+    await persistDeveloperMode(false);
+  }, [persistDeveloperMode]);
 
   const handleCheckForUpdates = useCallback(() => {
     void checkForUpdates();
@@ -325,18 +401,39 @@ function GeneralSettings(): JSX.Element {
               <label className="block text-theme-primary text-sm font-medium">Developer Mode</label>
             </div>
             <p className="text-theme-muted text-sm">
-              Developer tools are planned for a future release.
+              Show internal diagnostics and developer tools in the app.
             </p>
           </div>
           <div className="pt-1">
             <Switch
               checked={developerModeEnabled}
-              onCheckedChange={setDeveloperModeEnabled}
+              disabled={!appSettingsLoaded || isSavingDeveloperMode || isCheckingDeveloperMode}
+              onCheckedChange={(enabled) => void handleDeveloperModeChange(enabled)}
               aria-label="Developer Mode"
             />
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={developerModeDisableConfirmOpen}
+        onOpenChange={setDeveloperModeDisableConfirmOpen}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop debug logging?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Turning off Developer Mode will stop active debug logging and hide Debug Logs.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Developer Mode on</AlertDialogCancel>
+            <AlertDialogAction variant="default" onClick={handleConfirmDisableDeveloperMode}>
+              Stop logging and disable
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Updates */}
       <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">

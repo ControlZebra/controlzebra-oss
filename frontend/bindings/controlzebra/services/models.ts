@@ -33,6 +33,11 @@ export class AppSettings {
      */
     "autoDownloadUpdates": boolean;
 
+    /**
+     * Show internal developer tools and diagnostics
+     */
+    "developerModeEnabled": boolean;
+
     /** Creates a new AppSettings instance. */
     constructor($$source: Partial<AppSettings> = {}) {
         if (!("theme" in $$source)) {
@@ -46,6 +51,9 @@ export class AppSettings {
         }
         if (!("autoDownloadUpdates" in $$source)) {
             this["autoDownloadUpdates"] = false;
+        }
+        if (!("developerModeEnabled" in $$source)) {
+            this["developerModeEnabled"] = false;
         }
 
         Object.assign(this, $$source);

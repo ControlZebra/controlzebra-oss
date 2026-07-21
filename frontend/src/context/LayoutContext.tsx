@@ -27,6 +27,7 @@ import {
 } from '../shared/constants';
 import { trackViewChanged, trackSettingsOpened } from '../domain/analytics/analytics';
 import { useWindowSize } from '../shared/hooks/useWindowSize';
+import { GetAppSettings } from '../../bindings/controlzebra/services/settingsservice';
 
 // ============================================================================
 // Types
@@ -47,6 +48,8 @@ interface LayoutContextValue {
   // Settings
   selectedSettingsCategory: string;
   setSelectedSettingsCategory: (category: string) => void;
+  developerModeEnabled: boolean;
+  setDeveloperModeEnabled: (enabled: boolean) => void;
 
   // Account dialog
   accountDialogOpen: boolean;
@@ -110,6 +113,29 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   const previousView = useRef<ViewType>(VIEWS.EXPLORER);
   const [sidebarCollapsed, _setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [developerModeEnabled, setDeveloperModeEnabledState] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void GetAppSettings()
+      .then((settings) => {
+        if (!cancelled) {
+          setDeveloperModeEnabledState(settings.developerModeEnabled);
+        }
+      })
+      .catch(() => {
+        // Keep developer-only tools hidden when settings cannot be loaded.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setDeveloperModeEnabled = useCallback((enabled: boolean) => {
+    setDeveloperModeEnabledState(enabled);
+  }, []);
   
   // Wrap setSidebarCollapsed to track user intent
   const setSidebarCollapsed = useCallback((collapsed: boolean) => {
@@ -135,6 +161,10 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   
   // Wrap setActiveView to track view changes
   const setActiveView = useCallback((view: ViewType) => {
+    if (view === VIEWS.DEBUG && !developerModeEnabled) {
+      return;
+    }
+
     if (view !== previousView.current) {
       trackViewChanged({
         fromView: previousView.current,
@@ -149,7 +179,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
       previousView.current = view;
     }
     _setActiveView(view);
-  }, []);
+  }, [developerModeEnabled]);
   
   // Settings category state (shared between sidebar and main area)
   const [selectedSettingsCategory, setSelectedSettingsCategory] = useState('general');
@@ -322,6 +352,8 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     // Settings
     selectedSettingsCategory,
     setSelectedSettingsCategory,
+    developerModeEnabled,
+    setDeveloperModeEnabled,
 
     // Account dialog
     accountDialogOpen,
@@ -356,6 +388,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     sidebarCollapsed, 
     sidebarWidth, 
     selectedSettingsCategory,
+    developerModeEnabled,
     accountDialogOpen,
     selectedRepoSettingsCategory,
     selectedWelcomeCategory,
@@ -368,6 +401,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     openExplorerMergeModal,
     theme, 
     openAccountDialog,
+    setDeveloperModeEnabled,
     toggleSidebar,
   ]);
 

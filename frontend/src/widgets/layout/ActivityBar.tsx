@@ -101,7 +101,13 @@ function NavButton({ item, isActive, onClick, disabled, showNotificationDot = fa
  * ActivityBar - Main vertical navigation component
  */
 function ActivityBar(): JSX.Element {
-  const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed } = useLayout();
+  const {
+    activeView,
+    setActiveView,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    developerModeEnabled,
+  } = useLayout();
   const { repoInfo, repoStatus } = useRepo();
   
   // Check if we have an active git repository
@@ -139,8 +145,10 @@ function ActivityBar(): JSX.Element {
     }), [activeView, sidebarCollapsed, handleNavClick, isGitRepo]
   );
 
-  const bottomNavButtons = useMemo(() => 
-    BOTTOM_NAV_ITEMS.map(item => {
+  const bottomNavButtons = useMemo(() =>
+    BOTTOM_NAV_ITEMS
+      .filter((item) => item.id !== VIEWS.DEBUG || developerModeEnabled)
+      .map(item => {
       const disabled = item.requiresGit && !isGitRepo;
       return (
         <NavButton
@@ -151,7 +159,7 @@ function ActivityBar(): JSX.Element {
           disabled={disabled}
         />
       );
-    }), [activeView, sidebarCollapsed, handleNavClick, isGitRepo]
+    }), [activeView, developerModeEnabled, sidebarCollapsed, handleNavClick, isGitRepo]
   );
 
   return (
