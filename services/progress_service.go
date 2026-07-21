@@ -149,7 +149,7 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 			pullArgs = append(pullArgs, "--tags")
 		}
 
-		pullResult := p.runGitWithProgress(repoPath, operationID, "pull", pullArgs)
+		pullResult := p.runGitWithProgress(repoPath, operationID, pullArgs)
 		if !pullResult.Success {
 			errMsg := pullResult.Error
 			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
@@ -185,7 +185,7 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		pushArgs = []string{"push", "--set-upstream", remoteName, branchName, "--progress"}
 	}
 
-	pushResult := p.runGitWithProgress(repoPath, operationID, "push", pushArgs)
+	pushResult := p.runGitWithProgress(repoPath, operationID, pushArgs)
 	if !pushResult.Success {
 		errMsg := pushResult.Error
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
@@ -274,7 +274,7 @@ func (p *ProgressService) PullWithProgress(repoPath, operationID string) Operati
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Fetching from remote..."})
 
 	// Using merge strategy (not rebase) for safer conflict resolution
-	result := p.runGitWithProgress(repoPath, operationID, "pull", []string{"pull", "--no-rebase", "--progress"})
+	result := p.runGitWithProgress(repoPath, operationID, []string{"pull", "--no-rebase", "--progress"})
 	if !result.Success {
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Message: result.Error, IsComplete: true, Success: false, Error: result.Error})
 		return failedOp("Pull failed: " + result.Error)
@@ -298,7 +298,7 @@ func (p *ProgressService) PushWithProgress(repoPath, operationID string) Operati
 	p.ensureGitHubHTTPSCredentials(repoPath)
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Pushing to remote..."})
 
-	result := p.runGitWithProgress(repoPath, operationID, "push", []string{"push", "--progress"})
+	result := p.runGitWithProgress(repoPath, operationID, []string{"push", "--progress"})
 	if !result.Success {
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Message: result.Error, IsComplete: true, Success: false, Error: result.Error})
 		return failedOp("Push failed: " + result.Error)
@@ -309,7 +309,7 @@ func (p *ProgressService) PushWithProgress(repoPath, operationID string) Operati
 }
 
 // runGitWithProgress executes a git command and streams progress events
-func (p *ProgressService) runGitWithProgress(repoPath, operationID, opName string, args []string) CommandResult {
+func (p *ProgressService) runGitWithProgress(repoPath, operationID string, args []string) CommandResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
