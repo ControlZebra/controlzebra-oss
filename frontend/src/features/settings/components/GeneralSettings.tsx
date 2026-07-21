@@ -151,15 +151,29 @@ function GeneralSettings(): JSX.Element {
       .catch(() => {
         // Non-fatal settings fallback
       });
+  }, []);
 
+  useEffect(() => {
+    if (!developerModeEnabled) {
+      setDataLocations(null);
+      return;
+    }
+
+    let cancelled = false;
     GetDataLocations()
       .then((locations) => {
-        setDataLocations(locations);
+        if (!cancelled) {
+          setDataLocations(locations);
+        }
       })
       .catch(() => {
         // Non-fatal diagnostics panel fallback
       });
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [developerModeEnabled]);
 
   const handleAutoDownloadChange = useCallback((checked: boolean) => {
     if (!appSettings) {
@@ -392,6 +406,98 @@ function GeneralSettings(): JSX.Element {
         </div>
       </div>
 
+      {/* Updates */}
+      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
+        <div className="flex items-center gap-2 mb-3">
+          <Info style={iconStyle} className="text-theme-secondary" />
+          <label className="block text-theme-primary text-sm font-medium">
+            Updates
+          </label>
+        </div>
+        <div className="grid gap-4 border-b border-theme-default pb-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="space-y-2 text-sm">
+            <p className="text-theme-secondary">
+              <span className="text-theme-muted">Current app version:</span>{' '}
+              <span className="text-theme-primary font-medium">{currentVersionLabel}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-theme-muted">Status:</span>
+              <Badge variant={updateBadgeVariant}>{updateBadgeLabel}</Badge>
+              {updateVersionLabel && isUpdateAvailable ? (
+                <span className="text-theme-secondary">{updateVersionLabel} is available</span>
+              ) : null}
+            </div>
+            {lastCheckedLabel ? (
+              <p className="text-theme-muted text-xs">Last checked: {lastCheckedLabel}</p>
+            ) : null}
+            {updateProgress?.message ? (
+              <p className="text-theme-secondary text-sm">
+                {updateProgress.message}
+                {updateProgressPercent !== null && (updateStatus === 'downloading' || updateStatus === 'installing') ? ` (${updateProgressPercent}%)` : ''}
+              </p>
+            ) : null}
+            {updateErrorMessage ? (
+              <p className="text-red-400 text-sm">{updateErrorMessage}</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCheckForUpdates}
+              loading={updateStatus === 'checking' && isUpdateBusy}
+            >
+              <RefreshCw style={iconStyle} />
+              <span>Check now</span>
+            </Button>
+            {isUpdateAvailable ? (
+              <Button
+                size="sm"
+                onClick={handleStartUpdate}
+                loading={isUpdateBusy && updateStatus !== 'checking'}
+              >
+                {readyToInstall ? <ArrowDownToLine style={iconStyle} /> : <Download style={iconStyle} />}
+                <span>{updatePrimaryActionLabel}</span>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="pt-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div>
+              <p className="text-theme-primary text-sm font-medium">Download updates automatically</p>
+              <p className="text-theme-muted text-sm mt-1">
+                When an update is available, ControlZebra can download it while the app is open. When the download is ready, you install it from here or from the top bar.
+              </p>
+            </div>
+            <div className="pt-1">
+              <Switch
+                checked={appSettings?.autoDownloadUpdates ?? true}
+                disabled={!appSettingsLoaded}
+                onCheckedChange={handleAutoDownloadChange}
+                aria-label="Download updates automatically"
+              />
+            </div>
+          </div>
+        </div>
+
+        {readyToInstall ? (
+          <div className="mt-4 rounded-md border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 style={iconStyle} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-green-200">Update package downloaded</p>
+                <p className="mt-1 text-green-300/90">
+                  {updateVersionLabel ? `${updateVersionLabel} is ready to install.` : 'The latest update is ready to install.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
       {/* Developer Mode */}
       <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
@@ -435,127 +541,39 @@ function GeneralSettings(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Updates */}
-      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
-        <div className="flex items-center gap-2 mb-3">
-          <Info style={iconStyle} className="text-theme-secondary" />
-          <label className="block text-theme-primary text-sm font-medium">
-            Updates
-          </label>
-        </div>
-        <div className="space-y-2 mb-4 text-sm">
-          <p className="text-theme-secondary">
-            <span className="text-theme-muted">Current app version:</span>{' '}
-            <span className="text-theme-primary font-medium">{currentVersionLabel}</span>
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-theme-muted">Status:</span>
-            <Badge variant={updateBadgeVariant}>{updateBadgeLabel}</Badge>
-            {updateVersionLabel && isUpdateAvailable ? (
-              <span className="text-theme-secondary">{updateVersionLabel} is available</span>
-            ) : null}
-          </div>
-          {lastCheckedLabel ? (
-            <p className="text-theme-muted text-xs">Last checked: {lastCheckedLabel}</p>
-          ) : null}
-          {updateProgress?.message ? (
-            <p className="text-theme-secondary text-sm">
-              {updateProgress.message}
-              {updateProgressPercent !== null && (updateStatus === 'downloading' || updateStatus === 'installing') ? ` (${updateProgressPercent}%)` : ''}
-            </p>
-          ) : null}
-          {updateErrorMessage ? (
-            <p className="text-red-400 text-sm">{updateErrorMessage}</p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap gap-2 border-t border-theme-default pt-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCheckForUpdates}
-            loading={updateStatus === 'checking' && isUpdateBusy}
-          >
-            <RefreshCw style={iconStyle} />
-            <span>Check now</span>
-          </Button>
-          {isUpdateAvailable ? (
-            <Button
-              size="sm"
-              onClick={handleStartUpdate}
-              loading={isUpdateBusy && updateStatus !== 'checking'}
-            >
-              {readyToInstall ? <ArrowDownToLine style={iconStyle} /> : <Download style={iconStyle} />}
-              <span>{updatePrimaryActionLabel}</span>
-            </Button>
-          ) : null}
-        </div>
-
-        <div className="border-t border-theme-default pt-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div>
-              <p className="text-theme-primary text-sm font-medium">Download updates automatically</p>
-              <p className="text-theme-muted text-sm mt-1">
-                When an update is available, ControlZebra can download it while the app is open. When the download is ready, you install it from here or from the top bar.
-              </p>
-            </div>
-            <div className="pt-1">
-              <Switch
-                checked={appSettings?.autoDownloadUpdates ?? true}
-                disabled={!appSettingsLoaded}
-                onCheckedChange={handleAutoDownloadChange}
-                aria-label="Download updates automatically"
-              />
-            </div>
-          </div>
-        </div>
-
-        {readyToInstall ? (
-          <div className="mt-4 rounded-md border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
-            <div className="flex items-start gap-2">
-              <CheckCircle2 style={iconStyle} className="mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium text-green-200">Update package downloaded</p>
-                <p className="mt-1 text-green-300/90">
-                  {updateVersionLabel ? `${updateVersionLabel} is ready to install.` : 'The latest update is ready to install.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
       {/* Data Paths */}
-      <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
-        <div className="flex items-center gap-2 mb-3">
-          <FolderTree style={iconStyle} className="text-theme-secondary" />
-          <label className="block text-theme-primary text-sm font-medium">
-            Data
-          </label>
-        </div>
-        <p className="text-theme-muted text-sm mb-4">
-          Active storage paths used by ControlZebra on this machine.
-        </p>
+      {developerModeEnabled ? (
+        <div className="bg-theme-surface rounded-lg p-6 border border-theme-default">
+          <div className="flex items-center gap-2 mb-3">
+            <FolderTree style={iconStyle} className="text-theme-secondary" />
+            <label className="block text-theme-primary text-sm font-medium">
+              Data
+            </label>
+          </div>
+          <p className="text-theme-muted text-sm mb-4">
+            Active storage paths used by ControlZebra on this machine.
+          </p>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[180px]">Location</TableHead>
-              <TableHead>Path</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {DATA_LOCATION_ITEMS.map(({ label, path }) => (
-              <TableRow key={label}>
-                <TableCell className="text-theme-secondary">{label}</TableCell>
-                <TableCell className="text-sm break-all">
-                  {path || <span className="text-theme-muted">Unavailable</span>}
-                </TableCell>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[180px]">Location</TableHead>
+                <TableHead>Path</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {DATA_LOCATION_ITEMS.map(({ label, path }) => (
+                <TableRow key={label}>
+                  <TableCell className="text-theme-secondary">{label}</TableCell>
+                  <TableCell className="text-sm break-all">
+                    {path || <span className="text-theme-muted">Unavailable</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : null}
     </div>
   );
 }

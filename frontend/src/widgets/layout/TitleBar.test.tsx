@@ -38,8 +38,10 @@ describe('TitleBar window chrome', () => {
 
     render(<TitleBar />);
 
-    expect(screen.getByText('ControlZebra Beta')).toBeInTheDocument();
-    expect(screen.getByText('(factory-line)')).toBeInTheDocument();
+    const appName = screen.getByText('ControlZebra');
+    const projectName = screen.getByText('(factory-line)');
+    expect(appName).toHaveClass('font-sans', 'text-xs', 'font-medium', 'leading-none');
+    expect(projectName).toHaveClass('font-sans', 'text-xs', 'font-medium', 'leading-none');
     expect(await screen.findByRole('button', { name: 'Minimize window' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Maximize window' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close window' })).toBeInTheDocument();
