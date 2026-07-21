@@ -48,9 +48,9 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 
 	// Save settings
 	settings := AppSettings{
-		Theme:               "light",
-		LastRepoPath:        "/path/to/repo",
-		AutoDownloadUpdates: false,
+		Theme:                "light",
+		LastRepoPath:         "/path/to/repo",
+		AutoDownloadUpdates:  false,
 		DeveloperModeEnabled: true,
 	}
 	err = svc.SaveAppSettings(settings)

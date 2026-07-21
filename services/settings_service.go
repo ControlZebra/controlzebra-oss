@@ -36,17 +36,17 @@ func (s *SettingsService) SetApp(app *application.App) {
 
 // AppSettings contains application preferences
 type AppSettings struct {
-	Theme               string   `json:"theme"`               // "dark", "light", "system"
-	LastRepoPath        string   `json:"lastRepoPath"`        // Last opened repository path
-	RecentFolders       []string `json:"recentFolders"`       // Recently opened folders (max 10)
-	AutoDownloadUpdates bool     `json:"autoDownloadUpdates"` // Automatically download app updates while ControlZebra is open
-	DeveloperModeEnabled bool    `json:"developerModeEnabled"` // Show internal developer tools and diagnostics
+	Theme                string   `json:"theme"`                // "dark", "light", "system"
+	LastRepoPath         string   `json:"lastRepoPath"`         // Last opened repository path
+	RecentFolders        []string `json:"recentFolders"`        // Recently opened folders (max 10)
+	AutoDownloadUpdates  bool     `json:"autoDownloadUpdates"`  // Automatically download app updates while ControlZebra is open
+	DeveloperModeEnabled bool     `json:"developerModeEnabled"` // Show internal developer tools and diagnostics
 }
 
 func defaultAppSettings() AppSettings {
 	return AppSettings{
-		Theme:               "dark",
-		AutoDownloadUpdates: true,
+		Theme:                "dark",
+		AutoDownloadUpdates:  true,
 		DeveloperModeEnabled: false,
 	}
 }
