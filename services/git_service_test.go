@@ -84,6 +84,41 @@ func createBareRemoteAndLinkWithName(t *testing.T, repoPath string, remoteName s
 	return remoteDir
 }
 
+func TestOriginRemoteURLRequiresOrigin(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	createBareRemoteAndLinkWithName(t, repoPath, "upstream")
+
+	if _, err := NewGitService().OriginRemoteURL(repoPath); err == nil {
+		t.Fatal("expected missing origin to fail instead of falling back to upstream")
+	}
+}
+
+func TestOriginRemoteBranchesAndTrackingUpstream(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+
+	os.WriteFile(filepath.Join(repoPath, "control.txt"), []byte("initial"), 0644)
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "initial")
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
+	svc := NewGitService()
+	branches, err := svc.OriginRemoteBranches(repoPath)
+	if err != nil {
+		t.Fatalf("list origin branches: %v", err)
+	}
+	if len(branches) != 1 || branches[0].Name != "main" || branches[0].OID == "" {
+		t.Fatalf("unexpected origin branches: %#v", branches)
+	}
+	if upstream, ok := svc.OriginTrackingUpstream(repoPath, "main"); !ok || upstream != "origin/main" {
+		t.Fatalf("expected origin/main tracking upstream, got %q ok=%v", upstream, ok)
+	}
+}
+
 // TestUnquoteGitPath tests the unquoteGitPath helper function
 func TestUnquoteGitPath(t *testing.T) {
 	tests := []struct {

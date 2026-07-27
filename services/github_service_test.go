@@ -1,8 +1,97 @@
 package services
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 )
+
+func readChangeRequestFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "change_requests", name))
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return data
+}
+
+func TestMapGitHubAuthenticatedUserJSON(t *testing.T) {
+	result := mapGitHubAuthenticatedUserJSON(readChangeRequestFixture(t, "authenticated_user.json"))
+	if !result.Success {
+		t.Fatalf("expected success, got %s", result.Error)
+	}
+	if result.User.Login != "controlzebra-user" || result.User.ID != "123456" || result.User.Name != "" {
+		t.Fatalf("unexpected user mapping: %#v", result.User)
+	}
+}
+
+func TestMapGitHubAuthenticatedUserJSONRejectsMalformedOrMissingLogin(t *testing.T) {
+	for _, input := range [][]byte{[]byte("{"), []byte(`{"id": 1}`)} {
+		result := mapGitHubAuthenticatedUserJSON(input)
+		if result.Success || result.ErrorCode != GitHubChangeRequestErrorInternal {
+			t.Fatalf("expected internal mapping error, got %#v", result)
+		}
+	}
+}
+
+func TestMapGitHubChangeRequestFilesJSON(t *testing.T) {
+	result := mapGitHubChangeRequestFilesJSON(readChangeRequestFixture(t, "files-multipage.json"), 3)
+	if !result.Success || !result.IsTruncated || result.ErrorCode != GitHubChangeRequestErrorFilesTruncated {
+		t.Fatalf("expected truncated successful file result, got %#v", result)
+	}
+	if len(result.Files) != 2 || result.Files[1].PreviousPath != "config/original.json" {
+		t.Fatalf("expected flattened renamed files, got %#v", result.Files)
+	}
+}
+
+func TestMapGitHubChangeRequestError(t *testing.T) {
+	tests := []struct {
+		message string
+		want    GitHubChangeRequestErrorCode
+	}{
+		{"not logged in to github.com", GitHubChangeRequestErrorAuthRequired},
+		{"HTTP 403: Resource not accessible by integration", GitHubChangeRequestErrorPermissionDenied},
+		{"API rate limit exceeded", GitHubChangeRequestErrorRateLimited},
+		{"dial tcp: lookup api.github.com: no such host", GitHubChangeRequestErrorNetworkUnavailable},
+		{"unexpected failure", GitHubChangeRequestErrorInternal},
+	}
+	for _, test := range tests {
+		if got := mapGitHubChangeRequestError(CommandResult{Stderr: test.message}); got != test.want {
+			t.Errorf("mapGitHubChangeRequestError(%q) = %q, want %q", test.message, got, test.want)
+		}
+	}
+}
+
+func TestGitHubServiceGetAuthenticatedUserUsesGHAPI(t *testing.T) {
+	tempDir := t.TempDir()
+	argsPath := filepath.Join(tempDir, "args")
+	fakeGh := filepath.Join(tempDir, "gh")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argsPath + "'\nprintf '%s\\n' '{\"login\":\"fixture-user\",\"id\":42,\"type\":\"User\",\"name\":\"Fixture\"}'\n"
+	if err := os.WriteFile(fakeGh, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+
+	resolveMu.Lock()
+	resolvedGh = fakeGh
+	resolveOnce = sync.Once{}
+	resolveOnce.Do(func() {})
+	resolveMu.Unlock()
+	t.Cleanup(RefreshCLIPaths)
+
+	result := NewGitHubService().GetAuthenticatedUser()
+	if !result.Success || result.User.Login != "fixture-user" {
+		t.Fatalf("expected fake gh user, got %#v", result)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatalf("read fake gh arguments: %v", err)
+	}
+	if !strings.Contains(string(args), "api\n--hostname\ngithub.com\nuser") {
+		t.Fatalf("GetAuthenticatedUser used unexpected gh arguments: %q", args)
+	}
+}
 
 func TestGitHubService_IsGHInstalled(t *testing.T) {
 	svc := NewGitHubService()

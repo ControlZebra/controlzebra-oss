@@ -51,6 +51,91 @@ type GitHubAuthStatus struct {
 	Error       string `json:"error,omitempty"`
 }
 
+// GitHubChangeRequestErrorCode is the stable error contract for Change Requests.
+type GitHubChangeRequestErrorCode string
+
+const (
+	GitHubChangeRequestErrorGHUnavailable        GitHubChangeRequestErrorCode = "gh_unavailable"
+	GitHubChangeRequestErrorAuthRequired         GitHubChangeRequestErrorCode = "auth_required"
+	GitHubChangeRequestErrorHostUnsupported      GitHubChangeRequestErrorCode = "host_unsupported"
+	GitHubChangeRequestErrorOriginMissing        GitHubChangeRequestErrorCode = "origin_missing"
+	GitHubChangeRequestErrorOriginNotGitHub      GitHubChangeRequestErrorCode = "origin_not_github"
+	GitHubChangeRequestErrorRepositoryUnresolved GitHubChangeRequestErrorCode = "repository_unresolved"
+	GitHubChangeRequestErrorPermissionDenied     GitHubChangeRequestErrorCode = "permission_denied"
+	GitHubChangeRequestErrorNetworkUnavailable   GitHubChangeRequestErrorCode = "network_unavailable"
+	GitHubChangeRequestErrorRateLimited          GitHubChangeRequestErrorCode = "rate_limited"
+	GitHubChangeRequestErrorBranchNotSynced      GitHubChangeRequestErrorCode = "branch_not_synced"
+	GitHubChangeRequestErrorDuplicateRequest     GitHubChangeRequestErrorCode = "duplicate_request"
+	GitHubChangeRequestErrorSnapshotUnavailable  GitHubChangeRequestErrorCode = "snapshot_unavailable"
+	GitHubChangeRequestErrorSnapshotStale        GitHubChangeRequestErrorCode = "snapshot_stale"
+	GitHubChangeRequestErrorSnapshotUnsupported  GitHubChangeRequestErrorCode = "snapshot_unsupported"
+	GitHubChangeRequestErrorFilesTruncated       GitHubChangeRequestErrorCode = "files_truncated"
+	GitHubChangeRequestErrorInternal             GitHubChangeRequestErrorCode = "internal_error"
+)
+
+type GitHubChangeAuthor struct {
+	Login string `json:"login"`
+	Name  string `json:"name,omitempty"`
+}
+
+type GitHubChangeReviewer struct {
+	Login string `json:"login"`
+	Name  string `json:"name,omitempty"`
+}
+
+type GitHubChangeRequest struct {
+	Number            int                    `json:"number"`
+	Title             string                 `json:"title"`
+	Body              string                 `json:"body,omitempty"`
+	URL               string                 `json:"url"`
+	State             string                 `json:"state"`
+	IsDraft           bool                   `json:"isDraft"`
+	Author            GitHubChangeAuthor     `json:"author"`
+	HeadRefName       string                 `json:"headRefName"`
+	HeadRefOID        string                 `json:"headRefOid"`
+	BaseRefName       string                 `json:"baseRefName"`
+	BaseRefOID        string                 `json:"baseRefOid"`
+	ReviewDecision    string                 `json:"reviewDecision"`
+	MergeStateStatus  string                 `json:"mergeStateStatus"`
+	IsCrossRepository bool                   `json:"isCrossRepository"`
+	CreatedAt         string                 `json:"createdAt"`
+	UpdatedAt         string                 `json:"updatedAt"`
+	Reviewers         []GitHubChangeReviewer `json:"reviewers"`
+}
+
+type GitHubChangeRequestFile struct {
+	Path         string `json:"path"`
+	PreviousPath string `json:"previousPath,omitempty"`
+	Status       string `json:"status"`
+	Additions    int    `json:"additions"`
+	Deletions    int    `json:"deletions"`
+}
+
+type GitHubAuthenticatedUser struct {
+	Login string `json:"login"`
+	ID    string `json:"id"`
+	Type  string `json:"type"`
+	Name  string `json:"name,omitempty"`
+}
+
+type GitHubAuthenticatedUserResult struct {
+	Success   bool                         `json:"success"`
+	User      GitHubAuthenticatedUser      `json:"user,omitempty"`
+	Message   string                       `json:"message,omitempty"`
+	Error     string                       `json:"error,omitempty"`
+	ErrorCode GitHubChangeRequestErrorCode `json:"errorCode"`
+}
+
+type GitHubChangeRequestFilesResult struct {
+	Success     bool                         `json:"success"`
+	Files       []GitHubChangeRequestFile    `json:"files"`
+	TotalFiles  int                          `json:"totalFiles"`
+	IsTruncated bool                         `json:"isTruncated"`
+	Message     string                       `json:"message,omitempty"`
+	Error       string                       `json:"error,omitempty"`
+	ErrorCode   GitHubChangeRequestErrorCode `json:"errorCode"`
+}
+
 // GitHubRepo represents a GitHub repository
 type GitHubRepo struct {
 	Name            string `json:"name"`
@@ -156,6 +241,110 @@ func (g *GitHubService) GetGHVersion() string {
 		return strings.TrimSpace(lines[0])
 	}
 	return ""
+}
+
+// GetAuthenticatedUser returns the authoritative GitHub viewer identity for
+// Change Request grouping. It intentionally does not parse `gh auth status`.
+func (g *GitHubService) GetAuthenticatedUser() GitHubAuthenticatedUserResult {
+	result := g.runner.Run("", GhPath(), "api", "--hostname", "github.com", "user", "--jq", "{login,id,type,name}")
+	if !result.Success {
+		return GitHubAuthenticatedUserResult{
+			Success:   false,
+			Error:     getGHErrorMessage(result),
+			ErrorCode: mapGitHubChangeRequestError(result),
+		}
+	}
+	return mapGitHubAuthenticatedUserJSON([]byte(result.Stdout))
+}
+
+func mapGitHubChangeRequestError(result CommandResult) GitHubChangeRequestErrorCode {
+	message := strings.ToLower(strings.Join([]string{result.Stderr, result.Stdout, result.Error}, "\n"))
+	switch {
+	case result.ExitCode == -1 && (strings.Contains(message, "executable file not found") || strings.Contains(message, "no such file")):
+		return GitHubChangeRequestErrorGHUnavailable
+	case strings.Contains(message, "not logged in"), strings.Contains(message, "no oauth token"), strings.Contains(message, "authentication required"), strings.Contains(message, "token has expired"):
+		return GitHubChangeRequestErrorAuthRequired
+	case strings.Contains(message, "rate limit"), strings.Contains(message, "api rate limit exceeded"):
+		return GitHubChangeRequestErrorRateLimited
+	case strings.Contains(message, "resource not accessible by integration"), strings.Contains(message, "http 403"), strings.Contains(message, "forbidden"):
+		return GitHubChangeRequestErrorPermissionDenied
+	case strings.Contains(message, "network is unreachable"), strings.Contains(message, "no such host"), strings.Contains(message, "connection refused"), strings.Contains(message, "tls handshake timeout"), strings.Contains(message, "i/o timeout"):
+		return GitHubChangeRequestErrorNetworkUnavailable
+	default:
+		return GitHubChangeRequestErrorInternal
+	}
+}
+
+func mapGitHubAuthenticatedUserJSON(data []byte) GitHubAuthenticatedUserResult {
+	var raw struct {
+		Login string          `json:"login"`
+		ID    json.RawMessage `json:"id"`
+		Type  string          `json:"type"`
+		Name  string          `json:"name"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return GitHubAuthenticatedUserResult{Error: "Failed to parse authenticated GitHub user", ErrorCode: GitHubChangeRequestErrorInternal}
+	}
+
+	user := GitHubAuthenticatedUser{Login: raw.Login, Type: raw.Type, Name: raw.Name}
+	if len(raw.ID) > 0 && string(raw.ID) != "null" {
+		if err := json.Unmarshal(raw.ID, &user.ID); err != nil {
+			var numericID json.Number
+			if numberErr := json.Unmarshal(raw.ID, &numericID); numberErr != nil {
+				return GitHubAuthenticatedUserResult{Error: "Failed to parse authenticated GitHub user", ErrorCode: GitHubChangeRequestErrorInternal}
+			}
+			user.ID = numericID.String()
+		}
+	}
+	if strings.TrimSpace(user.Login) == "" {
+		return GitHubAuthenticatedUserResult{Error: "GitHub did not return an account login", ErrorCode: GitHubChangeRequestErrorInternal}
+	}
+	return GitHubAuthenticatedUserResult{Success: true, User: user}
+}
+
+// mapGitHubChangeRequestFilesJSON decodes gh api --paginate --slurp output.
+// The REST spelling and pagination shape remain private to this service.
+func mapGitHubChangeRequestFilesJSON(data []byte, totalFiles int) GitHubChangeRequestFilesResult {
+	var pages [][]struct {
+		Filename         string `json:"filename"`
+		PreviousFilename string `json:"previous_filename"`
+		Status           string `json:"status"`
+		Additions        int    `json:"additions"`
+		Deletions        int    `json:"deletions"`
+	}
+	if err := json.Unmarshal(data, &pages); err != nil {
+		return GitHubChangeRequestFilesResult{
+			Files:     []GitHubChangeRequestFile{},
+			Error:     "Failed to parse Change Request files",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	files := make([]GitHubChangeRequestFile, 0)
+	for _, page := range pages {
+		for _, file := range page {
+			files = append(files, GitHubChangeRequestFile{
+				Path:         file.Filename,
+				PreviousPath: file.PreviousFilename,
+				Status:       file.Status,
+				Additions:    file.Additions,
+				Deletions:    file.Deletions,
+			})
+		}
+	}
+
+	isTruncated := totalFiles > len(files)
+	result := GitHubChangeRequestFilesResult{
+		Success:     true,
+		Files:       files,
+		TotalFiles:  totalFiles,
+		IsTruncated: isTruncated,
+	}
+	if isTruncated {
+		result.Message = "GitHub returned a partial Change Request file list"
+		result.ErrorCode = GitHubChangeRequestErrorFilesTruncated
+	}
+	return result
 }
 
 // ============================================================================

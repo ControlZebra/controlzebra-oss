@@ -1,0 +1,19 @@
+[
+  [
+    {
+      "filename": "logic/Mixer.L5X",
+      "status": "modified",
+      "additions": 12,
+      "deletions": 4
+    }
+  ],
+  [
+    {
+      "filename": "config/renamed.json",
+      "previous_filename": "config/original.json",
+      "status": "renamed",
+      "additions": 1,
+      "deletions": 0
+    }
+  ]
+]
