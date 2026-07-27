@@ -8,7 +8,7 @@ This document defines the first ControlZebra collaboration workflow for GitHub p
 
 ## Goal
 
-Let a person working on an industrial project safely submit a branch for review, and let project collaborators inspect incoming or outgoing work through ControlZebra's existing file and visual diff viewers.
+Let a person working on an industrial project safely submit a branch for review, and let project collaborators inspect team and personal Change Requests through ControlZebra's existing file and visual diff viewers.
 
 The first release must make the normal path obvious:
 
@@ -31,8 +31,10 @@ The feature should remain understandable for users who do not think in Git termi
 | Merge | Show GitHub merge readiness and blockers only. Do not merge in the app initially. |
 | Target branch default | Preselect the repository default branch, normally `main`; allow the user to choose another remote branch. |
 | Source branch | The currently checked-out local branch. It must be pushed to the GitHub remote before creation. |
+| Repository boundary | Create and inspect Change Requests only when the open project is connected directly to its primary GitHub repository. Fork and external-contributor requests are out of scope for the first release. |
 | Review metadata | Show reviewers and approval state. |
 | Industrial summary | Display a prominent plain-language summary of changed project files before detailed diffs. |
+| Visual comparison promise | Every supported existing file viewer must compare the exact Change Request base and head snapshots before release. |
 | Safety authority | GitHub is authoritative for permissions, approvals, and mergeability. ControlZebra adds local safety checks and clear recovery guidance. |
 
 ## Scope
@@ -40,8 +42,9 @@ The feature should remain understandable for users who do not think in Git termi
 ### In Scope
 
 - GitHub authentication, repository, and remote eligibility states.
-- A `Reviews` view containing incoming and outgoing open Change Requests.
+- A `Reviews` view containing open `Team Change Requests` and `Your requests`.
 - Create flow for the checked-out, pushed non-default branch.
+- Inspection and creation only for requests in the current project's primary GitHub repository.
 - Default target branch selection from GitHub repository metadata, with an editable remote-branch selector.
 - Request detail: title, description, author, source/target branch, review/approval status, merge readiness, and changed-file list.
 - An industrial summary grouped by file category, such as ladder logic, HMI/configuration, drawings/media, and other files.
@@ -54,6 +57,7 @@ The feature should remain understandable for users who do not think in Git termi
 - GitLab, Azure DevOps, Bitbucket, or a provider abstraction.
 - Formal approvals, request-changes decisions, general comments, inline comments, labels, assignees, linked issues, checks/CI dashboards, drafts, merge queues, or in-app merge execution.
 - Local branch checkout from a Change Request.
+- Viewing or creating Change Requests that originate from a fork or other external repository.
 - Replacing GitHub's branch-protection model or creating a separate approval system.
 - A background notification service. A visible refresh affordance is sufficient for the initial release.
 
@@ -116,16 +120,16 @@ All commands must use `g.runner` and `GhPath()`; no direct `os/exec` calls outsi
 
 | Method | Command shape | Purpose |
 | --- | --- | --- |
-| `GetChangeRequestRepository(repoPath)` | `gh repo view --json nameWithOwner,defaultBranchRef,url` | Verify that the current remote resolves to GitHub and obtain the authoritative default branch. |
-| `ListChangeRequests(repoPath)` | `gh pr list --state open --limit 100 --json ...` | Load open requests available for the current repository. Separate incoming/outgoing client-side using authenticated username and request author. |
+| `GetChangeRequestRepository(repoPath)` | `gh repo view --json nameWithOwner,defaultBranchRef,url` | Verify that `origin` resolves directly to the project's primary GitHub repository and obtain the authoritative default branch. |
+| `ListChangeRequests(repoPath)` | `gh pr list --state open --limit 100 --json ...` | Load open requests available for the current repository. Separate `Team Change Requests` and `Your requests` client-side using authenticated username and request author. |
 | `GetChangeRequest(repoPath, number)` | `gh pr view <number> --json ...` | Load detail, reviewers, approval decision, base/head refs, and merge status. |
-| `ListChangeRequestFiles(repoPath, number)` | `gh pr view <number> --json files` | Load paths, rename information, status, additions, and deletions. |
+| `ListChangeRequestFiles(repoPath, number)` | `gh api repos/{owner}/{repo}/pulls/{number}/files --paginate` | Load every file's path, rename information, status, additions, and deletions. Map REST fields `filename`, `previous_filename`, and `status` into the typed result. |
 | `CreateChangeRequest(repoPath, options)` | `gh pr create --base <base> --head <head> --title <title> --body <body>` | Create a request after all preflight checks pass. |
-| `ListRemoteBranches(repoPath)` | `git for-each-ref refs/remotes/origin --format=...` or an existing GitService query | Populate valid target branches. Prefer an existing GitService branch query if it already distinguishes remote branches. |
+| `ListRemoteBranches(repoPath)` | Existing GitService remote-branch query for `origin` | Populate valid target branches from the primary remote only. |
 
-`GetChangeRequestRepository` must use the repository path as the command working directory so the selected open repository determines the GitHub remote. It must not infer repository ownership from the current account or a string-parsed remote URL.
+For the first release, the project's primary GitHub repository is the repository resolved from the local `origin` remote. Projects without an `origin` remote, or whose `origin` cannot be resolved by GitHub CLI, are not eligible. `GetChangeRequestRepository` must use the repository path as its command working directory, resolve and retain `nameWithOwner`, and use `--repo owner/name` for every subsequent `gh pr` and `gh api` operation. It must not infer repository ownership from the current account or a string-parsed remote URL.
 
-Use one consistent `--json` field set and decode it into small internal command structs before mapping to exported types. This isolates GitHub CLI field spelling and nullability from the Wails contract.
+Use one consistent `--json` field set and decode it into small internal command structs before mapping to exported types. Decode REST file results into a separate internal type before mapping `filename`, `previous_filename`, and `status` to exported file fields. This isolates GitHub CLI and API field spelling, pagination, and nullability from the Wails contract.
 
 ### Eligibility And Safety
 
@@ -137,12 +141,15 @@ The frontend may offer an entry point only when all conditions are true; the bac
 | GitHub CLI unavailable | Explain that GitHub tools are required and point to the existing setup flow. |
 | Not authenticated | Show the existing device-flow connection action. |
 | Current remote is not GitHub | Explain that Change Requests are currently available only for GitHub-connected projects. |
+| `origin` is missing or is not the project's primary GitHub repository | Explain that Change Requests are available only from the project's primary GitHub connection in this release. |
 | Current branch is default branch | Do not offer create; explain that a separate work branch is needed. |
-| No upstream or branch is ahead | Present `Sync` as the next action; creation must not silently push. |
+| Sync is incomplete | Do not show the create action. Present `Sync` as the next action; creation must not silently push. |
 | Existing open request for source branch | Open that request rather than creating a duplicate. |
 | Source equals target | Block creation with a plain-language explanation. |
 
 The create dialog derives its target default from GitHub's `defaultBranchRef.name`, falling back to the existing `MAIN_BRANCHES` list only when that metadata is unavailable. The visible selector remains editable and shows only remote branches that are valid targets.
+
+For Change Request creation, `sync is complete` means all of the following are true: the source is not the default branch, the working tree and index are clean, the branch tracks `origin/<branch>`, and local `HEAD` equals that upstream commit after a refresh. The branch must therefore be neither ahead nor behind. Repeat this verification immediately before `gh pr create`; do not rely on the state that existed when the dialog opened.
 
 The title must be required and trimmed. The description is optional. Do not introduce draft state or reviewer assignment in the first flow.
 
@@ -166,7 +173,7 @@ flowchart LR
 
 The sidebar should prioritize scanning and repeated use:
 
-- `Needs your review`: open requests authored by someone else.
+- `Team Change Requests`: open same-repository requests authored by someone else. Do not show or count requests whose source is a fork or another external repository. When any are omitted, show a neutral note that some external Change Requests are available on GitHub.
 - `Your requests`: open requests authored by the authenticated GitHub user.
 - A compact count and manual refresh control.
 - Select an item to render its detail in the main area.
@@ -174,7 +181,7 @@ The sidebar should prioritize scanning and repeated use:
 The main page should not be a generic GitHub clone. It should contain:
 
 1. A compact header with title, request number, author, branch direction, update time, and `Open on GitHub`.
-2. A clearly labeled status strip for review decision and GitHub merge readiness. These are informational in v1.
+2. A clearly labeled status strip for review decision and GitHub merge readiness. These are informational in v1. Map review information to `approved`, `changes-requested`, `pending`, or `unavailable`; do not collapse an unavailable value into a pending or unapproved result. For `unavailable`, show `Review status not available yet.`
 3. The description, when present.
 4. An industrial change summary before the file list, for example `2 ladder logic files, 1 HMI configuration, 3 other project files`.
 5. A changed-files table that retains GitHub add/delete counts and status.
@@ -201,7 +208,7 @@ Use immutable base and head commit OIDs from the GitHub response rather than mut
 
 The adapter must preserve the existing added, deleted, renamed, copied, and modified side rules. It should pass normalized `oldSide` and `newSide` references to `DiffRenderer`, allowing L5X, image, PDF, and 3D review to remain on the shared specialized viewer path.
 
-Before attempting a local ref-based diff, ensure both OIDs are available locally. Use the existing fetch/sync capability or add a narrowly scoped GitService fetch-by-ref method if ordinary fetch does not make the commits available. Never substitute working-tree files for a Change Request diff.
+Before attempting a local ref-based diff, call a dedicated `EnsureChangeRequestSnapshotsLocal(repoPath, requestNumber, baseOID, headOID)` backend operation. It must fetch only from `origin`, store the request base and head under private ControlZebra refs, and verify that both resolved commits equal the OIDs returned by GitHub before the frontend opens a viewer. Never substitute working-tree files for a Change Request diff. Requests whose base or head cannot be materialized from the project's primary repository are unavailable in this release and must show a clear unsupported-state message.
 
 ### State And Refresh Ownership
 
@@ -220,29 +227,31 @@ Clear this state when the repository closes or changes. Reload the list after Gi
 
 ### Phase 0: Contract And Test Harness
 
-1. Confirm the installed `gh` version supports the required `pr` JSON fields on Windows and macOS.
-2. Add command-result mapping helpers that accept JSON bytes so they can be unit-tested without a live GitHub account.
-3. Define Go result models and frontend request/detail UI types.
-4. Add fixture-based Go tests for successful JSON mapping, missing optional fields, malformed JSON, and human-readable CLI errors.
-5. Regenerate Wails bindings once the exported types and methods are settled.
+1. Confirm the installed `gh` version supports the required `pr` JSON fields on Windows and macOS, and confirm `gh api --paginate` can retrieve pull-request file metadata.
+2. Define `origin` as the primary remote contract and add typed repository eligibility results for a missing, unresolved, or non-GitHub `origin`.
+3. Add command-result mapping helpers that accept JSON bytes so they can be unit-tested without a live GitHub account.
+4. Define Go result models and frontend request/detail UI types, including the stable review states `approved`, `changes-requested`, `pending`, and `unavailable`.
+5. Add fixture-based Go tests for successful JSON mapping, missing optional fields, malformed JSON, human-readable CLI errors, renamed files, and paginated file results.
+6. Regenerate Wails bindings once the exported types and methods are settled.
 
 Exit criteria: model decoding is deterministic and bindings expose typed methods/models without manual generated-file edits.
 
 ### Phase 1: Repository Eligibility And List
 
-1. Add `GetChangeRequestRepository` and `ListChangeRequests` to `GitHubService`.
-2. Validate GitHub CLI/auth/repository eligibility and map each failure to a stable typed result.
-3. Add RepoContext state and actions for repository eligibility and list loading.
-4. Add `VIEWS.REVIEWS`, Activity Bar navigation, sidebar registration, main-page registration, and repo-change state cleanup.
-5. Implement the list empty, loading, unauthenticated, non-GitHub remote, and error states.
-6. Add focused Go mapper/service tests and frontend context/view tests.
+1. Add `GetChangeRequestRepository` and `ListChangeRequests` to `GitHubService`, resolving `origin` once and passing its `owner/name` through every request.
+2. Exclude cross-repository requests from the first-release list and expose an omitted-external count for the neutral list note.
+3. Validate GitHub CLI/auth/repository eligibility and map each failure to a stable typed result.
+4. Add RepoContext state and actions for repository eligibility and list loading.
+5. Add `VIEWS.REVIEWS`, Activity Bar navigation, sidebar registration, main-page registration, and repo-change state cleanup.
+6. Implement the list empty, loading, unauthenticated, non-GitHub remote, external-request note, and error states.
+7. Add focused Go mapper/service tests and frontend context/view tests.
 
-Exit criteria: an authenticated GitHub repository shows open incoming/outgoing requests, while every unavailable state explains the next recovery step.
+Exit criteria: an authenticated project connected directly to its primary GitHub repository shows open `Team Change Requests` and `Your requests`, while every unavailable state explains the next recovery step.
 
 ### Phase 2: Request Detail And Industrial Summary
 
-1. Add `GetChangeRequest` and `ListChangeRequestFiles` backend methods.
-2. Render selected request metadata, reviewer/approval state, description, and read-only merge readiness.
+1. Add `GetChangeRequest` and paginated REST-backed `ListChangeRequestFiles` backend methods.
+2. Render selected request metadata, reviewer/approval state, description, and read-only merge readiness, preserving the `unavailable` review state.
 3. Build a pure file-classification helper using the app's existing viewer/extension knowledge; return category counts and file membership.
 4. Render the industrial summary and changed-file table before opening a diff.
 5. Provide `Open on GitHub` using the existing external URL helper.
@@ -253,12 +262,12 @@ Exit criteria: a user can understand what changed before opening a file, then in
 ### Phase 3: Read-Only Change Request Diffs
 
 1. Add `buildChangeRequestDiffRequest` to the existing diff adapter module.
-2. Ensure selected base/head commit OIDs are locally accessible; add the minimum backend fetch support only if existing fetch behavior cannot satisfy this.
+2. Add and call `EnsureChangeRequestSnapshotsLocal` before opening a diff. Fetch and verify same-repository base/head OIDs under private ControlZebra refs; do not proceed when verification fails.
 3. Route the selected changed file through `DiffRenderer`.
-4. Verify text, image, PDF, 3D, L5X, additions, deletions, and renames using existing viewer test fixtures where available.
-5. Preserve loading/error states for missing or fetch-unavailable refs; never fall back to working-tree comparison.
+4. Verify text, image, PDF, 3D, L5X, additions, deletions, and renames using existing viewer test fixtures. This is a release requirement, not a best-effort enhancement.
+5. Preserve loading/error states for missing or fetch-unavailable refs; never fall back to working-tree comparison. Test initial absence of both request commits from the local object database.
 
-Exit criteria: every supported existing diff viewer receives explicit immutable request sides and renders the same semantic comparison shown by GitHub.
+Exit criteria: every supported existing diff viewer receives explicit immutable request sides and renders the same semantic comparison shown by GitHub for requests from the project's primary GitHub repository.
 
 ### Phase 4: Create Change Request
 
@@ -266,15 +275,15 @@ Exit criteria: every supported existing diff viewer receives explicit immutable 
 2. Add duplicate-source-branch lookup before opening a create form; route a match to its existing request detail.
 3. Add a reusable create dialog launched from the Reviews page and the eligible feature-branch Explorer state.
 4. Preselect GitHub's default branch as the target and allow a remote-branch change.
-5. Require a pushed non-default source branch and a non-empty title; use existing Sync/Push flows as recovery, not implicit side effects.
+5. Show the create action only after the checked-out non-default source branch satisfies the defined synced-branch rule. Recheck that rule immediately before creation. Use existing Sync/Push flows as recovery, not implicit side effects.
 6. On success, show a concise confirmation, refresh the list, select the new request, and surface its GitHub URL.
-7. Add tests for target defaulting, source/target validation, unpushed recovery, duplicate detection, successful creation, and service failures.
+7. Add tests for target defaulting, source/target validation, unpushed, behind, and uncommitted-work recovery, duplicate detection, successful creation, and service failures.
 
 Exit criteria: a user can create exactly one well-formed request from their current pushed branch and immediately inspect it.
 
 ### Phase 5: Hardening And Documentation
 
-1. Run cross-platform manual checks with GitHub user and organization repositories, private repositories, protected default branches, and branch names containing `/`.
+1. Run cross-platform manual checks with directly connected GitHub user and organization repositories, private repositories, protected default branches, and branch names containing `/`.
 2. Confirm local safety messages do not claim to override GitHub permission or protection decisions.
 3. Add user documentation using Change Requests terminology and a brief explanation of the GitHub connection requirement.
 4. Add developer documentation for the GitHub CLI field contract, generated-binding step, and diff-ref fetch assumptions.
@@ -286,7 +295,7 @@ Exit criteria: a user can create exactly one well-formed request from their curr
 
 - `services/github_service.go`
 - `services/github_service_test.go`
-- Potential narrow Git ref-fetch addition in `services/git_service.go` and its tests, only if current fetch behavior cannot materialize base/head OIDs.
+- `services/git_service.go` and its tests for `EnsureChangeRequestSnapshotsLocal` and private reference handling.
 
 ### Generated Bindings
 
@@ -337,11 +346,11 @@ cd frontend && npm run ci:guards
 Manual acceptance checks:
 
 1. Reviews is unavailable without an open Git repository and explains missing GitHub prerequisites in-repo.
-2. An authenticated GitHub repository displays open requests separated into incoming and outgoing groups.
-3. A selected request clearly shows its source/target branches, reviewers, approval state, merge readiness, and an industrial file summary.
-4. Each supported file type compares the exact base/head request snapshots, including additions, deletions, and renames.
-5. Creating a request preselects the GitHub default branch, permits a valid alternate remote branch, and never pushes implicitly.
-6. The flow rejects default-branch sources, unpushed work, identical source/target branches, and duplicate open requests with direct recovery guidance.
+2. An authenticated project connected directly to its `origin` GitHub repository displays eligible open requests separated into `Team Change Requests` and `Your requests` groups, while fork and external requests are excluded and not counted.
+3. A selected request clearly shows its source/target branches, reviewers, approval state, merge readiness, and an industrial file summary. Missing GitHub review information displays `Review status not available yet.`
+4. Each supported file type compares the exact base/head request snapshots, including additions, deletions, and renames. This must pass before release.
+5. Creating a request preselects the GitHub default branch, permits a valid alternate remote branch, appears only after sync is complete, and never pushes implicitly.
+6. The flow rejects default-branch sources, branches that are ahead or behind, uncommitted work, identical source/target branches, duplicate open requests, and missing or non-primary `origin` connections with direct recovery guidance. It repeats the synchronized-branch check immediately before creation.
 7. GitHub protection, permission, and mergeability messages remain visibly authoritative over ControlZebra's local safety guidance.
 
 ## Follow-On Phases
