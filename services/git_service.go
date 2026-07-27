@@ -114,6 +114,64 @@ func (g *GitService) GetRemoteURL(repoPath string) string {
 	return trimOutput(result.Stdout)
 }
 
+// RemoteBranch represents a branch advertised by the origin remote.
+// Change Requests use this type exclusively rather than local remote-tracking refs.
+type RemoteBranch struct {
+	Name string `json:"name"`
+	OID  string `json:"oid"`
+}
+
+// OriginRemoteURL returns origin's URL and never falls back to another remote.
+func (g *GitService) OriginRemoteURL(repoPath string) (string, error) {
+	result := g.runner.RunGit(repoPath, "remote", "get-url", "origin")
+	if !result.Success {
+		return "", fmt.Errorf("origin remote is not configured")
+	}
+
+	url := trimOutput(result.Stdout)
+	if url == "" {
+		return "", fmt.Errorf("origin remote is not configured")
+	}
+	return url, nil
+}
+
+// OriginRemoteBranches lists branches directly from origin. It intentionally
+// does not use locally cached remote-tracking refs or a preferred-remote fallback.
+func (g *GitService) OriginRemoteBranches(repoPath string) ([]RemoteBranch, error) {
+	if _, err := g.OriginRemoteURL(repoPath); err != nil {
+		return nil, err
+	}
+
+	result := g.runner.RunGit(repoPath, "ls-remote", "--heads", "origin")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to list origin branches: %s", getErrorMessage(result))
+	}
+
+	branches := make([]RemoteBranch, 0)
+	for _, line := range strings.Split(strings.TrimSpace(result.Stdout), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || !strings.HasPrefix(fields[1], "refs/heads/") {
+			continue
+		}
+		name := strings.TrimPrefix(fields[1], "refs/heads/")
+		if name != "" {
+			branches = append(branches, RemoteBranch{Name: name, OID: fields[0]})
+		}
+	}
+	return branches, nil
+}
+
+// OriginTrackingUpstream verifies that branch tracks its same-named origin branch.
+func (g *GitService) OriginTrackingUpstream(repoPath string, branch string) (upstream string, ok bool) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", false
+	}
+
+	upstream = g.getLocalBranchUpstream(repoPath, branch)
+	return upstream, upstream == "origin/"+branch
+}
+
 // InitRepo initializes a new Git repository at the given path.
 // Creates the directory if it doesn't exist.
 // Returns an error if the path is already a Git repository.
@@ -444,9 +502,10 @@ func parseGitStatus(xy string) string {
 
 // OperationResult represents the result of a git operation
 type OperationResult struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Error   string `json:"error,omitempty"`
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	Error        string `json:"error,omitempty"`
+	LFSAvailable *bool  `json:"lfsAvailable,omitempty"`
 }
 
 // CommitAll stages all changes and commits with the given message.
@@ -2429,6 +2488,48 @@ func (g *GitService) EnsureLFSForRefs(repoPath string, filePath string, refs ...
 		return successOp("LFS fetch completed with warnings")
 	}
 	return successOp("LFS objects fetched")
+}
+
+// EnsureOriginLFSForRef fetches LFS objects for one immutable ref from origin.
+// A missing git-lfs installation is explicit but non-fatal because snapshots can
+// still be used for non-LFS files.
+func (g *GitService) EnsureOriginLFSForRef(repoPath string, ref string) OperationResult {
+	if repoPath == "" {
+		return failedOp("Repository path is required")
+	}
+	if strings.TrimSpace(ref) == "" {
+		return failedOp("Reference is required")
+	}
+	if _, err := g.OriginRemoteURL(repoPath); err != nil {
+		return failedOp(err.Error())
+	}
+
+	lfsCheck := g.runner.RunGit(repoPath, "lfs", "version")
+	if !lfsCheck.Success {
+		available := false
+		return OperationResult{
+			Success:      true,
+			Message:      "Git LFS is not installed; LFS objects were not hydrated",
+			LFSAvailable: &available,
+		}
+	}
+
+	result := g.runner.RunGit(repoPath, "lfs", "fetch", "origin", ref)
+	if !result.Success {
+		available := true
+		return OperationResult{
+			Success:      false,
+			Error:        "Failed to fetch LFS objects: " + getErrorMessage(result),
+			LFSAvailable: &available,
+		}
+	}
+
+	available := true
+	return OperationResult{
+		Success:      true,
+		Message:      "LFS objects fetched",
+		LFSAvailable: &available,
+	}
 }
 
 // Branches returns all branches in the repository

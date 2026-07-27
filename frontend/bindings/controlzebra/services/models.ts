@@ -1238,6 +1238,95 @@ export class GitHubAuthStatus {
     }
 }
 
+export class GitHubAuthenticatedUser {
+    "login": string;
+    "id": string;
+    "type": string;
+    "name"?: string;
+
+    /** Creates a new GitHubAuthenticatedUser instance. */
+    constructor($$source: Partial<GitHubAuthenticatedUser> = {}) {
+        if (!("login" in $$source)) {
+            this["login"] = "";
+        }
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("type" in $$source)) {
+            this["type"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubAuthenticatedUser instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubAuthenticatedUser {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubAuthenticatedUser($$parsedSource as Partial<GitHubAuthenticatedUser>);
+    }
+}
+
+export class GitHubAuthenticatedUserResult {
+    "success": boolean;
+    "user"?: GitHubAuthenticatedUser;
+    "message"?: string;
+    "error"?: string;
+    "errorCode": GitHubChangeRequestErrorCode;
+
+    /** Creates a new GitHubAuthenticatedUserResult instance. */
+    constructor($$source: Partial<GitHubAuthenticatedUserResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("errorCode" in $$source)) {
+            this["errorCode"] = GitHubChangeRequestErrorCode.$zero;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubAuthenticatedUserResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubAuthenticatedUserResult {
+        const $$createField1_0 = $$createType16;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("user" in $$parsedSource) {
+            $$parsedSource["user"] = $$createField1_0($$parsedSource["user"]);
+        }
+        return new GitHubAuthenticatedUserResult($$parsedSource as Partial<GitHubAuthenticatedUserResult>);
+    }
+}
+
+/**
+ * GitHubChangeRequestErrorCode is the stable error contract for Change Requests.
+ */
+export enum GitHubChangeRequestErrorCode {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    GitHubChangeRequestErrorGHUnavailable = "gh_unavailable",
+    GitHubChangeRequestErrorAuthRequired = "auth_required",
+    GitHubChangeRequestErrorHostUnsupported = "host_unsupported",
+    GitHubChangeRequestErrorOriginMissing = "origin_missing",
+    GitHubChangeRequestErrorOriginNotGitHub = "origin_not_github",
+    GitHubChangeRequestErrorRepositoryUnresolved = "repository_unresolved",
+    GitHubChangeRequestErrorPermissionDenied = "permission_denied",
+    GitHubChangeRequestErrorNetworkUnavailable = "network_unavailable",
+    GitHubChangeRequestErrorRateLimited = "rate_limited",
+    GitHubChangeRequestErrorBranchNotSynced = "branch_not_synced",
+    GitHubChangeRequestErrorDuplicateRequest = "duplicate_request",
+    GitHubChangeRequestErrorSnapshotUnavailable = "snapshot_unavailable",
+    GitHubChangeRequestErrorSnapshotStale = "snapshot_stale",
+    GitHubChangeRequestErrorSnapshotUnsupported = "snapshot_unsupported",
+    GitHubChangeRequestErrorFilesTruncated = "files_truncated",
+    GitHubChangeRequestErrorInternal = "internal_error",
+};
+
 /**
  * GitHubCloneResult represents the result of cloning a repository
  */
@@ -1382,7 +1471,7 @@ export class GitHubOrganizationsResult {
      * Creates a new GitHubOrganizationsResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubOrganizationsResult {
-        const $$createField2_0 = $$createType17;
+        const $$createField2_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("organizations" in $$parsedSource) {
             $$parsedSource["organizations"] = $$createField2_0($$parsedSource["organizations"]);
@@ -1570,7 +1659,7 @@ export class GitHubRepoCreateResult {
      * Creates a new GitHubRepoCreateResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoCreateResult {
-        const $$createField1_0 = $$createType18;
+        const $$createField1_0 = $$createType19;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repo" in $$parsedSource) {
             $$parsedSource["repo"] = $$createField1_0($$parsedSource["repo"]);
@@ -1603,7 +1692,7 @@ export class GitHubRepoListResult {
      * Creates a new GitHubRepoListResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoListResult {
-        const $$createField1_0 = $$createType19;
+        const $$createField1_0 = $$createType20;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
@@ -2340,7 +2429,7 @@ export class LogEntry {
      * Creates a new LogEntry instance from a string or object.
      */
     static createFrom($$source: any = {}): LogEntry {
-        const $$createField6_0 = $$createType20;
+        const $$createField6_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("details" in $$parsedSource) {
             $$parsedSource["details"] = $$createField6_0($$parsedSource["details"]);
@@ -2710,6 +2799,7 @@ export class OperationResult {
     "success": boolean;
     "message": string;
     "error"?: string;
+    "lfsAvailable"?: boolean | null;
 
     /** Creates a new OperationResult instance. */
     constructor($$source: Partial<OperationResult> = {}) {
@@ -3068,6 +3158,35 @@ export class ReflogEntry {
 }
 
 /**
+ * RemoteBranch represents a branch advertised by the origin remote.
+ * Change Requests use this type exclusively rather than local remote-tracking refs.
+ */
+export class RemoteBranch {
+    "name": string;
+    "oid": string;
+
+    /** Creates a new RemoteBranch instance. */
+    constructor($$source: Partial<RemoteBranch> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("oid" in $$source)) {
+            this["oid"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RemoteBranch instance from a string or object.
+     */
+    static createFrom($$source: any = {}): RemoteBranch {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RemoteBranch($$parsedSource as Partial<RemoteBranch>);
+    }
+}
+
+/**
  * RepoInfo contains basic information about a git repository
  */
 export class RepoInfo {
@@ -3245,7 +3364,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType22;
+        const $$createField3_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -3333,12 +3452,12 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType23;
-        const $$createField3_0 = $$createType23;
-        const $$createField4_0 = $$createType23;
-        const $$createField5_0 = $$createType24;
-        const $$createField6_0 = $$createType25;
-        const $$createField7_0 = $$createType26;
+        const $$createField2_0 = $$createType24;
+        const $$createField3_0 = $$createType24;
+        const $$createField4_0 = $$createType24;
+        const $$createField5_0 = $$createType25;
+        const $$createField6_0 = $$createType26;
+        const $$createField7_0 = $$createType27;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -3584,14 +3703,15 @@ const $$createType12 = $Create.Map($Create.Any, $Create.Any);
 const $$createType13 = ConflictCommitInfo.createFrom;
 const $$createType14 = FileEntry.createFrom;
 const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = GitHubOrganization.createFrom;
-const $$createType17 = $Create.Array($$createType16);
-const $$createType18 = GitHubRepo.createFrom;
-const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = LogDetails.createFrom;
-const $$createType21 = FileStatus.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = BackgroundTaskConfig.createFrom;
-const $$createType24 = FetchSettings.createFrom;
-const $$createType25 = LFSSettings.createFrom;
-const $$createType26 = MaintenanceSettings.createFrom;
+const $$createType16 = GitHubAuthenticatedUser.createFrom;
+const $$createType17 = GitHubOrganization.createFrom;
+const $$createType18 = $Create.Array($$createType17);
+const $$createType19 = GitHubRepo.createFrom;
+const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = LogDetails.createFrom;
+const $$createType22 = FileStatus.createFrom;
+const $$createType23 = $Create.Array($$createType22);
+const $$createType24 = BackgroundTaskConfig.createFrom;
+const $$createType25 = FetchSettings.createFrom;
+const $$createType26 = LFSSettings.createFrom;
+const $$createType27 = MaintenanceSettings.createFrom;

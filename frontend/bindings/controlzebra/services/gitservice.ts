@@ -390,6 +390,17 @@ export function EnsureLFSForRefs(repoPath: string, filePath: string, ...refs: st
 }
 
 /**
+ * EnsureOriginLFSForRef fetches LFS objects for one immutable ref from origin.
+ * A missing git-lfs installation is explicit but non-fatal because snapshots can
+ * still be used for non-LFS files.
+ */
+export function EnsureOriginLFSForRef(repoPath: string, ref: string): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(1935629521, repoPath, ref).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * Fetch downloads objects and refs from the remote without merging.
  * Equivalent to: git fetch [remote] [branch]
  */
@@ -591,6 +602,30 @@ export function MoveFile(repoPath: string, source: string, destination: string):
 }
 
 /**
+ * OriginRemoteBranches lists branches directly from origin. It intentionally
+ * does not use locally cached remote-tracking refs or a preferred-remote fallback.
+ */
+export function OriginRemoteBranches(repoPath: string): $CancellablePromise<$models.RemoteBranch[]> {
+    return $Call.ByID(2407226354, repoPath).then(($result: any) => {
+        return $$createType22($result);
+    });
+}
+
+/**
+ * OriginRemoteURL returns origin's URL and never falls back to another remote.
+ */
+export function OriginRemoteURL(repoPath: string): $CancellablePromise<string> {
+    return $Call.ByID(1438912467, repoPath);
+}
+
+/**
+ * OriginTrackingUpstream verifies that branch tracks its same-named origin branch.
+ */
+export function OriginTrackingUpstream(repoPath: string, branch: string): $CancellablePromise<[string, boolean]> {
+    return $Call.ByID(860446192, repoPath, branch);
+}
+
+/**
  * Pull fetches and merges changes from the remote
  */
 export function Pull(repoPath: string): $CancellablePromise<$models.OperationResult> {
@@ -616,7 +651,7 @@ export function Push(repoPath: string): $CancellablePromise<$models.OperationRes
  */
 export function ReadFileAtRevision(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
     return $Call.ByID(2435261556, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType23($result);
     });
 }
 
@@ -627,7 +662,7 @@ export function ReadFileAtRevision(repoPath: string, filePath: string, revision:
  */
 export function ReadFileAtRevisionLarge(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
     return $Call.ByID(2397397827, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType21($result);
+        return $$createType23($result);
     });
 }
 
@@ -830,7 +865,7 @@ export function RevertCommitWithMessage(repoPath: string, commitHash: string, me
  */
 export function ShowCommit(repoPath: string, hash: string): $CancellablePromise<$models.CommitDetail> {
     return $Call.ByID(137660310, repoPath, hash).then(($result: any) => {
-        return $$createType22($result);
+        return $$createType24($result);
     });
 }
 
@@ -936,7 +971,7 @@ export function StashDrop(repoPath: string, index: number, confirm: boolean): $C
  */
 export function StashList(repoPath: string): $CancellablePromise<$models.StashEntry[]> {
     return $Call.ByID(2553569151, repoPath).then(($result: any) => {
-        return $$createType24($result);
+        return $$createType26($result);
     });
 }
 
@@ -965,7 +1000,7 @@ export function StashPush(repoPath: string, message: string): $CancellablePromis
  */
 export function Status(repoPath: string): $CancellablePromise<$models.RepoStatus> {
     return $Call.ByID(2928711956, repoPath).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType27($result);
     });
 }
 
@@ -1027,8 +1062,10 @@ const $$createType17 = $models.CommitInfo.createFrom;
 const $$createType18 = $Create.Array($$createType17);
 const $$createType19 = $models.MergeReviewFile.createFrom;
 const $$createType20 = $Create.Array($$createType19);
-const $$createType21 = $models.FileContentResult.createFrom;
-const $$createType22 = $models.CommitDetail.createFrom;
-const $$createType23 = $models.StashEntry.createFrom;
-const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = $models.RepoStatus.createFrom;
+const $$createType21 = $models.RemoteBranch.createFrom;
+const $$createType22 = $Create.Array($$createType21);
+const $$createType23 = $models.FileContentResult.createFrom;
+const $$createType24 = $models.CommitDetail.createFrom;
+const $$createType25 = $models.StashEntry.createFrom;
+const $$createType26 = $Create.Array($$createType25);
+const $$createType27 = $models.RepoStatus.createFrom;

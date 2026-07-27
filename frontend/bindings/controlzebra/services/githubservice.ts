@@ -89,6 +89,16 @@ export function CheckRepoNameExists(owner: string, name: string): $CancellablePr
 }
 
 /**
+ * GetAuthenticatedUser returns the authoritative GitHub viewer identity for
+ * Change Request grouping. It intentionally does not parse `gh auth status`.
+ */
+export function GetAuthenticatedUser(): $CancellablePromise<$models.GitHubAuthenticatedUserResult> {
+    return $Call.ByID(4246353527).then(($result: any) => {
+        return $$createType4($result);
+    });
+}
+
+/**
  * GetGHVersion returns the installed GitHub CLI version
  */
 export function GetGHVersion(): $CancellablePromise<string> {
@@ -108,7 +118,7 @@ export function IsGHInstalled(): $CancellablePromise<boolean> {
  */
 export function ListUserOrganizations(): $CancellablePromise<$models.GitHubOrganizationsResult> {
     return $Call.ByID(2146096128).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -120,7 +130,7 @@ export function ListUserOrganizations(): $CancellablePromise<$models.GitHubOrgan
  */
 export function RepoClone(repo: string, destPath: string, shallow: boolean): $CancellablePromise<$models.GitHubCloneResult> {
     return $Call.ByID(3713232932, repo, destPath, shallow).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -129,7 +139,7 @@ export function RepoClone(repo: string, destPath: string, shallow: boolean): $Ca
  */
 export function RepoCreate(options: $models.GitHubRepoCreateOptions): $CancellablePromise<$models.GitHubRepoCreateResult> {
     return $Call.ByID(1420268655, options).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType7($result);
     });
 }
 
@@ -143,7 +153,7 @@ export function RepoCreate(options: $models.GitHubRepoCreateOptions): $Cancellab
  */
 export function RepoCreateFromLocal(localPath: string, name: string, description: string, $private: boolean, owner: string): $CancellablePromise<$models.GitHubRepoCreateResult> {
     return $Call.ByID(1048591282, localPath, name, description, $private, owner).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType7($result);
     });
 }
 
@@ -154,7 +164,7 @@ export function RepoCreateFromLocal(localPath: string, name: string, description
  */
 export function RepoList(limit: number, visibility: string): $CancellablePromise<$models.GitHubRepoListResult> {
     return $Call.ByID(106928271, limit, visibility).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -163,7 +173,7 @@ export function RepoList(limit: number, visibility: string): $CancellablePromise
  */
 export function RepoListForOrg(org: string, limit: number): $CancellablePromise<$models.GitHubRepoListResult> {
     return $Call.ByID(1651014432, org, limit).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType8($result);
     });
 }
 
@@ -172,7 +182,8 @@ const $$createType0 = $models.GitHubAuthResult.createFrom;
 const $$createType1 = $models.GitHubDeviceFlowResult.createFrom;
 const $$createType2 = $models.GitHubAuthStatus.createFrom;
 const $$createType3 = $models.RepoNameCheckResult.createFrom;
-const $$createType4 = $models.GitHubOrganizationsResult.createFrom;
-const $$createType5 = $models.GitHubCloneResult.createFrom;
-const $$createType6 = $models.GitHubRepoCreateResult.createFrom;
-const $$createType7 = $models.GitHubRepoListResult.createFrom;
+const $$createType4 = $models.GitHubAuthenticatedUserResult.createFrom;
+const $$createType5 = $models.GitHubOrganizationsResult.createFrom;
+const $$createType6 = $models.GitHubCloneResult.createFrom;
+const $$createType7 = $models.GitHubRepoCreateResult.createFrom;
+const $$createType8 = $models.GitHubRepoListResult.createFrom;
