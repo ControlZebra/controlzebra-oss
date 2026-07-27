@@ -1,3 +1,9 @@
+import type {
+  GitHubChangeRequest as GitHubChangeRequestModel,
+  GitHubChangeRequestRepository as GitHubChangeRequestRepositoryModel,
+  GitHubChangeRequestErrorCode as GitHubChangeRequestErrorCodeModel,
+} from '../../../../bindings/controlzebra/services/models';
+
 /**
  * Type definitions for RepoContext
  * 
@@ -132,6 +138,17 @@ export interface GitHubOrganizationsResult {
   username: string;      // The authenticated user's username
   organizations: GitHubOrganization[]; // Organizations the user belongs to
   error?: string;
+}
+
+export type GitHubChangeRequestErrorCode = `${GitHubChangeRequestErrorCodeModel}`;
+
+export type GitHubChangeRequestRepository = GitHubChangeRequestRepositoryModel;
+
+export type GitHubChangeRequest = GitHubChangeRequestModel;
+
+export interface GitHubChangeRequestError {
+  code: GitHubChangeRequestErrorCode;
+  message?: string;
 }
 
 /**
@@ -646,6 +663,13 @@ export interface RepoContextValue {
   isCheckingGhAuth: boolean;
   ghRepos: GitHubRepo[];
   isLoadingGhRepos: boolean;
+  changeRequestRepository: GitHubChangeRequestRepository | null;
+  changeRequestViewerLogin: string;
+  changeRequests: GitHubChangeRequest[];
+  omittedExternalChangeRequestCount: number;
+  changeRequestsMayHaveMore: boolean;
+  isLoadingChangeRequests: boolean;
+  changeRequestError: GitHubChangeRequestError | null;
   
   // GitHub actions
   checkGitHubAuth: () => Promise<void>;
@@ -658,6 +682,8 @@ export interface RepoContextValue {
   cloneGitHubRepo: (repo: string, destPath: string) => Promise<GitHubCloneResult>;
   publishToGitHub: (name: string, description: string, isPrivate: boolean, owner?: string) => Promise<GitHubRepoCreateResult>;
   loadUserOrganizations: () => Promise<GitHubOrganizationsResult>;
+  loadChangeRequests: () => Promise<void>;
+  clearChangeRequestState: () => void;
 
   // ===== Project Creation (Welcome Screen) =====
 

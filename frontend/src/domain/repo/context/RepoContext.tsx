@@ -41,6 +41,8 @@ import {
   IsGHInstalled,
   GetGHVersion,
   AuthStatus,
+  GetAuthenticatedUser,
+  ListChangeRequests,
   RepoList,
   ListUserOrganizations,
   IsLFSInstalled,
@@ -171,6 +173,10 @@ import type {
   GitHubCloneResult,
   GitHubRepoCreateResult,
   GitHubOrganizationsResult,
+  GitHubChangeRequest,
+  GitHubChangeRequestError,
+  GitHubChangeRequestErrorCode,
+  GitHubChangeRequestRepository,
   CreateProjectOptions,
   CreateProjectResult,
 } from './RepoContext.types';
@@ -322,6 +328,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isCheckingGhAuth, setIsCheckingGhAuth] = useState(false);
   const [ghRepos, setGhRepos] = useState<GitHubRepo[]>([]);
   const [isLoadingGhRepos, setIsLoadingGhRepos] = useState(false);
+  const [changeRequestRepository, setChangeRequestRepository] = useState<GitHubChangeRequestRepository | null>(null);
+  const [changeRequestViewerLogin, setChangeRequestViewerLogin] = useState('');
+  const [changeRequests, setChangeRequests] = useState<GitHubChangeRequest[]>([]);
+  const [omittedExternalChangeRequestCount, setOmittedExternalChangeRequestCount] = useState(0);
+  const [changeRequestsMayHaveMore, setChangeRequestsMayHaveMore] = useState(false);
+  const [isLoadingChangeRequests, setIsLoadingChangeRequests] = useState(false);
+  const [changeRequestError, setChangeRequestError] = useState<GitHubChangeRequestError | null>(null);
   
   // ===== Progress Modal State =====
   const [progressModal, setProgressModal] = useState<ProgressModalState>({
@@ -339,6 +352,19 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const startupAutoPullDeadlineRef = useRef<number>(Date.now() + STARTUP_AUTO_PULL_DELAY_MS);
   const gitIdentityPromptResolverRef = useRef<((value: boolean) => void) | null>(null);
   const gitIdentityRef = useRef<CachedGitIdentity>(EMPTY_GIT_IDENTITY);
+  const changeRequestLoadIdRef = useRef(0);
+  const changeRequestAuthStateRef = useRef<boolean | null>(null);
+
+  const clearChangeRequestState = useCallback((): void => {
+    changeRequestLoadIdRef.current += 1;
+    setChangeRequestRepository(null);
+    setChangeRequestViewerLogin('');
+    setChangeRequests([]);
+    setOmittedExternalChangeRequestCount(0);
+    setChangeRequestsMayHaveMore(false);
+    setIsLoadingChangeRequests(false);
+    setChangeRequestError(null);
+  }, []);
 
   const isWindowsPlatform = useCallback((): boolean => {
     return navigator.userAgent.toLowerCase().includes('win');
@@ -679,6 +705,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     if (path === repoPath) return true;
     
     setIsLoading(true);
+    clearChangeRequestState();
     setSelectedFileIndex(null);
     
     try {
@@ -1037,7 +1064,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [cacheGitIdentity, clearCachedGitIdentity, repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage, gitInstalled, lfsInstalled, installRequiredPackages, promptForGitIdentityIfMissing]);
+  }, [cacheGitIdentity, clearCachedGitIdentity, clearChangeRequestState, repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage, gitInstalled, lfsInstalled, installRequiredPackages, promptForGitIdentityIfMissing]);
 
   // Close the current repository
   const closeRepo = useCallback(async (): Promise<void> => {
@@ -1067,6 +1094,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedCommitFile(null);
     setCurrentDiff(null);
     setRepoSettings(null);
+    clearChangeRequestState();
     clearCachedGitIdentity();
     
     // Clear viewer cache and L5X tab states when closing repo to free memory
@@ -1085,7 +1113,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     } catch (err) {
       console.error('Failed to clear settings:', err);
     }
-  }, [clearCachedGitIdentity, repoPath]);
+  }, [clearCachedGitIdentity, clearChangeRequestState, repoPath]);
 
   // ===== Commit & Sync Operations =====
 
@@ -2681,6 +2709,75 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [showMessage]);
 
+  const loadChangeRequests = useCallback(async (): Promise<void> => {
+    if (!repoPath) {
+      clearChangeRequestState();
+      return;
+    }
+
+    const loadId = changeRequestLoadIdRef.current + 1;
+    changeRequestLoadIdRef.current = loadId;
+    setIsLoadingChangeRequests(true);
+    setChangeRequestError(null);
+
+    const setError = (code: GitHubChangeRequestErrorCode, message?: string): void => {
+      if (changeRequestLoadIdRef.current === loadId) {
+        setChangeRequestError({ code, message });
+      }
+    };
+
+    try {
+      const installed = await IsGHInstalled();
+      if (changeRequestLoadIdRef.current !== loadId) return;
+      setGhInstalled(installed);
+      if (!installed) {
+        setError('gh_unavailable');
+        return;
+      }
+
+      const viewerResult = await GetAuthenticatedUser();
+      if (changeRequestLoadIdRef.current !== loadId) return;
+      if (!viewerResult.success || !viewerResult.user?.login) {
+        setError(viewerResult.errorCode as GitHubChangeRequestErrorCode, viewerResult.error);
+        return;
+      }
+
+      const listResult = await ListChangeRequests(repoPath);
+      if (changeRequestLoadIdRef.current !== loadId) return;
+      if (!listResult.success) {
+        setError(listResult.errorCode as GitHubChangeRequestErrorCode, listResult.error);
+        return;
+      }
+
+      const orderedRequests = [...listResult.changeRequests]
+        .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+      setChangeRequestViewerLogin(viewerResult.user.login);
+      setChangeRequestRepository(listResult.repository ?? null);
+      setChangeRequests(orderedRequests);
+      setOmittedExternalChangeRequestCount(listResult.omittedExternalCount);
+      setChangeRequestsMayHaveMore(listResult.mayHaveMore);
+    } catch (error) {
+      if (changeRequestLoadIdRef.current === loadId) {
+        setChangeRequestError({
+          code: 'internal_error',
+          message: error instanceof Error ? error.message : 'Unable to load Change Requests.',
+        });
+      }
+    } finally {
+      if (changeRequestLoadIdRef.current === loadId) {
+        setIsLoadingChangeRequests(false);
+      }
+    }
+  }, [clearChangeRequestState, repoPath]);
+
+  useEffect(() => {
+    if (!repoPath || changeRequestAuthStateRef.current === ghAuthStatus?.loggedIn) {
+      return;
+    }
+    changeRequestAuthStateRef.current = ghAuthStatus?.loggedIn ?? null;
+    void loadChangeRequests();
+  }, [ghAuthStatus?.loggedIn, loadChangeRequests, repoPath]);
+
   // Clone a GitHub repository
   const cloneGitHubRepo = useCallback(async (
     repo: string,
@@ -3384,6 +3481,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
     isCheckingGhAuth,
     ghRepos,
     isLoadingGhRepos,
+    changeRequestRepository,
+    changeRequestViewerLogin,
+    changeRequests,
+    omittedExternalChangeRequestCount,
+    changeRequestsMayHaveMore,
+    isLoadingChangeRequests,
+    changeRequestError,
     checkGitHubAuth,
     loginGitHub,
     startGitHubLogin,
@@ -3394,6 +3498,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     cloneGitHubRepo,
     publishToGitHub,
     loadUserOrganizations,
+    loadChangeRequests,
+    clearChangeRequestState,
 
     // Project creation (Welcome Screen)
     createProject,
@@ -3430,7 +3536,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     removeAllStaleLocks,
     // GitHub dependencies
     ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
-    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations,
+    changeRequestRepository, changeRequestViewerLogin, changeRequests, omittedExternalChangeRequestCount, changeRequestsMayHaveMore, isLoadingChangeRequests, changeRequestError,
+    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations, loadChangeRequests, clearChangeRequestState,
     createProject,
   ]);
 

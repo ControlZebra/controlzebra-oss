@@ -1,0 +1,29 @@
+[
+  {
+    "number": 42,
+    "title": "Update mixer sequence",
+    "body": "Adds the requested mixer interlock.",
+    "url": "https://github.com/controlzebra/plant-project/pull/42",
+    "state": "OPEN",
+    "isDraft": false,
+    "author": { "login": "operator", "name": "Operator" },
+    "headRefName": "work/mixer-interlock",
+    "headRefOid": "head-oid",
+    "baseRefName": "main",
+    "baseRefOid": "base-oid",
+    "reviewDecision": "APPROVED",
+    "mergeStateStatus": "CLEAN",
+    "isCrossRepository": false,
+    "createdAt": "2026-07-20T10:00:00Z",
+    "updatedAt": "2026-07-21T10:00:00Z"
+  },
+  {
+    "number": 43,
+    "title": "External request",
+    "url": "https://github.com/controlzebra/plant-project/pull/43",
+    "state": "OPEN",
+    "isCrossRepository": true,
+    "headRefName": "external-change",
+    "baseRefName": "main"
+  }
+]

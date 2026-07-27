@@ -11,6 +11,7 @@ import {
   Settings,
   Bug,
   BookOpen,
+  GitPullRequest,
   type LucideIcon,
 } from 'lucide-react';
 import { ICON_SIZES, VIEWS, type ViewType } from '../../shared/constants';
@@ -46,6 +47,7 @@ interface NavButtonProps {
 // requiresGit: true means the view requires an active git repository
 const TOP_NAV_ITEMS: NavItem[] = [
   { id: VIEWS.EXPLORER, Icon: House, label: 'Next Step Advisor', requiresGit: false },
+  { id: VIEWS.REVIEWS, Icon: GitPullRequest, label: 'Reviews', requiresGit: true },
   { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];
 

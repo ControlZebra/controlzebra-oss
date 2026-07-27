@@ -46,12 +46,80 @@ func TestMapGitHubChangeRequestFilesJSON(t *testing.T) {
 	}
 }
 
+func TestMapGitHubChangeRequestRepositoryJSON(t *testing.T) {
+	result := mapGitHubChangeRequestRepositoryJSON(readChangeRequestFixture(t, "repository.json"))
+	if !result.Success {
+		t.Fatalf("expected repository mapping success, got %#v", result)
+	}
+	if result.Repository.NameWithOwner != "controlzebra/plant-project" || result.Repository.DefaultBranch != "main" {
+		t.Fatalf("unexpected repository mapping: %#v", result.Repository)
+	}
+}
+
+func TestMapGitHubChangeRequestListJSONOmitsExternalRequests(t *testing.T) {
+	repository := GitHubChangeRequestRepository{NameWithOwner: "controlzebra/plant-project"}
+	result := mapGitHubChangeRequestListJSON(readChangeRequestFixture(t, "open_requests.json"), repository)
+	if !result.Success || len(result.ChangeRequests) != 1 || result.OmittedExternalCount != 1 {
+		t.Fatalf("unexpected request list mapping: %#v", result)
+	}
+	request := result.ChangeRequests[0]
+	if request.Number != 42 || request.Author.Login != "operator" || request.ReviewDecision != "APPROVED" {
+		t.Fatalf("unexpected request mapping: %#v", request)
+	}
+}
+
+func TestChangeRequestRemoteHost(t *testing.T) {
+	tests := []struct {
+		remoteURL  string
+		wantHost   string
+		wantGitHub bool
+	}{
+		{"git@github.com:controlzebra/plant-project.git", "github.com", true},
+		{"https://github.com/controlzebra/plant-project.git", "github.com", true},
+		{"ssh://git@github.enterprise.example/controlzebra/plant-project.git", "github.enterprise.example", true},
+		{"https://github-mirror.example/controlzebra/plant-project.git", "github-mirror.example", false},
+		{"https://gitlab.com/controlzebra/plant-project.git", "gitlab.com", false},
+	}
+	for _, test := range tests {
+		host, isGitHub := changeRequestRemoteHost(test.remoteURL)
+		if host != test.wantHost || isGitHub != test.wantGitHub {
+			t.Errorf("changeRequestRemoteHost(%q) = (%q, %t), want (%q, %t)", test.remoteURL, host, isGitHub, test.wantHost, test.wantGitHub)
+		}
+	}
+}
+
+func TestGetChangeRequestRepositoryClassifiesUnresolvedRepository(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	runGitCmd(t, repoPath, "remote", "add", "origin", "https://github.com/controlzebra/missing.git")
+
+	tempDir := t.TempDir()
+	fakeGh := filepath.Join(tempDir, "gh")
+	script := "#!/bin/sh\necho \"GraphQL: Could not resolve to a Repository with the name 'controlzebra/missing'.\" >&2\nexit 1\n"
+	if err := os.WriteFile(fakeGh, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+
+	resolveMu.Lock()
+	resolvedGh = fakeGh
+	resolveOnce = sync.Once{}
+	resolveOnce.Do(func() {})
+	resolveMu.Unlock()
+	t.Cleanup(RefreshCLIPaths)
+
+	result := NewGitHubService().GetChangeRequestRepository(repoPath)
+	if result.Success || result.ErrorCode != GitHubChangeRequestErrorRepositoryUnresolved {
+		t.Fatalf("expected repository_unresolved, got %#v", result)
+	}
+}
+
 func TestMapGitHubChangeRequestError(t *testing.T) {
 	tests := []struct {
 		message string
 		want    GitHubChangeRequestErrorCode
 	}{
 		{"not logged in to github.com", GitHubChangeRequestErrorAuthRequired},
+		{"HTTP 401: Bad credentials", GitHubChangeRequestErrorAuthRequired},
 		{"HTTP 403: Resource not accessible by integration", GitHubChangeRequestErrorPermissionDenied},
 		{"API rate limit exceeded", GitHubChangeRequestErrorRateLimited},
 		{"dial tcp: lookup api.github.com: no such host", GitHubChangeRequestErrorNetworkUnavailable},

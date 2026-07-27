@@ -6,6 +6,7 @@ import RepoSettingsView from '../../features/repo-settings/components/RepoSettin
 import SettingsView from '../../features/settings/components/SettingsView';
 import WelcomeView from '../../features/welcome/components/WelcomeView';
 import DebugView from '../../features/debug/components/DebugView';
+import ReviewsView from '../../features/reviews/components/ReviewsView';
 import RepoSwitcher from '../../features/welcome/components/RepoSwitcher';
 
 // ============================================================================
@@ -23,6 +24,7 @@ interface ViewConfig {
 
 const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
   [VIEWS.EXPLORER]: { title: 'Next step advisor', Component: ExplorerView },
+  [VIEWS.REVIEWS]: { title: 'Reviews', Component: ReviewsView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
   [VIEWS.DEBUG]: { title: 'Debug Logs', Component: DebugView },
