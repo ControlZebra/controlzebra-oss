@@ -38,6 +38,7 @@ export const ICON_SIZES: IconSizes = {
 // ============================================================================
 export const VIEWS = {
   EXPLORER: 'explorer',
+  REVIEWS: 'reviews',
   REPO_SETTINGS: 'repo-settings',
   SETTINGS: 'settings',
   DEBUG: 'debug',

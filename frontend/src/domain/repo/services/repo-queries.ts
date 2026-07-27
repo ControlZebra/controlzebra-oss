@@ -21,6 +21,8 @@ export {
   IsGHInstalled,
   GetGHVersion,
   AuthStatus,
+  GetAuthenticatedUser,
+  ListChangeRequests,
   RepoList,
   ListUserOrganizations,
 } from '../../../../bindings/controlzebra/services/githubservice';

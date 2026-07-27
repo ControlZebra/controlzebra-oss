@@ -1,0 +1,10 @@
+{
+  "nameWithOwner": "controlzebra/plant-project",
+  "url": "https://github.com/controlzebra/plant-project",
+  "defaultBranchRef": {
+    "name": "main"
+  },
+  "owner": {
+    "login": "controlzebra"
+  }
+}

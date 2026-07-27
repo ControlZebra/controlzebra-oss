@@ -111,6 +111,31 @@ type GitHubChangeRequestFile struct {
 	Deletions    int    `json:"deletions"`
 }
 
+type GitHubChangeRequestRepository struct {
+	NameWithOwner string `json:"nameWithOwner"`
+	DefaultBranch string `json:"defaultBranch"`
+	URL           string `json:"url"`
+}
+
+type GitHubChangeRequestRepositoryResult struct {
+	Success    bool                          `json:"success"`
+	Repository GitHubChangeRequestRepository `json:"repository,omitempty"`
+	Message    string                        `json:"message,omitempty"`
+	Error      string                        `json:"error,omitempty"`
+	ErrorCode  GitHubChangeRequestErrorCode  `json:"errorCode"`
+}
+
+type GitHubChangeRequestListResult struct {
+	Success              bool                          `json:"success"`
+	Repository           GitHubChangeRequestRepository `json:"repository,omitempty"`
+	ChangeRequests       []GitHubChangeRequest         `json:"changeRequests"`
+	OmittedExternalCount int                           `json:"omittedExternalCount"`
+	MayHaveMore          bool                          `json:"mayHaveMore"`
+	Message              string                        `json:"message,omitempty"`
+	Error                string                        `json:"error,omitempty"`
+	ErrorCode            GitHubChangeRequestErrorCode  `json:"errorCode"`
+}
+
 type GitHubAuthenticatedUser struct {
 	Login string `json:"login"`
 	ID    string `json:"id"`
@@ -257,12 +282,100 @@ func (g *GitHubService) GetAuthenticatedUser() GitHubAuthenticatedUserResult {
 	return mapGitHubAuthenticatedUserJSON([]byte(result.Stdout))
 }
 
+const changeRequestListLimit = 100
+
+// GetChangeRequestRepository verifies that origin points directly at a
+// github.com repository and returns its authoritative GitHub metadata.
+func (g *GitHubService) GetChangeRequestRepository(repoPath string) GitHubChangeRequestRepositoryResult {
+	remoteURL, err := NewGitService().OriginRemoteURL(repoPath)
+	if err != nil {
+		return GitHubChangeRequestRepositoryResult{
+			Error:     "This project needs an origin GitHub connection before Change Requests are available.",
+			ErrorCode: GitHubChangeRequestErrorOriginMissing,
+		}
+	}
+
+	host, isGitHubRemote := changeRequestRemoteHost(remoteURL)
+	if !isGitHubRemote {
+		return GitHubChangeRequestRepositoryResult{
+			Error:     "Change Requests are currently available only for GitHub-connected projects.",
+			ErrorCode: GitHubChangeRequestErrorOriginNotGitHub,
+		}
+	}
+	if host != "github.com" {
+		return GitHubChangeRequestRepositoryResult{
+			Error:     "Change Requests currently support github.com projects only.",
+			ErrorCode: GitHubChangeRequestErrorHostUnsupported,
+		}
+	}
+
+	result := g.runner.Run(repoPath, GhPath(), "repo", "view", "--json", "nameWithOwner,defaultBranchRef,url,owner")
+	if !result.Success {
+		message := strings.ToLower(strings.Join([]string{result.Stderr, result.Stdout, result.Error}, "\n"))
+		if strings.Contains(message, "could not resolve to a repository") || strings.Contains(message, "repository not found") {
+			return GitHubChangeRequestRepositoryResult{
+				Error:     "GitHub could not identify this project's primary repository.",
+				ErrorCode: GitHubChangeRequestErrorRepositoryUnresolved,
+			}
+		}
+		return GitHubChangeRequestRepositoryResult{
+			Error:     getGHErrorMessage(result),
+			ErrorCode: mapGitHubChangeRequestError(result),
+		}
+	}
+	return mapGitHubChangeRequestRepositoryJSON([]byte(result.Stdout))
+}
+
+// ListChangeRequests loads the first release's supported open requests for the
+// primary GitHub repository. External requests are deliberately omitted.
+func (g *GitHubService) ListChangeRequests(repoPath string) GitHubChangeRequestListResult {
+	repositoryResult := g.GetChangeRequestRepository(repoPath)
+	if !repositoryResult.Success {
+		return GitHubChangeRequestListResult{
+			ChangeRequests: []GitHubChangeRequest{},
+			Error:          repositoryResult.Error,
+			ErrorCode:      repositoryResult.ErrorCode,
+		}
+	}
+
+	result := g.runner.Run(
+		repoPath,
+		GhPath(),
+		"pr", "list",
+		"--repo", repositoryResult.Repository.NameWithOwner,
+		"--state", "open",
+		"--limit", strconv.Itoa(changeRequestListLimit),
+		"--json", "number,title,body,url,state,isDraft,author,headRefName,headRefOid,baseRefName,baseRefOid,reviewDecision,mergeStateStatus,isCrossRepository,createdAt,updatedAt",
+	)
+	if !result.Success {
+		return GitHubChangeRequestListResult{
+			ChangeRequests: []GitHubChangeRequest{},
+			Error:          getGHErrorMessage(result),
+			ErrorCode:      mapGitHubChangeRequestError(result),
+		}
+	}
+	return mapGitHubChangeRequestListJSON([]byte(result.Stdout), repositoryResult.Repository)
+}
+
+func changeRequestRemoteHost(remoteURL string) (host string, isGitHubRemote bool) {
+	remoteURL = strings.TrimSpace(remoteURL)
+	if strings.HasPrefix(remoteURL, "git@") {
+		remoteURL = "ssh://" + strings.Replace(remoteURL, ":", "/", 1)
+	}
+	parsed, err := url.Parse(remoteURL)
+	if err != nil || parsed.Hostname() == "" {
+		return "", false
+	}
+	host = strings.ToLower(parsed.Hostname())
+	return host, host == "github.com" || strings.HasPrefix(host, "github.")
+}
+
 func mapGitHubChangeRequestError(result CommandResult) GitHubChangeRequestErrorCode {
 	message := strings.ToLower(strings.Join([]string{result.Stderr, result.Stdout, result.Error}, "\n"))
 	switch {
 	case result.ExitCode == -1 && (strings.Contains(message, "executable file not found") || strings.Contains(message, "no such file")):
 		return GitHubChangeRequestErrorGHUnavailable
-	case strings.Contains(message, "not logged in"), strings.Contains(message, "no oauth token"), strings.Contains(message, "authentication required"), strings.Contains(message, "token has expired"):
+	case strings.Contains(message, "not logged in"), strings.Contains(message, "no oauth token"), strings.Contains(message, "authentication required"), strings.Contains(message, "token has expired"), strings.Contains(message, "http 401"), strings.Contains(message, "bad credentials"):
 		return GitHubChangeRequestErrorAuthRequired
 	case strings.Contains(message, "rate limit"), strings.Contains(message, "api rate limit exceeded"):
 		return GitHubChangeRequestErrorRateLimited
@@ -300,6 +413,104 @@ func mapGitHubAuthenticatedUserJSON(data []byte) GitHubAuthenticatedUserResult {
 		return GitHubAuthenticatedUserResult{Error: "GitHub did not return an account login", ErrorCode: GitHubChangeRequestErrorInternal}
 	}
 	return GitHubAuthenticatedUserResult{Success: true, User: user}
+}
+
+func mapGitHubChangeRequestRepositoryJSON(data []byte) GitHubChangeRequestRepositoryResult {
+	var raw struct {
+		NameWithOwner    string `json:"nameWithOwner"`
+		URL              string `json:"url"`
+		DefaultBranchRef *struct {
+			Name string `json:"name"`
+		} `json:"defaultBranchRef"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil || strings.TrimSpace(raw.NameWithOwner) == "" {
+		return GitHubChangeRequestRepositoryResult{
+			Error:     "GitHub could not identify this project's primary repository.",
+			ErrorCode: GitHubChangeRequestErrorRepositoryUnresolved,
+		}
+	}
+
+	defaultBranch := ""
+	if raw.DefaultBranchRef != nil {
+		defaultBranch = raw.DefaultBranchRef.Name
+	}
+	return GitHubChangeRequestRepositoryResult{
+		Success: true,
+		Repository: GitHubChangeRequestRepository{
+			NameWithOwner: raw.NameWithOwner,
+			DefaultBranch: defaultBranch,
+			URL:           raw.URL,
+		},
+	}
+}
+
+func mapGitHubChangeRequestListJSON(data []byte, repository GitHubChangeRequestRepository) GitHubChangeRequestListResult {
+	var rawRequests []struct {
+		Number            int    `json:"number"`
+		Title             string `json:"title"`
+		Body              string `json:"body"`
+		URL               string `json:"url"`
+		State             string `json:"state"`
+		IsDraft           bool   `json:"isDraft"`
+		HeadRefName       string `json:"headRefName"`
+		HeadRefOID        string `json:"headRefOid"`
+		BaseRefName       string `json:"baseRefName"`
+		BaseRefOID        string `json:"baseRefOid"`
+		ReviewDecision    string `json:"reviewDecision"`
+		MergeStateStatus  string `json:"mergeStateStatus"`
+		IsCrossRepository bool   `json:"isCrossRepository"`
+		CreatedAt         string `json:"createdAt"`
+		UpdatedAt         string `json:"updatedAt"`
+		Author            *struct {
+			Login string `json:"login"`
+			Name  string `json:"name"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(data, &rawRequests); err != nil {
+		return GitHubChangeRequestListResult{
+			ChangeRequests: []GitHubChangeRequest{},
+			Error:          "Failed to parse Change Requests from GitHub.",
+			ErrorCode:      GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	requests := make([]GitHubChangeRequest, 0, len(rawRequests))
+	omittedExternalCount := 0
+	for _, raw := range rawRequests {
+		if raw.IsCrossRepository {
+			omittedExternalCount++
+			continue
+		}
+		author := GitHubChangeAuthor{}
+		if raw.Author != nil {
+			author = GitHubChangeAuthor{Login: raw.Author.Login, Name: raw.Author.Name}
+		}
+		requests = append(requests, GitHubChangeRequest{
+			Number:           raw.Number,
+			Title:            raw.Title,
+			Body:             raw.Body,
+			URL:              raw.URL,
+			State:            raw.State,
+			IsDraft:          raw.IsDraft,
+			Author:           author,
+			HeadRefName:      raw.HeadRefName,
+			HeadRefOID:       raw.HeadRefOID,
+			BaseRefName:      raw.BaseRefName,
+			BaseRefOID:       raw.BaseRefOID,
+			ReviewDecision:   raw.ReviewDecision,
+			MergeStateStatus: raw.MergeStateStatus,
+			CreatedAt:        raw.CreatedAt,
+			UpdatedAt:        raw.UpdatedAt,
+		})
+	}
+
+	return GitHubChangeRequestListResult{
+		Success:              true,
+		Repository:           repository,
+		ChangeRequests:       requests,
+		OmittedExternalCount: omittedExternalCount,
+		MayHaveMore:          len(rawRequests) == changeRequestListLimit,
+	}
 }
 
 // mapGitHubChangeRequestFilesJSON decodes gh api --paginate --slurp output.
