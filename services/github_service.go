@@ -161,6 +161,15 @@ type GitHubChangeRequestFilesResult struct {
 	ErrorCode   GitHubChangeRequestErrorCode `json:"errorCode"`
 }
 
+type GitHubChangeRequestDetailResult struct {
+	Success       bool                         `json:"success"`
+	ChangeRequest GitHubChangeRequest          `json:"changeRequest,omitempty"`
+	TotalFiles    int                          `json:"totalFiles"`
+	Message       string                       `json:"message,omitempty"`
+	Error         string                       `json:"error,omitempty"`
+	ErrorCode     GitHubChangeRequestErrorCode `json:"errorCode"`
+}
+
 // GitHubRepo represents a GitHub repository
 type GitHubRepo struct {
 	Name            string `json:"name"`
@@ -284,6 +293,13 @@ func (g *GitHubService) GetAuthenticatedUser() GitHubAuthenticatedUserResult {
 
 const changeRequestListLimit = 100
 
+// changeRequestListJSONFields is the `gh pr` field set shared by list and detail
+// queries. Declaring it once keeps the CLI field contract in a single place.
+const changeRequestListJSONFields = "number,title,body,url,state,isDraft,author,headRefName,headRefOid,baseRefName,baseRefOid,reviewDecision,mergeStateStatus,isCrossRepository,createdAt,updatedAt"
+
+// changeRequestDetailJSONFields adds the fields only the detail view needs.
+const changeRequestDetailJSONFields = changeRequestListJSONFields + ",reviewRequests,changedFiles"
+
 // GetChangeRequestRepository verifies that origin points directly at a
 // github.com repository and returns its authoritative GitHub metadata.
 func (g *GitHubService) GetChangeRequestRepository(repoPath string) GitHubChangeRequestRepositoryResult {
@@ -345,7 +361,7 @@ func (g *GitHubService) ListChangeRequests(repoPath string) GitHubChangeRequestL
 		"--repo", repositoryResult.Repository.NameWithOwner,
 		"--state", "open",
 		"--limit", strconv.Itoa(changeRequestListLimit),
-		"--json", "number,title,body,url,state,isDraft,author,headRefName,headRefOid,baseRefName,baseRefOid,reviewDecision,mergeStateStatus,isCrossRepository,createdAt,updatedAt",
+		"--json", changeRequestListJSONFields,
 	)
 	if !result.Success {
 		return GitHubChangeRequestListResult{
@@ -355,6 +371,82 @@ func (g *GitHubService) ListChangeRequests(repoPath string) GitHubChangeRequestL
 		}
 	}
 	return mapGitHubChangeRequestListJSON([]byte(result.Stdout), repositoryResult.Repository)
+}
+
+// GetChangeRequest loads the full review metadata required by the detail view.
+func (g *GitHubService) GetChangeRequest(repoPath string, number int) GitHubChangeRequestDetailResult {
+	repositoryResult := g.GetChangeRequestRepository(repoPath)
+	if !repositoryResult.Success {
+		return GitHubChangeRequestDetailResult{
+			Error:     repositoryResult.Error,
+			ErrorCode: repositoryResult.ErrorCode,
+		}
+	}
+
+	result := g.runner.Run(
+		repoPath,
+		GhPath(),
+		"pr", "view", strconv.Itoa(number),
+		"--repo", repositoryResult.Repository.NameWithOwner,
+		"--json", changeRequestDetailJSONFields,
+	)
+	if !result.Success {
+		return GitHubChangeRequestDetailResult{
+			Error:     getGHErrorMessage(result),
+			ErrorCode: mapGitHubChangeRequestError(result),
+		}
+	}
+	return mapGitHubChangeRequestDetailJSON([]byte(result.Stdout))
+}
+
+// ListChangeRequestFiles loads the GitHub file metadata for a Change Request.
+// GitHub's reported changedFiles count is fetched separately so truncation is
+// detected without re-downloading the whole request payload.
+func (g *GitHubService) ListChangeRequestFiles(repoPath string, number int) GitHubChangeRequestFilesResult {
+	repositoryResult := g.GetChangeRequestRepository(repoPath)
+	if !repositoryResult.Success {
+		return GitHubChangeRequestFilesResult{
+			Files:     []GitHubChangeRequestFile{},
+			Error:     repositoryResult.Error,
+			ErrorCode: repositoryResult.ErrorCode,
+		}
+	}
+
+	countResult := g.runner.Run(
+		repoPath,
+		GhPath(),
+		"pr", "view", strconv.Itoa(number),
+		"--repo", repositoryResult.Repository.NameWithOwner,
+		"--json", "changedFiles",
+	)
+	if !countResult.Success {
+		return GitHubChangeRequestFilesResult{
+			Files:     []GitHubChangeRequestFile{},
+			Error:     getGHErrorMessage(countResult),
+			ErrorCode: mapGitHubChangeRequestError(countResult),
+		}
+	}
+	var reported struct {
+		ChangedFiles int `json:"changedFiles"`
+	}
+	if err := json.Unmarshal([]byte(countResult.Stdout), &reported); err != nil {
+		return GitHubChangeRequestFilesResult{
+			Files:     []GitHubChangeRequestFile{},
+			Error:     "Failed to read the Change Request file count from GitHub.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	endpoint := "repos/" + repositoryResult.Repository.NameWithOwner + "/pulls/" + strconv.Itoa(number) + "/files"
+	result := g.runner.Run(repoPath, GhPath(), "api", "--paginate", "--slurp", endpoint)
+	if !result.Success {
+		return GitHubChangeRequestFilesResult{
+			Files:     []GitHubChangeRequestFile{},
+			Error:     getGHErrorMessage(result),
+			ErrorCode: mapGitHubChangeRequestError(result),
+		}
+	}
+	return mapGitHubChangeRequestFilesJSON([]byte(result.Stdout), reported.ChangedFiles)
 }
 
 func changeRequestRemoteHost(remoteURL string) (host string, isGitHubRemote bool) {
@@ -444,28 +536,77 @@ func mapGitHubChangeRequestRepositoryJSON(data []byte) GitHubChangeRequestReposi
 	}
 }
 
-func mapGitHubChangeRequestListJSON(data []byte, repository GitHubChangeRequestRepository) GitHubChangeRequestListResult {
-	var rawRequests []struct {
-		Number            int    `json:"number"`
-		Title             string `json:"title"`
-		Body              string `json:"body"`
-		URL               string `json:"url"`
-		State             string `json:"state"`
-		IsDraft           bool   `json:"isDraft"`
-		HeadRefName       string `json:"headRefName"`
-		HeadRefOID        string `json:"headRefOid"`
-		BaseRefName       string `json:"baseRefName"`
-		BaseRefOID        string `json:"baseRefOid"`
-		ReviewDecision    string `json:"reviewDecision"`
-		MergeStateStatus  string `json:"mergeStateStatus"`
-		IsCrossRepository bool   `json:"isCrossRepository"`
-		CreatedAt         string `json:"createdAt"`
-		UpdatedAt         string `json:"updatedAt"`
-		Author            *struct {
+// changeRequestJSON is the private decoding shape shared by `gh pr list` and
+// `gh pr view`. Keeping one definition means GitHub CLI field spelling is
+// declared exactly once.
+type changeRequestJSON struct {
+	Number            int    `json:"number"`
+	Title             string `json:"title"`
+	Body              string `json:"body"`
+	URL               string `json:"url"`
+	State             string `json:"state"`
+	IsDraft           bool   `json:"isDraft"`
+	HeadRefName       string `json:"headRefName"`
+	HeadRefOID        string `json:"headRefOid"`
+	BaseRefName       string `json:"baseRefName"`
+	BaseRefOID        string `json:"baseRefOid"`
+	ReviewDecision    string `json:"reviewDecision"`
+	MergeStateStatus  string `json:"mergeStateStatus"`
+	IsCrossRepository bool   `json:"isCrossRepository"`
+	CreatedAt         string `json:"createdAt"`
+	UpdatedAt         string `json:"updatedAt"`
+	ChangedFiles      int    `json:"changedFiles"`
+	Author            *struct {
+		Login string `json:"login"`
+		Name  string `json:"name"`
+	} `json:"author"`
+	ReviewRequests []struct {
+		RequestedReviewer *struct {
 			Login string `json:"login"`
 			Name  string `json:"name"`
-		} `json:"author"`
+		} `json:"requestedReviewer"`
+	} `json:"reviewRequests"`
+}
+
+func (raw changeRequestJSON) toChangeRequest() GitHubChangeRequest {
+	author := GitHubChangeAuthor{}
+	if raw.Author != nil {
+		author = GitHubChangeAuthor{Login: raw.Author.Login, Name: raw.Author.Name}
 	}
+
+	reviewers := make([]GitHubChangeReviewer, 0, len(raw.ReviewRequests))
+	for _, reviewRequest := range raw.ReviewRequests {
+		if reviewRequest.RequestedReviewer != nil {
+			reviewers = append(reviewers, GitHubChangeReviewer{
+				Login: reviewRequest.RequestedReviewer.Login,
+				Name:  reviewRequest.RequestedReviewer.Name,
+			})
+		}
+	}
+
+	return GitHubChangeRequest{
+		Number:            raw.Number,
+		Title:             raw.Title,
+		Body:              raw.Body,
+		URL:               raw.URL,
+		State:             raw.State,
+		IsDraft:           raw.IsDraft,
+		Author:            author,
+		HeadRefName:       raw.HeadRefName,
+		HeadRefOID:        raw.HeadRefOID,
+		BaseRefName:       raw.BaseRefName,
+		BaseRefOID:        raw.BaseRefOID,
+		ReviewDecision:    raw.ReviewDecision,
+		MergeStateStatus:  raw.MergeStateStatus,
+		IsCrossRepository: raw.IsCrossRepository,
+		CreatedAt:         raw.CreatedAt,
+		UpdatedAt:         raw.UpdatedAt,
+		Reviewers:         reviewers,
+	}
+}
+
+func mapGitHubChangeRequestListJSON(data []byte, repository GitHubChangeRequestRepository) GitHubChangeRequestListResult {
+	var rawRequests []changeRequestJSON
 	if err := json.Unmarshal(data, &rawRequests); err != nil {
 		return GitHubChangeRequestListResult{
 			ChangeRequests: []GitHubChangeRequest{},
@@ -481,27 +622,7 @@ func mapGitHubChangeRequestListJSON(data []byte, repository GitHubChangeRequestR
 			omittedExternalCount++
 			continue
 		}
-		author := GitHubChangeAuthor{}
-		if raw.Author != nil {
-			author = GitHubChangeAuthor{Login: raw.Author.Login, Name: raw.Author.Name}
-		}
-		requests = append(requests, GitHubChangeRequest{
-			Number:           raw.Number,
-			Title:            raw.Title,
-			Body:             raw.Body,
-			URL:              raw.URL,
-			State:            raw.State,
-			IsDraft:          raw.IsDraft,
-			Author:           author,
-			HeadRefName:      raw.HeadRefName,
-			HeadRefOID:       raw.HeadRefOID,
-			BaseRefName:      raw.BaseRefName,
-			BaseRefOID:       raw.BaseRefOID,
-			ReviewDecision:   raw.ReviewDecision,
-			MergeStateStatus: raw.MergeStateStatus,
-			CreatedAt:        raw.CreatedAt,
-			UpdatedAt:        raw.UpdatedAt,
-		})
+		requests = append(requests, raw.toChangeRequest())
 	}
 
 	return GitHubChangeRequestListResult{
@@ -510,6 +631,22 @@ func mapGitHubChangeRequestListJSON(data []byte, repository GitHubChangeRequestR
 		ChangeRequests:       requests,
 		OmittedExternalCount: omittedExternalCount,
 		MayHaveMore:          len(rawRequests) == changeRequestListLimit,
+	}
+}
+
+func mapGitHubChangeRequestDetailJSON(data []byte) GitHubChangeRequestDetailResult {
+	var raw changeRequestJSON
+	if err := json.Unmarshal(data, &raw); err != nil || raw.Number == 0 {
+		return GitHubChangeRequestDetailResult{
+			Error:     "Failed to parse Change Request details from GitHub.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	return GitHubChangeRequestDetailResult{
+		Success:       true,
+		ChangeRequest: raw.toChangeRequest(),
+		TotalFiles:    raw.ChangedFiles,
 	}
 }
 

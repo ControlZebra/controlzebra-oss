@@ -1,20 +1,36 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GitHubChangeRequest } from '../../../domain/repo/context/RepoContext.types';
+import type { GitHubChangeRequest, GitHubChangeRequestError, GitHubChangeRequestFile } from '../../../domain/repo/context/RepoContext.types';
 
-const loadChangeRequests = vi.fn();
+const selectChangeRequestFile = vi.fn();
+const openExternalUrl = vi.fn();
 
-const repoState = {
-  changeRequestViewerLogin: 'current-user',
-  changeRequests: [] as GitHubChangeRequest[],
-  omittedExternalChangeRequestCount: 0,
-  isLoadingChangeRequests: false,
-  changeRequestError: null,
-  loadChangeRequests,
+const repoState: {
+  selectedChangeRequest: GitHubChangeRequest | null;
+  changeRequestFiles: GitHubChangeRequestFile[];
+  changeRequestTotalFiles: number;
+  isLoadingChangeRequestDetail: boolean;
+  changeRequestDetailError: GitHubChangeRequestError | null;
+  isChangeRequestFilesTruncated: boolean;
+  selectedChangeRequestFilePath: string | null;
+  selectChangeRequestFile: typeof selectChangeRequestFile;
+} = {
+  selectedChangeRequest: null,
+  changeRequestFiles: [],
+  changeRequestTotalFiles: 0,
+  isLoadingChangeRequestDetail: false,
+  changeRequestDetailError: null,
+  isChangeRequestFilesTruncated: false,
+  selectedChangeRequestFilePath: null,
+  selectChangeRequestFile,
 };
 
 vi.mock('../../../context', () => ({
   useRepo: () => repoState,
+}));
+
+vi.mock('../../../shared/runtime/browser', () => ({
+  openExternalUrl: (url: string) => openExternalUrl(url),
 }));
 
 import ReviewsView from './ReviewsView';
@@ -22,54 +38,78 @@ import ReviewsView from './ReviewsView';
 describe('ReviewsView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    repoState.changeRequests = [
-      {
-        number: 12,
-        title: 'Adjust motor configuration',
-        url: 'https://github.com/controlzebra/plant-project/pull/12',
-        state: 'OPEN',
-        isDraft: false,
-        author: { login: 'current-user' },
-        headRefName: 'motor-config',
-        headRefOid: 'head-12',
-        baseRefName: 'main',
-        baseRefOid: 'base-12',
-        reviewDecision: '',
-        mergeStateStatus: 'CLEAN',
-        isCrossRepository: false,
-        createdAt: '2026-07-27T00:00:00Z',
-        updatedAt: '2026-07-28T00:00:00Z',
-        reviewers: [],
-      },
-      {
-        number: 11,
-        title: 'Update ladder safety check',
-        url: 'https://github.com/controlzebra/plant-project/pull/11',
-        state: 'OPEN',
-        isDraft: false,
-        author: { login: 'teammate' },
-        headRefName: 'ladder-safety',
-        headRefOid: 'head-11',
-        baseRefName: 'main',
-        baseRefOid: 'base-11',
-        reviewDecision: '',
-        mergeStateStatus: 'CLEAN',
-        isCrossRepository: false,
-        createdAt: '2026-07-26T00:00:00Z',
-        updatedAt: '2026-07-27T00:00:00Z',
-        reviewers: [],
-      },
-    ];
-    repoState.omittedExternalChangeRequestCount = 1;
+    repoState.selectedChangeRequest = null;
+    repoState.changeRequestFiles = [];
+    repoState.changeRequestTotalFiles = 0;
+    repoState.isChangeRequestFilesTruncated = false;
+    repoState.changeRequestDetailError = null;
+    repoState.selectedChangeRequestFilePath = null;
   });
 
-  it('groups requests using the authenticated GitHub login and reports omitted external requests', () => {
+  it('shows an overview helper until a Change Request is selected', () => {
     render(<ReviewsView />);
 
-    expect(screen.getByText('Team Change Requests')).toBeInTheDocument();
-    expect(screen.getByText('Your requests')).toBeInTheDocument();
-    expect(screen.getByText('Update ladder safety check')).toBeInTheDocument();
-    expect(screen.getByText('Adjust motor configuration')).toBeInTheDocument();
-    expect(screen.getByText('Some external Change Requests are available on GitHub.')).toBeInTheDocument();
+    expect(screen.getByText('Select a Change Request to see its changed files.')).toBeInTheDocument();
+  });
+
+  it('lists changed files and selects a file for the future viewer', () => {
+    repoState.selectedChangeRequest = {
+      number: 12,
+      title: 'Adjust motor configuration',
+      author: { login: 'current-user' },
+    } as GitHubChangeRequest;
+    repoState.changeRequestFiles = [{ path: 'logic/Mixer.L5X', status: 'modified', additions: 12, deletions: 4 }];
+
+    render(<ReviewsView />);
+
+    fireEvent.click(screen.getByRole('button', { name: /logic\/Mixer\.L5X/i }));
+
+    expect(selectChangeRequestFile).toHaveBeenCalledWith('logic/Mixer.L5X');
+  });
+
+  it('deselects the active file when it is clicked again', () => {
+    repoState.selectedChangeRequest = {
+      number: 12,
+      title: 'Adjust motor configuration',
+      author: { login: 'current-user' },
+    } as GitHubChangeRequest;
+    repoState.changeRequestFiles = [{ path: 'logic/Mixer.L5X', status: 'modified', additions: 12, deletions: 4 }];
+    repoState.selectedChangeRequestFilePath = 'logic/Mixer.L5X';
+
+    render(<ReviewsView />);
+
+    fireEvent.click(screen.getByRole('button', { name: /logic\/Mixer\.L5X/i }));
+
+    expect(selectChangeRequestFile).toHaveBeenCalledWith(null);
+  });
+
+  it('warns about a partial file list and links to GitHub', () => {
+    repoState.selectedChangeRequest = {
+      number: 12,
+      title: 'Adjust motor configuration',
+      url: 'https://github.com/controlzebra/plant-project/pull/12',
+      author: { login: 'current-user' },
+    } as GitHubChangeRequest;
+    repoState.changeRequestFiles = [{ path: 'logic/Mixer.L5X', status: 'modified', additions: 12, deletions: 4 }];
+    repoState.changeRequestTotalFiles = 400;
+    repoState.isChangeRequestFilesTruncated = true;
+
+    render(<ReviewsView />);
+
+    expect(screen.getByTestId('change-request-truncation-banner')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 400')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open on GitHub' }));
+
+    expect(openExternalUrl).toHaveBeenCalledWith('https://github.com/controlzebra/plant-project/pull/12');
+  });
+
+  it('explains a failed file load with recovery copy instead of raw backend text', () => {
+    repoState.selectedChangeRequest = { number: 12, title: 'Adjust motor configuration' } as GitHubChangeRequest;
+    repoState.changeRequestDetailError = { code: 'network_unavailable', message: 'dial tcp: lookup api.github.com' };
+
+    render(<ReviewsView />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Check your connection and try again.');
   });
 });

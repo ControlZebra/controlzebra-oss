@@ -1,77 +1,43 @@
-import { memo, useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Github, Loader2, RefreshCw } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ArrowLeft, ExternalLink, Github, Loader2, RefreshCw, Search } from 'lucide-react';
 
-import { Button } from '../../../shared/ui';
+import { Badge, Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../shared/ui';
 import { ICON_SIZES } from '../../../shared/constants';
 import { useRepo } from '../../../context';
+import { openExternalUrl } from '../../../shared/runtime/browser';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import { useGitHubDeviceFlow } from '../../auth/hooks/useGitHubDeviceFlow';
-import type { GitHubChangeRequestErrorCode } from '../../../domain/repo/context/RepoContext.types';
-
-function errorCopy(code: GitHubChangeRequestErrorCode): { title: string; detail: string } {
-  switch (code) {
-    case 'gh_unavailable':
-      return {
-        title: 'GitHub tools are required',
-        detail: 'Install the GitHub CLI to browse Change Requests for this project.',
-      };
-    case 'auth_required':
-      return {
-        title: 'Connect GitHub to continue',
-        detail: 'Connect GitHub from Settings, then return here to refresh Change Requests.',
-      };
-    case 'host_unsupported':
-      return {
-        title: 'This GitHub host is not supported yet',
-        detail: 'Change Requests currently support projects connected to github.com only.',
-      };
-    case 'origin_missing':
-      return {
-        title: 'This project has no primary GitHub connection',
-        detail: 'Add an origin connection for this project before using Change Requests.',
-      };
-    case 'origin_not_github':
-      return {
-        title: 'This project is not connected to GitHub',
-        detail: 'Change Requests are currently available only for GitHub-connected projects.',
-      };
-    case 'repository_unresolved':
-      return {
-        title: 'We could not identify this GitHub project',
-        detail: 'Check the origin connection and your GitHub access, then try again.',
-      };
-    case 'permission_denied':
-      return {
-        title: 'GitHub did not grant access to this project',
-        detail: 'Ask a project administrator to confirm your GitHub permissions.',
-      };
-    case 'network_unavailable':
-      return {
-        title: 'GitHub could not be reached',
-        detail: 'Check your connection and try again.',
-      };
-    case 'rate_limited':
-      return {
-        title: 'GitHub is temporarily limiting requests',
-        detail: 'Wait a moment, then refresh Change Requests.',
-      };
-    default:
-      return {
-        title: 'Change Requests could not be loaded',
-        detail: 'Try refreshing. If this continues, check the GitHub connection in Settings.',
-      };
-  }
-}
+import type { GitHubChangeRequest } from '../../../domain/repo/context/RepoContext.types';
+import {
+  changeRequestErrorCopy,
+  changeRequestFileSummaryText,
+  mergeReadinessLabel,
+  reviewStatusDetail,
+  reviewStatusFromDecision,
+  reviewStatusLabel,
+} from '../lib/change-request-presentation';
 
 function ReviewsPage(): JSX.Element {
   const [deviceFlowError, setDeviceFlowError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [authorFilter, setAuthorFilter] = useState('all');
+  const [reviewFilter, setReviewFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('updated');
   const {
     changeRequestRepository,
     changeRequests,
+    changeRequestViewerLogin,
     changeRequestsMayHaveMore,
     isLoadingChangeRequests,
     changeRequestError,
     loadChangeRequests,
+    selectedChangeRequest,
+    selectedChangeRequestFilePath,
+    changeRequestFiles,
+    isLoadingChangeRequestDetail,
+    changeRequestDetailError,
+    selectChangeRequest,
+    returnToChangeRequestOverview,
     installRequiredPackages,
     isInstallingPackages,
   } = useRepo();
@@ -90,6 +56,30 @@ function ReviewsPage(): JSX.Element {
     void loadChangeRequests();
   }, [loadChangeRequests]);
 
+  const filteredRequests = useMemo(() => {
+    const normalizedQuery = searchTerm.trim().toLocaleLowerCase();
+    const normalizedViewerLogin = changeRequestViewerLogin.toLocaleLowerCase();
+    const matchesSearch = (request: GitHubChangeRequest): boolean => {
+      if (!normalizedQuery) return true;
+      return [request.title, String(request.number), request.author.login, request.headRefName, request.baseRefName]
+        .some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
+    };
+
+    return changeRequests
+      .filter((request) => {
+        const reviewStatus = reviewStatusFromDecision(request.reviewDecision);
+        const isMine = request.author.login.toLocaleLowerCase() === normalizedViewerLogin;
+        return matchesSearch(request)
+          && (authorFilter === 'all' || (authorFilter === 'mine' ? isMine : !isMine))
+          && (reviewFilter === 'all' || reviewStatus === reviewFilter);
+      })
+      .sort((left, right) => {
+        if (sortOrder === 'created') return Date.parse(right.createdAt) - Date.parse(left.createdAt);
+        if (sortOrder === 'number') return right.number - left.number;
+        return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+      });
+  }, [authorFilter, changeRequestViewerLogin, changeRequests, reviewFilter, searchTerm, sortOrder]);
+
   if (isLoadingChangeRequests && !changeRequestRepository && !changeRequestError) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-sm text-theme-muted">
@@ -100,7 +90,7 @@ function ReviewsPage(): JSX.Element {
   }
 
   if (changeRequestError) {
-    const copy = errorCopy(changeRequestError.code);
+    const copy = changeRequestErrorCopy(changeRequestError.code);
     return (
       <div className="flex h-full items-center justify-center p-6">
         <section className="w-full max-w-xl border border-theme-default bg-theme-surface p-6">
@@ -148,42 +138,215 @@ function ReviewsPage(): JSX.Element {
     );
   }
 
-  return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-theme-default pb-5">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-theme-muted">Reviews</p>
-            <h1 className="mt-1 text-xl font-medium text-theme-primary">Change Requests</h1>
-            {changeRequestRepository && (
-              <p className="mt-2 text-sm text-theme-muted">{changeRequestRepository.nameWithOwner}</p>
-            )}
+  if (!selectedChangeRequest && changeRequestDetailError) {
+    const copy = changeRequestErrorCopy(changeRequestDetailError.code);
+    return (
+      <div className="flex h-full items-center justify-center p-6" data-testid="change-request-detail-error">
+        <section className="w-full max-w-xl border border-theme-default bg-theme-surface p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={ICON_SIZES.md} className="mt-0.5 shrink-0 text-amber-400" />
+            <div>
+              <h1 role="alert" className="text-lg font-medium text-theme-primary">{copy.title}</h1>
+              <p className="mt-2 text-sm leading-6 text-theme-muted">{copy.detail}</p>
+            </div>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => void loadChangeRequests()} disabled={isLoadingChangeRequests}>
-            <RefreshCw size={ICON_SIZES.sm} className={isLoadingChangeRequests ? 'animate-spin' : ''} />
-            Refresh
+          <Button variant="ghost" size="sm" className="mt-5" onClick={returnToChangeRequestOverview}>
+            <ArrowLeft size={ICON_SIZES.sm} />
+            Return to overview
           </Button>
-        </div>
-
-        <section className="mt-6 border border-theme-default bg-theme-surface p-5">
-          <h2 className="text-base font-medium text-theme-primary">Open Change Requests</h2>
-          {changeRequests.length === 0 ? (
-            <p className="mt-2 text-sm leading-6 text-theme-muted">
-              There are no open Change Requests in this project right now.
-            </p>
-          ) : (
-            <p className="mt-2 text-sm leading-6 text-theme-muted">
-              Select a Change Request from the sidebar to inspect its files and review status in the next phase.
-            </p>
-          )}
-          {changeRequestsMayHaveMore && (
-            <p className="mt-3 text-sm text-theme-muted">
-              Showing the first 100 open Change Requests. Additional requests are available on GitHub.
-            </p>
-          )}
         </section>
       </div>
+    );
+  }
+
+  if (!selectedChangeRequest && isLoadingChangeRequestDetail) {
+    return (
+      <div className="flex h-full items-center justify-center gap-2 text-sm text-theme-muted" data-testid="change-request-detail-loading">
+        <Loader2 size={ICON_SIZES.sm} className="animate-spin" />
+        Opening Change Request
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full min-h-0">
+      {!selectedChangeRequest ? (
+        <div className="flex h-full min-h-0 flex-col p-5">
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-theme-default bg-theme-surface p-6">
+            <div className="relative min-w-56 flex-1">
+              <Search size={ICON_SIZES.sm} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search Change Requests"
+                aria-label="Search Change Requests"
+                className="pl-9"
+              />
+            </div>
+            <Select
+              value={authorFilter}
+              onValueChange={setAuthorFilter}
+              options={[
+                { value: 'all', label: 'All authors' },
+                { value: 'mine', label: 'Your requests' },
+                { value: 'team', label: 'Team requests' },
+              ]}
+              className="w-40"
+            />
+            <Select
+              value={reviewFilter}
+              onValueChange={setReviewFilter}
+              options={[
+                { value: 'all', label: 'All review states' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'changes-requested', label: 'Changes requested' },
+                { value: 'pending', label: 'Review pending' },
+                { value: 'unavailable', label: 'Review unavailable' },
+              ]}
+              className="w-44"
+            />
+            <Select
+              value={sortOrder}
+              onValueChange={setSortOrder}
+              options={[
+                { value: 'updated', label: 'Recently updated' },
+                { value: 'created', label: 'Recently created' },
+                { value: 'number', label: 'Request number' },
+              ]}
+              className="w-40"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Refresh Change Requests"
+              title="Refresh Change Requests"
+              onClick={() => void loadChangeRequests()}
+              disabled={isLoadingChangeRequests}
+            >
+              <RefreshCw size={ICON_SIZES.sm} className={isLoadingChangeRequests ? 'animate-spin' : ''} />
+            </Button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-theme-default bg-theme-surface p-6">
+            <Table className="bg-theme-surface">
+              <TableHeader className="sticky top-0 bg-theme-surface">
+                <TableRow className="hover:bg-theme-surface">
+                  <TableHead>Change Request</TableHead>
+                  <TableHead>Author</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Review</TableHead>
+                  <TableHead>Updated</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoadingChangeRequests && changeRequests.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-theme-muted"><span className="inline-flex items-center gap-2"><Loader2 size={ICON_SIZES.sm} className="animate-spin" /> Loading Change Requests</span></TableCell></TableRow>
+                ) : filteredRequests.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-theme-muted">No Change Requests match the current search and filters.</TableCell></TableRow>
+                ) : filteredRequests.map((request) => <ChangeRequestRow key={request.number} request={request} onSelect={selectChangeRequest} />)}
+              </TableBody>
+            </Table>
+          </div>
+          {changeRequestsMayHaveMore && <p className="pt-3 text-xs text-theme-muted">Showing the first 100 open Change Requests. Additional requests are available on GitHub.</p>}
+        </div>
+      ) : (
+        <div className="flex h-full min-h-0 flex-col" data-testid="change-request-detail">
+          <ChangeRequestHeader
+            request={selectedChangeRequest}
+            summaryText={changeRequestFileSummaryText(changeRequestFiles)}
+            isLoadingFiles={isLoadingChangeRequestDetail}
+            onReturnToOverview={returnToChangeRequestOverview}
+          />
+          {selectedChangeRequestFilePath ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-sm text-theme-muted" data-testid="change-request-viewer-placeholder">
+              File viewer support is coming in the next phase.
+            </div>
+          ) : <div className="min-h-0 flex-1" data-testid="change-request-viewer-empty" />}
+        </div>
+      )}
     </div>
+  );
+}
+
+function ChangeRequestHeader({
+  request,
+  summaryText,
+  isLoadingFiles,
+  onReturnToOverview,
+}: {
+  request: GitHubChangeRequest;
+  summaryText: string;
+  isLoadingFiles: boolean;
+  onReturnToOverview: () => void;
+}): JSX.Element {
+  const reviewStatus = reviewStatusFromDecision(request.reviewDecision);
+  const reviewers = (request.reviewers ?? [])
+    .map((reviewer) => reviewer.name || reviewer.login)
+    .filter(Boolean)
+    .join(', ');
+
+  return (
+    <header className="shrink-0 border-b border-theme-default px-5 py-4" data-testid="change-request-header">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" onClick={onReturnToOverview}>
+          <ArrowLeft size={ICON_SIZES.sm} />
+          Return to overview
+        </Button>
+        {request.url && (
+          <Button variant="ghost" size="sm" onClick={() => void openExternalUrl(request.url)}>
+            <ExternalLink size={ICON_SIZES.sm} />
+            Open on GitHub
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <h1 className="text-xl font-medium text-theme-primary">{request.title || 'Untitled Change Request'}</h1>
+        <span className="text-lg text-theme-primary">#{request.number}</span>
+      </div>
+      <p className="mt-2 text-sm text-theme-secondary" data-testid="change-request-file-summary">
+        {isLoadingFiles ? 'Checking which project files changed' : summaryText}
+      </p>
+      {request.body && <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-5 text-theme-muted">{request.body}</p>}
+      <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm text-theme-muted sm:grid-cols-2 xl:grid-cols-3">
+        <div>
+          <dt>Author</dt>
+          <dd>{request.author?.login || 'Unknown author'}</dd>
+        </div>
+        <div>
+          <dt>Branch direction</dt>
+          <dd>{request.headRefName || 'Unknown branch'} to {request.baseRefName || 'Unknown branch'}</dd>
+        </div>
+        <div>
+          <dt>Reviewers</dt>
+          <dd>{reviewers || 'No reviewers assigned'}</dd>
+        </div>
+        <div>
+          <dt>Review status</dt>
+          <dd>{reviewStatusDetail(reviewStatus)}</dd>
+        </div>
+        <div>
+          <dt>Merge readiness</dt>
+          <dd>{mergeReadinessLabel(request.mergeStateStatus)}</dd>
+        </div>
+      </dl>
+    </header>
+  );
+}
+
+function ChangeRequestRow({ request, onSelect }: { request: GitHubChangeRequest; onSelect: (number: number) => Promise<void> }): JSX.Element {
+  const reviewStatus = reviewStatusFromDecision(request.reviewDecision);
+  const updatedAt = Number.isNaN(Date.parse(request.updatedAt))
+    ? 'Recently'
+    : new Date(request.updatedAt).toLocaleDateString();
+
+  return (
+    <TableRow>
+      <TableCell className="min-w-64"><button type="button" className="text-left text-theme-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-theme-primary" onClick={() => void onSelect(request.number)}>{request.title || 'Untitled Change Request'} <span className="text-theme-muted">#{request.number}</span></button></TableCell>
+      <TableCell>{request.author.login || 'Unknown author'}</TableCell>
+      <TableCell className="font-mono text-xs text-theme-secondary">{request.headRefName} to {request.baseRefName}</TableCell>
+      <TableCell><Badge variant={reviewStatus === 'approved' ? 'success' : reviewStatus === 'changes-requested' ? 'warning' : 'outline'}>{reviewStatusLabel(reviewStatus)}</Badge></TableCell>
+      <TableCell className="whitespace-nowrap text-theme-muted">{updatedAt}</TableCell>
+    </TableRow>
   );
 }
 
