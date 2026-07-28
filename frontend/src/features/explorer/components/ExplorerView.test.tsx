@@ -100,6 +100,10 @@ function createRepoValue(overrides: Record<string, unknown> = {}) {
     startGitHubLogin: vi.fn(),
     publishToGitHub: vi.fn(),
     loadUserOrganizations: vi.fn(),
+    changeRequestCreateEligibility: { status: 'unknown' },
+    checkChangeRequestCreateEligibility: vi.fn(),
+    findOpenChangeRequestForBranch: vi.fn(),
+    selectChangeRequest: vi.fn(),
     ...overrides,
   };
 }
@@ -111,6 +115,7 @@ function createLayoutValue(overrides: Record<string, unknown> = {}) {
     activeExplorerTab: 'file-browser',
     setActiveExplorerTab: vi.fn(),
     openExplorerMergeModal: vi.fn(),
+    setActiveView: vi.fn(),
     ...overrides,
   };
 }

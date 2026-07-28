@@ -44,6 +44,7 @@ export {
   AuthLogout,
   RepoClone,
   RepoCreateFromLocal,
+  CreateChangeRequest,
 } from '../../../../bindings/controlzebra/services/githubservice';
 
 export {

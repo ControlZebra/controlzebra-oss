@@ -43,8 +43,11 @@ import {
   AuthStatus,
   GetAuthenticatedUser,
   GetChangeRequest,
+  GetChangeRequestRepository,
   ListChangeRequests,
   ListChangeRequestFiles,
+  ListChangeRequestTargets,
+  FindOpenChangeRequestForBranch,
   RepoList,
   ListUserOrganizations,
   IsLFSInstalled,
@@ -94,6 +97,7 @@ import {
   AuthLogout,
   RepoClone,
   RepoCreateFromLocal,
+  CreateChangeRequest,
   InitializeLFS,
   TrackPattern,
   EnsurePortableToolchainIfNeeded,
@@ -184,6 +188,11 @@ import type {
   GitHubChangeRequestErrorCode,
   GitHubChangeRequestRepository,
   ChangeRequestSnapshot,
+  ChangeRequestCreateEligibility,
+  GitHubChangeRequestTargetsResult,
+  GitHubFindChangeRequestResult,
+  GitHubCreateChangeRequestOptions,
+  GitHubCreateChangeRequestResult,
   CreateProjectOptions,
   CreateProjectResult,
 } from './RepoContext.types';
@@ -352,6 +361,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [changeRequestSnapshot, setChangeRequestSnapshot] = useState<ChangeRequestSnapshot | null>(null);
   const [isPreparingChangeRequestSnapshot, setIsPreparingChangeRequestSnapshot] = useState(false);
   const [changeRequestSnapshotError, setChangeRequestSnapshotError] = useState<GitHubChangeRequestError | null>(null);
+  const [changeRequestCreateEligibility, setChangeRequestCreateEligibility] = useState<ChangeRequestCreateEligibility>({ status: 'unknown' });
+  const [isCreatingChangeRequest, setIsCreatingChangeRequest] = useState(false);
   
   // ===== Progress Modal State =====
   const [progressModal, setProgressModal] = useState<ProgressModalState>({
@@ -395,6 +406,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setChangeRequestSnapshot(null);
     setIsPreparingChangeRequestSnapshot(false);
     setChangeRequestSnapshotError(null);
+    setChangeRequestCreateEligibility({ status: 'unknown' });
+    setIsCreatingChangeRequest(false);
   }, []);
 
   const isWindowsPlatform = useCallback((): boolean => {
@@ -2923,6 +2936,118 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setChangeRequestSnapshotError(null);
   }, []);
 
+  // Determine whether the Next Step Advisor may offer Create Change Request for
+  // the current synced feature branch. Ineligible outcomes carry a code and
+  // message so the button can be shown disabled with guidance rather than hidden.
+  const checkChangeRequestCreateEligibility = useCallback(async (
+    _sourceBranch: string,
+  ): Promise<ChangeRequestCreateEligibility> => {
+    if (!repoPath) {
+      const unknown: ChangeRequestCreateEligibility = { status: 'unknown' };
+      setChangeRequestCreateEligibility(unknown);
+      return unknown;
+    }
+
+    try {
+      const installed = await IsGHInstalled();
+      setGhInstalled(installed);
+      if (!installed) {
+        const result: ChangeRequestCreateEligibility = {
+          status: 'ineligible',
+          code: 'gh_unavailable',
+          message: 'Connect GitHub tools to create Change Requests.',
+        };
+        setChangeRequestCreateEligibility(result);
+        return result;
+      }
+
+      const viewer = await GetAuthenticatedUser();
+      if (!viewer.success || !viewer.user?.login) {
+        const result: ChangeRequestCreateEligibility = {
+          status: 'ineligible',
+          code: (viewer.errorCode as GitHubChangeRequestErrorCode) || 'auth_required',
+          message: 'Connect to GitHub to create Change Requests.',
+        };
+        setChangeRequestCreateEligibility(result);
+        return result;
+      }
+
+      const repository = await GetChangeRequestRepository(repoPath);
+      if (!repository.success) {
+        const result: ChangeRequestCreateEligibility = {
+          status: 'ineligible',
+          code: repository.errorCode as GitHubChangeRequestErrorCode,
+          message: repository.error || 'Change Requests need a GitHub connection.',
+        };
+        setChangeRequestCreateEligibility(result);
+        return result;
+      }
+
+      const result: ChangeRequestCreateEligibility = {
+        status: 'eligible',
+        repository: (repository.repository as GitHubChangeRequestRepository) ?? null,
+        defaultBranch: repository.repository?.defaultBranch,
+      };
+      setChangeRequestCreateEligibility(result);
+      return result;
+    } catch (error) {
+      const result: ChangeRequestCreateEligibility = {
+        status: 'ineligible',
+        code: 'internal_error',
+        message: error instanceof Error ? error.message : 'Unable to check Change Request availability.',
+      };
+      setChangeRequestCreateEligibility(result);
+      return result;
+    }
+  }, [repoPath]);
+
+  // Load the origin branches a request may target and the default to preselect.
+  const loadChangeRequestTargets = useCallback(async (): Promise<GitHubChangeRequestTargetsResult> => {
+    return ListChangeRequestTargets(repoPath ?? '') as Promise<GitHubChangeRequestTargetsResult>;
+  }, [repoPath]);
+
+  // Deterministic duplicate lookup used before opening the create dialog.
+  const findOpenChangeRequestForBranch = useCallback(async (
+    sourceBranch: string,
+  ): Promise<GitHubFindChangeRequestResult> => {
+    return FindOpenChangeRequestForBranch(repoPath ?? '', sourceBranch) as Promise<GitHubFindChangeRequestResult>;
+  }, [repoPath]);
+
+  // Create a request, then refresh the list and select it so the Reviews view
+  // can open the new (or existing duplicate) request. Navigation is left to the
+  // caller so RepoContext stays free of layout concerns.
+  const createChangeRequest = useCallback(async (
+    options: GitHubCreateChangeRequestOptions,
+  ): Promise<GitHubCreateChangeRequestResult> => {
+    if (!repoPath) {
+      return {
+        success: false,
+        isDuplicate: false,
+        error: 'Open a project before creating a Change Request.',
+        errorCode: 'internal_error',
+      } as unknown as GitHubCreateChangeRequestResult;
+    }
+
+    setIsCreatingChangeRequest(true);
+    try {
+      const result = await CreateChangeRequest(repoPath, options) as GitHubCreateChangeRequestResult;
+      if (result.success && result.changeRequest?.number) {
+        await loadChangeRequests();
+        await selectChangeRequest(result.changeRequest.number);
+      }
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        isDuplicate: false,
+        error: error instanceof Error ? error.message : 'Unable to create the Change Request.',
+        errorCode: 'internal_error',
+      } as unknown as GitHubCreateChangeRequestResult;
+    } finally {
+      setIsCreatingChangeRequest(false);
+    }
+  }, [repoPath, loadChangeRequests, selectChangeRequest]);
+
   // Snapshot refs are disposable caches, not user data. Clear them when a
   // repository is opened as well as when it is left, so a crash or force quit
   // cannot leave stale refs behind.
@@ -3663,6 +3788,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     changeRequestSnapshot,
     isPreparingChangeRequestSnapshot,
     changeRequestSnapshotError,
+    changeRequestCreateEligibility,
+    isCreatingChangeRequest,
     checkGitHubAuth,
     loginGitHub,
     startGitHubLogin,
@@ -3678,6 +3805,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     selectChangeRequestFile,
     returnToChangeRequestOverview,
     clearChangeRequestState,
+    checkChangeRequestCreateEligibility,
+    loadChangeRequestTargets,
+    findOpenChangeRequestForBranch,
+    createChangeRequest,
 
     // Project creation (Welcome Screen)
     createProject,
@@ -3717,7 +3848,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     changeRequestRepository, changeRequestViewerLogin, changeRequests, omittedExternalChangeRequestCount, changeRequestsMayHaveMore, isLoadingChangeRequests, changeRequestError,
     selectedChangeRequest, changeRequestFiles, changeRequestTotalFiles, isChangeRequestFilesTruncated, selectedChangeRequestFilePath, isLoadingChangeRequestDetail, changeRequestDetailError,
     changeRequestSnapshot, isPreparingChangeRequestSnapshot, changeRequestSnapshotError,
+    changeRequestCreateEligibility, isCreatingChangeRequest,
     checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations, loadChangeRequests, selectChangeRequest, selectChangeRequestFile, returnToChangeRequestOverview, clearChangeRequestState,
+    checkChangeRequestCreateEligibility, loadChangeRequestTargets, findOpenChangeRequestForBranch, createChangeRequest,
     createProject,
   ]);
 

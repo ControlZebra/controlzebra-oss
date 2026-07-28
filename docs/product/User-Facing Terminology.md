@@ -18,7 +18,7 @@ ControlZebra maps Git operations to plain-English labels. Every engineer must us
 | **Switch Task** | `git checkout <branch>` | `GitService.SwitchBranch()` | Move to different line of work |
 | **Saved Work** | `git stash` | `GitService.StashSave()` | Temporarily set aside changes |
 | **Connect to GitHub** | `gh auth login` (device flow) | `GitHubService.AuthLoginStart()` | GitHub authentication |
-
+| **Create Change Request** | `gh pr create` | `GitHubService.CreateChangeRequest()` | Submit a task for team review. See [Change Requests](Change%20Requests.md) |
 ## Concept Mapping
 
 | Git Concept | ControlZebra Term | Where Used |
@@ -34,6 +34,7 @@ ControlZebra maps Git operations to plain-English labels. Every engineer must us
 | Remote | Cloud / GitHub | Settings, publish modal |
 | Clone | Download Project | Welcome screen |
 | HEAD | Latest save | Implicit |
+| Pull request | Change Request | Reviews view, Explorer |
 
 ## Conflict Resolution Labels
 

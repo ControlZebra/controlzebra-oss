@@ -21,6 +21,7 @@ import {
   Cloud,
   Upload,
   Github,
+  GitPullRequest,
   type LucideIcon,
 } from 'lucide-react';
 import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
@@ -66,6 +67,15 @@ interface ExplorerStatusPanelProps {
   onConnectGitHub?: () => void;
   onPublishToGitHub?: (name: string, isPrivate: boolean, owner: string) => Promise<void>;
   onOpenCombineChanges?: () => void;
+  onCreateChangeRequest?: () => void;
+  /** True when the current synced feature branch may open a Change Request. */
+  canCreateChangeRequest?: boolean;
+  /** Reason Create Change Request is unavailable, shown on the disabled button. */
+  changeRequestDisabledReason?: string;
+  /** True while eligibility is still being determined. */
+  isCheckingChangeRequestEligibility?: boolean;
+  /** True while resolving whether a request already exists for the branch. */
+  isResolvingChangeRequest?: boolean;
   onLoadOrganizations?: () => Promise<GitHubOrganizationsResult>;
   isLoading?: boolean;
   isSyncing?: boolean;
@@ -148,6 +158,11 @@ function ExplorerStatusPanel({
   onConnectGitHub,
   onPublishToGitHub,
   onOpenCombineChanges,
+  onCreateChangeRequest,
+  canCreateChangeRequest = false,
+  changeRequestDisabledReason,
+  isCheckingChangeRequestEligibility = false,
+  isResolvingChangeRequest = false,
   onLoadOrganizations,
   isLoading = false,
   isSyncing = false,
@@ -321,6 +336,24 @@ function ExplorerStatusPanel({
             <Merge style={ICON_STYLES.sm as CSSProperties} />
             I am ready to merge
           </Button>
+          {onCreateChangeRequest && (
+            <span
+              className="mt-2 block"
+              title={!canCreateChangeRequest ? changeRequestDisabledReason : undefined}
+            >
+              <Button
+                onClick={onCreateChangeRequest}
+                disabled={operationInProgress || !canCreateChangeRequest || isCheckingChangeRequestEligibility}
+                loading={isResolvingChangeRequest}
+                size="sm"
+                variant="secondary"
+                className="w-full"
+              >
+                <GitPullRequest style={ICON_STYLES.sm as CSSProperties} />
+                Create Change Request
+              </Button>
+            </span>
+          )}
         </PanelLayout>
       );
 

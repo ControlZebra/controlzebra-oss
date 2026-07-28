@@ -23,8 +23,11 @@ export {
   AuthStatus,
   GetAuthenticatedUser,
   GetChangeRequest,
+  GetChangeRequestRepository,
   ListChangeRequests,
   ListChangeRequestFiles,
+  ListChangeRequestTargets,
+  FindOpenChangeRequestForBranch,
   RepoList,
   ListUserOrganizations,
 } from '../../../../bindings/controlzebra/services/githubservice';

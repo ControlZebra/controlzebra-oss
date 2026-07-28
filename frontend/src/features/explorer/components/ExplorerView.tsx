@@ -9,14 +9,16 @@
  * - Feature branch synced: Merge request option
  * - Main branch synced: All caught up
  */
-import { memo, useState, useCallback, useMemo } from 'react';
+import { memo, useState, useCallback, useMemo, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useLayout } from '../../../context';
-import { MAIN_BRANCHES } from '../../../shared/constants';
+import { MAIN_BRANCHES, VIEWS } from '../../../shared/constants';
 import { useRepo, type FileStatus } from '../../../context';
 import { getFolderNameFromPath } from '../../../shared/utils/path';
 import SidebarCommitPanel from './SidebarCommitPanel';
 import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
+import CreateChangeRequestDialog from '../../reviews/components/CreateChangeRequestDialog';
 import HistoryTimeline from '../../history/components/HistoryTimeline';
 
 // ============================================================================
@@ -48,6 +50,7 @@ function ExplorerView(): JSX.Element {
     activeExplorerTab,
     setActiveExplorerTab,
     openExplorerMergeModal,
+    setActiveView,
   } = useLayout();
   const { 
     repoPath, 
@@ -78,10 +81,17 @@ function ExplorerView(): JSX.Element {
     startGitHubLogin,
     publishToGitHub,
     loadUserOrganizations,
+    // Change Request creation
+    changeRequestCreateEligibility,
+    checkChangeRequestCreateEligibility,
+    findOpenChangeRequestForBranch,
+    selectChangeRequest,
   } = useRepo();
   
   const [isRewinding, setIsRewinding] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isResolvingChangeRequest, setIsResolvingChangeRequest] = useState(false);
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>({
     isOpen: false,
     userCode: '',
@@ -176,6 +186,38 @@ function ExplorerView(): JSX.Element {
     openExplorerMergeModal();
   }, [openExplorerMergeModal]);
 
+  // The synced feature branch is the only state that can open a Change Request.
+  const featureBranchName = panelState.type === 'featureBranch' ? panelState.branchName : null;
+
+  // Check whether GitHub can accept a Change Request for the current branch so
+  // the button can be shown eligible, or disabled with a clear reason.
+  useEffect(() => {
+    if (!featureBranchName) return;
+    void checkChangeRequestCreateEligibility(featureBranchName);
+  }, [featureBranchName, checkChangeRequestCreateEligibility]);
+
+  // If an open request already exists for this branch, route to it instead of
+  // opening the create dialog. Otherwise, open the dialog.
+  const handleCreateChangeRequest = useCallback(async (): Promise<void> => {
+    if (!featureBranchName) return;
+
+    setIsResolvingChangeRequest(true);
+    try {
+      const existing = await findOpenChangeRequestForBranch(featureBranchName);
+      if (existing.success && existing.found && existing.changeRequest?.number) {
+        toast.info('A Change Request already exists for this branch — opening it.');
+        setActiveView(VIEWS.REVIEWS);
+        await selectChangeRequest(existing.changeRequest.number);
+        return;
+      }
+      setIsCreateDialogOpen(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to open Change Request.');
+    } finally {
+      setIsResolvingChangeRequest(false);
+    }
+  }, [featureBranchName, findOpenChangeRequestForBranch, selectChangeRequest, setActiveView]);
+
   const selectedTimelineCommitHash = useMemo(() => {
     const activeTab = explorerTabs.find((tab) => tab.id === activeExplorerTab);
     return activeTab?.type === 'commit' ? activeTab.commitContext?.commitHash ?? null : null;
@@ -210,6 +252,14 @@ function ExplorerView(): JSX.Element {
         onComplete={handleDeviceFlowComplete}
         onOpenChange={handleDeviceFlowOpenChange}
       />
+      {featureBranchName && (
+        <CreateChangeRequestDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          sourceBranch={featureBranchName}
+          defaultTargetBranch={changeRequestCreateEligibility?.defaultBranch}
+        />
+      )}
     </>
   );
 
@@ -259,6 +309,11 @@ function ExplorerView(): JSX.Element {
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
         onOpenCombineChanges={handleOpenCombineChanges}
+        onCreateChangeRequest={panelState.type === 'featureBranch' ? () => void handleCreateChangeRequest() : undefined}
+        canCreateChangeRequest={changeRequestCreateEligibility?.status === 'eligible'}
+        changeRequestDisabledReason={changeRequestCreateEligibility?.status === 'ineligible' ? changeRequestCreateEligibility.message : undefined}
+        isCheckingChangeRequestEligibility={changeRequestCreateEligibility?.status === 'unknown'}
+        isResolvingChangeRequest={isResolvingChangeRequest}
         onLoadOrganizations={loadUserOrganizations}
         isLoading={isLoading}
         isSyncing={isSyncing}

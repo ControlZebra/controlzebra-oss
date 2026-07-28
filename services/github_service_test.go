@@ -2,11 +2,28 @@ package services
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 )
+
+// installFakeGh replaces the resolved gh binary with a shell script for the
+// duration of a test so Change Request gh calls run deterministically offline.
+func installFakeGh(t *testing.T, script string) {
+	t.Helper()
+	fakeGh := filepath.Join(t.TempDir(), "gh")
+	if err := os.WriteFile(fakeGh, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+	resolveMu.Lock()
+	resolvedGh = fakeGh
+	resolveOnce = sync.Once{}
+	resolveOnce.Do(func() {})
+	resolveMu.Unlock()
+	t.Cleanup(RefreshCLIPaths)
+}
 
 func readChangeRequestFixture(t *testing.T, name string) []byte {
 	t.Helper()
@@ -338,4 +355,150 @@ func TestGitHubService_AuthLogout(t *testing.T) {
 	if !result.Success {
 		t.Errorf("AuthLogout failed unexpectedly: %s", result.Error)
 	}
+}
+
+func TestChangeRequestURLHelpers(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		url    string
+		number int
+	}{
+		{"clean url", "https://github.com/o/r/pull/42\n", "https://github.com/o/r/pull/42", 42},
+		{"url among noise", "Creating pull request for feature into main\nhttps://github.com/o/r/pull/7\n", "https://github.com/o/r/pull/7", 7},
+		{"trailing slash", "https://github.com/o/r/pull/13/\n", "https://github.com/o/r/pull/13/", 13},
+		{"query suffix", "https://github.com/o/r/pull/99?tab=files", "https://github.com/o/r/pull/99?tab=files", 99},
+		{"no url", "gh: could not create pull request", "gh: could not create pull request", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotURL := extractChangeRequestURL(tc.output)
+			if gotURL != tc.url {
+				t.Fatalf("extractChangeRequestURL = %q, want %q", gotURL, tc.url)
+			}
+			if gotNumber := changeRequestNumberFromURL(gotURL); gotNumber != tc.number {
+				t.Fatalf("changeRequestNumberFromURL(%q) = %d, want %d", gotURL, gotNumber, tc.number)
+			}
+		})
+	}
+}
+
+func TestCreateChangeRequestValidatesInput(t *testing.T) {
+	svc := NewGitHubService()
+	cases := []struct {
+		name string
+		opts GitHubCreateChangeRequestOptions
+	}{
+		{"missing title", GitHubCreateChangeRequestOptions{SourceBranch: "work", TargetBranch: "main"}},
+		{"missing source", GitHubCreateChangeRequestOptions{Title: "Update", TargetBranch: "main"}},
+		{"missing target", GitHubCreateChangeRequestOptions{Title: "Update", SourceBranch: "work"}},
+		{"same branch", GitHubCreateChangeRequestOptions{Title: "Update", SourceBranch: "work", TargetBranch: "WORK"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Validation returns before any git or gh call, so a bare temp dir is enough.
+			result := svc.CreateChangeRequest(t.TempDir(), tc.opts)
+			if result.Success || result.ErrorCode != GitHubChangeRequestErrorInternal {
+				t.Fatalf("expected internal validation error, got %#v", result)
+			}
+		})
+	}
+}
+
+func TestVerifyBranchSyncedForChangeRequest(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git unavailable: %v", err)
+	}
+	root := t.TempDir()
+	runGitCmd(t, root, "init", "--bare", "-b", "main", "origin.git")
+	originPath := filepath.Join(root, "origin.git")
+	workPath := filepath.Join(root, "work")
+	runGitCmd(t, root, "clone", originPath, "work")
+	configureChangeRequestIdentity(t, workPath)
+	commitChangeRequestFile(t, workPath, "shared.txt", "base\n", "base commit")
+	runGitCmd(t, workPath, "push", "origin", "main")
+	runGitCmd(t, workPath, "checkout", "-b", "feature/x")
+	commitChangeRequestFile(t, workPath, "logic.txt", "feature\n", "feature commit")
+	runGitCmd(t, workPath, "push", "-u", "origin", "feature/x")
+
+	svc := NewGitHubService()
+	if _, _, ok := svc.verifyBranchSyncedForChangeRequest(workPath, "feature/x"); !ok {
+		t.Fatalf("expected a pushed, synced branch to pass")
+	}
+
+	// A local commit that is not pushed leaves the branch ahead of origin.
+	commitChangeRequestFile(t, workPath, "ahead.txt", "ahead\n", "ahead commit")
+	if code, _, ok := svc.verifyBranchSyncedForChangeRequest(workPath, "feature/x"); ok || code != GitHubChangeRequestErrorBranchNotSynced {
+		t.Fatalf("expected branch_not_synced for an unpushed commit, got code=%q ok=%v", code, ok)
+	}
+
+	// An uncommitted change is caught before the remote comparison.
+	writeChangeRequestFile(t, workPath, "dirty.txt", "dirty\n")
+	if code, _, ok := svc.verifyBranchSyncedForChangeRequest(workPath, "feature/x"); ok || code != GitHubChangeRequestErrorBranchNotSynced {
+		t.Fatalf("expected branch_not_synced for a dirty working tree, got code=%q ok=%v", code, ok)
+	}
+}
+
+func TestFindOpenChangeRequestForBranch(t *testing.T) {
+	const repoScript = `repo)
+  printf '%s\n' '{"nameWithOwner":"controlzebra/plant-project","url":"https://github.com/controlzebra/plant-project","defaultBranchRef":{"name":"main"}}'
+  ;;
+`
+
+	newRepo := func(t *testing.T) string {
+		repoPath := createTestRepo(t)
+		t.Cleanup(func() { cleanupTestRepo(t, repoPath) })
+		runGitCmd(t, repoPath, "remote", "add", "origin", "https://github.com/controlzebra/plant-project.git")
+		return repoPath
+	}
+
+	t.Run("empty source is rejected before any gh call", func(t *testing.T) {
+		svc := NewGitHubService()
+		result := svc.FindOpenChangeRequestForBranch(t.TempDir(), "   ")
+		if result.Success || result.ErrorCode != GitHubChangeRequestErrorInternal {
+			t.Fatalf("expected internal error for empty source, got %#v", result)
+		}
+	})
+
+	t.Run("finds an existing open request", func(t *testing.T) {
+		repoPath := newRepo(t)
+		installFakeGh(t, "#!/bin/sh\ncase \"$1\" in\n"+repoScript+`pr)
+  printf '%s\n' '[{"number":7,"title":"Update mixer","url":"https://github.com/controlzebra/plant-project/pull/7","state":"OPEN","author":{"login":"operator"},"headRefName":"feature/x","baseRefName":"main","isCrossRepository":false}]'
+  ;;
+*) exit 1 ;;
+esac
+`)
+		result := NewGitHubService().FindOpenChangeRequestForBranch(repoPath, "feature/x")
+		if !result.Success || !result.Found || result.ChangeRequest.Number != 7 {
+			t.Fatalf("expected to find request #7, got %#v", result)
+		}
+	})
+
+	t.Run("reports no request when the list is empty", func(t *testing.T) {
+		repoPath := newRepo(t)
+		installFakeGh(t, "#!/bin/sh\ncase \"$1\" in\n"+repoScript+`pr)
+  printf '%s\n' '[]'
+  ;;
+*) exit 1 ;;
+esac
+`)
+		result := NewGitHubService().FindOpenChangeRequestForBranch(repoPath, "feature/x")
+		if !result.Success || result.Found {
+			t.Fatalf("expected no request found, got %#v", result)
+		}
+	})
+
+	t.Run("skips cross-repository requests", func(t *testing.T) {
+		repoPath := newRepo(t)
+		installFakeGh(t, "#!/bin/sh\ncase \"$1\" in\n"+repoScript+`pr)
+  printf '%s\n' '[{"number":9,"title":"Fork change","url":"https://github.com/fork/plant-project/pull/9","state":"OPEN","author":{"login":"outsider"},"headRefName":"feature/x","baseRefName":"main","isCrossRepository":true}]'
+  ;;
+*) exit 1 ;;
+esac
+`)
+		result := NewGitHubService().FindOpenChangeRequestForBranch(repoPath, "feature/x")
+		if !result.Success || result.Found {
+			t.Fatalf("expected cross-repository request to be skipped, got %#v", result)
+		}
+	})
 }
