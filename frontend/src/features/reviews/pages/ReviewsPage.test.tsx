@@ -1,19 +1,22 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  ChangeRequestSnapshot,
   GitHubChangeRequest,
   GitHubChangeRequestError,
   GitHubChangeRequestFile,
 } from '../../../domain/repo/context/RepoContext.types';
 
-const { startDeviceFlow, loadChangeRequests, closeDeviceFlow, openExternalUrl } = vi.hoisted(() => ({
+const { startDeviceFlow, loadChangeRequests, closeDeviceFlow, openExternalUrl, ensureFileContent } = vi.hoisted(() => ({
   startDeviceFlow: vi.fn(),
   loadChangeRequests: vi.fn(),
   closeDeviceFlow: vi.fn(),
   openExternalUrl: vi.fn(),
+  ensureFileContent: vi.fn(),
 }));
 
 const repoState: {
+  repoPath: string;
   changeRequestRepository: null;
   changeRequests: GitHubChangeRequest[];
   changeRequestViewerLogin: string;
@@ -28,11 +31,15 @@ const repoState: {
   selectedChangeRequestFilePath: string | null;
   isLoadingChangeRequestDetail: boolean;
   changeRequestDetailError: GitHubChangeRequestError | null;
+  changeRequestSnapshot: ChangeRequestSnapshot | null;
+  isPreparingChangeRequestSnapshot: boolean;
+  changeRequestSnapshotError: GitHubChangeRequestError | null;
   selectChangeRequest: ReturnType<typeof vi.fn>;
   returnToChangeRequestOverview: ReturnType<typeof vi.fn>;
   installRequiredPackages: ReturnType<typeof vi.fn>;
   isInstallingPackages: boolean;
 } = {
+  repoPath: '/tmp/plant-project',
   changeRequestRepository: null,
   changeRequests: [],
   changeRequestViewerLogin: 'current-user',
@@ -47,11 +54,24 @@ const repoState: {
   selectedChangeRequestFilePath: null,
   isLoadingChangeRequestDetail: false,
   changeRequestDetailError: null,
+  changeRequestSnapshot: null,
+  isPreparingChangeRequestSnapshot: false,
+  changeRequestSnapshotError: null,
   selectChangeRequest: vi.fn(),
   returnToChangeRequestOverview: vi.fn(),
   installRequiredPackages: vi.fn(),
   isInstallingPackages: false,
 };
+
+vi.mock('../../../domain/repo/services/repo-commands', () => ({
+  EnsureChangeRequestFileContent: (...args: unknown[]) => ensureFileContent(...args),
+}));
+
+vi.mock('../../../viewers/components/shared/DiffRenderer', () => ({
+  DiffRenderer: (props: { oldSide?: { ref?: string }; newSide?: { ref?: string } }) => (
+    <div data-testid="diff-renderer" data-old-ref={props.oldSide?.ref} data-new-ref={props.newSide?.ref} />
+  ),
+}));
 
 vi.mock('../../../context', () => ({
   useRepo: () => repoState,
@@ -86,6 +106,10 @@ describe('ReviewsPage', () => {
     repoState.changeRequestFiles = [];
     repoState.isLoadingChangeRequestDetail = false;
     repoState.changeRequestDetailError = null;
+    repoState.changeRequestSnapshot = null;
+    repoState.isPreparingChangeRequestSnapshot = false;
+    repoState.changeRequestSnapshotError = null;
+    ensureFileContent.mockResolvedValue({ comparable: true, errorCode: '' });
   });
 
   it('starts the shared GitHub device flow when authentication is required', () => {
@@ -149,12 +173,43 @@ describe('ReviewsPage', () => {
     render(<ReviewsPage />);
 
     expect(screen.getByTestId('change-request-header')).toBeInTheDocument();
-    expect(screen.getByText('Adds the requested mixer interlock.')).toBeInTheDocument();
-    expect(screen.getByText('operator')).toBeInTheDocument();
-    expect(screen.getByText('work/mixer-interlock to main')).toBeInTheDocument();
-    expect(screen.getByText('Review Engineer')).toBeInTheDocument();
-    expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse Change Request details' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('change-request-file-summary').closest('#change-request-details-42')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Change Request details' }));
+
+    expect(screen.getByRole('button', { name: 'Expand Change Request details' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByTestId('change-request-file-summary')).toBeVisible();
+    expect(screen.getByText('Adds the requested mixer interlock.')).toBeVisible();
+    expect(screen.getByText('operator')).toBeVisible();
+    expect(screen.getByText('work/mixer-interlock to main')).toBeVisible();
+    expect(screen.getByText('Review Engineer')).toBeVisible();
+    expect(screen.getByText('Approved')).toBeVisible();
     expect(screen.getByTestId('change-request-viewer-empty')).toBeInTheDocument();
+  });
+
+  it('collapses details for a selected file and expands them again when it is cleared', () => {
+    repoState.changeRequestError = null;
+    repoState.selectedChangeRequest = {
+      number: 42,
+      title: 'Update mixer sequence',
+      author: { login: 'operator' },
+    } as GitHubChangeRequest;
+
+    const { rerender } = render(<ReviewsPage key="request-42-empty" />);
+    expect(screen.getByRole('button', { name: 'Collapse Change Request details' })).toHaveAttribute('aria-expanded', 'true');
+
+    repoState.selectedChangeRequestFilePath = 'logic/Mixer.L5X';
+    rerender(<ReviewsPage key="request-42-file" />);
+
+    expect(screen.getByRole('button', { name: 'Expand Change Request details' })).toHaveAttribute('aria-expanded', 'false');
+
+    repoState.selectedChangeRequestFilePath = null;
+    rerender(<ReviewsPage key="request-42-empty-again" />);
+
+    expect(screen.getByRole('button', { name: 'Collapse Change Request details' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('summarises changed project files in plain language before any diff is opened', () => {
@@ -214,13 +269,62 @@ describe('ReviewsPage', () => {
     expect(screen.getByTestId('change-request-detail-loading')).toBeInTheDocument();
   });
 
-  it('shows the future viewer placeholder after a changed file is selected', () => {
+  it('reports snapshot progress instead of a diff while the changed files download', () => {
     repoState.changeRequestError = null;
     repoState.selectedChangeRequest = { number: 42 } as GitHubChangeRequest;
     repoState.selectedChangeRequestFilePath = 'logic/Mixer.L5X';
+    repoState.changeRequestFiles = [{ path: 'logic/Mixer.L5X', status: 'modified', additions: 1, deletions: 0 }];
+    repoState.isPreparingChangeRequestSnapshot = true;
 
     render(<ReviewsPage />);
 
-    expect(screen.getByTestId('change-request-viewer-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('change-request-preview-preparing')).toBeInTheDocument();
+    expect(screen.queryByTestId('diff-renderer')).not.toBeInTheDocument();
+  });
+
+  it('renders the diff against the private snapshot refs once the file is comparable', async () => {
+    repoState.changeRequestError = null;
+    repoState.selectedChangeRequest = { number: 42 } as GitHubChangeRequest;
+    repoState.selectedChangeRequestFilePath = 'logic/Mixer.L5X';
+    repoState.changeRequestFiles = [{ path: 'logic/Mixer.L5X', status: 'modified', additions: 1, deletions: 0 }];
+    repoState.changeRequestSnapshot = {
+      number: 42,
+      headRef: 'refs/controlzebra/change-requests/42/head',
+      baseRef: 'refs/controlzebra/change-requests/42/base',
+      headOid: 'head-oid',
+      baseOid: 'base-oid',
+      baseTipOid: 'tip-oid',
+    } as ChangeRequestSnapshot;
+
+    render(<ReviewsPage />);
+
+    const renderer = await screen.findByTestId('diff-renderer');
+    expect(renderer).toHaveAttribute('data-old-ref', 'refs/controlzebra/change-requests/42/base');
+    expect(renderer).toHaveAttribute('data-new-ref', 'refs/controlzebra/change-requests/42/head');
+    expect(ensureFileContent).toHaveBeenCalledWith(
+      '/tmp/plant-project',
+      'refs/controlzebra/change-requests/42/base',
+      'logic/Mixer.L5X',
+      'refs/controlzebra/change-requests/42/head',
+      'logic/Mixer.L5X',
+    );
+  });
+
+  it('explains an unopenable file instead of mounting a viewer', async () => {
+    repoState.changeRequestError = null;
+    repoState.selectedChangeRequest = { number: 42, url: 'https://github.com/x/y/pull/42' } as GitHubChangeRequest;
+    repoState.selectedChangeRequestFilePath = 'models/plant.step';
+    repoState.changeRequestFiles = [{ path: 'models/plant.step', status: 'modified', additions: 0, deletions: 0 }];
+    repoState.changeRequestSnapshot = {
+      number: 42,
+      headRef: 'refs/controlzebra/change-requests/42/head',
+      baseRef: 'refs/controlzebra/change-requests/42/base',
+    } as ChangeRequestSnapshot;
+    ensureFileContent.mockResolvedValue({ comparable: false, errorCode: 'content_too_large' });
+
+    render(<ReviewsPage />);
+
+    expect(await screen.findByTestId('change-request-preview-problem')).toHaveTextContent('This file is too large to preview');
+    expect(screen.queryByTestId('diff-renderer')).not.toBeInTheDocument();
   });
 });

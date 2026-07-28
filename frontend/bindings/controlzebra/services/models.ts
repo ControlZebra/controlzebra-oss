@@ -360,6 +360,221 @@ export class BranchList {
 }
 
 /**
+ * ChangeRequestFileContentResult reports whether a file can be compared in-app
+ * before any viewer attempts to load it.
+ */
+export class ChangeRequestFileContentResult {
+    "success": boolean;
+    "oldSide": ChangeRequestFileSide;
+    "newSide": ChangeRequestFileSide;
+
+    /**
+     * Comparable gates viewer mount. Success reports whether the inspection
+     * itself ran; Comparable reports whether the content can be shown.
+     */
+    "comparable": boolean;
+    "maxSizeBytes": number;
+    "message"?: string;
+    "error"?: string;
+    "errorCode": GitHubChangeRequestErrorCode;
+
+    /** Creates a new ChangeRequestFileContentResult instance. */
+    constructor($$source: Partial<ChangeRequestFileContentResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("oldSide" in $$source)) {
+            this["oldSide"] = (new ChangeRequestFileSide());
+        }
+        if (!("newSide" in $$source)) {
+            this["newSide"] = (new ChangeRequestFileSide());
+        }
+        if (!("comparable" in $$source)) {
+            this["comparable"] = false;
+        }
+        if (!("maxSizeBytes" in $$source)) {
+            this["maxSizeBytes"] = 0;
+        }
+        if (!("errorCode" in $$source)) {
+            this["errorCode"] = GitHubChangeRequestErrorCode.$zero;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ChangeRequestFileContentResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ChangeRequestFileContentResult {
+        const $$createField1_0 = $$createType7;
+        const $$createField2_0 = $$createType7;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("oldSide" in $$parsedSource) {
+            $$parsedSource["oldSide"] = $$createField1_0($$parsedSource["oldSide"]);
+        }
+        if ("newSide" in $$parsedSource) {
+            $$parsedSource["newSide"] = $$createField2_0($$parsedSource["newSide"]);
+        }
+        return new ChangeRequestFileContentResult($$parsedSource as Partial<ChangeRequestFileContentResult>);
+    }
+}
+
+/**
+ * ChangeRequestFileSide describes one side of a Change Request file comparison.
+ */
+export class ChangeRequestFileSide {
+    "ref": string;
+    "path": string;
+
+    /**
+     * Exists is false for the absent side of an addition or a deletion, which
+     * is a normal state rather than an error.
+     */
+    "exists": boolean;
+
+    /**
+     * Size is the real file size. For an LFS-tracked file this is the size
+     * recorded in the pointer, not the pointer's own byte length.
+     */
+    "size": number;
+    "isLfs": boolean;
+    "lfsHydrated": boolean;
+    "tooLarge": boolean;
+
+    /** Creates a new ChangeRequestFileSide instance. */
+    constructor($$source: Partial<ChangeRequestFileSide> = {}) {
+        if (!("ref" in $$source)) {
+            this["ref"] = "";
+        }
+        if (!("path" in $$source)) {
+            this["path"] = "";
+        }
+        if (!("exists" in $$source)) {
+            this["exists"] = false;
+        }
+        if (!("size" in $$source)) {
+            this["size"] = 0;
+        }
+        if (!("isLfs" in $$source)) {
+            this["isLfs"] = false;
+        }
+        if (!("lfsHydrated" in $$source)) {
+            this["lfsHydrated"] = false;
+        }
+        if (!("tooLarge" in $$source)) {
+            this["tooLarge"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ChangeRequestFileSide instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ChangeRequestFileSide {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ChangeRequestFileSide($$parsedSource as Partial<ChangeRequestFileSide>);
+    }
+}
+
+/**
+ * ChangeRequestSnapshot names the immutable local refs a Change Request is
+ * compared against. Callers use the ref names, never the OIDs, so specialized
+ * viewer cache keys stay stable across refreshes.
+ */
+export class ChangeRequestSnapshot {
+    "number": number;
+
+    /**
+     * HeadRef mirrors GitHub's refs/pull/<n>/head.
+     */
+    "headRef": string;
+
+    /**
+     * BaseRef resolves to the merge base of the head and the base branch tip.
+     * It is the merge base rather than the branch tip so that a two-dot
+     * BaseRef..HeadRef diff equals GitHub's own three-dot file list.
+     */
+    "baseRef": string;
+    "headOid": string;
+    "baseOid": string;
+    "baseTipOid": string;
+
+    /** Creates a new ChangeRequestSnapshot instance. */
+    constructor($$source: Partial<ChangeRequestSnapshot> = {}) {
+        if (!("number" in $$source)) {
+            this["number"] = 0;
+        }
+        if (!("headRef" in $$source)) {
+            this["headRef"] = "";
+        }
+        if (!("baseRef" in $$source)) {
+            this["baseRef"] = "";
+        }
+        if (!("headOid" in $$source)) {
+            this["headOid"] = "";
+        }
+        if (!("baseOid" in $$source)) {
+            this["baseOid"] = "";
+        }
+        if (!("baseTipOid" in $$source)) {
+            this["baseTipOid"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ChangeRequestSnapshot instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ChangeRequestSnapshot {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ChangeRequestSnapshot($$parsedSource as Partial<ChangeRequestSnapshot>);
+    }
+}
+
+/**
+ * ChangeRequestSnapshotResult reports the outcome of preparing local snapshots.
+ */
+export class ChangeRequestSnapshotResult {
+    "success": boolean;
+    "snapshot"?: ChangeRequestSnapshot;
+
+    /**
+     * ObservedHeadOID is set only on snapshot_stale so the frontend can reload
+     * request detail before retrying.
+     */
+    "observedHeadOid"?: string;
+    "message"?: string;
+    "error"?: string;
+    "errorCode": GitHubChangeRequestErrorCode;
+
+    /** Creates a new ChangeRequestSnapshotResult instance. */
+    constructor($$source: Partial<ChangeRequestSnapshotResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("errorCode" in $$source)) {
+            this["errorCode"] = GitHubChangeRequestErrorCode.$zero;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ChangeRequestSnapshotResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ChangeRequestSnapshotResult {
+        const $$createField1_0 = $$createType8;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("snapshot" in $$parsedSource) {
+            $$parsedSource["snapshot"] = $$createField1_0($$parsedSource["snapshot"]);
+        }
+        return new ChangeRequestSnapshotResult($$parsedSource as Partial<ChangeRequestSnapshotResult>);
+    }
+}
+
+/**
  * CommitDetail contains detailed information about a single commit
  */
 export class CommitDetail {
@@ -433,8 +648,8 @@ export class CommitDetail {
      */
     static createFrom($$source: any = {}): CommitDetail {
         const $$createField8_0 = $$createType0;
-        const $$createField9_0 = $$createType8;
-        const $$createField10_0 = $$createType9;
+        const $$createField9_0 = $$createType10;
+        const $$createField10_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("parentHashes" in $$parsedSource) {
             $$parsedSource["parentHashes"] = $$createField8_0($$parsedSource["parentHashes"]);
@@ -534,9 +749,9 @@ export class CommitGraphResult {
      * Creates a new CommitGraphResult instance from a string or object.
      */
     static createFrom($$source: any = {}): CommitGraphResult {
-        const $$createField0_0 = $$createType11;
-        const $$createField1_0 = $$createType12;
-        const $$createField2_0 = $$createType12;
+        const $$createField0_0 = $$createType13;
+        const $$createField1_0 = $$createType14;
+        const $$createField2_0 = $$createType14;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("commits" in $$parsedSource) {
             $$parsedSource["commits"] = $$createField0_0($$parsedSource["commits"]);
@@ -702,8 +917,8 @@ export class ConflictSidesInfo {
      * Creates a new ConflictSidesInfo instance from a string or object.
      */
     static createFrom($$source: any = {}): ConflictSidesInfo {
-        const $$createField0_0 = $$createType13;
-        const $$createField1_0 = $$createType13;
+        const $$createField0_0 = $$createType15;
+        const $$createField1_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ours" in $$parsedSource) {
             $$parsedSource["ours"] = $$createField0_0($$parsedSource["ours"]);
@@ -952,7 +1167,7 @@ export class DirectoryContents {
      * Creates a new DirectoryContents instance from a string or object.
      */
     static createFrom($$source: any = {}): DirectoryContents {
-        const $$createField1_0 = $$createType15;
+        const $$createField1_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField1_0($$parsedSource["entries"]);
@@ -1291,7 +1506,7 @@ export class GitHubAuthenticatedUserResult {
      * Creates a new GitHubAuthenticatedUserResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubAuthenticatedUserResult {
-        const $$createField1_0 = $$createType16;
+        const $$createField1_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("user" in $$parsedSource) {
             $$parsedSource["user"] = $$createField1_0($$parsedSource["user"]);
@@ -1399,8 +1614,8 @@ export class GitHubChangeRequest {
      * Creates a new GitHubChangeRequest instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubChangeRequest {
-        const $$createField6_0 = $$createType17;
-        const $$createField16_0 = $$createType19;
+        const $$createField6_0 = $$createType19;
+        const $$createField16_0 = $$createType21;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("author" in $$parsedSource) {
             $$parsedSource["author"] = $$createField6_0($$parsedSource["author"]);
@@ -1439,7 +1654,7 @@ export class GitHubChangeRequestDetailResult {
      * Creates a new GitHubChangeRequestDetailResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubChangeRequestDetailResult {
-        const $$createField1_0 = $$createType20;
+        const $$createField1_0 = $$createType22;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changeRequest" in $$parsedSource) {
             $$parsedSource["changeRequest"] = $$createField1_0($$parsedSource["changeRequest"]);
@@ -1471,6 +1686,8 @@ export enum GitHubChangeRequestErrorCode {
     GitHubChangeRequestErrorSnapshotUnavailable = "snapshot_unavailable",
     GitHubChangeRequestErrorSnapshotStale = "snapshot_stale",
     GitHubChangeRequestErrorSnapshotUnsupported = "snapshot_unsupported",
+    GitHubChangeRequestErrorContentTooLarge = "content_too_large",
+    GitHubChangeRequestErrorContentLFSUnavailable = "content_lfs_unavailable",
     GitHubChangeRequestErrorFilesTruncated = "files_truncated",
     GitHubChangeRequestErrorInternal = "internal_error",
 };
@@ -1543,7 +1760,7 @@ export class GitHubChangeRequestFilesResult {
      * Creates a new GitHubChangeRequestFilesResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubChangeRequestFilesResult {
-        const $$createField1_0 = $$createType22;
+        const $$createField1_0 = $$createType24;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("files" in $$parsedSource) {
             $$parsedSource["files"] = $$createField1_0($$parsedSource["files"]);
@@ -1587,8 +1804,8 @@ export class GitHubChangeRequestListResult {
      * Creates a new GitHubChangeRequestListResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubChangeRequestListResult {
-        const $$createField1_0 = $$createType23;
-        const $$createField2_0 = $$createType24;
+        const $$createField1_0 = $$createType25;
+        const $$createField2_0 = $$createType26;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repository" in $$parsedSource) {
             $$parsedSource["repository"] = $$createField1_0($$parsedSource["repository"]);
@@ -1652,7 +1869,7 @@ export class GitHubChangeRequestRepositoryResult {
      * Creates a new GitHubChangeRequestRepositoryResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubChangeRequestRepositoryResult {
-        const $$createField1_0 = $$createType23;
+        const $$createField1_0 = $$createType25;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repository" in $$parsedSource) {
             $$parsedSource["repository"] = $$createField1_0($$parsedSource["repository"]);
@@ -1827,7 +2044,7 @@ export class GitHubOrganizationsResult {
      * Creates a new GitHubOrganizationsResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubOrganizationsResult {
-        const $$createField2_0 = $$createType26;
+        const $$createField2_0 = $$createType28;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("organizations" in $$parsedSource) {
             $$parsedSource["organizations"] = $$createField2_0($$parsedSource["organizations"]);
@@ -2015,7 +2232,7 @@ export class GitHubRepoCreateResult {
      * Creates a new GitHubRepoCreateResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoCreateResult {
-        const $$createField1_0 = $$createType27;
+        const $$createField1_0 = $$createType29;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repo" in $$parsedSource) {
             $$parsedSource["repo"] = $$createField1_0($$parsedSource["repo"]);
@@ -2048,7 +2265,7 @@ export class GitHubRepoListResult {
      * Creates a new GitHubRepoListResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoListResult {
-        const $$createField1_0 = $$createType28;
+        const $$createField1_0 = $$createType30;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
@@ -2785,7 +3002,7 @@ export class LogEntry {
      * Creates a new LogEntry instance from a string or object.
      */
     static createFrom($$source: any = {}): LogEntry {
-        const $$createField6_0 = $$createType29;
+        const $$createField6_0 = $$createType31;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("details" in $$parsedSource) {
             $$parsedSource["details"] = $$createField6_0($$parsedSource["details"]);
@@ -3720,7 +3937,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType31;
+        const $$createField3_0 = $$createType33;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -3808,12 +4025,12 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType32;
-        const $$createField3_0 = $$createType32;
-        const $$createField4_0 = $$createType32;
-        const $$createField5_0 = $$createType33;
-        const $$createField6_0 = $$createType34;
-        const $$createField7_0 = $$createType35;
+        const $$createField2_0 = $$createType34;
+        const $$createField3_0 = $$createType34;
+        const $$createField4_0 = $$createType34;
+        const $$createField5_0 = $$createType35;
+        const $$createField6_0 = $$createType36;
+        const $$createField7_0 = $$createType37;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -4050,32 +4267,34 @@ const $$createType3 = ConflictedFile.createFrom;
 const $$createType4 = $Create.Array($$createType3);
 const $$createType5 = BranchInfo.createFrom;
 const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = CommitFileInfo.createFrom;
-const $$createType8 = $Create.Array($$createType7);
-const $$createType9 = CommitStats.createFrom;
-const $$createType10 = GraphCommit.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = $Create.Map($Create.Any, $Create.Any);
-const $$createType13 = ConflictCommitInfo.createFrom;
-const $$createType14 = FileEntry.createFrom;
-const $$createType15 = $Create.Array($$createType14);
-const $$createType16 = GitHubAuthenticatedUser.createFrom;
-const $$createType17 = GitHubChangeAuthor.createFrom;
-const $$createType18 = GitHubChangeReviewer.createFrom;
-const $$createType19 = $Create.Array($$createType18);
-const $$createType20 = GitHubChangeRequest.createFrom;
-const $$createType21 = GitHubChangeRequestFile.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = GitHubChangeRequestRepository.createFrom;
-const $$createType24 = $Create.Array($$createType20);
-const $$createType25 = GitHubOrganization.createFrom;
-const $$createType26 = $Create.Array($$createType25);
-const $$createType27 = GitHubRepo.createFrom;
+const $$createType7 = ChangeRequestFileSide.createFrom;
+const $$createType8 = ChangeRequestSnapshot.createFrom;
+const $$createType9 = CommitFileInfo.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = CommitStats.createFrom;
+const $$createType12 = GraphCommit.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $Create.Map($Create.Any, $Create.Any);
+const $$createType15 = ConflictCommitInfo.createFrom;
+const $$createType16 = FileEntry.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = GitHubAuthenticatedUser.createFrom;
+const $$createType19 = GitHubChangeAuthor.createFrom;
+const $$createType20 = GitHubChangeReviewer.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = GitHubChangeRequest.createFrom;
+const $$createType23 = GitHubChangeRequestFile.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = GitHubChangeRequestRepository.createFrom;
+const $$createType26 = $Create.Array($$createType22);
+const $$createType27 = GitHubOrganization.createFrom;
 const $$createType28 = $Create.Array($$createType27);
-const $$createType29 = LogDetails.createFrom;
-const $$createType30 = FileStatus.createFrom;
-const $$createType31 = $Create.Array($$createType30);
-const $$createType32 = BackgroundTaskConfig.createFrom;
-const $$createType33 = FetchSettings.createFrom;
-const $$createType34 = LFSSettings.createFrom;
-const $$createType35 = MaintenanceSettings.createFrom;
+const $$createType29 = GitHubRepo.createFrom;
+const $$createType30 = $Create.Array($$createType29);
+const $$createType31 = LogDetails.createFrom;
+const $$createType32 = FileStatus.createFrom;
+const $$createType33 = $Create.Array($$createType32);
+const $$createType34 = BackgroundTaskConfig.createFrom;
+const $$createType35 = FetchSettings.createFrom;
+const $$createType36 = LFSSettings.createFrom;
+const $$createType37 = MaintenanceSettings.createFrom;

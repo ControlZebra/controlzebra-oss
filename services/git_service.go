@@ -3979,6 +3979,16 @@ func (g *GitService) resolveBranchRef(repoPath string, branch string, preferRemo
 		return "", fmt.Errorf("branch name is required")
 	}
 
+	// A fully-qualified ref is already unambiguous. Change Request snapshots pass
+	// refs/controlzebra/... names here, and prefixing them with a remote would
+	// only work by accident through the fallback below.
+	if strings.HasPrefix(branch, "refs/") {
+		if g.runner.RunGit(repoPath, "rev-parse", "--verify", branch).Success {
+			return branch, nil
+		}
+		return "", fmt.Errorf("ref '%s' not found", branch)
+	}
+
 	preferredRemote, hasRemote := g.getPreferredRemote(repoPath)
 
 	if preferRemote {

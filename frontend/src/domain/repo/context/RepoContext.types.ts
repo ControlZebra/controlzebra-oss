@@ -3,6 +3,7 @@ import type {
   GitHubChangeRequestFile as GitHubChangeRequestFileModel,
   GitHubChangeRequestRepository as GitHubChangeRequestRepositoryModel,
   GitHubChangeRequestErrorCode as GitHubChangeRequestErrorCodeModel,
+  ChangeRequestSnapshot as ChangeRequestSnapshotModel,
 } from '../../../../bindings/controlzebra/services/models';
 
 /**
@@ -148,6 +149,13 @@ export type GitHubChangeRequestRepository = GitHubChangeRequestRepositoryModel;
 export type GitHubChangeRequest = GitHubChangeRequestModel;
 
 export type GitHubChangeRequestFile = GitHubChangeRequestFileModel;
+
+/**
+ * ChangeRequestSnapshot names the local refs a Change Request is compared
+ * against. `baseRef` is the merge base rather than the target branch tip, so a
+ * two-dot baseRef..headRef diff matches GitHub's own file list.
+ */
+export type ChangeRequestSnapshot = ChangeRequestSnapshotModel;
 
 export interface GitHubChangeRequestError {
   code: GitHubChangeRequestErrorCode;
@@ -680,6 +688,9 @@ export interface RepoContextValue {
   selectedChangeRequestFilePath: string | null;
   isLoadingChangeRequestDetail: boolean;
   changeRequestDetailError: GitHubChangeRequestError | null;
+  changeRequestSnapshot: ChangeRequestSnapshot | null;
+  isPreparingChangeRequestSnapshot: boolean;
+  changeRequestSnapshotError: GitHubChangeRequestError | null;
   
   // GitHub actions
   checkGitHubAuth: () => Promise<void>;
