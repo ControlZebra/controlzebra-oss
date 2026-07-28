@@ -24,6 +24,11 @@ interface MergeReviewDiffRequestInput extends BaseDiffRequestInput {
   sourceRef: string;
 }
 
+interface ChangeRequestDiffRequestInput extends BaseDiffRequestInput {
+  baseRef: string;
+  headRef: string;
+}
+
 type DiffStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | string | undefined;
 
 interface BuiltDiffSides {
@@ -41,6 +46,10 @@ function normalizeDiffStatus(status?: string): DiffStatus {
   const normalizedStatus = status.toLowerCase();
   if (normalizedStatus === 'untracked') {
     return 'added';
+  }
+  // GitHub reports deletions as "removed".
+  if (normalizedStatus === 'removed') {
+    return 'deleted';
   }
 
   return normalizedStatus;
@@ -168,6 +177,44 @@ export function buildMergeReviewDiffRequest({
     fileStatus,
     (path) => ({ kind: 'ref', ref: targetRef, path }),
     (path) => ({ kind: 'ref', ref: sourceRef, path }),
+  );
+
+  return {
+    repoPath,
+    filePath: viewerFilePath,
+    oldSide,
+    newSide,
+    oldPath,
+    fileStatus: normalizedStatus,
+    fileDiff,
+    binary,
+    showHeader,
+  };
+}
+
+/**
+ * Change Request diffs compare two private snapshot refs prepared by
+ * `EnsureChangeRequestSnapshotsLocal`. `baseRef` points at the merge base rather
+ * than the target branch tip, so this two-dot comparison matches the file list
+ * GitHub itself reports for the request.
+ */
+export function buildChangeRequestDiffRequest({
+  repoPath,
+  filePath,
+  baseRef,
+  headRef,
+  oldPath,
+  fileStatus,
+  fileDiff,
+  binary,
+  showHeader,
+}: ChangeRequestDiffRequestInput): DiffRenderRequest {
+  const { viewerFilePath, normalizedStatus, oldSide, newSide } = buildDiffSides(
+    filePath,
+    oldPath,
+    fileStatus,
+    (path) => ({ kind: 'ref', ref: baseRef, path }),
+    (path) => ({ kind: 'ref', ref: headRef, path }),
   );
 
   return {

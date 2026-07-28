@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ExternalLink, Github, Loader2, RefreshCw, Search } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Github, Loader2, RefreshCw, Search } from 'lucide-react';
 
 import { Badge, Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../shared/ui';
 import { ICON_SIZES } from '../../../shared/constants';
@@ -8,6 +8,7 @@ import { openExternalUrl } from '../../../shared/runtime/browser';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import { useGitHubDeviceFlow } from '../../auth/hooks/useGitHubDeviceFlow';
 import type { GitHubChangeRequest } from '../../../domain/repo/context/RepoContext.types';
+import ChangeRequestPreview from '../components/ChangeRequestPreview';
 import {
   changeRequestErrorCopy,
   changeRequestFileSummaryText,
@@ -24,6 +25,7 @@ function ReviewsPage(): JSX.Element {
   const [reviewFilter, setReviewFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('updated');
   const {
+    repoPath,
     changeRequestRepository,
     changeRequests,
     changeRequestViewerLogin,
@@ -36,6 +38,9 @@ function ReviewsPage(): JSX.Element {
     changeRequestFiles,
     isLoadingChangeRequestDetail,
     changeRequestDetailError,
+    changeRequestSnapshot,
+    isPreparingChangeRequestSnapshot,
+    changeRequestSnapshotError,
     selectChangeRequest,
     returnToChangeRequestOverview,
     installRequiredPackages,
@@ -79,6 +84,19 @@ function ReviewsPage(): JSX.Element {
         return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
       });
   }, [authorFilter, changeRequestViewerLogin, changeRequests, reviewFilter, searchTerm, sortOrder]);
+
+  const selectedChangeRequestFile = useMemo(
+    () => changeRequestFiles.find((file) => file.path === selectedChangeRequestFilePath) ?? null,
+    [changeRequestFiles, selectedChangeRequestFilePath],
+  );
+
+  // A stale or failed snapshot is recovered by reloading the request, which
+  // refreshes the head OID before fetching the refs again.
+  const requestNumber = selectedChangeRequest?.number;
+  const handleRetryPreview = useCallback((): void => {
+    if (requestNumber === undefined) return;
+    void selectChangeRequest(requestNumber);
+  }, [requestNumber, selectChangeRequest]);
 
   if (isLoadingChangeRequests && !changeRequestRepository && !changeRequestError) {
     return (
@@ -255,11 +273,20 @@ function ReviewsPage(): JSX.Element {
             request={selectedChangeRequest}
             summaryText={changeRequestFileSummaryText(changeRequestFiles)}
             isLoadingFiles={isLoadingChangeRequestDetail}
+            selectedFilePath={selectedChangeRequestFilePath}
             onReturnToOverview={returnToChangeRequestOverview}
           />
           {selectedChangeRequestFilePath ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-sm text-theme-muted" data-testid="change-request-viewer-placeholder">
-              File viewer support is coming in the next phase.
+            <div className="min-h-0 flex-1" data-testid="change-request-viewer">
+              <ChangeRequestPreview
+                repoPath={repoPath}
+                file={selectedChangeRequestFile}
+                snapshot={changeRequestSnapshot}
+                isPreparingSnapshot={isPreparingChangeRequestSnapshot}
+                snapshotError={changeRequestSnapshotError}
+                requestUrl={selectedChangeRequest.url}
+                onRetry={handleRetryPreview}
+              />
             </div>
           ) : <div className="min-h-0 flex-1" data-testid="change-request-viewer-empty" />}
         </div>
@@ -272,63 +299,104 @@ function ChangeRequestHeader({
   request,
   summaryText,
   isLoadingFiles,
+  selectedFilePath,
   onReturnToOverview,
 }: {
   request: GitHubChangeRequest;
   summaryText: string;
   isLoadingFiles: boolean;
+  selectedFilePath: string | null;
   onReturnToOverview: () => void;
 }): JSX.Element {
+  const [isExpanded, setIsExpanded] = useState(true);
   const reviewStatus = reviewStatusFromDecision(request.reviewDecision);
   const reviewers = (request.reviewers ?? [])
     .map((reviewer) => reviewer.name || reviewer.login)
     .filter(Boolean)
     .join(', ');
 
+  useEffect(() => {
+    setIsExpanded(!selectedFilePath);
+  }, [request.number, selectedFilePath]);
+
   return (
-    <header className="shrink-0 border-b border-theme-default px-5 py-4" data-testid="change-request-header">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <Button variant="ghost" size="sm" onClick={onReturnToOverview}>
+    <header className="shrink-0 border-b border-theme-default px-5 py-2" data-testid="change-request-header">
+      <div className="flex min-w-0 items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Return to overview"
+          title="Return to overview"
+          onClick={onReturnToOverview}
+        >
           <ArrowLeft size={ICON_SIZES.sm} />
-          Return to overview
         </Button>
-        {request.url && (
-          <Button variant="ghost" size="sm" onClick={() => void openExternalUrl(request.url)}>
-            <ExternalLink size={ICON_SIZES.sm} />
-            Open on GitHub
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <h1 className="min-w-0 truncate text-base font-medium text-theme-primary" title={request.title || 'Untitled Change Request'}>
+            {request.title || 'Untitled Change Request'}
+          </h1>
+          <span className="shrink-0 text-sm text-theme-primary">#{request.number}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={isExpanded ? 'Collapse Change Request details' : 'Expand Change Request details'}
+            title={isExpanded ? 'Show less' : 'Show more'}
+            aria-expanded={isExpanded}
+            aria-controls={`change-request-details-${request.number}`}
+            onClick={() => setIsExpanded((expanded) => !expanded)}
+          >
+            {isExpanded ? <ChevronUp size={ICON_SIZES.sm} /> : <ChevronDown size={ICON_SIZES.sm} />}
           </Button>
-        )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {request.url && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open on GitHub"
+              title="Open on GitHub"
+              onClick={() => void openExternalUrl(request.url)}
+            >
+              <ExternalLink size={ICON_SIZES.sm} />
+            </Button>
+          )}
+          <Button variant="default" size="sm" disabled title="Review actions are not available yet">Accept</Button>
+          <Button variant="secondary" size="sm" disabled title="Review actions are not available yet">Reject</Button>
+        </div>
       </div>
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h1 className="text-xl font-medium text-theme-primary">{request.title || 'Untitled Change Request'}</h1>
-        <span className="text-lg text-theme-primary">#{request.number}</span>
+      <div
+        id={`change-request-details-${request.number}`}
+        className={`grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      >
+        <div className="min-h-0">
+          <p className="mt-2 text-sm text-theme-secondary" data-testid="change-request-file-summary">
+            {isLoadingFiles ? 'Checking which project files changed' : summaryText}
+          </p>
+          {request.body && <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-5 text-theme-muted">{request.body}</p>}
+          <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm text-theme-muted sm:grid-cols-2 xl:grid-cols-3">
+            <div>
+              <dt>Author</dt>
+              <dd>{request.author?.login || 'Unknown author'}</dd>
+            </div>
+            <div>
+              <dt>Branch direction</dt>
+              <dd>{request.headRefName || 'Unknown branch'} to {request.baseRefName || 'Unknown branch'}</dd>
+            </div>
+            <div>
+              <dt>Reviewers</dt>
+              <dd>{reviewers || 'No reviewers assigned'}</dd>
+            </div>
+            <div>
+              <dt>Review status</dt>
+              <dd>{reviewStatusDetail(reviewStatus)}</dd>
+            </div>
+            <div>
+              <dt>Merge readiness</dt>
+              <dd>{mergeReadinessLabel(request.mergeStateStatus)}</dd>
+            </div>
+          </dl>
+        </div>
       </div>
-      <p className="mt-2 text-sm text-theme-secondary" data-testid="change-request-file-summary">
-        {isLoadingFiles ? 'Checking which project files changed' : summaryText}
-      </p>
-      {request.body && <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-5 text-theme-muted">{request.body}</p>}
-      <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm text-theme-muted sm:grid-cols-2 xl:grid-cols-3">
-        <div>
-          <dt>Author</dt>
-          <dd>{request.author?.login || 'Unknown author'}</dd>
-        </div>
-        <div>
-          <dt>Branch direction</dt>
-          <dd>{request.headRefName || 'Unknown branch'} to {request.baseRefName || 'Unknown branch'}</dd>
-        </div>
-        <div>
-          <dt>Reviewers</dt>
-          <dd>{reviewers || 'No reviewers assigned'}</dd>
-        </div>
-        <div>
-          <dt>Review status</dt>
-          <dd>{reviewStatusDetail(reviewStatus)}</dd>
-        </div>
-        <div>
-          <dt>Merge readiness</dt>
-          <dd>{mergeReadinessLabel(request.mergeStateStatus)}</dd>
-        </div>
-      </dl>
     </header>
   );
 }

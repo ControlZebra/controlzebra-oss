@@ -52,15 +52,22 @@ describe('ReviewsView', () => {
     expect(screen.getByText('Select a Change Request to see its changed files.')).toBeInTheDocument();
   });
 
-  it('lists changed files and selects a file for the future viewer', () => {
+  it('renders changed files in a folder tree and selects a file for the future viewer', () => {
     repoState.selectedChangeRequest = {
       number: 12,
       title: 'Adjust motor configuration',
       author: { login: 'current-user' },
     } as GitHubChangeRequest;
-    repoState.changeRequestFiles = [{ path: 'logic/Mixer.L5X', status: 'modified', additions: 12, deletions: 4 }];
+    repoState.changeRequestFiles = [
+      { path: 'logic/Mixer.L5X', status: 'modified', additions: 12, deletions: 4 },
+      { path: 'logic/safety/Interlock.L5X', status: 'added', additions: 8, deletions: 0 },
+    ];
 
     render(<ReviewsView />);
+
+    expect(screen.getByText('logic')).toBeInTheDocument();
+    expect(screen.getByText('safety')).toBeInTheDocument();
+    expect(screen.queryByText('Modified · +12 −4')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /logic\/Mixer\.L5X/i }));
 

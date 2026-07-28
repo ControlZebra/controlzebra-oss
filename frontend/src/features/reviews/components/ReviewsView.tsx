@@ -1,14 +1,40 @@
-import { memo } from 'react';
-import { ExternalLink, FileCode2, Loader2 } from 'lucide-react';
+import { memo, useMemo } from 'react';
+import { ChevronDown, ExternalLink, FileCode2, Folder, Loader2 } from 'lucide-react';
 
 import { ICON_SIZES } from '../../../shared/constants';
 import { useRepo } from '../../../context';
 import { openExternalUrl } from '../../../shared/runtime/browser';
 import { Button } from '../../../shared/ui';
-import { changeRequestErrorCopy, changeRequestFileStatusLabel } from '../lib/change-request-presentation';
+import { changeRequestErrorCopy } from '../lib/change-request-presentation';
 
-function fileNameFromPath(path: string): string {
-  return path.split('/').pop() || path;
+import type { GitHubChangeRequestFile } from '../../../domain/repo/context/RepoContext.types';
+
+interface ChangedFileTreeNode {
+  files: GitHubChangeRequestFile[];
+  folders: Map<string, ChangedFileTreeNode>;
+}
+
+function buildChangedFileTree(files: GitHubChangeRequestFile[]): ChangedFileTreeNode {
+  const root: ChangedFileTreeNode = { files: [], folders: new Map() };
+
+  for (const file of files) {
+    const segments = file.path.split('/').filter(Boolean);
+    const fileName = segments.pop();
+    if (!fileName) continue;
+
+    let node = root;
+    for (const segment of segments) {
+      let folder = node.folders.get(segment);
+      if (!folder) {
+        folder = { files: [], folders: new Map() };
+        node.folders.set(segment, folder);
+      }
+      node = folder;
+    }
+    node.files.push(file);
+  }
+
+  return root;
 }
 
 function ReviewsView(): JSX.Element {
@@ -28,6 +54,7 @@ function ReviewsView(): JSX.Element {
   }
 
   const requestUrl = selectedChangeRequest.url;
+  const changedFileTree = useMemo(() => buildChangedFileTree(changeRequestFiles), [changeRequestFiles]);
 
   return (
     <div className="flex h-full flex-col">
@@ -70,25 +97,59 @@ function ReviewsView(): JSX.Element {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {changeRequestFiles.map((file) => (
-          <button
-            key={file.path}
-            type="button"
-            aria-current={selectedChangeRequestFilePath === file.path ? 'true' : undefined}
-            onClick={() => selectChangeRequestFile(selectedChangeRequestFilePath === file.path ? null : file.path)}
-            className="flex w-full items-start gap-2 border-b border-theme-default px-3 py-2.5 text-left hover:bg-theme-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-theme-primary aria-[current=true]:bg-theme-muted"
-          >
-            <FileCode2 size={ICON_SIZES.xs} className="mt-0.5 shrink-0 text-theme-muted" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm text-theme-primary">{fileNameFromPath(file.path)}</span>
-              <span className="mt-0.5 block break-all text-xs text-theme-muted">{file.path}</span>
-              <span className="mt-1 block text-xs text-theme-muted">{changeRequestFileStatusLabel(file.status)} · +{file.additions} −{file.deletions}</span>
-            </span>
-          </button>
-        ))}
+        <ChangedFileTree
+          node={changedFileTree}
+          depth={0}
+          selectedFilePath={selectedChangeRequestFilePath}
+          onSelectFile={selectChangeRequestFile}
+        />
         {!isLoadingChangeRequestDetail && !changeRequestDetailError && changeRequestFiles.length === 0 && <p className="px-3 py-4 text-sm text-theme-muted">No changed files were returned by GitHub.</p>}
       </div>
     </div>
+  );
+}
+
+function ChangedFileTree({
+  node,
+  depth,
+  selectedFilePath,
+  onSelectFile,
+}: {
+  node: ChangedFileTreeNode;
+  depth: number;
+  selectedFilePath: string | null;
+  onSelectFile: (path: string | null) => void;
+}): JSX.Element {
+  const folders = [...node.folders.entries()].sort(([left], [right]) => left.localeCompare(right));
+  const files = [...node.files].sort((left, right) => left.path.localeCompare(right.path));
+
+  return (
+    <>
+      {folders.map(([name, folder]) => (
+        <div key={name}>
+          <div className="flex items-center gap-1.5 py-1.5 pr-3 text-sm text-theme-primary" style={{ paddingLeft: `${12 + depth * 16}px` }}>
+            <ChevronDown size={ICON_SIZES.xs} className="shrink-0 text-theme-muted" />
+            <Folder size={ICON_SIZES.sm} className="shrink-0 text-theme-muted" />
+            <span className="truncate">{name}</span>
+          </div>
+          <ChangedFileTree node={folder} depth={depth + 1} selectedFilePath={selectedFilePath} onSelectFile={onSelectFile} />
+        </div>
+      ))}
+      {files.map((file) => (
+        <button
+          key={file.path}
+          type="button"
+          aria-label={file.path}
+          aria-current={selectedFilePath === file.path ? 'true' : undefined}
+          onClick={() => onSelectFile(selectedFilePath === file.path ? null : file.path)}
+          className="flex w-full items-center gap-1.5 py-1.5 pr-3 text-left text-sm hover:bg-theme-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-theme-primary aria-[current=true]:bg-theme-muted"
+          style={{ paddingLeft: `${30 + depth * 16}px` }}
+        >
+          <FileCode2 size={ICON_SIZES.xs} className="shrink-0 text-theme-muted" />
+          <span className="truncate text-theme-primary">{file.path.split('/').pop() || file.path}</span>
+        </button>
+      ))}
+    </>
   );
 }
 

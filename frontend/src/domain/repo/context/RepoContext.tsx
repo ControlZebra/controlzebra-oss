@@ -65,6 +65,9 @@ import {
   DiscardFile,
   InitRepo,
   StartMergeWithOptions,
+  EnsureChangeRequestSnapshotsLocal,
+  ClearChangeRequestSnapshot,
+  ClearChangeRequestSnapshots,
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
   ResolveConflictKeepBoth,
@@ -180,6 +183,7 @@ import type {
   GitHubChangeRequestError,
   GitHubChangeRequestErrorCode,
   GitHubChangeRequestRepository,
+  ChangeRequestSnapshot,
   CreateProjectOptions,
   CreateProjectResult,
 } from './RepoContext.types';
@@ -345,6 +349,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [selectedChangeRequestFilePath, setSelectedChangeRequestFilePath] = useState<string | null>(null);
   const [isLoadingChangeRequestDetail, setIsLoadingChangeRequestDetail] = useState(false);
   const [changeRequestDetailError, setChangeRequestDetailError] = useState<GitHubChangeRequestError | null>(null);
+  const [changeRequestSnapshot, setChangeRequestSnapshot] = useState<ChangeRequestSnapshot | null>(null);
+  const [isPreparingChangeRequestSnapshot, setIsPreparingChangeRequestSnapshot] = useState(false);
+  const [changeRequestSnapshotError, setChangeRequestSnapshotError] = useState<GitHubChangeRequestError | null>(null);
   
   // ===== Progress Modal State =====
   const [progressModal, setProgressModal] = useState<ProgressModalState>({
@@ -365,6 +372,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const changeRequestLoadIdRef = useRef(0);
   const changeRequestDetailLoadIdRef = useRef(0);
   const changeRequestAuthStateRef = useRef<boolean | null>(null);
+  const selectedChangeRequestRef = useRef<GitHubChangeRequest | null>(null);
+  selectedChangeRequestRef.current = selectedChangeRequest;
 
   const clearChangeRequestState = useCallback((): void => {
     changeRequestLoadIdRef.current += 1;
@@ -383,6 +392,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedChangeRequestFilePath(null);
     setIsLoadingChangeRequestDetail(false);
     setChangeRequestDetailError(null);
+    setChangeRequestSnapshot(null);
+    setIsPreparingChangeRequestSnapshot(false);
+    setChangeRequestSnapshotError(null);
   }, []);
 
   const isWindowsPlatform = useCallback((): boolean => {
@@ -2775,6 +2787,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setChangeRequests(orderedRequests);
       setOmittedExternalChangeRequestCount(listResult.omittedExternalCount);
       setChangeRequestsMayHaveMore(listResult.mayHaveMore);
+
+      // A request that was merged or closed elsewhere no longer needs its
+      // downloaded refs kept on disk.
+      const openRequest = selectedChangeRequestRef.current;
+      if (openRequest && !orderedRequests.some((entry) => entry.number === openRequest.number)) {
+        void ClearChangeRequestSnapshot(repoPath, openRequest.number);
+      }
     } catch (error) {
       if (changeRequestLoadIdRef.current === loadId) {
         setChangeRequestError({
@@ -2789,6 +2808,47 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [clearChangeRequestState, repoPath]);
 
+  const prepareChangeRequestSnapshot = useCallback(async (
+    request: GitHubChangeRequest,
+    loadId: number,
+  ): Promise<void> => {
+    if (!repoPath) return;
+
+    setIsPreparingChangeRequestSnapshot(true);
+    setChangeRequestSnapshot(null);
+    setChangeRequestSnapshotError(null);
+
+    try {
+      const result = await EnsureChangeRequestSnapshotsLocal(
+        repoPath,
+        request.number,
+        request.baseRefName,
+        request.headRefOid,
+        request.isCrossRepository,
+      );
+      if (changeRequestDetailLoadIdRef.current !== loadId) return;
+      if (!result.success || !result.snapshot) {
+        setChangeRequestSnapshotError({
+          code: result.errorCode as GitHubChangeRequestErrorCode,
+          message: result.error,
+        });
+        return;
+      }
+      setChangeRequestSnapshot(result.snapshot as ChangeRequestSnapshot);
+    } catch (error) {
+      if (changeRequestDetailLoadIdRef.current === loadId) {
+        setChangeRequestSnapshotError({
+          code: 'internal_error',
+          message: error instanceof Error ? error.message : 'Unable to download the Change Request contents.',
+        });
+      }
+    } finally {
+      if (changeRequestDetailLoadIdRef.current === loadId) {
+        setIsPreparingChangeRequestSnapshot(false);
+      }
+    }
+  }, [repoPath]);
+
   const selectChangeRequest = useCallback(async (number: number): Promise<void> => {
     if (!repoPath) return;
 
@@ -2800,6 +2860,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setChangeRequestTotalFiles(0);
     setIsChangeRequestFilesTruncated(false);
     setSelectedChangeRequestFilePath(null);
+    setChangeRequestSnapshot(null);
+    setChangeRequestSnapshotError(null);
+    setIsPreparingChangeRequestSnapshot(false);
 
     const setDetailError = (code: GitHubChangeRequestErrorCode, message?: string): void => {
       if (changeRequestDetailLoadIdRef.current === loadId) {
@@ -2826,6 +2889,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setChangeRequestFiles(filesResult.files as GitHubChangeRequestFile[]);
       setChangeRequestTotalFiles(filesResult.totalFiles);
       setIsChangeRequestFilesTruncated(filesResult.isTruncated);
+
+      // Download the comparison refs in the background so the summary and file
+      // list stay usable while the contents arrive.
+      void prepareChangeRequestSnapshot(detailResult.changeRequest as GitHubChangeRequest, loadId);
     } catch (error) {
       if (changeRequestDetailLoadIdRef.current === loadId) {
         setSelectedChangeRequest(null);
@@ -2836,7 +2903,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
         setIsLoadingChangeRequestDetail(false);
       }
     }
-  }, [repoPath]);
+  }, [prepareChangeRequestSnapshot, repoPath]);
 
   const selectChangeRequestFile = useCallback((path: string | null): void => {
     setSelectedChangeRequestFilePath(path);
@@ -2851,7 +2918,22 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setSelectedChangeRequestFilePath(null);
     setIsLoadingChangeRequestDetail(false);
     setChangeRequestDetailError(null);
+    setChangeRequestSnapshot(null);
+    setIsPreparingChangeRequestSnapshot(false);
+    setChangeRequestSnapshotError(null);
   }, []);
+
+  // Snapshot refs are disposable caches, not user data. Clear them when a
+  // repository is opened as well as when it is left, so a crash or force quit
+  // cannot leave stale refs behind.
+  useEffect(() => {
+    if (!repoPath) return;
+    const path = repoPath;
+    void ClearChangeRequestSnapshots(path);
+    return () => {
+      void ClearChangeRequestSnapshots(path);
+    };
+  }, [repoPath]);
 
   useEffect(() => {
     if (!repoPath || changeRequestAuthStateRef.current === ghAuthStatus?.loggedIn) {
@@ -3578,6 +3660,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     selectedChangeRequestFilePath,
     isLoadingChangeRequestDetail,
     changeRequestDetailError,
+    changeRequestSnapshot,
+    isPreparingChangeRequestSnapshot,
+    changeRequestSnapshotError,
     checkGitHubAuth,
     loginGitHub,
     startGitHubLogin,
@@ -3631,6 +3716,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
     changeRequestRepository, changeRequestViewerLogin, changeRequests, omittedExternalChangeRequestCount, changeRequestsMayHaveMore, isLoadingChangeRequests, changeRequestError,
     selectedChangeRequest, changeRequestFiles, changeRequestTotalFiles, isChangeRequestFilesTruncated, selectedChangeRequestFilePath, isLoadingChangeRequestDetail, changeRequestDetailError,
+    changeRequestSnapshot, isPreparingChangeRequestSnapshot, changeRequestSnapshotError,
     checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations, loadChangeRequests, selectChangeRequest, selectChangeRequestFile, returnToChangeRequestOverview, clearChangeRequestState,
     createProject,
   ]);

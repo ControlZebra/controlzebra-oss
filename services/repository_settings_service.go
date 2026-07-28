@@ -374,6 +374,10 @@ func (r *RepositorySettingsService) runFetchAll(repoPath string, settings FetchS
 		args = append(args, "--tags")
 	}
 
+	// Background timers must not race a Change Request snapshot fetch.
+	unlock := lockChangeRequestRepo(repoPath)
+	defer unlock()
+
 	result := r.runner.RunGit(repoPath, args...)
 	if !result.Success {
 		return failedOp("Fetch failed: " + result.Stderr)
@@ -394,6 +398,9 @@ func (r *RepositorySettingsService) runLFSFetch(repoPath string, settings LFSSet
 		return failedOp("Git LFS is not installed")
 	}
 
+	unlock := lockChangeRequestRepo(repoPath)
+	defer unlock()
+
 	// Run git lfs fetch --recent
 	result := r.runner.RunGit(repoPath, "lfs", "fetch", "--recent")
 	if !result.Success {
@@ -407,6 +414,9 @@ func (r *RepositorySettingsService) runLFSFetch(repoPath string, settings LFSSet
 func (r *RepositorySettingsService) runMaintenance(repoPath string, settings MaintenanceSettings) OperationResult {
 	var errors []string
 	var successes []string
+
+	unlock := lockChangeRequestRepo(repoPath)
+	defer unlock()
 
 	if settings.CommitGraph {
 		result := r.runner.RunGit(repoPath, "maintenance", "run", "--task=commit-graph")

@@ -183,6 +183,31 @@ export function changeRequestErrorCopy(code: GitHubChangeRequestErrorCode): Chan
         title: 'GitHub is temporarily limiting requests',
         detail: 'Wait a moment, then refresh Change Requests.',
       };
+    case 'snapshot_unavailable':
+      return {
+        title: 'The changed files could not be downloaded',
+        detail: 'We could not download this Change Request from GitHub. Check your connection, then try again.',
+      };
+    case 'snapshot_stale':
+      return {
+        title: 'This Change Request was updated on GitHub',
+        detail: 'Someone added new work since this was opened. Refresh to review the latest version.',
+      };
+    case 'snapshot_unsupported':
+      return {
+        title: 'This Change Request cannot be previewed here',
+        detail: 'It comes from a copy of the project outside your team. Review it on GitHub instead.',
+      };
+    case 'content_too_large':
+      return {
+        title: 'This file is too large to preview',
+        detail: 'Open the file on GitHub, or open the project folder to inspect it with its own application.',
+      };
+    case 'content_lfs_unavailable':
+      return {
+        title: 'This file has not finished downloading',
+        detail: 'Large files are stored separately and could not be downloaded. Check your connection, then try again.',
+      };
     default:
       return {
         title: 'Change Requests could not be loaded',
