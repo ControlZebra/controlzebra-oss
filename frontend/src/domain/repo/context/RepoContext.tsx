@@ -42,7 +42,9 @@ import {
   GetGHVersion,
   AuthStatus,
   GetAuthenticatedUser,
+  GetChangeRequest,
   ListChangeRequests,
+  ListChangeRequestFiles,
   RepoList,
   ListUserOrganizations,
   IsLFSInstalled,
@@ -174,6 +176,7 @@ import type {
   GitHubRepoCreateResult,
   GitHubOrganizationsResult,
   GitHubChangeRequest,
+  GitHubChangeRequestFile,
   GitHubChangeRequestError,
   GitHubChangeRequestErrorCode,
   GitHubChangeRequestRepository,
@@ -335,6 +338,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [changeRequestsMayHaveMore, setChangeRequestsMayHaveMore] = useState(false);
   const [isLoadingChangeRequests, setIsLoadingChangeRequests] = useState(false);
   const [changeRequestError, setChangeRequestError] = useState<GitHubChangeRequestError | null>(null);
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState<GitHubChangeRequest | null>(null);
+  const [changeRequestFiles, setChangeRequestFiles] = useState<GitHubChangeRequestFile[]>([]);
+  const [changeRequestTotalFiles, setChangeRequestTotalFiles] = useState(0);
+  const [isChangeRequestFilesTruncated, setIsChangeRequestFilesTruncated] = useState(false);
+  const [selectedChangeRequestFilePath, setSelectedChangeRequestFilePath] = useState<string | null>(null);
+  const [isLoadingChangeRequestDetail, setIsLoadingChangeRequestDetail] = useState(false);
+  const [changeRequestDetailError, setChangeRequestDetailError] = useState<GitHubChangeRequestError | null>(null);
   
   // ===== Progress Modal State =====
   const [progressModal, setProgressModal] = useState<ProgressModalState>({
@@ -353,10 +363,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const gitIdentityPromptResolverRef = useRef<((value: boolean) => void) | null>(null);
   const gitIdentityRef = useRef<CachedGitIdentity>(EMPTY_GIT_IDENTITY);
   const changeRequestLoadIdRef = useRef(0);
+  const changeRequestDetailLoadIdRef = useRef(0);
   const changeRequestAuthStateRef = useRef<boolean | null>(null);
 
   const clearChangeRequestState = useCallback((): void => {
     changeRequestLoadIdRef.current += 1;
+    changeRequestDetailLoadIdRef.current += 1;
     setChangeRequestRepository(null);
     setChangeRequestViewerLogin('');
     setChangeRequests([]);
@@ -364,6 +376,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setChangeRequestsMayHaveMore(false);
     setIsLoadingChangeRequests(false);
     setChangeRequestError(null);
+    setSelectedChangeRequest(null);
+    setChangeRequestFiles([]);
+    setChangeRequestTotalFiles(0);
+    setIsChangeRequestFilesTruncated(false);
+    setSelectedChangeRequestFilePath(null);
+    setIsLoadingChangeRequestDetail(false);
+    setChangeRequestDetailError(null);
   }, []);
 
   const isWindowsPlatform = useCallback((): boolean => {
@@ -2770,6 +2789,70 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [clearChangeRequestState, repoPath]);
 
+  const selectChangeRequest = useCallback(async (number: number): Promise<void> => {
+    if (!repoPath) return;
+
+    const loadId = changeRequestDetailLoadIdRef.current + 1;
+    changeRequestDetailLoadIdRef.current = loadId;
+    setIsLoadingChangeRequestDetail(true);
+    setChangeRequestDetailError(null);
+    setChangeRequestFiles([]);
+    setChangeRequestTotalFiles(0);
+    setIsChangeRequestFilesTruncated(false);
+    setSelectedChangeRequestFilePath(null);
+
+    const setDetailError = (code: GitHubChangeRequestErrorCode, message?: string): void => {
+      if (changeRequestDetailLoadIdRef.current === loadId) {
+        setChangeRequestDetailError({ code, message });
+      }
+    };
+
+    try {
+      const detailResult = await GetChangeRequest(repoPath, number);
+      if (changeRequestDetailLoadIdRef.current !== loadId) return;
+      if (!detailResult.success || !detailResult.changeRequest) {
+        setSelectedChangeRequest(null);
+        setDetailError(detailResult.errorCode as GitHubChangeRequestErrorCode, detailResult.error);
+        return;
+      }
+      setSelectedChangeRequest(detailResult.changeRequest as GitHubChangeRequest);
+
+      const filesResult = await ListChangeRequestFiles(repoPath, number);
+      if (changeRequestDetailLoadIdRef.current !== loadId) return;
+      if (!filesResult.success) {
+        setDetailError(filesResult.errorCode as GitHubChangeRequestErrorCode, filesResult.error);
+        return;
+      }
+      setChangeRequestFiles(filesResult.files as GitHubChangeRequestFile[]);
+      setChangeRequestTotalFiles(filesResult.totalFiles);
+      setIsChangeRequestFilesTruncated(filesResult.isTruncated);
+    } catch (error) {
+      if (changeRequestDetailLoadIdRef.current === loadId) {
+        setSelectedChangeRequest(null);
+        setDetailError('internal_error', error instanceof Error ? error.message : 'Unable to load Change Request details.');
+      }
+    } finally {
+      if (changeRequestDetailLoadIdRef.current === loadId) {
+        setIsLoadingChangeRequestDetail(false);
+      }
+    }
+  }, [repoPath]);
+
+  const selectChangeRequestFile = useCallback((path: string | null): void => {
+    setSelectedChangeRequestFilePath(path);
+  }, []);
+
+  const returnToChangeRequestOverview = useCallback((): void => {
+    changeRequestDetailLoadIdRef.current += 1;
+    setSelectedChangeRequest(null);
+    setChangeRequestFiles([]);
+    setChangeRequestTotalFiles(0);
+    setIsChangeRequestFilesTruncated(false);
+    setSelectedChangeRequestFilePath(null);
+    setIsLoadingChangeRequestDetail(false);
+    setChangeRequestDetailError(null);
+  }, []);
+
   useEffect(() => {
     if (!repoPath || changeRequestAuthStateRef.current === ghAuthStatus?.loggedIn) {
       return;
@@ -3488,6 +3571,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
     changeRequestsMayHaveMore,
     isLoadingChangeRequests,
     changeRequestError,
+    selectedChangeRequest,
+    changeRequestFiles,
+    changeRequestTotalFiles,
+    isChangeRequestFilesTruncated,
+    selectedChangeRequestFilePath,
+    isLoadingChangeRequestDetail,
+    changeRequestDetailError,
     checkGitHubAuth,
     loginGitHub,
     startGitHubLogin,
@@ -3499,6 +3589,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     publishToGitHub,
     loadUserOrganizations,
     loadChangeRequests,
+    selectChangeRequest,
+    selectChangeRequestFile,
+    returnToChangeRequestOverview,
     clearChangeRequestState,
 
     // Project creation (Welcome Screen)
@@ -3537,7 +3630,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     // GitHub dependencies
     ghInstalled, ghVersion, ghAuthStatus, isCheckingGhAuth, ghRepos, isLoadingGhRepos,
     changeRequestRepository, changeRequestViewerLogin, changeRequests, omittedExternalChangeRequestCount, changeRequestsMayHaveMore, isLoadingChangeRequests, changeRequestError,
-    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations, loadChangeRequests, clearChangeRequestState,
+    selectedChangeRequest, changeRequestFiles, changeRequestTotalFiles, isChangeRequestFilesTruncated, selectedChangeRequestFilePath, isLoadingChangeRequestDetail, changeRequestDetailError,
+    checkGitHubAuth, loginGitHub, startGitHubLogin, completeGitHubLogin, cancelGitHubLogin, logoutGitHub, loadGitHubRepos, cloneGitHubRepo, publishToGitHub, loadUserOrganizations, loadChangeRequests, selectChangeRequest, selectChangeRequestFile, returnToChangeRequestOverview, clearChangeRequestState,
     createProject,
   ]);
 

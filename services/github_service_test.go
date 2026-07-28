@@ -46,6 +46,71 @@ func TestMapGitHubChangeRequestFilesJSON(t *testing.T) {
 	}
 }
 
+func TestMapGitHubChangeRequestDetailJSON(t *testing.T) {
+	result := mapGitHubChangeRequestDetailJSON(readChangeRequestFixture(t, "request-detail.json"))
+	if !result.Success {
+		t.Fatalf("expected detail mapping success, got %#v", result)
+	}
+	if result.ChangeRequest.Number != 42 || result.TotalFiles != 3 {
+		t.Fatalf("unexpected detail mapping: %#v", result)
+	}
+	if result.ChangeRequest.ReviewDecision != "" {
+		t.Fatalf("expected unavailable review decision to remain empty, got %q", result.ChangeRequest.ReviewDecision)
+	}
+	if len(result.ChangeRequest.Reviewers) != 1 || result.ChangeRequest.Reviewers[0].Login != "reviewer" {
+		t.Fatalf("unexpected reviewer mapping: %#v", result.ChangeRequest.Reviewers)
+	}
+}
+
+func TestGitHubServiceLoadsChangeRequestDetailAndFiles(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	runGitCmd(t, repoPath, "remote", "add", "origin", "https://github.com/controlzebra/plant-project.git")
+
+	tempDir := t.TempDir()
+	fakeGh := filepath.Join(tempDir, "gh")
+	script := `#!/bin/sh
+case "$1" in
+repo)
+  printf '%s\n' '{"nameWithOwner":"controlzebra/plant-project","url":"https://github.com/controlzebra/plant-project","defaultBranchRef":{"name":"main"}}'
+  ;;
+pr)
+  printf '%s\n' '{"number":42,"title":"Update mixer sequence","url":"https://github.com/controlzebra/plant-project/pull/42","state":"OPEN","author":{"login":"operator"},"headRefName":"work/mixer-interlock","headRefOid":"head-oid","baseRefName":"main","baseRefOid":"base-oid","mergeStateStatus":"CLEAN","changedFiles":2,"reviewRequests":[{"requestedReviewer":{"login":"reviewer"}}]}'
+  ;;
+api)
+  printf '%s\n' '[[{"filename":"logic/Mixer.L5X","status":"modified","additions":12,"deletions":4},{"filename":"config/renamed.json","previous_filename":"config/original.json","status":"renamed","additions":1,"deletions":0}]]'
+  ;;
+*)
+  exit 1
+  ;;
+esac
+`
+	if err := os.WriteFile(fakeGh, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+
+	resolveMu.Lock()
+	resolvedGh = fakeGh
+	resolveOnce = sync.Once{}
+	resolveOnce.Do(func() {})
+	resolveMu.Unlock()
+	t.Cleanup(RefreshCLIPaths)
+
+	service := NewGitHubService()
+	detail := service.GetChangeRequest(repoPath, 42)
+	if !detail.Success || detail.ChangeRequest.Reviewers[0].Login != "reviewer" || detail.TotalFiles != 2 {
+		t.Fatalf("unexpected detail result: %#v", detail)
+	}
+
+	files := service.ListChangeRequestFiles(repoPath, 42)
+	if !files.Success || files.IsTruncated || len(files.Files) != 2 {
+		t.Fatalf("unexpected file result: %#v", files)
+	}
+	if files.Files[1].PreviousPath != "config/original.json" {
+		t.Fatalf("expected renamed file metadata, got %#v", files.Files[1])
+	}
+}
+
 func TestMapGitHubChangeRequestRepositoryJSON(t *testing.T) {
 	result := mapGitHubChangeRequestRepositoryJSON(readChangeRequestFixture(t, "repository.json"))
 	if !result.Success {

@@ -1,5 +1,6 @@
 import type {
   GitHubChangeRequest as GitHubChangeRequestModel,
+  GitHubChangeRequestFile as GitHubChangeRequestFileModel,
   GitHubChangeRequestRepository as GitHubChangeRequestRepositoryModel,
   GitHubChangeRequestErrorCode as GitHubChangeRequestErrorCodeModel,
 } from '../../../../bindings/controlzebra/services/models';
@@ -145,6 +146,8 @@ export type GitHubChangeRequestErrorCode = `${GitHubChangeRequestErrorCodeModel}
 export type GitHubChangeRequestRepository = GitHubChangeRequestRepositoryModel;
 
 export type GitHubChangeRequest = GitHubChangeRequestModel;
+
+export type GitHubChangeRequestFile = GitHubChangeRequestFileModel;
 
 export interface GitHubChangeRequestError {
   code: GitHubChangeRequestErrorCode;
@@ -670,6 +673,13 @@ export interface RepoContextValue {
   changeRequestsMayHaveMore: boolean;
   isLoadingChangeRequests: boolean;
   changeRequestError: GitHubChangeRequestError | null;
+  selectedChangeRequest: GitHubChangeRequest | null;
+  changeRequestFiles: GitHubChangeRequestFile[];
+  changeRequestTotalFiles: number;
+  isChangeRequestFilesTruncated: boolean;
+  selectedChangeRequestFilePath: string | null;
+  isLoadingChangeRequestDetail: boolean;
+  changeRequestDetailError: GitHubChangeRequestError | null;
   
   // GitHub actions
   checkGitHubAuth: () => Promise<void>;
@@ -683,6 +693,9 @@ export interface RepoContextValue {
   publishToGitHub: (name: string, description: string, isPrivate: boolean, owner?: string) => Promise<GitHubRepoCreateResult>;
   loadUserOrganizations: () => Promise<GitHubOrganizationsResult>;
   loadChangeRequests: () => Promise<void>;
+  selectChangeRequest: (number: number) => Promise<void>;
+  selectChangeRequestFile: (path: string | null) => void;
+  returnToChangeRequestOverview: () => void;
   clearChangeRequestState: () => void;
 
   // ===== Project Creation (Welcome Screen) =====
