@@ -1,14 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Github, Loader2, RefreshCw, Search } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Github, GitPullRequest, Loader2, RefreshCw, Search } from 'lucide-react';
 
 import { Badge, Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../shared/ui';
-import { ICON_SIZES } from '../../../shared/constants';
+import { ICON_SIZES, MAIN_BRANCHES } from '../../../shared/constants';
 import { useRepo } from '../../../context';
 import { openExternalUrl } from '../../../shared/runtime/browser';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import { useGitHubDeviceFlow } from '../../auth/hooks/useGitHubDeviceFlow';
 import type { GitHubChangeRequest } from '../../../domain/repo/context/RepoContext.types';
 import ChangeRequestPreview from '../components/ChangeRequestPreview';
+import CreateChangeRequestDialog from '../components/CreateChangeRequestDialog';
 import {
   changeRequestErrorCopy,
   changeRequestFileSummaryText,
@@ -24,8 +25,10 @@ function ReviewsPage(): JSX.Element {
   const [authorFilter, setAuthorFilter] = useState('all');
   const [reviewFilter, setReviewFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('updated');
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const {
     repoPath,
+    repoStatus,
     changeRequestRepository,
     changeRequests,
     changeRequestViewerLogin,
@@ -97,6 +100,13 @@ function ReviewsPage(): JSX.Element {
     if (requestNumber === undefined) return;
     void selectChangeRequest(requestNumber);
   }, [requestNumber, selectChangeRequest]);
+
+  const currentBranch = repoStatus?.branch ?? '';
+  const canCreateChangeRequest = Boolean(currentBranch)
+    && !MAIN_BRANCHES.includes(currentBranch.toLowerCase());
+  const createDisabledReason = !currentBranch
+    ? undefined
+    : 'Switch to a feature branch to open a Change Request.';
 
   if (isLoadingChangeRequests && !changeRequestRepository && !changeRequestError) {
     return (
@@ -243,6 +253,16 @@ function ReviewsPage(): JSX.Element {
             >
               <RefreshCw size={ICON_SIZES.sm} className={isLoadingChangeRequests ? 'animate-spin' : ''} />
             </Button>
+            <span title={!canCreateChangeRequest ? createDisabledReason : undefined}>
+              <Button
+                variant="default"
+                onClick={() => setIsCreateDialogOpen(true)}
+                disabled={!canCreateChangeRequest}
+              >
+                <GitPullRequest size={ICON_SIZES.sm} />
+                Create Change Request
+              </Button>
+            </span>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-theme-default bg-theme-surface p-6">
@@ -290,6 +310,14 @@ function ReviewsPage(): JSX.Element {
             </div>
           ) : <div className="min-h-0 flex-1" data-testid="change-request-viewer-empty" />}
         </div>
+      )}
+      {currentBranch && (
+        <CreateChangeRequestDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          sourceBranch={currentBranch}
+          defaultTargetBranch={changeRequestRepository?.defaultBranch}
+        />
       )}
     </div>
   );

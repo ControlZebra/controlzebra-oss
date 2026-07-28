@@ -1627,6 +1627,34 @@ export class GitHubChangeRequest {
     }
 }
 
+/**
+ * GitHubChangeRequestBranch is a target-branch option for the create dialog.
+ */
+export class GitHubChangeRequestBranch {
+    "name": string;
+    "isDefault": boolean;
+
+    /** Creates a new GitHubChangeRequestBranch instance. */
+    constructor($$source: Partial<GitHubChangeRequestBranch> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("isDefault" in $$source)) {
+            this["isDefault"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubChangeRequestBranch instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubChangeRequestBranch {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubChangeRequestBranch($$parsedSource as Partial<GitHubChangeRequestBranch>);
+    }
+}
+
 export class GitHubChangeRequestDetailResult {
     "success": boolean;
     "changeRequest"?: GitHubChangeRequest;
@@ -1878,6 +1906,49 @@ export class GitHubChangeRequestRepositoryResult {
     }
 }
 
+/**
+ * GitHubChangeRequestTargetsResult reports the selectable target branches and
+ * the repository default that the create dialog should preselect.
+ */
+export class GitHubChangeRequestTargetsResult {
+    "success": boolean;
+    "branches": GitHubChangeRequestBranch[];
+    "defaultBranch": string;
+    "message"?: string;
+    "error"?: string;
+    "errorCode": GitHubChangeRequestErrorCode;
+
+    /** Creates a new GitHubChangeRequestTargetsResult instance. */
+    constructor($$source: Partial<GitHubChangeRequestTargetsResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("branches" in $$source)) {
+            this["branches"] = [];
+        }
+        if (!("defaultBranch" in $$source)) {
+            this["defaultBranch"] = "";
+        }
+        if (!("errorCode" in $$source)) {
+            this["errorCode"] = GitHubChangeRequestErrorCode.$zero;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubChangeRequestTargetsResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubChangeRequestTargetsResult {
+        const $$createField1_0 = $$createType28;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("branches" in $$parsedSource) {
+            $$parsedSource["branches"] = $$createField1_0($$parsedSource["branches"]);
+        }
+        return new GitHubChangeRequestTargetsResult($$parsedSource as Partial<GitHubChangeRequestTargetsResult>);
+    }
+}
+
 export class GitHubChangeReviewer {
     "login": string;
     "name"?: string;
@@ -1931,6 +2002,84 @@ export class GitHubCloneResult {
 }
 
 /**
+ * GitHubCreateChangeRequestOptions carries the create dialog's inputs.
+ */
+export class GitHubCreateChangeRequestOptions {
+    "sourceBranch": string;
+    "targetBranch": string;
+    "title": string;
+    "body": string;
+
+    /** Creates a new GitHubCreateChangeRequestOptions instance. */
+    constructor($$source: Partial<GitHubCreateChangeRequestOptions> = {}) {
+        if (!("sourceBranch" in $$source)) {
+            this["sourceBranch"] = "";
+        }
+        if (!("targetBranch" in $$source)) {
+            this["targetBranch"] = "";
+        }
+        if (!("title" in $$source)) {
+            this["title"] = "";
+        }
+        if (!("body" in $$source)) {
+            this["body"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubCreateChangeRequestOptions instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubCreateChangeRequestOptions {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new GitHubCreateChangeRequestOptions($$parsedSource as Partial<GitHubCreateChangeRequestOptions>);
+    }
+}
+
+/**
+ * GitHubCreateChangeRequestResult reports the outcome of creating a request.
+ * When IsDuplicate is true, ChangeRequest is the existing open request the user
+ * should be routed to instead of a newly created one.
+ */
+export class GitHubCreateChangeRequestResult {
+    "success": boolean;
+    "changeRequest"?: GitHubChangeRequest;
+    "url"?: string;
+    "isDuplicate": boolean;
+    "message"?: string;
+    "error"?: string;
+    "errorCode": GitHubChangeRequestErrorCode;
+
+    /** Creates a new GitHubCreateChangeRequestResult instance. */
+    constructor($$source: Partial<GitHubCreateChangeRequestResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("isDuplicate" in $$source)) {
+            this["isDuplicate"] = false;
+        }
+        if (!("errorCode" in $$source)) {
+            this["errorCode"] = GitHubChangeRequestErrorCode.$zero;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubCreateChangeRequestResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubCreateChangeRequestResult {
+        const $$createField1_0 = $$createType22;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("changeRequest" in $$parsedSource) {
+            $$parsedSource["changeRequest"] = $$createField1_0($$parsedSource["changeRequest"]);
+        }
+        return new GitHubCreateChangeRequestResult($$parsedSource as Partial<GitHubCreateChangeRequestResult>);
+    }
+}
+
+/**
  * GitHubDeviceFlowResult represents the device flow authentication state
  */
 export class GitHubDeviceFlowResult {
@@ -1962,6 +2111,46 @@ export class GitHubDeviceFlowResult {
     static createFrom($$source: any = {}): GitHubDeviceFlowResult {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new GitHubDeviceFlowResult($$parsedSource as Partial<GitHubDeviceFlowResult>);
+    }
+}
+
+/**
+ * GitHubFindChangeRequestResult reports whether an open Change Request already
+ * exists for a source branch. Found is false when the branch has none.
+ */
+export class GitHubFindChangeRequestResult {
+    "success": boolean;
+    "found": boolean;
+    "changeRequest"?: GitHubChangeRequest;
+    "message"?: string;
+    "error"?: string;
+    "errorCode": GitHubChangeRequestErrorCode;
+
+    /** Creates a new GitHubFindChangeRequestResult instance. */
+    constructor($$source: Partial<GitHubFindChangeRequestResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("found" in $$source)) {
+            this["found"] = false;
+        }
+        if (!("errorCode" in $$source)) {
+            this["errorCode"] = GitHubChangeRequestErrorCode.$zero;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new GitHubFindChangeRequestResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): GitHubFindChangeRequestResult {
+        const $$createField2_0 = $$createType22;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("changeRequest" in $$parsedSource) {
+            $$parsedSource["changeRequest"] = $$createField2_0($$parsedSource["changeRequest"]);
+        }
+        return new GitHubFindChangeRequestResult($$parsedSource as Partial<GitHubFindChangeRequestResult>);
     }
 }
 
@@ -2044,7 +2233,7 @@ export class GitHubOrganizationsResult {
      * Creates a new GitHubOrganizationsResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubOrganizationsResult {
-        const $$createField2_0 = $$createType28;
+        const $$createField2_0 = $$createType30;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("organizations" in $$parsedSource) {
             $$parsedSource["organizations"] = $$createField2_0($$parsedSource["organizations"]);
@@ -2232,7 +2421,7 @@ export class GitHubRepoCreateResult {
      * Creates a new GitHubRepoCreateResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoCreateResult {
-        const $$createField1_0 = $$createType29;
+        const $$createField1_0 = $$createType31;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repo" in $$parsedSource) {
             $$parsedSource["repo"] = $$createField1_0($$parsedSource["repo"]);
@@ -2265,7 +2454,7 @@ export class GitHubRepoListResult {
      * Creates a new GitHubRepoListResult instance from a string or object.
      */
     static createFrom($$source: any = {}): GitHubRepoListResult {
-        const $$createField1_0 = $$createType30;
+        const $$createField1_0 = $$createType32;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
@@ -3002,7 +3191,7 @@ export class LogEntry {
      * Creates a new LogEntry instance from a string or object.
      */
     static createFrom($$source: any = {}): LogEntry {
-        const $$createField6_0 = $$createType31;
+        const $$createField6_0 = $$createType33;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("details" in $$parsedSource) {
             $$parsedSource["details"] = $$createField6_0($$parsedSource["details"]);
@@ -3937,7 +4126,7 @@ export class RepoStatus {
      * Creates a new RepoStatus instance from a string or object.
      */
     static createFrom($$source: any = {}): RepoStatus {
-        const $$createField3_0 = $$createType33;
+        const $$createField3_0 = $$createType35;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("changedFiles" in $$parsedSource) {
             $$parsedSource["changedFiles"] = $$createField3_0($$parsedSource["changedFiles"]);
@@ -4025,12 +4214,12 @@ export class RepositorySettings {
      * Creates a new RepositorySettings instance from a string or object.
      */
     static createFrom($$source: any = {}): RepositorySettings {
-        const $$createField2_0 = $$createType34;
-        const $$createField3_0 = $$createType34;
-        const $$createField4_0 = $$createType34;
-        const $$createField5_0 = $$createType35;
-        const $$createField6_0 = $$createType36;
-        const $$createField7_0 = $$createType37;
+        const $$createField2_0 = $$createType36;
+        const $$createField3_0 = $$createType36;
+        const $$createField4_0 = $$createType36;
+        const $$createField5_0 = $$createType37;
+        const $$createField6_0 = $$createType38;
+        const $$createField7_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("fetchTask" in $$parsedSource) {
             $$parsedSource["fetchTask"] = $$createField2_0($$parsedSource["fetchTask"]);
@@ -4287,14 +4476,16 @@ const $$createType23 = GitHubChangeRequestFile.createFrom;
 const $$createType24 = $Create.Array($$createType23);
 const $$createType25 = GitHubChangeRequestRepository.createFrom;
 const $$createType26 = $Create.Array($$createType22);
-const $$createType27 = GitHubOrganization.createFrom;
+const $$createType27 = GitHubChangeRequestBranch.createFrom;
 const $$createType28 = $Create.Array($$createType27);
-const $$createType29 = GitHubRepo.createFrom;
+const $$createType29 = GitHubOrganization.createFrom;
 const $$createType30 = $Create.Array($$createType29);
-const $$createType31 = LogDetails.createFrom;
-const $$createType32 = FileStatus.createFrom;
-const $$createType33 = $Create.Array($$createType32);
-const $$createType34 = BackgroundTaskConfig.createFrom;
-const $$createType35 = FetchSettings.createFrom;
-const $$createType36 = LFSSettings.createFrom;
-const $$createType37 = MaintenanceSettings.createFrom;
+const $$createType31 = GitHubRepo.createFrom;
+const $$createType32 = $Create.Array($$createType31);
+const $$createType33 = LogDetails.createFrom;
+const $$createType34 = FileStatus.createFrom;
+const $$createType35 = $Create.Array($$createType34);
+const $$createType36 = BackgroundTaskConfig.createFrom;
+const $$createType37 = FetchSettings.createFrom;
+const $$createType38 = LFSSettings.createFrom;
+const $$createType39 = MaintenanceSettings.createFrom;

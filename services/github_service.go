@@ -172,6 +172,55 @@ type GitHubChangeRequestDetailResult struct {
 	ErrorCode     GitHubChangeRequestErrorCode `json:"errorCode"`
 }
 
+// GitHubChangeRequestBranch is a target-branch option for the create dialog.
+type GitHubChangeRequestBranch struct {
+	Name      string `json:"name"`
+	IsDefault bool   `json:"isDefault"`
+}
+
+// GitHubChangeRequestTargetsResult reports the selectable target branches and
+// the repository default that the create dialog should preselect.
+type GitHubChangeRequestTargetsResult struct {
+	Success       bool                         `json:"success"`
+	Branches      []GitHubChangeRequestBranch  `json:"branches"`
+	DefaultBranch string                       `json:"defaultBranch"`
+	Message       string                       `json:"message,omitempty"`
+	Error         string                       `json:"error,omitempty"`
+	ErrorCode     GitHubChangeRequestErrorCode `json:"errorCode"`
+}
+
+// GitHubFindChangeRequestResult reports whether an open Change Request already
+// exists for a source branch. Found is false when the branch has none.
+type GitHubFindChangeRequestResult struct {
+	Success       bool                         `json:"success"`
+	Found         bool                         `json:"found"`
+	ChangeRequest GitHubChangeRequest          `json:"changeRequest,omitempty"`
+	Message       string                       `json:"message,omitempty"`
+	Error         string                       `json:"error,omitempty"`
+	ErrorCode     GitHubChangeRequestErrorCode `json:"errorCode"`
+}
+
+// GitHubCreateChangeRequestOptions carries the create dialog's inputs.
+type GitHubCreateChangeRequestOptions struct {
+	SourceBranch string `json:"sourceBranch"`
+	TargetBranch string `json:"targetBranch"`
+	Title        string `json:"title"`
+	Body         string `json:"body"`
+}
+
+// GitHubCreateChangeRequestResult reports the outcome of creating a request.
+// When IsDuplicate is true, ChangeRequest is the existing open request the user
+// should be routed to instead of a newly created one.
+type GitHubCreateChangeRequestResult struct {
+	Success       bool                         `json:"success"`
+	ChangeRequest GitHubChangeRequest          `json:"changeRequest,omitempty"`
+	URL           string                       `json:"url,omitempty"`
+	IsDuplicate   bool                         `json:"isDuplicate"`
+	Message       string                       `json:"message,omitempty"`
+	Error         string                       `json:"error,omitempty"`
+	ErrorCode     GitHubChangeRequestErrorCode `json:"errorCode"`
+}
+
 // GitHubRepo represents a GitHub repository
 type GitHubRepo struct {
 	Name            string `json:"name"`
@@ -449,6 +498,320 @@ func (g *GitHubService) ListChangeRequestFiles(repoPath string, number int) GitH
 		}
 	}
 	return mapGitHubChangeRequestFilesJSON([]byte(result.Stdout), reported.ChangedFiles)
+}
+
+// ListChangeRequestTargets returns the origin branches a Change Request may
+// target and the repository default the create dialog should preselect. It
+// reads directly from origin so stale local remote-tracking refs cannot appear.
+func (g *GitHubService) ListChangeRequestTargets(repoPath string) GitHubChangeRequestTargetsResult {
+	repositoryResult := g.GetChangeRequestRepository(repoPath)
+	if !repositoryResult.Success {
+		return GitHubChangeRequestTargetsResult{
+			Branches:  []GitHubChangeRequestBranch{},
+			Error:     repositoryResult.Error,
+			ErrorCode: repositoryResult.ErrorCode,
+		}
+	}
+
+	remoteBranches, err := NewGitService().OriginRemoteBranches(repoPath)
+	if err != nil {
+		return GitHubChangeRequestTargetsResult{
+			Branches:  []GitHubChangeRequestBranch{},
+			Error:     "ControlZebra could not read the project's GitHub branches.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	defaultBranch := strings.TrimSpace(repositoryResult.Repository.DefaultBranch)
+	branches := make([]GitHubChangeRequestBranch, 0, len(remoteBranches))
+	for _, branch := range remoteBranches {
+		branches = append(branches, GitHubChangeRequestBranch{
+			Name:      branch.Name,
+			IsDefault: branch.Name == defaultBranch,
+		})
+	}
+
+	return GitHubChangeRequestTargetsResult{
+		Success:       true,
+		Branches:      branches,
+		DefaultBranch: defaultBranch,
+	}
+}
+
+// FindOpenChangeRequestForBranch performs a deterministic duplicate lookup for a
+// single source branch. It is called both at create preflight and again if
+// `gh pr create` reports a duplicate.
+func (g *GitHubService) FindOpenChangeRequestForBranch(repoPath string, sourceBranch string) GitHubFindChangeRequestResult {
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	if sourceBranch == "" {
+		return GitHubFindChangeRequestResult{
+			Error:     "A source branch is required to look up existing Change Requests.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	repositoryResult := g.GetChangeRequestRepository(repoPath)
+	if !repositoryResult.Success {
+		return GitHubFindChangeRequestResult{
+			Error:     repositoryResult.Error,
+			ErrorCode: repositoryResult.ErrorCode,
+		}
+	}
+
+	result := g.runner.Run(
+		repoPath,
+		GhPath(),
+		"pr", "list",
+		"--repo", repositoryResult.Repository.NameWithOwner,
+		"--state", "open",
+		"--head", sourceBranch,
+		"--json", changeRequestListJSONFields,
+		"--limit", "1",
+	)
+	if !result.Success {
+		return GitHubFindChangeRequestResult{
+			Error:     getGHErrorMessage(result),
+			ErrorCode: mapGitHubChangeRequestError(result),
+		}
+	}
+
+	var rawRequests []changeRequestJSON
+	if err := json.Unmarshal([]byte(result.Stdout), &rawRequests); err != nil {
+		return GitHubFindChangeRequestResult{
+			Error:     "Failed to read existing Change Requests from GitHub.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+	for _, raw := range rawRequests {
+		if raw.IsCrossRepository {
+			continue
+		}
+		return GitHubFindChangeRequestResult{
+			Success:       true,
+			Found:         true,
+			ChangeRequest: raw.toChangeRequest(),
+		}
+	}
+	return GitHubFindChangeRequestResult{Success: true, Found: false}
+}
+
+// CreateChangeRequest opens a Change Request for a pushed, fully synced source
+// branch after every preflight check passes. It never pushes implicitly and
+// never retries: a duplicate routes the caller to the existing request instead.
+func (g *GitHubService) CreateChangeRequest(repoPath string, options GitHubCreateChangeRequestOptions) (createResult GitHubCreateChangeRequestResult) {
+	done := LogMethod("GitHubService.CreateChangeRequest", map[string]interface{}{
+		"repoPath":     repoPath,
+		"sourceBranch": options.SourceBranch,
+		"targetBranch": options.TargetBranch,
+	})
+	defer func() { done(createResult, nil) }()
+
+	title := strings.TrimSpace(options.Title)
+	body := strings.TrimSpace(options.Body)
+	sourceBranch := strings.TrimSpace(options.SourceBranch)
+	targetBranch := strings.TrimSpace(options.TargetBranch)
+
+	if title == "" {
+		return GitHubCreateChangeRequestResult{
+			Error:     "A title is required to create a Change Request.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+	if sourceBranch == "" {
+		return GitHubCreateChangeRequestResult{
+			Error:     "A source branch is required to create a Change Request.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+	if targetBranch == "" {
+		return GitHubCreateChangeRequestResult{
+			Error:     "A target branch is required to create a Change Request.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+	if strings.EqualFold(sourceBranch, targetBranch) {
+		return GitHubCreateChangeRequestResult{
+			Error:     "The source and target branch must be different.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	repositoryResult := g.GetChangeRequestRepository(repoPath)
+	if !repositoryResult.Success {
+		return GitHubCreateChangeRequestResult{
+			Error:     repositoryResult.Error,
+			ErrorCode: repositoryResult.ErrorCode,
+		}
+	}
+	if strings.EqualFold(sourceBranch, strings.TrimSpace(repositoryResult.Repository.DefaultBranch)) {
+		return GitHubCreateChangeRequestResult{
+			Error:     "Change Requests are created from a separate work branch, not the main project branch.",
+			ErrorCode: GitHubChangeRequestErrorInternal,
+		}
+	}
+
+	// Acquire the backend per-repository lock so RepositorySettingsService
+	// timers cannot advance the branch between the sync check and creation.
+	unlock := lockChangeRequestRepo(repoPath)
+	defer unlock()
+
+	// Re-verify the branch is fully synced immediately before creation rather
+	// than trusting the state that existed when the dialog opened.
+	if code, message, ok := g.verifyBranchSyncedForChangeRequest(repoPath, sourceBranch); !ok {
+		return GitHubCreateChangeRequestResult{Error: message, ErrorCode: code}
+	}
+
+	// Deterministic duplicate lookup before attempting creation.
+	existing := g.FindOpenChangeRequestForBranch(repoPath, sourceBranch)
+	if !existing.Success {
+		return GitHubCreateChangeRequestResult{Error: existing.Error, ErrorCode: existing.ErrorCode}
+	}
+	if existing.Found {
+		return GitHubCreateChangeRequestResult{
+			Success:       true,
+			IsDuplicate:   true,
+			ChangeRequest: existing.ChangeRequest,
+			URL:           existing.ChangeRequest.URL,
+			Message:       "An open Change Request already exists for this branch.",
+			ErrorCode:     GitHubChangeRequestErrorDuplicateRequest,
+		}
+	}
+
+	result := g.runner.Run(
+		repoPath,
+		GhPath(),
+		"pr", "create",
+		"--repo", repositoryResult.Repository.NameWithOwner,
+		"--base", targetBranch,
+		"--head", sourceBranch,
+		"--title", title,
+		"--body", body,
+	)
+	if !result.Success {
+		combined := strings.ToLower(strings.Join([]string{result.Stderr, result.Stdout, result.Error}, "\n"))
+		if strings.Contains(combined, "already exists") || strings.Contains(combined, "http 422") {
+			// A duplicate raced us between preflight and creation. Never retry;
+			// route the caller to the discovered request instead.
+			discovered := g.FindOpenChangeRequestForBranch(repoPath, sourceBranch)
+			if discovered.Success && discovered.Found {
+				return GitHubCreateChangeRequestResult{
+					Success:       true,
+					IsDuplicate:   true,
+					ChangeRequest: discovered.ChangeRequest,
+					URL:           discovered.ChangeRequest.URL,
+					Message:       "An open Change Request already exists for this branch.",
+					ErrorCode:     GitHubChangeRequestErrorDuplicateRequest,
+				}
+			}
+			return GitHubCreateChangeRequestResult{
+				Error:     "An open Change Request already exists for this branch.",
+				ErrorCode: GitHubChangeRequestErrorDuplicateRequest,
+			}
+		}
+		return GitHubCreateChangeRequestResult{
+			Error:     getGHErrorMessage(result),
+			ErrorCode: mapGitHubChangeRequestError(result),
+		}
+	}
+
+	createdURL := extractChangeRequestURL(result.Stdout)
+	number := changeRequestNumberFromURL(createdURL)
+	if number > 0 {
+		detail := g.GetChangeRequest(repoPath, number)
+		if detail.Success {
+			return GitHubCreateChangeRequestResult{
+				Success:       true,
+				ChangeRequest: detail.ChangeRequest,
+				URL:           detail.ChangeRequest.URL,
+				Message:       "Change Request created.",
+			}
+		}
+	}
+
+	return GitHubCreateChangeRequestResult{
+		Success: true,
+		URL:     createdURL,
+		Message: "Change Request created.",
+	}
+}
+
+// verifyBranchSyncedForChangeRequest enforces the release's synced-branch rule:
+// a clean working tree and index, a branch that tracks its same-named origin
+// branch, and a local head that equals the origin head with no ahead or behind
+// commits. The origin head is read with ls-remote so no local ref is mutated.
+func (g *GitHubService) verifyBranchSyncedForChangeRequest(repoPath string, branch string) (GitHubChangeRequestErrorCode, string, bool) {
+	gitSvc := NewGitService()
+
+	hasChanges, err := gitSvc.HasChanges(repoPath)
+	if err != nil {
+		return GitHubChangeRequestErrorInternal, "ControlZebra could not read this project's status.", false
+	}
+	if hasChanges {
+		return GitHubChangeRequestErrorBranchNotSynced,
+			"Save and sync your changes before creating a Change Request.", false
+	}
+
+	if _, ok := gitSvc.OriginTrackingUpstream(repoPath, branch); !ok {
+		return GitHubChangeRequestErrorBranchNotSynced,
+			"Publish this branch to GitHub before creating a Change Request.", false
+	}
+
+	remoteResult := g.runner.RunGit(repoPath, "ls-remote", "origin", "refs/heads/"+branch)
+	if !remoteResult.Success {
+		return GitHubChangeRequestErrorBranchNotSynced,
+			"ControlZebra could not confirm this branch on GitHub. Sync and retry.", false
+	}
+	remoteFields := strings.Fields(trimOutput(remoteResult.Stdout))
+	if len(remoteFields) < 1 || remoteFields[0] == "" {
+		return GitHubChangeRequestErrorBranchNotSynced,
+			"Publish this branch to GitHub before creating a Change Request.", false
+	}
+	remoteOID := remoteFields[0]
+
+	localResult := g.runner.RunGit(repoPath, "rev-parse", "--verify", "refs/heads/"+branch)
+	if !localResult.Success {
+		return GitHubChangeRequestErrorBranchNotSynced,
+			"ControlZebra could not read this branch locally.", false
+	}
+	localOID := trimOutput(localResult.Stdout)
+
+	if !strings.EqualFold(localOID, remoteOID) {
+		return GitHubChangeRequestErrorBranchNotSynced,
+			"Sync this branch with GitHub before creating a Change Request.", false
+	}
+	return "", "", true
+}
+
+// extractChangeRequestURL returns the first GitHub pull-request URL in gh's
+// create output. gh prints the URL on success, sometimes among other lines.
+func extractChangeRequestURL(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "https://") && strings.Contains(line, "/pull/") {
+			return line
+		}
+	}
+	return strings.TrimSpace(output)
+}
+
+// changeRequestNumberFromURL parses the trailing pull-request number from a
+// GitHub URL such as https://github.com/owner/name/pull/42.
+func changeRequestNumberFromURL(prURL string) int {
+	prURL = strings.TrimSpace(prURL)
+	index := strings.LastIndex(prURL, "/pull/")
+	if index == -1 {
+		return 0
+	}
+	tail := prURL[index+len("/pull/"):]
+	tail = strings.TrimRight(tail, "/")
+	if slash := strings.IndexAny(tail, "/?#"); slash != -1 {
+		tail = tail[:slash]
+	}
+	number, err := strconv.Atoi(tail)
+	if err != nil {
+		return 0
+	}
+	return number
 }
 
 func changeRequestRemoteHost(remoteURL string) (host string, isGitHubRemote bool) {

@@ -63,6 +63,15 @@ The broad roadmap evolved in three steps:
 - Update staging and staged-artifact reuse were implemented to support ready-to-install update behavior and safer retries.
 - Release-manifest and channel concepts were defined around hosted update metadata and signed artifacts.
 
+### Change Requests (GitHub Collaboration)
+
+- The first collaboration workflow shipped: browse, inspect, and create GitHub pull requests, surfaced to users as **Change Requests**. See [[Change Requests Implementation Plan]].
+- A `Reviews` view groups open `Team Change Requests` and `Your requests`, with request detail, an industrial summary strip, and a changed-files table.
+- Read-only Change Request diffs reuse the existing snapshot-ref pipeline, so every supported viewer (text, image, PDF, 3D, L5X) compares the exact base and head snapshots.
+- Creation is available only when the project is connected directly to its primary GitHub repository, the user is signed in, and the checked-out feature branch is fully synced. The create action never pushes implicitly and never produces a duplicate request.
+- Backend enforces a synced-branch rule (clean tree/index, `origin/<branch>` upstream, local `HEAD` OID equal to the remote OID) immediately before `gh pr create`, guarded by a per-repository lock. All failures carry a stable `GitHubChangeRequestErrorCode`.
+- Fork and external-contributor requests, local branch checkout from a request, and GitHub review actions inside the app remain out of scope for this release.
+
 ## Superseded Or Consolidated Decisions
 
 ### Viewer Planning

@@ -3,6 +3,11 @@ import type {
   GitHubChangeRequestFile as GitHubChangeRequestFileModel,
   GitHubChangeRequestRepository as GitHubChangeRequestRepositoryModel,
   GitHubChangeRequestErrorCode as GitHubChangeRequestErrorCodeModel,
+  GitHubChangeRequestBranch as GitHubChangeRequestBranchModel,
+  GitHubChangeRequestTargetsResult as GitHubChangeRequestTargetsResultModel,
+  GitHubFindChangeRequestResult as GitHubFindChangeRequestResultModel,
+  GitHubCreateChangeRequestOptions as GitHubCreateChangeRequestOptionsModel,
+  GitHubCreateChangeRequestResult as GitHubCreateChangeRequestResultModel,
   ChangeRequestSnapshot as ChangeRequestSnapshotModel,
 } from '../../../../bindings/controlzebra/services/models';
 
@@ -160,6 +165,26 @@ export type ChangeRequestSnapshot = ChangeRequestSnapshotModel;
 export interface GitHubChangeRequestError {
   code: GitHubChangeRequestErrorCode;
   message?: string;
+}
+
+export type GitHubChangeRequestBranch = GitHubChangeRequestBranchModel;
+export type GitHubChangeRequestTargetsResult = GitHubChangeRequestTargetsResultModel;
+export type GitHubFindChangeRequestResult = GitHubFindChangeRequestResultModel;
+export type GitHubCreateChangeRequestOptions = GitHubCreateChangeRequestOptionsModel;
+export type GitHubCreateChangeRequestResult = GitHubCreateChangeRequestResultModel;
+
+/**
+ * ChangeRequestCreateEligibility describes whether the Next Step Advisor may
+ * offer Create Change Request for the current synced feature branch. When the
+ * status is `ineligible`, `code` and `message` explain why so the button can be
+ * shown disabled with guidance.
+ */
+export interface ChangeRequestCreateEligibility {
+  status: 'unknown' | 'eligible' | 'ineligible';
+  code?: GitHubChangeRequestErrorCode;
+  message?: string;
+  repository?: GitHubChangeRequestRepository | null;
+  defaultBranch?: string;
 }
 
 /**
@@ -691,6 +716,8 @@ export interface RepoContextValue {
   changeRequestSnapshot: ChangeRequestSnapshot | null;
   isPreparingChangeRequestSnapshot: boolean;
   changeRequestSnapshotError: GitHubChangeRequestError | null;
+  changeRequestCreateEligibility: ChangeRequestCreateEligibility;
+  isCreatingChangeRequest: boolean;
   
   // GitHub actions
   checkGitHubAuth: () => Promise<void>;
@@ -708,6 +735,10 @@ export interface RepoContextValue {
   selectChangeRequestFile: (path: string | null) => void;
   returnToChangeRequestOverview: () => void;
   clearChangeRequestState: () => void;
+  checkChangeRequestCreateEligibility: (sourceBranch: string) => Promise<ChangeRequestCreateEligibility>;
+  loadChangeRequestTargets: () => Promise<GitHubChangeRequestTargetsResult>;
+  findOpenChangeRequestForBranch: (sourceBranch: string) => Promise<GitHubFindChangeRequestResult>;
+  createChangeRequest: (options: GitHubCreateChangeRequestOptions) => Promise<GitHubCreateChangeRequestResult>;
 
   // ===== Project Creation (Welcome Screen) =====
 

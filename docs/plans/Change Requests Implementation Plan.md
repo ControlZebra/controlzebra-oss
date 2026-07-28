@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation in progress as of 2026-07-28.
+Feature complete as of 2026-07-28.
 
 Completed phases:
 
@@ -12,9 +12,6 @@ Completed phases:
 - Phase 3a-1: Snapshot refs.
 - Phase 3a-2: Content availability.
 - Phase 3b: Read-only Change Request diffs.
-
-Remaining phases:
-
 - Phase 4: Create Change Request.
 - Phase 5: Hardening and documentation.
 
