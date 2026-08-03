@@ -119,6 +119,101 @@ func TestOriginRemoteBranchesAndTrackingUpstream(t *testing.T) {
 	}
 }
 
+// TestOriginTrackingUpstream_RestrictedRefspec verifies that a branch published
+// with its upstream in config is still recognized as tracking origin/<branch>
+// even when a restricted fetch refspec prevents native `%(upstream)` resolution.
+// This mirrors the single-branch-clone state that blocked Change Request creation.
+func TestOriginTrackingUpstream_RestrictedRefspec(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+
+	os.WriteFile(filepath.Join(repoPath, "control.txt"), []byte("initial"), 0644)
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "initial")
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
+	featureBranch := "@tester-20260728-1923"
+	runGitCmd(t, repoPath, "checkout", "-b", featureBranch)
+	runGitCmd(t, repoPath, "push", "-u", "origin", featureBranch)
+
+	// Simulate a single-branch clone: restrict the fetch refspec and drop the
+	// feature branch's remote-tracking ref so native `%(upstream)` returns empty.
+	runGitCmd(t, repoPath, "config", "remote.origin.fetch", "+refs/heads/main:refs/remotes/origin/main")
+	runGitCmd(t, repoPath, "update-ref", "-d", "refs/remotes/origin/"+featureBranch)
+
+	svc := NewGitService()
+	if out := runGitOutput(t, repoPath, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+featureBranch); strings.TrimSpace(out) != "" {
+		t.Fatalf("Expected native upstream detection to be broken, got upstream: %q", out)
+	}
+	if upstream, ok := svc.OriginTrackingUpstream(repoPath, featureBranch); !ok || upstream != "origin/"+featureBranch {
+		t.Fatalf("expected origin/%s tracking upstream via fallback, got %q ok=%v", featureBranch, upstream, ok)
+	}
+}
+
+// TestCheckHasUpstream_RestrictedRefspec verifies the sync path recognizes a
+// published branch as having an upstream even under a restricted fetch refspec.
+// Otherwise Sync skips the pull and the subsequent push is rejected, trapping the
+// user in a re-sync loop.
+func TestCheckHasUpstream_RestrictedRefspec(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+
+	os.WriteFile(filepath.Join(repoPath, "control.txt"), []byte("initial"), 0644)
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "initial")
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
+	featureBranch := "@tester-20260728-1923"
+	runGitCmd(t, repoPath, "checkout", "-b", featureBranch)
+	runGitCmd(t, repoPath, "push", "-u", "origin", featureBranch)
+	runGitCmd(t, repoPath, "config", "remote.origin.fetch", "+refs/heads/main:refs/remotes/origin/main")
+	runGitCmd(t, repoPath, "update-ref", "-d", "refs/remotes/origin/"+featureBranch)
+
+	if !NewProgressService().checkHasUpstream(repoPath) {
+		t.Fatalf("expected checkHasUpstream=true for a published branch with a restricted refspec")
+	}
+}
+
+// TestDeleteBranch_RestrictedRefspec_RemovesRemote verifies that deleting a
+// published branch also removes it from origin even when a restricted fetch
+// refspec hides native upstream detection. Without the fallback the remote
+// branch would be orphaned.
+func TestDeleteBranch_RestrictedRefspec_RemovesRemote(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+
+	os.WriteFile(filepath.Join(repoPath, "control.txt"), []byte("initial"), 0644)
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "initial")
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
+	featureBranch := "@tester-20260728-1931"
+	runGitCmd(t, repoPath, "checkout", "-b", featureBranch)
+	runGitCmd(t, repoPath, "push", "-u", "origin", featureBranch)
+	runGitCmd(t, repoPath, "config", "remote.origin.fetch", "+refs/heads/main:refs/remotes/origin/main")
+	runGitCmd(t, repoPath, "update-ref", "-d", "refs/remotes/origin/"+featureBranch)
+
+	// Switch away so the feature branch can be deleted.
+	runGitCmd(t, repoPath, "checkout", "main")
+
+	svc := NewGitService()
+	if res := svc.DeleteBranch(repoPath, featureBranch, true); !res.Success {
+		t.Fatalf("expected DeleteBranch to succeed, got: %s", res.Error)
+	}
+	if out := runGitOutput(t, repoPath, "ls-remote", "--heads", "origin", "refs/heads/"+featureBranch); strings.TrimSpace(out) != "" {
+		t.Fatalf("expected remote branch to be deleted, ls-remote still returned: %q", out)
+	}
+}
+
 // TestUnquoteGitPath tests the unquoteGitPath helper function
 func TestUnquoteGitPath(t *testing.T) {
 	tests := []struct {
@@ -408,6 +503,69 @@ func TestStatus_AfterPushWithUpstream_NoPendingSnapshots(t *testing.T) {
 	}
 	if status.TotalLocalCommits != 0 {
 		t.Fatalf("Expected TotalLocalCommits=0 with upstream, got %d", status.TotalLocalCommits)
+	}
+}
+
+// TestStatus_PublishedBranchWithRestrictedRefspec reproduces the single-branch
+// clone scenario: a feature branch is pushed with its upstream recorded in
+// config, but the fetch refspec only mirrors the default branch, so no
+// remote-tracking ref exists for the feature branch and `@{u}` fails. The status
+// must still report the branch as published with no pending snapshots.
+func TestStatus_PublishedBranchWithRestrictedRefspec(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	remotePath := createBareRemoteAndLink(t, repoPath)
+	defer os.RemoveAll(remotePath)
+
+	svc := NewGitService()
+
+	// Seed the default branch and publish it.
+	if err := os.WriteFile(filepath.Join(repoPath, "seed.txt"), []byte("seed"), 0644); err != nil {
+		t.Fatalf("Failed to write seed file: %v", err)
+	}
+	if commit := svc.CommitAll(repoPath, "Initial commit"); !commit.Success {
+		t.Fatalf("Expected initial commit to succeed, got: %s", commit.Error)
+	}
+	runGitCmd(t, repoPath, "branch", "-M", "main")
+	runGitCmd(t, repoPath, "push", "-u", "origin", "main")
+
+	// Create and publish a feature branch (records branch.<name>.remote/merge).
+	featureBranch := "@tester-20260728-1923"
+	runGitCmd(t, repoPath, "checkout", "-b", featureBranch)
+	if err := os.WriteFile(filepath.Join(repoPath, "feature.txt"), []byte("feature"), 0644); err != nil {
+		t.Fatalf("Failed to write feature file: %v", err)
+	}
+	if commit := svc.CommitAll(repoPath, "Feature commit"); !commit.Success {
+		t.Fatalf("Expected feature commit to succeed, got: %s", commit.Error)
+	}
+	runGitCmd(t, repoPath, "push", "-u", "origin", featureBranch)
+
+	// Simulate a single-branch clone: restrict the fetch refspec to the default
+	// branch and drop the feature branch's remote-tracking ref so `@{u}` fails.
+	runGitCmd(t, repoPath, "config", "remote.origin.fetch", "+refs/heads/main:refs/remotes/origin/main")
+	runGitCmd(t, repoPath, "update-ref", "-d", "refs/remotes/origin/"+featureBranch)
+
+	// Guard: confirm the degraded state actually breaks native upstream detection.
+	if out := runGitOutput(t, repoPath, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+featureBranch); strings.TrimSpace(out) != "" {
+		t.Fatalf("Expected native upstream detection to be broken, got upstream: %q", out)
+	}
+
+	status := svc.Status(repoPath)
+	if status.HasError {
+		t.Fatalf("Expected no status error, got: %s", status.Error)
+	}
+	if !status.HasUpstream {
+		t.Fatalf("Expected HasUpstream=true for a published branch with a restricted refspec")
+	}
+	if status.Ahead != 0 {
+		t.Fatalf("Expected Ahead=0 for a fully pushed branch, got %d", status.Ahead)
+	}
+	if status.Behind != 0 {
+		t.Fatalf("Expected Behind=0 for a fully pushed branch, got %d", status.Behind)
+	}
+	if status.TotalLocalCommits != 0 {
+		t.Fatalf("Expected TotalLocalCommits=0 when upstream is detected, got %d", status.TotalLocalCommits)
 	}
 }
 

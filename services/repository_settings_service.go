@@ -899,6 +899,24 @@ func (r *RepositorySettingsService) DiagnoseRepository(repoPath string) Recovery
 					diag.UnpushedCommits = n
 				}
 			}
+		} else if branch := trimOutput(r.runner.RunGit(repoPath, "branch", "--show-current").Stdout); branch != "" {
+			// Restricted-refspec fallback: `@{upstream}` fails when no remote-tracking
+			// ref is mirrored, even though the branch is published. Resolve the remote
+			// tip directly from config + ls-remote and count commits ahead of it.
+			remoteName := trimOutput(r.runner.RunGit(repoPath, "config", "--get", "branch."+branch+".remote").Stdout)
+			mergeRef := trimOutput(r.runner.RunGit(repoPath, "config", "--get", "branch."+branch+".merge").Stdout)
+			if remoteName != "" && mergeRef != "" {
+				remoteSha := firstLsRemoteSha(r.runner.RunGit(repoPath, "ls-remote", "--heads", remoteName, mergeRef))
+				if remoteSha != "" {
+					unpushedResult := r.runner.RunGit(repoPath, "rev-list", "--count", remoteSha+"..HEAD")
+					if unpushedResult.Success {
+						count := strings.TrimSpace(unpushedResult.Stdout)
+						if n, err := strconv.Atoi(count); err == nil && n > 0 {
+							diag.UnpushedCommits = n
+						}
+					}
+				}
+			}
 		}
 	}
 
