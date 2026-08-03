@@ -498,6 +498,12 @@ export function GetCommitGraph(repoPath: string, limit: number): $CancellablePro
     });
 }
 
+export function GetConflictResolutionData(repoPath: string, filePath: string): $CancellablePromise<$models.ConflictResolutionData> {
+    return $Call.ByID(833720214, repoPath, filePath).then(($result: any) => {
+        return $$createType11($result);
+    });
+}
+
 /**
  * GetConflictSidesInfo returns commit information for both sides of a conflict.
  * This is useful for displaying in the conflict resolution UI.
@@ -507,7 +513,7 @@ export function GetCommitGraph(repoPath: string, limit: number): $CancellablePro
  */
 export function GetConflictSidesInfo(repoPath: string, parentBranch: string): $CancellablePromise<$models.ConflictSidesInfo> {
     return $Call.ByID(428205696, repoPath, parentBranch).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType12($result);
     });
 }
 
@@ -516,7 +522,7 @@ export function GetConflictSidesInfo(repoPath: string, parentBranch: string): $C
  */
 export function GetConflictedFiles(repoPath: string): $CancellablePromise<$models.ConflictedFile[]> {
     return $Call.ByID(484033912, repoPath).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType14($result);
     });
 }
 
@@ -536,7 +542,7 @@ export function GetCurrentBranch(repoPath: string): $CancellablePromise<string> 
  */
 export function GetFileAtRevisionBase64(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileBase64Result> {
     return $Call.ByID(2465511231, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType14($result);
+        return $$createType15($result);
     });
 }
 
@@ -546,7 +552,7 @@ export function GetFileAtRevisionBase64(repoPath: string, filePath: string, revi
  */
 export function GetGitVersion(): $CancellablePromise<$models.GitVersion | null> {
     return $Call.ByID(2885829042).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType17($result);
     });
 }
 
@@ -556,7 +562,7 @@ export function GetGitVersion(): $CancellablePromise<$models.GitVersion | null> 
  */
 export function GetMergeState(repoPath: string): $CancellablePromise<$models.MergeState> {
     return $Call.ByID(844598379, repoPath).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType18($result);
     });
 }
 
@@ -571,7 +577,7 @@ export function GetMergeState(repoPath: string): $CancellablePromise<$models.Mer
  */
 export function GetParentBranch(repoPath: string): $CancellablePromise<$models.ParentBranchResult> {
     return $Call.ByID(1659162422, repoPath).then(($result: any) => {
-        return $$createType18($result);
+        return $$createType19($result);
     });
 }
 
@@ -580,7 +586,7 @@ export function GetParentBranch(repoPath: string): $CancellablePromise<$models.P
  */
 export function GetRecentCommits(repoPath: string, limit: number): $CancellablePromise<$models.CommitInfo[]> {
     return $Call.ByID(4130048517, repoPath, limit).then(($result: any) => {
-        return $$createType20($result);
+        return $$createType21($result);
     });
 }
 
@@ -637,7 +643,7 @@ export function IsDetachedHead(repoPath: string): $CancellablePromise<boolean> {
 
 export function ListMergeReviewFiles(repoPath: string, targetBranch: string, sourceBranch: string): $CancellablePromise<$models.MergeReviewFile[]> {
     return $Call.ByID(2838372817, repoPath, targetBranch, sourceBranch).then(($result: any) => {
-        return $$createType22($result);
+        return $$createType23($result);
     });
 }
 
@@ -667,7 +673,7 @@ export function MoveFile(repoPath: string, source: string, destination: string):
  */
 export function OriginRemoteBranches(repoPath: string): $CancellablePromise<$models.RemoteBranch[]> {
     return $Call.ByID(2407226354, repoPath).then(($result: any) => {
-        return $$createType24($result);
+        return $$createType25($result);
     });
 }
 
@@ -711,7 +717,7 @@ export function Push(repoPath: string): $CancellablePromise<$models.OperationRes
  */
 export function ReadFileAtRevision(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
     return $Call.ByID(2435261556, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType26($result);
     });
 }
 
@@ -722,7 +728,7 @@ export function ReadFileAtRevision(repoPath: string, filePath: string, revision:
  */
 export function ReadFileAtRevisionLarge(repoPath: string, filePath: string, revision: string): $CancellablePromise<$models.FileContentResult> {
     return $Call.ByID(2397397827, repoPath, filePath, revision).then(($result: any) => {
-        return $$createType25($result);
+        return $$createType26($result);
     });
 }
 
@@ -871,6 +877,12 @@ export function ResolveConflictKeepTheirs(repoPath: string, filePath: string): $
     });
 }
 
+export function ResolveConflictWithContent(repoPath: string, filePath: string, resolutionToken: string, content: string): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3916318693, repoPath, filePath, resolutionToken, content).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
 /**
  * Restore reverts a file to its HEAD state, discarding working tree changes.
  * Does NOT affect staged changes - use Unstage first if needed.
@@ -925,7 +937,7 @@ export function RevertCommitWithMessage(repoPath: string, commitHash: string, me
  */
 export function ShowCommit(repoPath: string, hash: string): $CancellablePromise<$models.CommitDetail> {
     return $Call.ByID(137660310, repoPath, hash).then(($result: any) => {
-        return $$createType26($result);
+        return $$createType27($result);
     });
 }
 
@@ -1031,7 +1043,7 @@ export function StashDrop(repoPath: string, index: number, confirm: boolean): $C
  */
 export function StashList(repoPath: string): $CancellablePromise<$models.StashEntry[]> {
     return $Call.ByID(2553569151, repoPath).then(($result: any) => {
-        return $$createType28($result);
+        return $$createType29($result);
     });
 }
 
@@ -1060,7 +1072,7 @@ export function StashPush(repoPath: string, message: string): $CancellablePromis
  */
 export function Status(repoPath: string): $CancellablePromise<$models.RepoStatus> {
     return $Call.ByID(2928711956, repoPath).then(($result: any) => {
-        return $$createType29($result);
+        return $$createType30($result);
     });
 }
 
@@ -1112,22 +1124,23 @@ const $$createType7 = $models.ChangeRequestFileContentResult.createFrom;
 const $$createType8 = $models.ChangeRequestSnapshotResult.createFrom;
 const $$createType9 = $Create.Map($Create.Any, $Create.Any);
 const $$createType10 = $models.CommitGraphResult.createFrom;
-const $$createType11 = $models.ConflictSidesInfo.createFrom;
-const $$createType12 = $models.ConflictedFile.createFrom;
-const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = $models.FileBase64Result.createFrom;
-const $$createType15 = $models.GitVersion.createFrom;
-const $$createType16 = $Create.Nullable($$createType15);
-const $$createType17 = $models.MergeState.createFrom;
-const $$createType18 = $models.ParentBranchResult.createFrom;
-const $$createType19 = $models.CommitInfo.createFrom;
-const $$createType20 = $Create.Array($$createType19);
-const $$createType21 = $models.MergeReviewFile.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = $models.RemoteBranch.createFrom;
-const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = $models.FileContentResult.createFrom;
-const $$createType26 = $models.CommitDetail.createFrom;
-const $$createType27 = $models.StashEntry.createFrom;
-const $$createType28 = $Create.Array($$createType27);
-const $$createType29 = $models.RepoStatus.createFrom;
+const $$createType11 = $models.ConflictResolutionData.createFrom;
+const $$createType12 = $models.ConflictSidesInfo.createFrom;
+const $$createType13 = $models.ConflictedFile.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = $models.FileBase64Result.createFrom;
+const $$createType16 = $models.GitVersion.createFrom;
+const $$createType17 = $Create.Nullable($$createType16);
+const $$createType18 = $models.MergeState.createFrom;
+const $$createType19 = $models.ParentBranchResult.createFrom;
+const $$createType20 = $models.CommitInfo.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = $models.MergeReviewFile.createFrom;
+const $$createType23 = $Create.Array($$createType22);
+const $$createType24 = $models.RemoteBranch.createFrom;
+const $$createType25 = $Create.Array($$createType24);
+const $$createType26 = $models.FileContentResult.createFrom;
+const $$createType27 = $models.CommitDetail.createFrom;
+const $$createType28 = $models.StashEntry.createFrom;
+const $$createType29 = $Create.Array($$createType28);
+const $$createType30 = $models.RepoStatus.createFrom;

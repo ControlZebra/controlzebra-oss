@@ -25,6 +25,7 @@ const iconLg: CSSProperties = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg 
 const CONFLICT_STATUS_LABELS: Record<ConflictedFile['status'], string> = {
   'both-modified': 'Both changed',
   'both-added': 'Both added',
+  'both-deleted': 'Both deleted',
   'deleted-by-us': 'Deleted on your branch',
   'deleted-by-them': 'Deleted on destination',
 };

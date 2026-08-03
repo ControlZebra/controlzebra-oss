@@ -3508,26 +3508,7 @@ func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) O
 		return failedOp("File path is required")
 	}
 
-	// Check merge state first (supports regular merge, squash merge, and rebase)
-	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InRebase && !state.InSquashMerge {
-		return failedOp("No merge in progress - cannot resolve conflict")
-	}
-
-	result := g.runner.RunGit(repoPath, "checkout", "--ours", "--", filePath)
-	if !result.Success {
-		errMsg := getErrorMessage(result)
-		// Provide more context in error
-		return failedOp(fmt.Sprintf("Failed to resolve conflict for '%s': %s", filePath, errMsg))
-	}
-
-	// Stage the resolved file
-	addResult := g.runner.RunGit(repoPath, "add", "--", filePath)
-	if !addResult.Success {
-		return failedOp("Failed to stage resolved file: " + getErrorMessage(addResult))
-	}
-
-	return successOp(fmt.Sprintf("Resolved '%s' by keeping your version", filePath))
+	return g.resolveConflictWithStage(repoPath, filePath, 2, "current")
 }
 
 // ResolveConflictKeepTheirs resolves a conflict by keeping their version.
@@ -3539,25 +3520,7 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 		return failedOp("File path is required")
 	}
 
-	// Check merge state first (supports regular merge, squash merge, and rebase)
-	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InRebase && !state.InSquashMerge {
-		return failedOp("No merge in progress - cannot resolve conflict")
-	}
-
-	result := g.runner.RunGit(repoPath, "checkout", "--theirs", "--", filePath)
-	if !result.Success {
-		errMsg := getErrorMessage(result)
-		return failedOp(fmt.Sprintf("Failed to resolve conflict for '%s': %s", filePath, errMsg))
-	}
-
-	// Stage the resolved file
-	addResult := g.runner.RunGit(repoPath, "add", "--", filePath)
-	if !addResult.Success {
-		return failedOp("Failed to stage resolved file: " + getErrorMessage(addResult))
-	}
-
-	return successOp(fmt.Sprintf("Resolved '%s' by keeping their version", filePath))
+	return g.resolveConflictWithStage(repoPath, filePath, 3, "incoming")
 }
 
 // ResolveConflictKeepBoth resolves a conflict by keeping both versions.
@@ -4197,7 +4160,7 @@ func normalizeMergePath(path string) string {
 
 func safeRepoRelativePath(repoPath string, relativePath string) (string, error) {
 	cleanRelative := filepath.Clean(filepath.FromSlash(relativePath))
-	if cleanRelative == "." || cleanRelative == "" || filepath.IsAbs(cleanRelative) || strings.HasPrefix(cleanRelative, "..") {
+	if cleanRelative == "." || cleanRelative == "" || filepath.IsAbs(cleanRelative) {
 		return "", fmt.Errorf("invalid relative path")
 	}
 
@@ -4206,7 +4169,7 @@ func safeRepoRelativePath(repoPath string, relativePath string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if strings.HasPrefix(rel, "..") {
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path escapes repository")
 	}
 
