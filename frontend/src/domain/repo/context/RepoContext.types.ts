@@ -27,7 +27,7 @@ import type { ReactNode, Dispatch, SetStateAction } from 'react';
 // ============================================================================
 
 export type FileStatusType = 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked';
-export type ConflictFileStatus = 'both-modified' | 'deleted-by-us' | 'deleted-by-them' | 'both-added';
+export type ConflictFileStatus = 'both-modified' | 'deleted-by-us' | 'deleted-by-them' | 'both-added' | 'both-deleted';
 export type ResolutionStrategy = 'mine' | 'theirs' | 'both';
 export type MessageType = 'success' | 'error' | 'info' | 'warning';
 export type ProjectSetupStartSource = 'status_bar_nudge' | 'setup_banner';

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -63,6 +64,47 @@ func runGitOutput(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
 	}
 	return string(output)
+}
+
+func createTextConflictRepo(t *testing.T, filePath string, base []byte, current []byte, incoming []byte) string {
+	t.Helper()
+	repoPath := createTestRepo(t)
+	runGitCmd(t, repoPath, "config", "core.autocrlf", "false")
+	fullPath := filepath.Join(repoPath, filepath.FromSlash(filePath))
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		cleanupTestRepo(t, repoPath)
+		t.Fatalf("create conflict directory: %v", err)
+	}
+	if err := os.WriteFile(fullPath, base, 0644); err != nil {
+		cleanupTestRepo(t, repoPath)
+		t.Fatalf("write base conflict content: %v", err)
+	}
+	runGitCmd(t, repoPath, "add", "--", filePath)
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+	mainBranch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current"))
+
+	runGitCmd(t, repoPath, "checkout", "-b", "incoming-test")
+	if err := os.WriteFile(fullPath, incoming, 0644); err != nil {
+		cleanupTestRepo(t, repoPath)
+		t.Fatalf("write incoming conflict content: %v", err)
+	}
+	runGitCmd(t, repoPath, "add", "--", filePath)
+	runGitCmd(t, repoPath, "commit", "-m", "incoming")
+
+	runGitCmd(t, repoPath, "checkout", mainBranch)
+	if err := os.WriteFile(fullPath, current, 0644); err != nil {
+		cleanupTestRepo(t, repoPath)
+		t.Fatalf("write current conflict content: %v", err)
+	}
+	runGitCmd(t, repoPath, "add", "--", filePath)
+	runGitCmd(t, repoPath, "commit", "-m", "current")
+	merge := exec.Command("git", "merge", "incoming-test")
+	merge.Dir = repoPath
+	if output, err := merge.CombinedOutput(); err == nil {
+		cleanupTestRepo(t, repoPath)
+		t.Fatalf("expected merge conflict, output: %s", output)
+	}
+	return repoPath
 }
 
 func createBareRemoteAndLink(t *testing.T, repoPath string) string {
@@ -2362,6 +2404,604 @@ func TestMergeConflict_RealConflict(t *testing.T) {
 	content, _ := os.ReadFile(testFile)
 	if !strings.Contains(string(content), "main change") {
 		t.Errorf("Expected 'main change' in file after keeping ours, got: %s", string(content))
+	}
+}
+
+func TestConflictResolutionDataAndApply(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	filePath := filepath.Join(repoPath, "control.txt")
+	base := "header\nshared base\nline 3\nline 4\nline 5\nline 6\ntail\n"
+	if err := os.WriteFile(filePath, []byte(base), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+
+	mainBranch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current"))
+	runGitCmd(t, repoPath, "checkout", "-b", "incoming")
+	incoming := "header\nincoming choice\nline 3\nline 4\nline 5\nline 6\nincoming tail\n"
+	if err := os.WriteFile(filePath, []byte(incoming), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "incoming")
+
+	runGitCmd(t, repoPath, "checkout", mainBranch)
+	current := "current header\ncurrent choice\nline 3\nline 4\nline 5\nline 6\ntail\n"
+	if err := os.WriteFile(filePath, []byte(current), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "control.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "current")
+
+	merge := exec.Command("git", "merge", "incoming")
+	merge.Dir = repoPath
+	if err := merge.Run(); err == nil {
+		t.Fatal("expected merge conflict")
+	}
+
+	service := NewGitService()
+	unsafeData := service.GetConflictResolutionData(repoPath, "../control.txt")
+	if unsafeData.Success || unsafeData.Error != "Invalid conflict path" {
+		t.Fatalf("expected traversal path to fail closed, got %#v", unsafeData)
+	}
+	data := service.GetConflictResolutionData(repoPath, "control.txt")
+	if !data.Success || !data.Eligible {
+		t.Fatalf("expected eligible conflict data, got success=%v eligible=%v reason=%q error=%q", data.Success, data.Eligible, data.IneligibleReason, data.Error)
+	}
+	if data.Status != "both-modified" || data.ResolutionToken == "" {
+		t.Fatalf("unexpected conflict metadata: status=%q token=%q", data.Status, data.ResolutionToken)
+	}
+	if !data.Base.Present || !data.Current.Present || !data.Incoming.Present {
+		t.Fatalf("expected all three conflict stages: %#v", data)
+	}
+	conflictCount := 0
+	for _, segment := range data.Segments {
+		if segment.Kind == "conflict" {
+			conflictCount++
+		}
+	}
+	if conflictCount != 1 {
+		t.Fatalf("expected one true conflict region, got %d in %#v", conflictCount, data.Segments)
+	}
+	newBlob := exec.Command("git", "hash-object", "-w", "--stdin")
+	newBlob.Dir = repoPath
+	newBlob.Stdin = strings.NewReader("externally changed current\n")
+	newOIDBytes, err := newBlob.Output()
+	if err != nil {
+		t.Fatalf("failed to create replacement stage blob: %v", err)
+	}
+	newOID := strings.TrimSpace(string(newOIDBytes))
+	updateIndex := exec.Command("git", "update-index", "--index-info")
+	updateIndex.Dir = repoPath
+	updateIndex.Stdin = strings.NewReader(fmt.Sprintf("100644 %s 2\tcontrol.txt\n", newOID))
+	if output, err := updateIndex.CombinedOutput(); err != nil {
+		t.Fatalf("failed to replace conflict stage: %v\n%s", err, output)
+	}
+	staleResult := service.ResolveConflictWithContent(repoPath, "control.txt", data.ResolutionToken, "stale result\n")
+	if staleResult.Success || !strings.Contains(staleResult.Error, "changed after it was opened") {
+		t.Fatalf("expected stale token rejection, got %#v", staleResult)
+	}
+	if unmerged := strings.TrimSpace(runGitOutput(t, repoPath, "ls-files", "-u", "--", "control.txt")); unmerged == "" {
+		t.Fatal("stale apply unexpectedly cleared the conflict stages")
+	}
+	data = service.GetConflictResolutionData(repoPath, "control.txt")
+	if !data.Success || data.ResolutionToken == "" {
+		t.Fatalf("failed to reload changed conflict: %#v", data)
+	}
+	tooLargeResult := service.ResolveConflictWithContent(repoPath, "control.txt", data.ResolutionToken, strings.Repeat("x", conflictOutputSizeLimit+1))
+	if tooLargeResult.Success || !strings.Contains(tooLargeResult.Error, "too large") {
+		t.Fatalf("expected oversized apply rejection, got %#v", tooLargeResult)
+	}
+	nulResult := service.ResolveConflictWithContent(repoPath, "control.txt", data.ResolutionToken, "invalid\x00content")
+	if nulResult.Success || !strings.Contains(nulResult.Error, "valid UTF-8") {
+		t.Fatalf("expected NUL apply rejection, got %#v", nulResult)
+	}
+	invalidUTF8Result := service.ResolveConflictWithContent(repoPath, "control.txt", data.ResolutionToken, string([]byte{0xff}))
+	if invalidUTF8Result.Success || !strings.Contains(invalidUTF8Result.Error, "valid UTF-8") {
+		t.Fatalf("expected invalid UTF-8 apply rejection, got %#v", invalidUTF8Result)
+	}
+
+	resolved := "current header\ncurrent choice\nline 3\nline 4\nline 5\nline 6\nincoming tail\n"
+	result := service.ResolveConflictWithContent(repoPath, "control.txt", data.ResolutionToken, resolved)
+	if !result.Success {
+		t.Fatalf("failed to apply resolved content: %s", result.Error)
+	}
+	if unmerged := strings.TrimSpace(runGitOutput(t, repoPath, "ls-files", "-u", "--", "control.txt")); unmerged != "" {
+		t.Fatalf("expected conflict stages to be cleared, got %q", unmerged)
+	}
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != resolved {
+		t.Fatalf("unexpected resolved content:\n%s", content)
+	}
+	resolvedData := service.GetConflictResolutionData(repoPath, "control.txt")
+	if resolvedData.Success || resolvedData.Error != "The file is no longer conflicted" {
+		t.Fatalf("expected already-resolved file to be rejected, got %#v", resolvedData)
+	}
+}
+
+func TestConflictResolutionDataPreservesTextFormatMetadata(t *testing.T) {
+	tests := []struct {
+		name            string
+		base            []byte
+		current         []byte
+		incoming        []byte
+		newline         string
+		hasFinalNewline bool
+		hasBOM          bool
+	}{
+		{name: "LF", base: []byte("base\n"), current: []byte("current\n"), incoming: []byte("incoming\n"), newline: "\n", hasFinalNewline: true},
+		{name: "CRLF", base: []byte("base\r\n"), current: []byte("current\r\n"), incoming: []byte("incoming\r\n"), newline: "\r\n", hasFinalNewline: true},
+		{name: "UTF-8 BOM", base: []byte("\xef\xbb\xbfbase\r\n"), current: []byte("\xef\xbb\xbfcurrent\r\n"), incoming: []byte("\xef\xbb\xbfincoming\r\n"), newline: "\r\n", hasFinalNewline: true, hasBOM: true},
+		{name: "no final newline", base: []byte("base"), current: []byte("current"), incoming: []byte("incoming"), newline: "\n", hasFinalNewline: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repoPath := createTextConflictRepo(t, "format.txt", test.base, test.current, test.incoming)
+			defer cleanupTestRepo(t, repoPath)
+			data := NewGitService().GetConflictResolutionData(repoPath, "format.txt")
+			if !data.Success || !data.Eligible {
+				t.Fatalf("expected eligible conflict data, got success=%v eligible=%v reason=%q error=%q", data.Success, data.Eligible, data.IneligibleReason, data.Error)
+			}
+			if data.Newline != test.newline || data.HasFinalNewline != test.hasFinalNewline {
+				t.Fatalf("unexpected format metadata: newline=%q final=%v", data.Newline, data.HasFinalNewline)
+			}
+			hasBOM := len(data.Segments) > 0 && data.Segments[0].Kind == "context" && strings.HasPrefix(data.Segments[0].Text, "\ufeff")
+			if hasBOM != test.hasBOM {
+				t.Fatalf("unexpected BOM preservation: got %v in %#v", hasBOM, data.Segments)
+			}
+		})
+	}
+}
+
+func TestConflictResolutionDataRejectsUnsafeTextContent(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     []byte
+		current  []byte
+		incoming []byte
+		reason   string
+	}{
+		{name: "NUL content", base: []byte("base\x00\n"), current: []byte("current\x00\n"), incoming: []byte("incoming\x00\n"), reason: "binary-content"},
+		{name: "invalid UTF-8", base: []byte{'b', 0xff, '\n'}, current: []byte{'c', 0xff, '\n'}, incoming: []byte{'i', 0xff, '\n'}, reason: "unsupported-encoding"},
+		{name: "control bytes", base: []byte("base\x01\n"), current: []byte("current\x01\n"), incoming: []byte("incoming\x01\n"), reason: "unsupported-content"},
+		{
+			name:     "side exceeds size limit",
+			base:     append(bytes.Repeat([]byte{'b'}, conflictBlobSizeLimit+1), '\n'),
+			current:  append(bytes.Repeat([]byte{'c'}, conflictBlobSizeLimit+1), '\n'),
+			incoming: append(bytes.Repeat([]byte{'i'}, conflictBlobSizeLimit+1), '\n'),
+			reason:   "file-too-large",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repoPath := createTextConflictRepo(t, "unsafe.txt", test.base, test.current, test.incoming)
+			defer cleanupTestRepo(t, repoPath)
+			data := NewGitService().GetConflictResolutionData(repoPath, "unsafe.txt")
+			if !data.Success || data.Eligible || data.IneligibleReason != ConflictIneligibleReason(test.reason) {
+				t.Fatalf("unexpected eligibility result: success=%v eligible=%v reason=%q error=%q", data.Success, data.Eligible, data.IneligibleReason, data.Error)
+			}
+		})
+	}
+}
+
+func TestConflictResolutionDataRejectsLineEndingDisagreement(t *testing.T) {
+	repoPath := createTextConflictRepo(t, "newline-mismatch.txt", []byte("base\n"), []byte("current\n"), []byte("incoming"))
+	defer cleanupTestRepo(t, repoPath)
+	data := NewGitService().GetConflictResolutionData(repoPath, "newline-mismatch.txt")
+	if !data.Success || data.Eligible || data.IneligibleReason != "line-ending-mismatch" {
+		t.Fatalf("unexpected line-ending mismatch result: %#v", data)
+	}
+}
+
+func TestConflictResolutionDataRejectsOversizedMergedOutput(t *testing.T) {
+	chunkSize := conflictOutputSizeLimit/3 + 4096
+	base := append(bytes.Repeat([]byte{'b'}, chunkSize), '\n')
+	current := append(bytes.Repeat([]byte{'c'}, chunkSize), '\n')
+	incoming := append(bytes.Repeat([]byte{'i'}, chunkSize), '\n')
+	repoPath := createTextConflictRepo(t, "large-output.txt", base, current, incoming)
+	defer cleanupTestRepo(t, repoPath)
+	data := NewGitService().GetConflictResolutionData(repoPath, "large-output.txt")
+	if !data.Success || data.Eligible || data.IneligibleReason != "output-too-large" {
+		t.Fatalf("unexpected merged-output limit result: success=%v eligible=%v reason=%q error=%q", data.Success, data.Eligible, data.IneligibleReason, data.Error)
+	}
+}
+
+func TestConflictResolutionDataSupportsUnusualFileNames(t *testing.T) {
+	paths := []string{
+		"folder/file with spaces.txt",
+		"folder/unicode-λ.txt",
+		"-leading-dash.txt",
+		"..dot-prefixed.txt",
+		"folder/name:with-colon.txt",
+	}
+	for _, filePath := range paths {
+		t.Run(filePath, func(t *testing.T) {
+			repoPath := createTextConflictRepo(t, filePath, []byte("base\n"), []byte("current\n"), []byte("incoming\n"))
+			defer cleanupTestRepo(t, repoPath)
+			data := NewGitService().GetConflictResolutionData(repoPath, filePath)
+			if !data.Success || !data.Eligible || data.Path != filePath {
+				t.Fatalf("unexpected conflict data for %q: %#v", filePath, data)
+			}
+		})
+	}
+}
+
+func TestConflictResolutionDataReturnsMultipleTrueRegions(t *testing.T) {
+	base := []byte("line 1\nbase first\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nbase second\nline 15\n")
+	current := []byte("line 1\ncurrent first\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\ncurrent second\nline 15\n")
+	incoming := []byte("line 1\nincoming first\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nincoming second\nline 15\n")
+	repoPath := createTextConflictRepo(t, "multiple.txt", base, current, incoming)
+	defer cleanupTestRepo(t, repoPath)
+
+	data := NewGitService().GetConflictResolutionData(repoPath, "multiple.txt")
+	if !data.Success || !data.Eligible {
+		t.Fatalf("expected eligible multi-region data, got success=%v eligible=%v reason=%q error=%q", data.Success, data.Eligible, data.IneligibleReason, data.Error)
+	}
+	regionCount := 0
+	for _, segment := range data.Segments {
+		if segment.Kind == "conflict" {
+			regionCount++
+		}
+	}
+	if regionCount != 2 {
+		t.Fatalf("expected two conflict regions, got %d in %#v", regionCount, data.Segments)
+	}
+}
+
+func TestParseConflictSegmentsIsStrictAboutGeneratedMarkers(t *testing.T) {
+	currentLabel := "CONTROLZEBRA_CURRENT_test"
+	baseLabel := "CONTROLZEBRA_BASE_test"
+	incomingLabel := "CONTROLZEBRA_INCOMING_test"
+	currentMarker := strings.Repeat("<", conflictMarkerSize) + " " + currentLabel
+	baseMarker := strings.Repeat("|", conflictMarkerSize) + " " + baseLabel
+	separator := strings.Repeat("=", conflictMarkerSize)
+	incomingMarker := strings.Repeat(">", conflictMarkerSize) + " " + incomingLabel
+	literalMarker := strings.Repeat("<", conflictMarkerSize) + " literal user content\n"
+	output := literalMarker + currentMarker + "\ncurrent\n" + baseMarker + "\nbase\n" + separator + "\nincoming\n" + incomingMarker + "\ncontext\n"
+
+	segments, err := parseConflictSegments(output, currentLabel, baseLabel, incomingLabel)
+	if err != nil {
+		t.Fatalf("parse valid generated markers: %v", err)
+	}
+	if len(segments) != 3 || segments[0].Kind != "context" || segments[0].Text != literalMarker || segments[1].Kind != "conflict" {
+		t.Fatalf("literal marker-like content was not preserved: %#v", segments)
+	}
+	if _, err := parseConflictSegments("ordinary context only\n", currentLabel, baseLabel, incomingLabel); err == nil {
+		t.Fatal("expected output without a generated conflict region to fail")
+	}
+	unterminated := currentMarker + "\ncurrent\n" + baseMarker + "\nbase\n" + separator + "\nincoming\n"
+	if _, err := parseConflictSegments(unterminated, currentLabel, baseLabel, incomingLabel); err == nil {
+		t.Fatal("expected unterminated generated conflict region to fail")
+	}
+}
+
+func TestGenerateConflictSegmentsRejectsLabelCollision(t *testing.T) {
+	token := strings.Repeat("a", 64)
+	label := "CONTROLZEBRA_CURRENT_" + token[:16]
+	data := ConflictResolutionData{
+		ResolutionToken: token,
+		Base:            ConflictBlob{Present: true, Content: "base\n"},
+		Current:         ConflictBlob{Present: true, Content: label + "\ncurrent\n"},
+		Incoming:        ConflictBlob{Present: true, Content: "incoming\n"},
+	}
+	if _, _, err := NewGitService().generateConflictSegments(t.TempDir(), data); err == nil || !strings.Contains(err.Error(), "collision") {
+		t.Fatalf("expected marker label collision rejection, got %v", err)
+	}
+}
+
+func TestConflictStatusCoversStagePresence(t *testing.T) {
+	entry := conflictStageEntry{oid: "oid", mode: "100644"}
+	tests := []struct {
+		name     string
+		stages   []int
+		expected string
+	}{
+		{name: "both modified", stages: []int{1, 2, 3}, expected: "both-modified"},
+		{name: "both added", stages: []int{2, 3}, expected: "both-added"},
+		{name: "both deleted", stages: []int{1}, expected: "both-deleted"},
+		{name: "deleted by current", stages: []int{1, 3}, expected: "deleted-by-us"},
+		{name: "deleted by incoming", stages: []int{1, 2}, expected: "deleted-by-them"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			entries := make(map[int]conflictStageEntry, len(test.stages))
+			for _, stage := range test.stages {
+				stageEntry := entry
+				stageEntry.stage = stage
+				entries[stage] = stageEntry
+			}
+			if actual := conflictStatus(entries); actual != ConflictFileStatus(test.expected) {
+				t.Fatalf("expected %q, got %q", test.expected, actual)
+			}
+		})
+	}
+}
+
+func TestResolveConflictWithContentSupportsBothAddedEmptyResult(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("base\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "README.md")
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+	mainBranch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current"))
+
+	runGitCmd(t, repoPath, "checkout", "-b", "incoming-both-added")
+	if err := os.WriteFile(filepath.Join(repoPath, "added.txt"), []byte("incoming\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "added.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "incoming adds")
+	runGitCmd(t, repoPath, "checkout", mainBranch)
+	if err := os.WriteFile(filepath.Join(repoPath, "added.txt"), []byte("current\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "added.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "current adds")
+	merge := exec.Command("git", "merge", "incoming-both-added")
+	merge.Dir = repoPath
+	if output, err := merge.CombinedOutput(); err == nil {
+		t.Fatalf("expected both-added conflict, output: %s", output)
+	}
+
+	service := NewGitService()
+	data := service.GetConflictResolutionData(repoPath, "added.txt")
+	if !data.Success || !data.Eligible || data.Status != "both-added" || data.Base.Present {
+		t.Fatalf("unexpected both-added data: %#v", data)
+	}
+	result := service.ResolveConflictWithContent(repoPath, "added.txt", data.ResolutionToken, "")
+	if !result.Success {
+		t.Fatalf("failed to apply empty resolution: %s", result.Error)
+	}
+	content, err := os.ReadFile(filepath.Join(repoPath, "added.txt"))
+	if err != nil || len(content) != 0 {
+		t.Fatalf("expected staged empty file, content=%q error=%v", content, err)
+	}
+	if unmerged := strings.TrimSpace(runGitOutput(t, repoPath, "ls-files", "-u", "--", "added.txt")); unmerged != "" {
+		t.Fatalf("expected both-added stages to be cleared, got %q", unmerged)
+	}
+}
+
+func TestResolveConflictWithContentPreservesCurrentExecutableMode(t *testing.T) {
+	repoPath := createTextConflictRepo(t, "executable.sh", []byte("echo base\n"), []byte("echo current\n"), []byte("echo incoming\n"))
+	defer cleanupTestRepo(t, repoPath)
+	service := NewGitService()
+	entries, err := service.loadConflictStageEntries(repoPath, "executable.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := entries[2]
+	updateIndex := exec.Command("git", "update-index", "--index-info")
+	updateIndex.Dir = repoPath
+	updateIndex.Stdin = strings.NewReader(fmt.Sprintf("100755 %s 2\texecutable.sh\n", current.oid))
+	if output, err := updateIndex.CombinedOutput(); err != nil {
+		t.Fatalf("set executable conflict stage: %v\n%s", err, output)
+	}
+
+	data := service.GetConflictResolutionData(repoPath, "executable.sh")
+	if !data.Success || !data.Eligible || data.Current.Mode != "100755" {
+		t.Fatalf("unexpected executable conflict data: %#v", data)
+	}
+	result := service.ResolveConflictWithContent(repoPath, "executable.sh", data.ResolutionToken, "echo resolved\n")
+	if !result.Success {
+		t.Fatalf("resolve executable conflict: %s", result.Error)
+	}
+	info, err := os.Stat(filepath.Join(repoPath, "executable.sh"))
+	if err != nil {
+		t.Fatalf("stat executable working file: %v", err)
+	}
+	if info.Mode().Perm()&0111 == 0 {
+		t.Fatalf("expected executable working file, mode=%v", info.Mode())
+	}
+	staged := runGitOutput(t, repoPath, "ls-files", "--stage", "--", "executable.sh")
+	if !strings.HasPrefix(staged, "100755 ") {
+		t.Fatalf("expected executable index mode, got %q", staged)
+	}
+}
+
+func TestResolveConflictWithContentRejectsSymlinkDestinations(t *testing.T) {
+	t.Run("direct file symlink", func(t *testing.T) {
+		repoPath := createTextConflictRepo(t, "linked.txt", []byte("base\n"), []byte("current\n"), []byte("incoming\n"))
+		defer cleanupTestRepo(t, repoPath)
+		service := NewGitService()
+		data := service.GetConflictResolutionData(repoPath, "linked.txt")
+		outsidePath := filepath.Join(t.TempDir(), "outside.txt")
+		if err := os.WriteFile(outsidePath, []byte("outside\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		worktreePath := filepath.Join(repoPath, "linked.txt")
+		if err := os.Remove(worktreePath); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outsidePath, worktreePath); err != nil {
+			t.Fatal(err)
+		}
+		result := service.ResolveConflictWithContent(repoPath, "linked.txt", data.ResolutionToken, "resolved\n")
+		if result.Success || !strings.Contains(result.Error, "symbolic link") {
+			t.Fatalf("expected direct symlink rejection, got %#v", result)
+		}
+		outside, err := os.ReadFile(outsidePath)
+		if err != nil || string(outside) != "outside\n" {
+			t.Fatalf("outside file changed: content=%q error=%v", outside, err)
+		}
+	})
+
+	t.Run("whole-file fallback direct symlink", func(t *testing.T) {
+		repoPath := createTextConflictRepo(t, "fallback-linked.txt", []byte("base\n"), []byte("current\n"), []byte("incoming\n"))
+		defer cleanupTestRepo(t, repoPath)
+		outsidePath := filepath.Join(t.TempDir(), "outside.txt")
+		if err := os.WriteFile(outsidePath, []byte("outside\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		worktreePath := filepath.Join(repoPath, "fallback-linked.txt")
+		if err := os.Remove(worktreePath); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outsidePath, worktreePath); err != nil {
+			t.Fatal(err)
+		}
+		result := NewGitService().ResolveConflictKeepTheirs(repoPath, "fallback-linked.txt")
+		if result.Success || !strings.Contains(result.Error, "symbolic link") {
+			t.Fatalf("expected whole-file symlink rejection, got %#v", result)
+		}
+		outside, err := os.ReadFile(outsidePath)
+		if err != nil || string(outside) != "outside\n" {
+			t.Fatalf("outside file changed: content=%q error=%v", outside, err)
+		}
+	})
+
+	t.Run("parent directory symlink", func(t *testing.T) {
+		repoPath := createTestRepo(t)
+		defer cleanupTestRepo(t, repoPath)
+		if err := os.Symlink(t.TempDir(), filepath.Join(repoPath, "linked-dir")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := safeConflictDestination(repoPath, "linked-dir/file.txt"); err == nil {
+			t.Fatal("expected parent symlink escape to be rejected")
+		}
+	})
+}
+
+func TestConflictResolutionRejectsSymlinkIndexModes(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	linkPath := filepath.Join(repoPath, "controller-link")
+	if err := os.Symlink("base-target", linkPath); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "controller-link")
+	runGitCmd(t, repoPath, "commit", "-m", "base link")
+	mainBranch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current"))
+
+	runGitCmd(t, repoPath, "checkout", "-b", "incoming-link")
+	if err := os.Remove(linkPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("incoming-target", linkPath); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "controller-link")
+	runGitCmd(t, repoPath, "commit", "-m", "incoming link")
+	runGitCmd(t, repoPath, "checkout", mainBranch)
+	if err := os.Remove(linkPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("current-target", linkPath); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "controller-link")
+	runGitCmd(t, repoPath, "commit", "-m", "current link")
+	merge := exec.Command("git", "merge", "incoming-link")
+	merge.Dir = repoPath
+	if output, err := merge.CombinedOutput(); err == nil {
+		t.Fatalf("expected symlink conflict, output: %s", output)
+	}
+
+	service := NewGitService()
+	data := service.GetConflictResolutionData(repoPath, "controller-link")
+	if !data.Success || data.Eligible || data.IneligibleReason != "unsafe-file-type" {
+		t.Fatalf("unexpected symlink conflict eligibility: %#v", data)
+	}
+	result := service.ResolveConflictKeepOurs(repoPath, "controller-link")
+	if result.Success || !strings.Contains(strings.ToLower(result.Error), "symbolic link") {
+		t.Fatalf("expected whole-file symlink resolution to fail closed, got %#v", result)
+	}
+}
+
+func TestResolveConflictKeepOursStagesSelectedDeletion(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	filePath := filepath.Join(repoPath, "deleted-current.txt")
+	if err := os.WriteFile(filePath, []byte("base\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "deleted-current.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+	mainBranch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current"))
+
+	runGitCmd(t, repoPath, "checkout", "-b", "incoming-delete-test")
+	if err := os.WriteFile(filePath, []byte("incoming modification\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "deleted-current.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "incoming modifies")
+
+	runGitCmd(t, repoPath, "checkout", mainBranch)
+	runGitCmd(t, repoPath, "rm", "deleted-current.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "current deletes")
+	merge := exec.Command("git", "merge", "incoming-delete-test")
+	merge.Dir = repoPath
+	if err := merge.Run(); err == nil {
+		t.Fatal("expected delete/modify conflict")
+	}
+
+	service := NewGitService()
+	data := service.GetConflictResolutionData(repoPath, "deleted-current.txt")
+	if !data.Success || data.Eligible || data.Status != "deleted-by-us" || data.IneligibleReason != "missing-side" {
+		t.Fatalf("unexpected delete/modify data: %#v", data)
+	}
+	if data.Current.Present || !data.Incoming.Present {
+		t.Fatalf("unexpected stage presence: current=%v incoming=%v", data.Current.Present, data.Incoming.Present)
+	}
+
+	result := service.ResolveConflictKeepOurs(repoPath, "deleted-current.txt")
+	if !result.Success {
+		t.Fatalf("failed to keep selected deletion: %s", result.Error)
+	}
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Fatalf("expected working file to be deleted, stat error=%v", err)
+	}
+	if unmerged := strings.TrimSpace(runGitOutput(t, repoPath, "ls-files", "-u", "--", "deleted-current.txt")); unmerged != "" {
+		t.Fatalf("expected deletion conflict to be staged, got %q", unmerged)
+	}
+}
+
+func TestResolveConflictKeepOursStagesBothDeletedConflict(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+	filePath := filepath.Join(repoPath, "both-deleted.txt")
+	if err := os.WriteFile(filePath, []byte("base\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGitCmd(t, repoPath, "add", "both-deleted.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+	oid := strings.TrimSpace(runGitOutput(t, repoPath, "rev-parse", "HEAD:both-deleted.txt"))
+	head := strings.TrimSpace(runGitOutput(t, repoPath, "rev-parse", "HEAD"))
+	runGitCmd(t, repoPath, "rm", "--cached", "both-deleted.txt")
+	if err := os.Remove(filePath); err != nil {
+		t.Fatal(err)
+	}
+	updateIndex := exec.Command("git", "update-index", "--index-info")
+	updateIndex.Dir = repoPath
+	updateIndex.Stdin = strings.NewReader(fmt.Sprintf("100644 %s 1\tboth-deleted.txt\n", oid))
+	if output, err := updateIndex.CombinedOutput(); err != nil {
+		t.Fatalf("create stage-1-only conflict: %v\n%s", err, output)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, ".git", "MERGE_HEAD"), []byte(head+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	service := NewGitService()
+	data := service.GetConflictResolutionData(repoPath, "both-deleted.txt")
+	if !data.Success || data.Eligible || data.Status != "both-deleted" || data.IneligibleReason != "missing-side" {
+		t.Fatalf("unexpected both-deleted data: %#v", data)
+	}
+	result := service.ResolveConflictKeepOurs(repoPath, "both-deleted.txt")
+	if !result.Success {
+		t.Fatalf("failed to stage both-deleted resolution: %s", result.Error)
+	}
+	if unmerged := strings.TrimSpace(runGitOutput(t, repoPath, "ls-files", "-u", "--", "both-deleted.txt")); unmerged != "" {
+		t.Fatalf("expected both-deleted stages to be cleared, got %q", unmerged)
 	}
 }
 
