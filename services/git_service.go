@@ -168,6 +168,8 @@ func (g *GitService) OriginTrackingUpstream(repoPath string, branch string) (ups
 		return "", false
 	}
 
+	// getLocalBranchUpstream is refspec-robust (see resolveBranchUpstreamShort),
+	// so published feature branches in single-branch clones resolve correctly.
 	upstream = g.getLocalBranchUpstream(repoPath, branch)
 	return upstream, upstream == "origin/"+branch
 }
@@ -398,6 +400,48 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 		}
 	}
 
+	// Fallback upstream detection for repositories cloned with a restricted fetch
+	// refspec (e.g. single-branch clones that only mirror `main`). In that case a
+	// feature branch can be pushed with its upstream recorded in `branch.<name>.*`
+	// config, yet `@{u}` fails because git never mirrors a remote-tracking ref for
+	// it. Without this fallback such branches are wrongly reported as "not
+	// published", showing phantom pending snapshots even though they are on origin.
+	var fallbackHasUpstream bool
+	var fallbackAhead, fallbackBehind int
+	var fallbackAheadBehindKnown bool
+	if hasRemote && !upstreamResult.Success {
+		branchName := trimOutput(branchResult.Stdout)
+		if branchName != "" {
+			remoteName := trimOutput(g.runner.RunGit(repoPath, "config", "--get", "branch."+branchName+".remote").Stdout)
+			mergeRef := trimOutput(g.runner.RunGit(repoPath, "config", "--get", "branch."+branchName+".merge").Stdout)
+			if remoteName != "" && mergeRef != "" {
+				// The branch has a configured upstream, so it is genuinely published.
+				fallbackHasUpstream = true
+
+				// Resolve the remote tip directly to compute ahead/behind without
+				// relying on a (missing) remote-tracking ref. This is the only path
+				// that touches the network, and only in this degraded state.
+				lsRemote := g.runner.RunGit(repoPath, "ls-remote", "--heads", remoteName, mergeRef)
+				remoteSha := firstLsRemoteSha(lsRemote)
+				if remoteSha != "" {
+					abResult := g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", remoteSha+"...HEAD")
+					if abResult.Success {
+						parts := strings.Fields(trimOutput(abResult.Stdout))
+						if len(parts) == 2 {
+							if n, err := strconv.Atoi(parts[0]); err == nil {
+								fallbackBehind = n
+							}
+							if n, err := strconv.Atoi(parts[1]); err == nil {
+								fallbackAhead = n
+							}
+							fallbackAheadBehindKnown = true
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Process branch result
 	mu.Lock()
 	if branchResult.Success {
@@ -420,6 +464,16 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 			if n, err := strconv.Atoi(parts[1]); err == nil {
 				result.Ahead = n
 			}
+		}
+	}
+
+	// Apply the restricted-refspec fallback when native upstream detection failed
+	// but the branch is published per its config.
+	if !result.HasUpstream && fallbackHasUpstream {
+		result.HasUpstream = true
+		if fallbackAheadBehindKnown {
+			result.Behind = fallbackBehind
+			result.Ahead = fallbackAhead
 		}
 	}
 
@@ -649,6 +703,21 @@ func isProtectedBranchName(name string) bool {
 	return lower == "main" || lower == "master"
 }
 
+// firstLsRemoteSha returns the object id from the first line of `git ls-remote`
+// output, which is formatted as "<sha>\t<ref>". Returns "" when the command
+// failed or produced no matching ref.
+func firstLsRemoteSha(result CommandResult) string {
+	if !result.Success {
+		return ""
+	}
+	line := strings.SplitN(strings.TrimSpace(result.Stdout), "\n", 2)[0]
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
 func parseUpstream(upstream string) (remote string, remoteBranch string, ok bool) {
 	trimmed := strings.TrimSpace(upstream)
 	if trimmed == "" {
@@ -666,12 +735,38 @@ func (g *GitService) localBranchExists(repoPath string, branchName string) bool 
 	return result.Success
 }
 
+// resolveBranchUpstreamShort returns branch's upstream in short form (e.g.
+// "origin/main"). It uses git's native resolution first and falls back to the
+// recorded branch.<name>.remote / branch.<name>.merge config when native
+// resolution yields nothing. Native resolution maps the upstream through the
+// remote's fetch refspec, so in repositories cloned with a restricted refspec
+// (single-branch clones that only mirror `main`) it returns empty for published
+// feature branches even though their upstream is recorded and they exist on the
+// remote. Returns ("", false) when no upstream is configured.
+func resolveBranchUpstreamShort(runner *CommandRunner, repoPath string, branch string) (string, bool) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", false
+	}
+
+	if native := trimOutput(runner.RunGit(repoPath, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+branch).Stdout); native != "" {
+		return native, true
+	}
+
+	remoteName := trimOutput(runner.RunGit(repoPath, "config", "--get", "branch."+branch+".remote").Stdout)
+	mergeRef := trimOutput(runner.RunGit(repoPath, "config", "--get", "branch."+branch+".merge").Stdout)
+	if remoteName == "" || mergeRef == "" {
+		return "", false
+	}
+	return remoteName + "/" + strings.TrimPrefix(mergeRef, "refs/heads/"), true
+}
+
 func (g *GitService) getLocalBranchUpstream(repoPath string, branchName string) string {
-	result := g.runner.RunGit(repoPath, "for-each-ref", "--format=%(upstream:short)", "refs/heads/"+branchName)
-	if !result.Success {
+	upstream, ok := resolveBranchUpstreamShort(g.runner, repoPath, branchName)
+	if !ok {
 		return ""
 	}
-	return trimOutput(result.Stdout)
+	return upstream
 }
 
 func (g *GitService) rollbackBranchRename(repoPath string, currentName string, oldName string) error {

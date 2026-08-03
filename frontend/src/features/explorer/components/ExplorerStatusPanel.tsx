@@ -331,6 +331,7 @@ function ExplorerStatusPanel({
             onClick={handleOpenCombineChanges}
             disabled={operationInProgress}
             size="sm"
+            variant="secondary"
             className="w-full"
           >
             <Merge style={ICON_STYLES.sm as CSSProperties} />
@@ -346,7 +347,6 @@ function ExplorerStatusPanel({
                 disabled={operationInProgress || !canCreateChangeRequest || isCheckingChangeRequestEligibility}
                 loading={isResolvingChangeRequest}
                 size="sm"
-                variant="secondary"
                 className="w-full"
               >
                 <GitPullRequest style={ICON_STYLES.sm as CSSProperties} />

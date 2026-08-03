@@ -209,10 +209,19 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 	return successOp(successMessage)
 }
 
-// checkHasUpstream checks if the current branch has an upstream configured
+// checkHasUpstream checks if the current branch has an upstream configured.
+// It is robust to restricted single-branch fetch refspecs, where a published
+// branch's `@{u}` does not resolve because no remote-tracking ref is mirrored.
+// Treating such a branch as "no upstream" would make Sync skip the pull and then
+// fail the push as rejected, trapping the user in a re-sync loop.
 func (p *ProgressService) checkHasUpstream(repoPath string) bool {
-	result := p.runner.RunGit(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-	return result.Success
+	branch := p.getCurrentBranch(repoPath)
+	if branch == "" {
+		// Detached HEAD or unknown branch: fall back to native detection.
+		return p.runner.RunGit(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}").Success
+	}
+	_, ok := resolveBranchUpstreamShort(p.runner, repoPath, branch)
+	return ok
 }
 
 func (p *ProgressService) hasAnyRemote(repoPath string) bool {
