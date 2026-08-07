@@ -12,6 +12,7 @@ export {
   GetParentBranch,
   GetMergeState,
   GetConflictedFiles,
+  GetConflictResolutionData,
   GetConflictSidesInfo,
   GetBisectState,
   GetGitVersion,

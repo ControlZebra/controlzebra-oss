@@ -10,6 +10,7 @@ import type {
   GitHubCreateChangeRequestResult as GitHubCreateChangeRequestResultModel,
   ChangeRequestSnapshot as ChangeRequestSnapshotModel,
 } from '../../../../bindings/controlzebra/services/models';
+import type { ConflictResolutionData } from '../../../features/merge/types';
 
 /**
  * Type definitions for RepoContext
@@ -21,6 +22,7 @@ import type {
  */
 
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
+export type { ConflictResolutionData } from '../../../features/merge/types';
 
 // ============================================================================
 // Enums and Constants
@@ -662,6 +664,8 @@ export interface RepoContextValue {
   setFileResolution: (filePath: string, strategy: ResolutionStrategy) => void;
   mergeState: MergeState | null;
   isResolvingConflict: boolean;
+  loadConflictResolutionData: (path: string) => Promise<ConflictResolutionData | null>;
+  resolveConflictWithContent: (path: string, token: string, content: string) => Promise<boolean>;
   resolveConflict: (filePath: string, strategy: ResolutionStrategy) => Promise<boolean>;
   applyAllResolutions: () => Promise<boolean>;
   abortMerge: () => Promise<boolean>;

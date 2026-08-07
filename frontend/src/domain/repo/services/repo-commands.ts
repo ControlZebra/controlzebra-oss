@@ -18,6 +18,7 @@ export {
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
   ResolveConflictKeepBoth,
+  ResolveConflictWithContent,
   AbortMerge,
   CompleteMerge,
   AbortCurrentOperation,
