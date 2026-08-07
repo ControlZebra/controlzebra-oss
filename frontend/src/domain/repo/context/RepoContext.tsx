@@ -35,6 +35,7 @@ import {
   GetParentBranch,
   GetMergeState,
   GetConflictedFiles,
+  GetConflictResolutionData,
   GetConflictSidesInfo,
   GetBisectState,
   GetGitVersion,
@@ -74,6 +75,7 @@ import {
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
   ResolveConflictKeepBoth,
+  ResolveConflictWithContent,
   AbortMerge,
   CompleteMerge,
   AbortCurrentOperation,
@@ -196,6 +198,8 @@ import type {
   CreateProjectOptions,
   CreateProjectResult,
 } from './RepoContext.types';
+import { mapConflictResolutionData } from '../../../features/merge/types';
+import type { ConflictResolutionData } from '../../../features/merge/types';
 
 function normalizeMergeReviewDiffResult(
   filePath: string,
@@ -2095,6 +2099,71 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setFileResolutions(prev => ({ ...prev, [filePath]: strategy }));
   }, []);
 
+  const loadConflictResolutionData = useCallback(async (filePath: string): Promise<ConflictResolutionData | null> => {
+    if (!repoPath || !filePath) {
+      showMessage('error', 'Invalid file path');
+      return null;
+    }
+
+    try {
+      const result = await GetConflictResolutionData(repoPath, filePath);
+      return mapConflictResolutionData(result);
+    } catch (err) {
+      const error = err as Error;
+      showMessage('error', `Failed to load conflict details: ${error.message || err}`);
+      return null;
+    }
+  }, [repoPath, showMessage]);
+
+  const resolveConflictWithContent = useCallback(async (
+    filePath: string,
+    token: string,
+    content: string,
+  ): Promise<boolean> => {
+    if (!repoPath || !filePath || !token) {
+      showMessage('error', 'Invalid conflict resolution data');
+      return false;
+    }
+
+    setIsResolvingConflict(true);
+    try {
+      const result = await ResolveConflictWithContent(repoPath, filePath, token, content);
+
+      if (!result.success) {
+        showMessage('error', result.error || result.message || 'Failed to resolve conflict');
+        return false;
+      }
+
+      trackConflictResolved({ resolutionStrategy: 'manual' });
+
+      const reconciledMerge = await reconcileLiveMergeState(
+        conflictCheckResult?.targetBranch || conflictCheckResult?.parentBranch || detectedParentBranch?.name || '',
+        conflictCheckResult?.sourceBranch || repoInfo?.branch || '',
+        {
+          squash: conflictCheckResult?.isSquashMerge ?? isSquashMerge,
+          preserveConflictPreview: false,
+        },
+      );
+
+      if (reconciledMerge.liveMergePhase === 'ready-to-complete') {
+        showMessage('success', 'All conflict choices are saved. Add a merge message and finish.');
+      } else {
+        showMessage(
+          'success',
+          result.message || `Resolved "${filePath.split('/').pop()}". ${reconciledMerge.conflictedFiles.length} file(s) still need a choice.`,
+        );
+      }
+
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      showMessage('error', `Failed to resolve: ${error.message || err}`);
+      return false;
+    } finally {
+      setIsResolvingConflict(false);
+    }
+  }, [repoPath, showMessage, reconcileLiveMergeState, conflictCheckResult, detectedParentBranch, repoInfo?.branch, isSquashMerge]);
+
   // Apply resolution for a single file
   const resolveConflict = useCallback(async (filePath: string, strategy: ResolutionStrategy): Promise<boolean> => {
     if (!repoPath || !filePath) {
@@ -3742,6 +3811,8 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setFileResolution,
     mergeState,
     isResolvingConflict,
+    loadConflictResolutionData,
+    resolveConflictWithContent,
     resolveConflict,
     applyAllResolutions,
     abortMerge,
@@ -3835,6 +3906,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     detectedParentBranch, fetchParentBranch, conflictSidesInfo,
     isSquashMerge,
     fileResolutions, setFileResolution, mergeState, isResolvingConflict,
+    loadConflictResolutionData, resolveConflictWithContent,
     resolveConflict, applyAllResolutions, abortMerge, completeMerge, refreshMergeState,
     abortCurrentOperation,
     abortCherryPick, continueCherryPick, skipCherryPickCommit,

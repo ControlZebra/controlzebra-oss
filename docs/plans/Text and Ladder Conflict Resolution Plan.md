@@ -310,13 +310,29 @@ If the write succeeds but `git add` fails, return a distinct recovery message: t
 
 Before changing the UI, lock the three-way backend behavior with real temporary Git repositories.
 
+Status as of 2026-08-03: backend contract implemented in the last two commits (`5e453f6` and `74fb233`). The implementation lives primarily in `services/git_conflict_resolution.go`, with platform-specific atomic replacement helpers in `services/atomic_replace_unix.go` and `services/atomic_replace_windows.go`. Wails bindings have been regenerated, `both-deleted` is now part of the generated and frontend conflict status unions, and the existing file-level Current/Incoming actions now use stage-aware blob/deletion application instead of path checkout assumptions.
+
+Actual implementation notes:
+
+- `GetConflictResolutionData()` reads unmerged stage entries with `git ls-files -u -z -- <path>`, loads blobs by OID through `git cat-file blob`, classifies stage presence into `both-modified`, `both-added`, `both-deleted`, `deleted-by-us`, and `deleted-by-them`, and returns a resolution token derived from the normalized path plus stage mode/OID tuples.
+- The backend exposes stable `ConflictFileStatus` and `ConflictIneligibleReason` wire values for generated TypeScript models. Current ineligible reasons include unsafe file type, missing side, file too large, binary content, unsupported encoding/content, line-ending mismatch, conflict-generation failure, and output too large.
+- Text eligibility now rejects unsupported index modes, oversized blobs, NUL bytes, invalid UTF-8, conservative text-control-byte failures, missing current/incoming sides, and current/incoming final-newline disagreement before detailed resolution is offered.
+- Conflict regions are generated from Git's merge engine with `git merge-file -p --diff3 --marker-size=32`, using token-derived Current/Base/Incoming labels. The parser preserves literal marker-like user content, detects generated-label collisions, preserves a leading UTF-8 BOM as context, and reports newline/final-newline metadata for the frontend composer.
+- `ResolveConflictWithContent()` revalidates merge state, path safety, stage entries, the resolution token, output size, NUL content, and UTF-8 before writing. It writes to a same-directory temporary file, preserves the executable bit from the current stage, atomically replaces the destination, then stages with `git add -- <path>`.
+- Atomic replacement uses `os.Rename` on Unix-like systems and `MoveFileEx(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)` on Windows.
+- Whole-file fallback now uses exact selected stage blobs. If the selected side is absent, it removes the working-tree path when needed and stages the selected deletion with `git rm --cached --ignore-unmatch`; both-deleted conflicts can be cleared without pretending a file exists.
+- Path safety rejects absolute or escaping paths, direct symlink destinations, parent-directory symlink escapes, symlink index modes, submodule modes, and other unsupported file modes.
+- Backend tests added in `services/git_service_test.go` cover the main real-repository contract: same-line conflicts, stale-token rejection, invalid apply content, BOM/CRLF/no-final-newline metadata, unsafe content, line-ending disagreement, oversized output, unusual filenames, multiple true regions, strict marker parsing, marker-label collision, stage-presence status mapping, both-added empty output, executable mode preservation, symlink safety, selected-side deletion, and both-deleted resolution.
+
+Phase 0 status: implementation is ready for the Phase 1 frontend vertical slice. Remaining release evidence is runtime validation on a real Windows host for atomic replacement, file watcher behavior, and CRLF handling; cross-platform source exists, but macOS-side review cannot prove Windows runtime behavior.
+
 Deliverables:
 
-- `ConflictBlob`, `ConflictSegment`, `ConflictRegion`, and `ConflictResolutionData` Go models
-- helper that reads and fingerprints unmerged index stages
-- helper that invokes Git's merge engine and parses typed conflict regions
-- explicit UTF-8, binary, size, newline, and path-safety rules
-- generated Wails bindings for the new service methods and models
+- `ConflictBlob`, `ConflictSegment`, `ConflictRegion`, and `ConflictResolutionData` Go models - done
+- helper that reads and fingerprints unmerged index stages - done
+- helper that invokes Git's merge engine and parses typed conflict regions - done
+- explicit UTF-8, binary, size, newline, and path-safety rules - done
+- generated Wails bindings for the new service methods and models - done
 
 Backend test matrix in `services/git_service_test.go`:
 
@@ -338,22 +354,24 @@ Backend test matrix in `services/git_service_test.go`:
 
 Exit gate:
 
-- backend tests prove that only true conflict regions become decisions and that unchanged stage fingerprints cannot be bypassed
+- backend tests prove that only true conflict regions become decisions and that unchanged stage fingerprints cannot be bypassed - backend side met by the new temporary-repository tests; keep Windows runtime acceptance as release evidence before MVP completion
 
 ### Phase 0 Action Plan
 
-1. **Action:** Finalize the shared conflict models, complete status union, stage-presence rules, resolution-token format, size limits, encoding rules, and reason-code enums before implementing UI behavior.
-  **Project manager note:** This freezes the contract used by the Go backend, generated Wails bindings, Desktop frontend, and later L5X package work. Treat changes after this point as scope changes because they can cause coordinated rework across both repositories.
-2. **Action:** Implement repository-relative path validation and a helper that reads stage 1/2/3 mode and OID entries with `git ls-files -u -z`, then loads content by OID.
-  **Project manager note:** This is the security and correctness foundation. It ensures the feature uses the exact files Git is merging and cannot write outside the open project.
-3. **Action:** Implement Git-backed conflict-segment generation, newline/BOM detection, marker-collision detection, text eligibility, and deterministic stage fingerprinting.
-  **Project manager note:** This creates the authoritative decision list while preserving changes Git already merged automatically. Completing this before UI work prevents the frontend team from building against invented sample behavior.
-4. **Action:** Implement atomic content apply and exact whole-file apply, including selected-side deletion, executable mode, staging failure recovery, and stale-token rejection.
-  **Project manager note:** A choice is not complete until the working file and Git index agree. This step also protects users from silently overwriting a conflict that changed after they opened it.
-5. **Action:** Add the full temporary-repository test matrix and regenerate Wails bindings.
-  **Project manager note:** Phase 0 exits only when tests prove the contract on real Git repositories. Generated bindings are the handoff artifact that unblocks the frontend vertical slice.
+1. **Status: Done.** Finalized the shared conflict models, complete status union, stage-presence rules, resolution-token format, size limits, encoding rules, and reason-code enums before implementing UI behavior.
+  **Implementation note:** The Go models and enums live in `services/git_conflict_resolution.go`; generated bindings now expose `ConflictFileStatus`, `ConflictIneligibleReason`, `ConflictBlob`, `ConflictRegion`, `ConflictSegment`, and `ConflictResolutionData` to the frontend.
+2. **Status: Done.** Implemented repository-relative path validation and a helper that reads stage 1/2/3 mode and OID entries with `git ls-files -u -z`, then loads content by OID.
+  **Implementation note:** Stage loading uses `git cat-file blob <oid>` and never reads branch tips or revision-path syntax for conflict content. Destination validation rejects path traversal and symlink escapes before writes.
+3. **Status: Done.** Implemented Git-backed conflict-segment generation, newline/BOM detection, marker-collision detection, text eligibility, and deterministic stage fingerprinting.
+  **Implementation note:** `git merge-file -p --diff3` remains the authority for true conflict regions, while the token-derived marker labels and strict parser fail closed to fallback when output cannot be trusted.
+4. **Status: Done.** Implemented atomic content apply and exact whole-file apply, including selected-side deletion, executable mode, staging failure recovery, and stale-token rejection.
+  **Implementation note:** Detailed apply writes through a same-directory temp file and stages only after atomic replacement. Whole-file apply now handles missing selected stages as deletions instead of assuming every side has a blob.
+5. **Status: Done for backend handoff.** Added the temporary-repository test matrix and regenerated Wails bindings.
+  **Implementation note:** The added tests cover the backend contract needed for the Phase 1 vertical slice. Keep manual Windows runtime validation as release evidence before the combined MVP ships.
 
 ## Phase 1: Three-Way Text Resolver
+
+Implementation notes from the latest frontend slice: Phase 1 Action 1 is implemented. The backend methods and generated TypeScript bindings now exist, `ConflictFileStatus` includes `both-deleted`, and the existing merge queue can display the `Both deleted` label. `RepoContext` now exposes `loadConflictResolutionData()` and `resolveConflictWithContent()`, backed by feature-local plain merge-domain types in `frontend/src/features/merge/types.ts`. The text composer/resolver components listed below have not been implemented.
 
 ### Frontend Domain And State
 
@@ -436,8 +454,8 @@ Exit gate:
 
 ### Phase 1 Action Plan
 
-1. **Action:** Map generated backend models into merge-domain types and add only `loadConflictResolutionData` and `resolveConflictWithContent` to `RepoContext`.
-  **Project manager note:** Keeping detailed draft state out of global context limits regression risk and makes ownership clear: context handles repository operations; the merge modal handles temporary user choices.
+1. **Status: Done.** Mapped generated backend models into merge-domain types and added only `loadConflictResolutionData` and `resolveConflictWithContent` to `RepoContext`.
+  **Implementation note:** The plain frontend contract lives in `frontend/src/features/merge/types.ts`. `loadConflictResolutionData()` maps generated Wails model classes immediately, returning mapped ineligible data when the backend provides it and `null` only when the call cannot complete. `resolveConflictWithContent()` delegates writes to the backend, preserves failure drafts by returning `false`, and reconciles live merge state before returning `true`.
 2. **Action:** Implement the pure composer and completeness validator first, with golden tests for LF, CRLF, BOM, no-final-newline, multiple regions, and explicit empty blocks.
   **Project manager note:** The composer is the feature's data-loss boundary. Finishing and testing it before visual controls gives the UI team a stable definition of what every click will produce.
 3. **Action:** Build one end-to-end `.txt` vertical slice with one conflict block, Current/Incoming selection, preview, apply, live-index reconciliation, and queue advancement.
@@ -450,6 +468,8 @@ Exit gate:
   **Project manager note:** This phase produces a releasable text resolver, but not a releasable product MVP; L5X rung/tag resolution and fallback hardening remain mandatory.
 
 ## Phase 2: L5X Complete-Rung And Complete-Tag Resolver
+
+Implementation notes from the last two commits: no Phase 2 package or Desktop L5X resolver work landed. There is no `projectL5XConflictRegions()`-style API, no source-location index, and no complete-rung or complete-tag resolver integration yet. Phase 2 can build on the Phase 0 three-way stage contract once the Phase 1 composer and apply flow are in place.
 
 ### Core Constraint
 

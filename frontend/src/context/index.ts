@@ -17,6 +17,7 @@ export type {
   MergeReviewFile,
   MergeReviewDiffResult,
   MergeState,
+  ConflictResolutionData,
   FileResolutionsMap,
   ResolutionStrategy,
   GitInitOptions,
