@@ -42,6 +42,25 @@ export type ConflictSegment =
   | { kind: 'context'; text: string }
   | { kind: 'conflict'; conflict: ConflictRegion };
 
+export type ConflictSide = 'current' | 'incoming';
+
+export interface ConflictLineChoice {
+  current: boolean[];
+  incoming: boolean[];
+}
+
+export type ConflictRegionDecision =
+  | { mode: 'unresolved' }
+  | { mode: 'block'; side: ConflictSide }
+  | { mode: 'lines'; lines: ConflictLineChoice }
+  | { mode: 'remove' };
+
+export interface TextConflictDraft {
+  path: string;
+  resolutionToken: string;
+  decisions: Record<string, ConflictRegionDecision>;
+}
+
 export interface ConflictResolutionData {
   success: boolean;
   path: string;
