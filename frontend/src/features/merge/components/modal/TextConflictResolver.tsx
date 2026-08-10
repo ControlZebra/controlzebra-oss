@@ -1,12 +1,25 @@
-import { Check, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
-import { Button } from '../../../../shared/ui';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+} from '../../../../shared/ui';
 import type {
   ConflictRegionDecision,
   ConflictResolutionData,
+  ConflictSide,
   TextConflictDraft,
 } from '../../types';
 import { composeConflictResolution } from '../../lib/conflict-composer';
+import TextConflictBlock from './TextConflictBlock';
 
 interface TextConflictResolverProps {
   data: ConflictResolutionData;
@@ -25,6 +38,10 @@ function TextConflictResolver({
   onDecision,
   onApply,
 }: TextConflictResolverProps): JSX.Element {
+  const [activeConflictIndex, setActiveConflictIndex] = useState(0);
+  const [expandedRegionIds, setExpandedRegionIds] = useState<Set<string>>(() => new Set());
+  const [pendingBulkSide, setPendingBulkSide] = useState<ConflictSide | null>(null);
+  const [pendingRemoveRegionId, setPendingRemoveRegionId] = useState<string | null>(null);
   const conflictRegions = data.segments.flatMap((segment) => (
     segment.kind === 'conflict' ? [segment.conflict] : []
   ));
@@ -34,7 +51,54 @@ function TextConflictResolver({
     newline: data.newline,
     hasFinalNewline: data.hasFinalNewline,
   });
-  const decidedCount = conflictRegions.length - composed.validation.unresolvedRegionIds.length;
+  const undecidedRegionIds = new Set([
+    ...composed.validation.unresolvedRegionIds,
+    ...composed.validation.invalidDecisionIds,
+  ]);
+  const decidedCount = conflictRegions.length - undecidedRegionIds.size;
+  const activeRegion = conflictRegions[activeConflictIndex];
+  const activeSegmentIndex = activeRegion
+    ? data.segments.findIndex((segment) => (
+        segment.kind === 'conflict' && segment.conflict.id === activeRegion.id
+      ))
+    : -1;
+  const segmentBefore = activeSegmentIndex > 0 ? data.segments[activeSegmentIndex - 1] : undefined;
+  const segmentAfter = activeSegmentIndex >= 0 ? data.segments[activeSegmentIndex + 1] : undefined;
+  const contextBefore = segmentBefore?.kind === 'context' ? segmentBefore.text : '';
+  const contextAfter = segmentAfter?.kind === 'context' ? segmentAfter.text : '';
+  const hasExistingChoices = Object.values(draft.decisions).some((decision) => decision.mode !== 'unresolved');
+
+  useEffect(() => {
+    setActiveConflictIndex((current) => Math.min(current, Math.max(conflictRegions.length - 1, 0)));
+  }, [conflictRegions.length]);
+
+  const applyBulkSide = (side: ConflictSide): void => {
+    for (const region of conflictRegions) {
+      onDecision(region.id, { mode: 'block', side });
+    }
+    setExpandedRegionIds(new Set());
+    setPendingBulkSide(null);
+  };
+
+  const requestBulkSide = (side: ConflictSide): void => {
+    if (hasExistingChoices) {
+      setPendingBulkSide(side);
+      return;
+    }
+    applyBulkSide(side);
+  };
+
+  const setRegionExpanded = (regionId: string, expanded: boolean): void => {
+    setExpandedRegionIds((current) => {
+      const next = new Set(current);
+      if (expanded) {
+        next.add(regionId);
+      } else {
+        next.delete(regionId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-lg border border-theme-default bg-theme-surface">
@@ -51,64 +115,71 @@ function TextConflictResolver({
             {decidedCount} of {conflictRegions.length} decided
           </span>
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-theme-muted">Choose one version for every conflict:</span>
+          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => requestBulkSide('current')}>
+            Use all Current
+          </Button>
+          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => requestBulkSide('incoming')}>
+            Use all Incoming
+          </Button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-5">
         <div className="space-y-4">
-          {conflictRegions.map((region, index) => {
-            const decision = draft.decisions[region.id];
-            const selectedSide = decision?.mode === 'block' ? decision.side : undefined;
+          {activeRegion && (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled || activeConflictIndex === 0}
+                  onClick={() => setActiveConflictIndex((current) => current - 1)}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Previous conflict
+                </Button>
+                <span className="text-xs font-medium text-theme-secondary">
+                  Conflict {activeConflictIndex + 1} of {conflictRegions.length}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled || activeConflictIndex === conflictRegions.length - 1}
+                  onClick={() => setActiveConflictIndex((current) => current + 1)}
+                >
+                  Next conflict
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
 
-            return (
-              <section key={region.id} className="rounded-lg border border-theme-default bg-theme-base/40 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-medium text-theme-primary">Conflict {index + 1}</h4>
-                  {selectedSide && (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-400">
-                      <Check className="h-3.5 w-3.5" />
-                      {selectedSide === 'current' ? 'Current selected' : 'Incoming selected'}
-                    </span>
-                  )}
-                </div>
+              {contextBefore && (
+                <pre aria-label="Context before conflict" className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md border border-theme-default bg-theme-base p-3 font-mono text-xs text-theme-muted">
+                  {contextBefore}
+                </pre>
+              )}
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <button
-                    type="button"
-                    aria-pressed={selectedSide === 'current'}
-                    disabled={disabled}
-                    onClick={() => onDecision(region.id, { mode: 'block', side: 'current' })}
-                    className={`min-w-0 rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                      selectedSide === 'current'
-                        ? 'border-blue-400 bg-blue-500/10'
-                        : 'border-blue-500/30 hover:bg-blue-500/5'
-                    }`}
-                  >
-                    <span className="text-sm font-medium text-theme-primary">Use Current</span>
-                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-theme-secondary">
-                      {region.current.join(data.newline || '\n') || '(No content)'}
-                    </pre>
-                  </button>
+              <TextConflictBlock
+                region={activeRegion}
+                decision={draft.decisions[activeRegion.id] ?? { mode: 'unresolved' }}
+                newline={data.newline || '\n'}
+                disabled={disabled}
+                expanded={expandedRegionIds.has(activeRegion.id)}
+                onDecision={(decision) => onDecision(activeRegion.id, decision)}
+                onExpandedChange={(expanded) => setRegionExpanded(activeRegion.id, expanded)}
+                onRequestRemove={() => setPendingRemoveRegionId(activeRegion.id)}
+              />
 
-                  <button
-                    type="button"
-                    aria-pressed={selectedSide === 'incoming'}
-                    disabled={disabled}
-                    onClick={() => onDecision(region.id, { mode: 'block', side: 'incoming' })}
-                    className={`min-w-0 rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                      selectedSide === 'incoming'
-                        ? 'border-amber-400 bg-amber-500/10'
-                        : 'border-amber-500/30 hover:bg-amber-500/5'
-                    }`}
-                  >
-                    <span className="text-sm font-medium text-theme-primary">Use Incoming</span>
-                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-theme-secondary">
-                      {region.incoming.join(data.newline || '\n') || '(No content)'}
-                    </pre>
-                  </button>
-                </div>
-              </section>
-            );
-          })}
+              {contextAfter && (
+                <pre aria-label="Context after conflict" className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md border border-theme-default bg-theme-base p-3 font-mono text-xs text-theme-muted">
+                  {contextAfter}
+                </pre>
+              )}
+            </>
+          )}
 
           <section>
             <h4 className="mb-2 text-sm font-medium text-theme-primary">Resolved file preview</h4>
@@ -143,6 +214,51 @@ function TextConflictResolver({
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={pendingBulkSide !== null} onOpenChange={(open) => !open && setPendingBulkSide(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace your section choices?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace every section choice with the {pendingBulkSide === 'current' ? 'Current' : 'Incoming'} version. You can review the result before resolving the file.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep my choices</AlertDialogCancel>
+            <AlertDialogAction
+              variant="default"
+              onClick={() => pendingBulkSide && applyBulkSide(pendingBulkSide)}
+            >
+              Replace choices
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingRemoveRegionId !== null} onOpenChange={(open) => !open && setPendingRemoveRegionId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this section?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This section will be empty in the resolved file. You can still review the complete result before resolving it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep this section</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingRemoveRegionId) {
+                  onDecision(pendingRemoveRegionId, { mode: 'remove' });
+                  setRegionExpanded(pendingRemoveRegionId, false);
+                  setPendingRemoveRegionId(null);
+                }
+              }}
+            >
+              Remove section
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

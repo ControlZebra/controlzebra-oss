@@ -375,6 +375,78 @@ describe('ExplorerMergeModal', () => {
     });
   });
 
+  it('keeps each text conflict draft while moving between files', async () => {
+    const conflictedFiles = [
+      { path: 'notes/first.txt', status: 'both-modified' as const },
+      { path: 'notes/second.txt', status: 'both-modified' as const },
+    ];
+    const loadConflictResolutionData = vi.fn().mockImplementation(async (path: string) => ({
+      success: true,
+      path,
+      status: 'both-modified',
+      eligible: true,
+      base: { present: true },
+      current: { present: true },
+      incoming: { present: true },
+      segments: [
+        {
+          kind: 'conflict',
+          conflict: {
+            id: `region-${path}`,
+            current: [`current ${path}`],
+            base: [`old ${path}`],
+            incoming: [`incoming ${path}`],
+          },
+        },
+      ],
+      resolutionToken: `token-${path}`,
+      newline: '\n',
+      hasFinalNewline: false,
+    }));
+    const mergeResult = {
+      success: true,
+      hasConflicts: true,
+      conflictedFiles,
+      parentBranch: 'main',
+      targetBranch: 'main',
+      sourceBranch: 'feature/tank-logic',
+      mergeStarted: true,
+      isSquashMerge: true,
+      liveMergePhase: 'resolving',
+    };
+    let controllerValue: Record<string, unknown> = createControllerValue({
+      conflictedFiles,
+      selectedConflictFile: 'notes/first.txt',
+      conflictCheckResult: mergeResult,
+      loadConflictResolutionData,
+    });
+    useMergeFlowControllerMock.mockImplementation(() => controllerValue);
+
+    const { rerender } = render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+
+    await screen.findByText('current notes/first.txt');
+    fireEvent.click(screen.getByRole('button', { name: /Use Current/ }));
+
+    controllerValue = {
+      ...controllerValue,
+      selectedConflictFile: 'notes/second.txt',
+    };
+    rerender(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+    await screen.findByText('current notes/second.txt');
+    fireEvent.click(screen.getByRole('button', { name: /Use Incoming/ }));
+
+    controllerValue = {
+      ...controllerValue,
+      selectedConflictFile: 'notes/first.txt',
+    };
+    rerender(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Use Current/ })).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(loadConflictResolutionData).toHaveBeenCalledTimes(2);
+  });
+
   it('opens a safe close confirmation when Escape is pressed during an active merge', async () => {
     const onOpenChange = vi.fn();
 
