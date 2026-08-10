@@ -48,6 +48,11 @@ import {
   useMergeFlowController,
   type MergeOutcomeState,
 } from '../hooks/useMergeFlowController';
+import type {
+  ConflictRegionDecision,
+  ConflictResolutionData,
+  TextConflictDraft,
+} from '../types';
 import MergeConflictQueue from './modal/MergeConflictQueue';
 import { MergeReviewFileList } from './modal/MergeReviewPane';
 import MergeReviewPreview from './modal/MergeReviewPreview';
@@ -203,6 +208,24 @@ function getPreflightToneClasses(tone: PreflightStatusModel['tone']): string {
   }
 }
 
+function createTextConflictDraft(data: ConflictResolutionData): TextConflictDraft | undefined {
+  if (!data.resolutionToken) {
+    return undefined;
+  }
+
+  return {
+    path: data.path,
+    resolutionToken: data.resolutionToken,
+    decisions: Object.fromEntries(
+      data.segments.flatMap((segment) => (
+        segment.kind === 'conflict'
+          ? [[segment.conflict.id, { mode: 'unresolved' } satisfies ConflictRegionDecision]]
+          : []
+      )),
+    ),
+  };
+}
+
 function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
   const {
     repoPath,
@@ -215,7 +238,8 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     setSelectedConflictFile,
     fileResolutions,
     isResolvingConflict,
-    conflictSidesInfo,
+    loadConflictResolutionData,
+    resolveConflictWithContent,
     isSquashMerge,
     currentBranch,
     availableBranches,
@@ -254,7 +278,13 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
   const [isAbandoningMerge, setIsAbandoningMerge] = useState(false);
   const [isReviewDrawerOpen, setIsReviewDrawerOpen] = useState(false);
   const [viewingDiffForFile, setViewingDiffForFile] = useState<string | null>(null);
+  const [resolutionDataByPath, setResolutionDataByPath] = useState<Record<string, ConflictResolutionData>>({});
+  const [conflictDrafts, setConflictDrafts] = useState<Record<string, TextConflictDraft>>({});
+  const [resolutionLoadingByPath, setResolutionLoadingByPath] = useState<Record<string, boolean>>({});
+  const [resolutionLoadErrors, setResolutionLoadErrors] = useState<Record<string, string>>({});
+  const [resolutionApplyErrors, setResolutionApplyErrors] = useState<Record<string, string>>({});
   const hasAutoAnalyzedRef = useRef(false);
+  const resolutionLoadGenerationRef = useRef(0);
   const preparingShownAtRef = useRef<number | null>(null);
   const displayedOutcomeTimerRef = useRef<number | null>(null);
   const reviewDrawerRef = useRef<HTMLDivElement | null>(null);
@@ -340,6 +370,148 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     targetBranch,
   ]);
   const [displayedOutcomeState, setDisplayedOutcomeState] = useState<MergeOutcomeState>(outcomeState);
+
+  useEffect(() => {
+    if (open) {
+      return;
+    }
+
+    resolutionLoadGenerationRef.current += 1;
+    setResolutionDataByPath({});
+    setConflictDrafts({});
+    setResolutionLoadingByPath({});
+    setResolutionLoadErrors({});
+    setResolutionApplyErrors({});
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || outcomeState !== 'resolving' || !selectedConflictFile) {
+      return;
+    }
+
+    if (
+      resolutionDataByPath[selectedConflictFile]
+      || resolutionLoadingByPath[selectedConflictFile]
+      || resolutionLoadErrors[selectedConflictFile]
+    ) {
+      return;
+    }
+
+    const filePath = selectedConflictFile;
+    const loadGeneration = resolutionLoadGenerationRef.current;
+    setResolutionLoadingByPath((current) => ({ ...current, [filePath]: true }));
+
+    void loadConflictResolutionData(filePath).then((data) => {
+      if (loadGeneration !== resolutionLoadGenerationRef.current) {
+        return;
+      }
+
+      if (!data) {
+        setResolutionLoadErrors((current) => ({
+          ...current,
+          [filePath]: 'Error loading the file viewer. Choose the complete file to continue.',
+        }));
+        return;
+      }
+
+      setResolutionDataByPath((current) => ({ ...current, [filePath]: data }));
+
+      if (data.eligible) {
+        const nextDraft = createTextConflictDraft(data);
+        if (nextDraft) {
+          setConflictDrafts((current) => {
+            const existingDraft = current[filePath];
+            if (existingDraft?.resolutionToken === nextDraft.resolutionToken) {
+              return current;
+            }
+            return { ...current, [filePath]: nextDraft };
+          });
+        }
+      }
+    }).finally(() => {
+      if (loadGeneration === resolutionLoadGenerationRef.current) {
+        setResolutionLoadingByPath((current) => ({ ...current, [filePath]: false }));
+      }
+    });
+  }, [
+    loadConflictResolutionData,
+    open,
+    outcomeState,
+    resolutionDataByPath,
+    resolutionLoadErrors,
+    resolutionLoadingByPath,
+    selectedConflictFile,
+  ]);
+
+  const handleConflictDecision = useCallback((
+    regionId: string,
+    decision: ConflictRegionDecision,
+  ): void => {
+    if (!selectedConflictFile) {
+      return;
+    }
+
+    setConflictDrafts((current) => {
+      const draft = current[selectedConflictFile];
+      if (!draft) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [selectedConflictFile]: {
+          ...draft,
+          decisions: { ...draft.decisions, [regionId]: decision },
+        },
+      };
+    });
+    setResolutionApplyErrors((current) => ({ ...current, [selectedConflictFile]: '' }));
+  }, [selectedConflictFile]);
+
+  const handleResolveWithContent = useCallback(async (content: string): Promise<void> => {
+    if (!selectedConflictFile) {
+      return;
+    }
+
+    const filePath = selectedConflictFile;
+    const draft = conflictDrafts[filePath];
+    if (!draft) {
+      return;
+    }
+
+    setResolutionApplyErrors((current) => ({ ...current, [filePath]: '' }));
+    const success = await resolveConflictWithContent(filePath, draft.resolutionToken, content);
+
+    if (!success) {
+      setResolutionApplyErrors((current) => ({
+        ...current,
+        [filePath]: "We couldn't resolve this file.\nReview your choice and select Resolve File to try again.",
+      }));
+      return;
+    }
+
+    setResolutionDataByPath((current) => {
+      const next = { ...current };
+      delete next[filePath];
+      return next;
+    });
+    setConflictDrafts((current) => {
+      const next = { ...current };
+      delete next[filePath];
+      return next;
+    });
+    setResolutionApplyErrors((current) => {
+      const next = { ...current };
+      delete next[filePath];
+      return next;
+    });
+    setSelectedConflictFile(null);
+  }, [
+    conflictDrafts,
+    resolveConflictWithContent,
+    selectedConflictFile,
+    setSelectedConflictFile,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1011,11 +1183,23 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                 selectedConflictFile={selectedConflictFile}
                 fileResolutions={fileResolutions}
                 isResolvingConflict={isResolvingConflict}
-                conflictSidesInfo={conflictSidesInfo}
                 sourceBranch={effectiveSource}
                 targetBranch={effectiveTarget}
                 onSelectFile={setSelectedConflictFile}
                 onResolve={handleResolve}
+                resolutionData={selectedConflictFile ? resolutionDataByPath[selectedConflictFile] : undefined}
+                conflictDraft={selectedConflictFile ? conflictDrafts[selectedConflictFile] : undefined}
+                isLoadingResolutionData={selectedConflictFile
+                  ? Boolean(resolutionLoadingByPath[selectedConflictFile])
+                  : false}
+                resolutionLoadError={selectedConflictFile
+                  ? resolutionLoadErrors[selectedConflictFile]
+                  : undefined}
+                resolutionApplyError={selectedConflictFile
+                  ? resolutionApplyErrors[selectedConflictFile]
+                  : undefined}
+                onConflictDecision={handleConflictDecision}
+                onResolveWithContent={handleResolveWithContent}
               />
             )}
 
