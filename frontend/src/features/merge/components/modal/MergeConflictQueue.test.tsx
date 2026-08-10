@@ -92,9 +92,22 @@ describe('MergeConflictQueue', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Keep Mine/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Keep Current File/ }));
 
     expect(baseProps.onResolve).toHaveBeenCalledWith('logic/alpha.L5X', 'mine');
+  });
+
+  it('shows the complete-file fallback when detailed conflict data is unavailable', () => {
+    render(
+      <MergeConflictQueue
+        {...baseProps}
+        selectedConflictFile="logic/alpha.L5X"
+        onSelectFile={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Keep Current File/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Keep Incoming File/ })).toBeInTheDocument();
   });
 
   it('shows the completion state once there are no remaining conflicted files to choose from', () => {

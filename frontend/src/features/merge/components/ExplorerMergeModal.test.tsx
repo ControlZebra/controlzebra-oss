@@ -34,6 +34,8 @@ function createControllerValue(overrides: Record<string, unknown> = {}) {
     fileResolutions: {},
     isResolvingConflict: false,
     conflictSidesInfo: null,
+    loadConflictResolutionData: vi.fn().mockResolvedValue(null),
+    resolveConflictWithContent: vi.fn().mockResolvedValue(false),
     isSquashMerge: true,
     setIsSquashMerge: vi.fn(),
     currentBranch: 'feature/tank-logic',
@@ -274,7 +276,7 @@ describe('ExplorerMergeModal', () => {
     expect(screen.getByRole('heading', { name: 'Ready to merge' })).toBeInTheDocument();
   });
 
-  it('keeps conflict resolution inside the modal and does not trigger background file actions', () => {
+  it('keeps conflict resolution inside the modal and does not trigger background file actions', async () => {
     const handleResolve = vi.fn();
     const openInDefaultApp = vi.fn();
 
@@ -302,10 +304,75 @@ describe('ExplorerMergeModal', () => {
       </div>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Keep Mine/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Keep Current File/ }));
 
     expect(handleResolve).toHaveBeenCalledWith('logic/alpha.L5X', 'mine');
     expect(openInDefaultApp).not.toHaveBeenCalled();
+  });
+
+  it('loads an eligible text conflict, previews a choice, and applies the composed file', async () => {
+    const loadConflictResolutionData = vi.fn().mockResolvedValue({
+      success: true,
+      path: 'notes/process.txt',
+      status: 'both-modified',
+      eligible: true,
+      base: { present: true },
+      current: { present: true },
+      incoming: { present: true },
+      segments: [
+        { kind: 'context', text: 'before\n' },
+        {
+          kind: 'conflict',
+          conflict: {
+            id: 'region-1',
+            current: ['current value'],
+            base: ['old value'],
+            incoming: ['incoming value'],
+          },
+        },
+        { kind: 'context', text: 'after\n' },
+      ],
+      resolutionToken: 'token-1',
+      newline: '\n',
+      hasFinalNewline: true,
+    });
+    const resolveConflictWithContent = vi.fn().mockResolvedValue(true);
+
+    useMergeFlowControllerMock.mockReturnValue(createControllerValue({
+      conflictedFiles: [{ path: 'notes/process.txt', status: 'both-modified' }],
+      selectedConflictFile: 'notes/process.txt',
+      conflictCheckResult: {
+        success: true,
+        hasConflicts: true,
+        conflictedFiles: [{ path: 'notes/process.txt', status: 'both-modified' }],
+        parentBranch: 'main',
+        targetBranch: 'main',
+        sourceBranch: 'feature/tank-logic',
+        mergeStarted: true,
+        isSquashMerge: true,
+        liveMergePhase: 'resolving',
+      },
+      loadConflictResolutionData,
+      resolveConflictWithContent,
+    }));
+
+    render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Resolve text conflicts' })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Use Incoming/ }));
+
+    expect(screen.getByLabelText('Resolved file preview')).toHaveTextContent('before incoming value after');
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve File' }));
+
+    await waitFor(() => {
+      expect(resolveConflictWithContent).toHaveBeenCalledWith(
+        'notes/process.txt',
+        'token-1',
+        'before\nincoming value\nafter\n',
+      );
+    });
   });
 
   it('opens a safe close confirmation when Escape is pressed during an active merge', async () => {
