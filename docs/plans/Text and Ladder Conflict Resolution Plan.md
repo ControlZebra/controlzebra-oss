@@ -1,16 +1,30 @@
-# Text and L5X Conflict Resolution MVP Plan
+# Text and PLC Conflict Resolution MVP Plan
 
-> Expand live merge conflict handling from whole-file choices to guided three-way resolution for text files, complete-rung and complete-tag resolution for eligible L5X conflicts, and whole-file fallbacks for every unsupported L5X case.
+> Expand live merge conflict handling from whole-file choices to guided three-way resolution for text files, strict Git-region visualization for eligible PLC rung, structured-text, and tag conflicts, and whole-file fallbacks for every unsupported file. Rockwell L5X is the first supported PLC format.
 
 ## Status
 
-Planned as of 2026-07-31.
+Updated 2026-08-12.
+
+- Phase 0 is implemented: the backend three-way conflict contract, safety checks,
+  stage-aware whole-file fallback, atomic apply path, generated bindings, and
+  temporary-repository tests are complete.
+- Phase 1 is implemented: eligible text conflicts can be resolved by block or
+  selected lines through the extracted `frontend/src/features/conflict` module,
+  with in-memory drafts, composed preview, explicit apply, retry behavior, and
+  queue advancement.
+- Phase 2 is next: strict Git-region Rockwell L5X visualization for complete ladder rungs, structured text, and tags, behind a vendor-ready package boundary.
+- Phase 3 remains the combined MVP hardening and cross-platform release gate.
+
+Manual Windows runtime evidence for atomic replacement, CRLF behavior, and file
+watcher reconciliation remains required before the combined MVP release. This is
+release validation, not unfinished Phase 0 or Phase 1 implementation.
 
 Implementation order:
 
 1. Shared three-way conflict contract and backend safety harness.
 2. Three-way text conflict engine and resolver.
-3. L5X source projection with complete-rung and complete-tag choices.
+3. Strict Git-region Rockwell L5X visualization with region-wide choices and a vendor-ready adapter boundary.
 4. Integrated fallback, platform validation, and MVP release hardening.
 
 These are implementation phases, not separate product releases. The first public release is not complete until all four phases pass the combined MVP exit gate.
@@ -30,7 +44,7 @@ Select conflicted file
   -> move automatically to the next file
 ```
 
-For `.l5x` files, the resolver should present eligible ladder conflicts visually and let the user choose the complete Current or Incoming rung. It should also present eligible controller-scoped and program-scoped tag conflicts and let the user choose the complete Current or Incoming tag. The resulting file must remain valid L5X.
+For `.l5x` files, the resolver should visually preview an eligible Git conflict region when each side contains one complete ladder rung, structured-text unit, or tag. The user chooses Current or Incoming for the entire region. The resulting file must remain valid L5X.
 
 When ControlZebra cannot visualize or map an L5X conflict safely, it must always offer whole-file Current and Incoming choices instead of guessing. The text resolver may also be offered when the file is text-safe, but it is an optional advanced fallback and never replaces the required whole-file escape hatch.
 
@@ -41,8 +55,10 @@ When ControlZebra cannot visualize or map an L5X conflict safely, it must always
 | Merge model | Three-way: base, current, and incoming. |
 | Required decisions | Ask only for true conflict regions. Preserve Git's automatically merged content. |
 | Text selection unit | Conflict block by default, expandable to individual lines. |
-| L5X selection units | Complete rung and complete tag. No instruction, operand, branch-leg, or individual tag-property choices in this release. |
-| Entity selection meaning | `Use Current/Incoming Rung` and `Use Current/Incoming Tag` copy the exact complete XML element from that side; they do not create a hybrid entity from auto-merged lines. |
+| L5X selection unit | One Git conflict region. Visual preview is available only when both sides contain one complete, same-kind RLL rung (including its comment), structured-text unit, or tag. |
+| L5X choice meaning | A Current or Incoming visual choice selects that side's exact Git conflict-region text. The existing composer preserves Git's automatically merged context and never creates a hybrid region. |
+| L5X preview strategy | Parse a temporary in-memory L5X wrapper around a self-contained region for preview only. The wrapper is never written or used in composed output. |
+| Future PLC formats | Reuse the Git conflict workflow and normalized rendering models. Each vendor format supplies its own complete-fragment classifier, preview setup, and complete-document validation through a package adapter. |
 | Manual editing | Not supported. The result is composed only from Current and Incoming selections. |
 | Side labels | `Current` and `Incoming`. Do not use `Mine`, `Theirs`, `Ours`, or `Source` inside the detailed resolver. |
 | Draft behavior | Keep choices in frontend memory. Write and stage only when the user selects `Resolve File`. |
@@ -51,11 +67,11 @@ When ControlZebra cannot visualize or map an L5X conflict safely, it must always
 | Layout | Keep the decision queue on the left and use the right side as the full resolver. |
 | Delivery | Build incrementally, but ship text, rung, tag, and whole-file fallback behavior together as one MVP. |
 
-## Current Behavior
+## Behavior Before Phase 0 And Phase 1
 
-The current live-conflict path is file-level only:
+Before this plan was implemented, the live-conflict path was file-level only:
 
-- `MergeConflictQueue.tsx` renders `Keep Mine` and `Keep Theirs` cards.
+- the merge conflict queue rendered only whole-file choices
 - `RepoContext.resolveConflict()` calls `ResolveConflictKeepOurs()` or `ResolveConflictKeepTheirs()`.
 - `GitService` runs `git checkout --ours/--theirs -- <path>` and immediately stages the file.
 - `fileResolutions` records one strategy per file and the queue advances to the next unresolved file.
@@ -81,9 +97,9 @@ These read-only diff contracts are useful for display, but they are not a safe f
 - In-memory drafts for every opened conflicted file while the merge modal remains mounted.
 - Atomic working-tree write followed by `git add` when the file is resolved.
 - Whole-file Current/Incoming actions as shortcuts and fallbacks.
-- Complete-rung Current/Incoming choices for safely mapped RLL conflicts.
-- Complete-tag Current/Incoming choices for safely mapped controller and program tags.
-- Exact source-span replacement for selected L5X entities so a side choice cannot create a hybrid rung or tag.
+- Graphical Current/Incoming region choices for self-contained RLL rung, structured-text, and tag conflicts.
+- Rung previews include the complete `<Rung>` element and its `<Comment>` when present.
+- Read-only formatted structured text and tag detail/table previews for eligible regions.
 - Whole-file Current/Incoming fallbacks that remain reachable from every L5X resolver state.
 - Parse validation before an L5X result can be written and staged.
 
@@ -94,6 +110,8 @@ These read-only diff contracts are useful for display, but they are not a safe f
 - Selecting individual ladder instructions, operands, branch legs, tag properties, AOIs, modules, or data types.
 - Automatically resolving semantically equivalent L5X changes.
 - Reconstructing an L5X document from `NormalizedController`.
+- Expanding a partial Git conflict to an enclosing rung, structured-text unit, or tag.
+- Source-location indexes, entity identity matching, or source-span replacement across conflict boundaries.
 - Persisting unfinished drafts across modal closure, merge abort, app restart, or repository change.
 - Reusing the resolver for pre-merge review, history, Change Requests, or ordinary working-tree diffs.
 - Binary conflict composition.
@@ -114,7 +132,7 @@ The implementation must preserve these rules:
 8. The normalized ladder model is never serialized back into L5X.
 9. Unsupported, binary, oversized, deleted, encoding-unsafe, or ambiguous files retain whole-file fallback actions.
 10. Closing or aborting the merge cannot silently apply an in-memory draft.
-11. A rung or tag choice copies the exact complete XML element from the selected index stage; it cannot preserve edits from the other side inside that entity.
+11. A graphical ladder, structured-text, or tag choice selects the exact Current or Incoming Git conflict-region text. It never expands a boundary, splices an XML entity, or creates a hybrid region.
 12. Whole-file fallback remains available before apply for every L5X file and discards any detailed draft only after explicit confirmation.
 13. Choosing a missing side in a delete/modify conflict stages the deletion instead of attempting to check out a nonexistent blob.
 
@@ -124,17 +142,23 @@ The implementation must preserve these rules:
 
 Do not add mutating props to `DiffRenderRequest` or turn the global viewer registry into an editor registry. Read-only diffs are used in history, explorer, merge review, and Change Requests; coupling resolution state into that contract would spread merge-only behavior across unrelated surfaces.
 
-Add a merge-owned renderer instead:
+The implemented design keeps merge orchestration separate from a conflict-owned
+resolver feature:
 
 ```text
-MergeConflictQueue
+features/merge/ExplorerMergeModal
+  -> features/conflict/ConflictQueue
   -> ConflictResolverPane
        -> TextConflictResolver
-      -> L5XConflictResolver
+       -> L5XConflictResolver (Phase 2)
        -> WholeFileConflictFallback
 ```
 
-The resolver may reuse visual primitives and pure view models from the existing text and L5X viewers, but it owns its loading, draft, decision, and apply contracts.
+`ExplorerMergeModal` remains the workflow owner and holds ephemeral per-file
+drafts. `features/conflict` owns conflict contracts, backend model mapping,
+resolver UI, composition, and validation. The resolver may reuse visual
+primitives and pure view models from the existing text and L5X viewers, but it
+does not mutate the read-only viewer registry.
 
 ### Git Index Stage Contract
 
@@ -244,7 +268,8 @@ The existing `ConflictFileStatus` frontend union must be reconciled with every s
 
 ### Text Conflict Draft Model
 
-Add a feature-local draft model under `frontend/src/features/merge/`:
+The implemented feature-local draft model lives under
+`frontend/src/features/conflict/`:
 
 ```ts
 type ConflictSide = 'current' | 'incoming';
@@ -324,7 +349,10 @@ Actual implementation notes:
 - Path safety rejects absolute or escaping paths, direct symlink destinations, parent-directory symlink escapes, symlink index modes, submodule modes, and other unsupported file modes.
 - Backend tests added in `services/git_service_test.go` cover the main real-repository contract: same-line conflicts, stale-token rejection, invalid apply content, BOM/CRLF/no-final-newline metadata, unsafe content, line-ending disagreement, oversized output, unusual filenames, multiple true regions, strict marker parsing, marker-label collision, stage-presence status mapping, both-added empty output, executable mode preservation, symlink safety, selected-side deletion, and both-deleted resolution.
 
-Phase 0 status: implementation is ready for the Phase 1 frontend vertical slice. Remaining release evidence is runtime validation on a real Windows host for atomic replacement, file watcher behavior, and CRLF handling; cross-platform source exists, but macOS-side review cannot prove Windows runtime behavior.
+Phase 0 status: implementation complete. Remaining release evidence is runtime
+validation on a real Windows host for atomic replacement, file watcher behavior,
+and CRLF handling; cross-platform source exists, but macOS-side review cannot
+prove Windows runtime behavior.
 
 Deliverables:
 
@@ -371,7 +399,18 @@ Exit gate:
 
 ## Phase 1: Three-Way Text Resolver
 
-Implementation notes from the latest frontend slice: Phase 1 Action 1 is implemented. The backend methods and generated TypeScript bindings now exist, `ConflictFileStatus` includes `both-deleted`, and the existing merge queue can display the `Both deleted` label. `RepoContext` now exposes `loadConflictResolutionData()` and `resolveConflictWithContent()`, backed by feature-local plain merge-domain types in `frontend/src/features/merge/types.ts`. The text composer/resolver components listed below have not been implemented.
+Status as of 2026-08-11: implementation complete. The backend methods and
+generated TypeScript bindings exist, `ConflictFileStatus` includes
+`both-deleted`, and the queue displays every backend status. `RepoContext`
+exposes `loadConflictResolutionData()` and `resolveConflictWithContent()`.
+Plain frontend contracts and generated-model mapping now live in
+`frontend/src/features/conflict/types.ts`.
+
+The resolver is implemented under `frontend/src/features/conflict` rather than
+inside the merge feature. `ExplorerMergeModal` remains responsible for merge
+workflow orchestration and token-keyed, per-file in-memory drafts. The conflict
+feature owns `ConflictQueue`, resolver routing, text block and line decisions,
+whole-file fallback UI, composition, and validation.
 
 ### Frontend Domain And State
 
@@ -394,7 +433,8 @@ Invalidate a draft when:
 
 ### Components
 
-Refactor `MergeConflictQueue.tsx` into a queue shell and resolver pane without changing auto-advance semantics.
+The implemented `ConflictQueue.tsx` retains the existing queue and auto-advance
+semantics while hosting the resolver pane.
 
 Add:
 
@@ -455,132 +495,125 @@ Exit gate:
 ### Phase 1 Action Plan
 
 1. **Status: Done.** Mapped generated backend models into merge-domain types and added only `loadConflictResolutionData` and `resolveConflictWithContent` to `RepoContext`.
-  **Implementation note:** The plain frontend contract lives in `frontend/src/features/merge/types.ts`. `loadConflictResolutionData()` maps generated Wails model classes immediately, returning mapped ineligible data when the backend provides it and `null` only when the call cannot complete. `resolveConflictWithContent()` delegates writes to the backend, preserves failure drafts by returning `false`, and reconciles live merge state before returning `true`.
+  **Implementation note:** The plain frontend contract lives in `frontend/src/features/conflict/types.ts`. `loadConflictResolutionData()` maps generated Wails model classes immediately, returning mapped ineligible data when the backend provides it and `null` only when the call cannot complete. `resolveConflictWithContent()` delegates writes to the backend, preserves failure drafts by returning `false`, and reconciles live merge state before returning `true`.
 2. **Status: Done.** Implemented the pure composer and completeness validator with golden tests for LF, CRLF, BOM, no-final-newline, multiple regions, and explicit empty blocks.
-  **Implementation note:** `frontend/src/features/merge/lib/conflict-composer.ts` now composes only complete, valid decisions, preserves backend-provided text boundaries, and requires an explicit remove decision for an empty conflict result. Focused Vitest coverage locks the requested newline, BOM, multi-region, line-selection, and stale/invalid-decision behavior.
+  **Implementation note:** `frontend/src/features/conflict/lib/conflict-composer.ts` now composes only complete, valid decisions, preserves backend-provided text boundaries, and requires an explicit remove decision for an empty conflict result. Focused Vitest coverage locks the requested newline, BOM, multi-region, line-selection, and stale/invalid-decision behavior.
 3. **Status: Done.** Built the end-to-end eligible-text vertical slice with Current/Incoming block selection, a complete composed-file preview, explicit apply, live-index reconciliation, and queue advancement.
   **Implementation note:** `ExplorerMergeModal.tsx` owns per-file resolution data, token-keyed drafts, and retry state while the modal remains open. `ConflictResolverPane.tsx` routes backend-eligible text files to `TextConflictResolver.tsx` and every other state to `WholeFileConflictFallback.tsx`. The detailed path writes only through `resolveConflictWithContent()` after `Resolve File`; immediate fallback uses the existing stage-aware whole-file methods with `Keep Current File` and `Keep Incoming File` labels. Focused component and modal tests pass alongside frontend type checking and the production build.
 4. **Status: Done.** Added multi-region navigation, block decisions, expanded line selection, explicit empty-block confirmation, per-file draft retention, and whole-file shortcuts.
   **Implementation note:** The resolver now shows one active conflict at a time with Previous/Next navigation and surrounding auto-merged context. `TextConflictBlock.tsx` owns complete Current/Incoming choices and expandable checkbox-based line selection; entering line mode preserves an existing complete-side choice, collapsing preserves selected lines, and removing a section requires an explicit confirmation. Sticky `Use all Current` and `Use all Incoming` shortcuts populate every region without applying the file and confirm before replacing existing detailed work. Modal-level tests prove drafts remain keyed by file while navigating the queue, and focused merge tests cover navigation, mixed-side lines, removal, shortcuts, preview composition, and apply gating.
-5. **Action:** Add loading, stale-draft, apply-failure, close/abort, accessibility, responsive-layout, and analytics coverage.
-  **Project manager note:** These states determine whether the resolver is trustworthy for non-technical users. Phase 1 is not complete if only the successful path works.
-6. **Action:** Run focused frontend tests, type checking, build validation, and manual Windows/macOS line-ending checks.
-  **Project manager note:** This phase produces a releasable text resolver, but not a releasable product MVP; L5X rung/tag resolution and fallback hardening remain mandatory.
+5. **Status: Done for Phase 1 implementation.** Added loading and fallback routing, apply-error retry messaging, draft retention across file navigation, safe-close behavior, conflict navigation labels, and responsive queue/resolver layout.
+  **Implementation note:** Focused resolver and modal tests cover the implemented interaction states. Analytics privacy review and broader end-to-end accessibility evidence remain part of Phase 3 release hardening.
+6. **Status: Done for automated validation.** Focused conflict tests, merge-modal integration tests, frontend type checking, and production build validation pass.
+  **Implementation note:** Manual Windows and macOS line-ending and sizing acceptance remains required by the combined MVP release gate. Phase 1 is implemented but is not a standalone product release; Phase 2 rung/tag resolution and Phase 3 hardening remain mandatory.
 
-## Phase 2: L5X Complete-Rung And Complete-Tag Resolver
+## Phase 2: Strict Git-Region L5X Visual Resolver
 
-Implementation notes from the last two commits: no Phase 2 package or Desktop L5X resolver work landed. There is no `projectL5XConflictRegions()`-style API, no source-location index, and no complete-rung or complete-tag resolver integration yet. Phase 2 can build on the Phase 0 three-way stage contract once the Phase 1 composer and apply flow are in place.
+The MVP uses the existing Phase 1 Git conflict segments as the sole resolution and composition units. There is no `projectL5XConflictRegions()` API, source-location index, entity identity matching, or source-span replacement. This deliberately trades visual coverage for a small, auditable implementation that never changes Git's conflict boundaries.
 
 ### Core Constraint
 
-The existing L5X viewer parses source XML into `NormalizedController`, and the inline ladder diff model is designed for display. It does not retain a lossless source mapping and must not be serialized back into an L5X file.
+Git remains authoritative for the Current, Base, Incoming, automatically merged context, and true conflict regions. For every `.l5x` conflict region, the package classifies the Current and Incoming region text independently:
 
-The L5X resolver must therefore be a source-aware projection over the phase 1 three-way model:
+1. both options must each be one complete, same-kind XML unit: an RLL `<Rung>` (including any `<Comment>`), a supported structured-text unit, or a `<Tag>`
+2. each option is parsed only inside a minimal temporary L5X wrapper held in memory for preview
+3. the visualizer renders the two parsed options and the user selects the Current or Incoming **region**
+4. the Phase 1 composer inserts the selected original Git region text, unchanged, among Git's context segments
+5. `L5XConflictVisualAdapter.validateComposedDocument(result)` validates the composed complete file through a direct `L5XParser` instance before apply
 
-1. Git still produces the authoritative auto-merged context and conflict regions.
-2. `ladder-visualizer` maps conflict regions to stable RLL rung or tag identities on the base, current, and incoming sides.
-3. choosing a rung or tag replaces that complete XML element with the exact source span from Current or Incoming, including non-conflicting edits inside the entity
-4. the phase 1 composer preserves Git's auto-merged content everywhere outside the selected entity spans
-5. `ladder-visualizer.parseString(result, 'l5x')` validates the composed file before apply
-
-This avoids a second merge engine and avoids rebuilding XML from normalized objects.
+The wrapper is never written to the repository and is not used in composition. It exists only to give the existing parser enough structural context for preview. The normalized model remains display-only and is never serialized back to L5X.
 
 ### Package-Owned Contract
 
-Add a pure, non-React conflict projection API in the `ladder-visualizer` package. The exact names can follow package conventions, but the contract should resemble:
+Add a pure, non-React classifier and preview-model API in the `ladder-visualizer` package. It accepts one Current/Incoming Git region pair and returns either a same-kind visual model or a plain fallback reason. It does not accept the complete L5X documents and does not return source offsets.
 
 ```ts
-interface L5XSourceRange {
-  startOffset: number;
-  endOffset: number;
+type L5XConflictRegionKind = 'rung' | 'structured-text' | 'tag';
+
+interface L5XVisualConflictRegion {
+  kind: L5XConflictRegionKind;
+  current: NormalizedRung | NormalizedTag | StructuredTextPreview;
+  incoming: NormalizedRung | NormalizedTag | StructuredTextPreview;
 }
 
-interface L5XEntityAlternative {
-  source: string;
-  sourceRange: L5XSourceRange;
+interface L5XVisualConflictFallback {
+  reason: 'incomplete-unit' | 'mixed-unit-kind' | 'unsupported-unit' | 'invalid-fragment';
 }
 
-interface L5XRungConflictChoice {
-  id: string;
-  programName: string;
-  routineName: string;
-  rungNumber: number;
-  conflictRegionIds: string[];
-  mergedSourceRange: L5XSourceRange;
-  currentAlternative?: L5XEntityAlternative;
-  incomingAlternative?: L5XEntityAlternative;
-  baseRung?: NormalizedRung;
-  currentRung?: NormalizedRung;
-  incomingRung?: NormalizedRung;
-}
-
-interface L5XTagConflictChoice {
-  id: string;
-  scope: 'controller' | 'program';
-  programName?: string;
-  tagName: string;
-  conflictRegionIds: string[];
-  mergedSourceRange: L5XSourceRange;
-  currentAlternative?: L5XEntityAlternative;
-  incomingAlternative?: L5XEntityAlternative;
-  baseTag?: NormalizedTag;
-  currentTag?: NormalizedTag;
-  incomingTag?: NormalizedTag;
-}
-
-interface L5XConflictProjection {
-  rungConflicts: L5XRungConflictChoice[];
-  tagConflicts: L5XTagConflictChoice[];
-  unsupportedConflictRegionIds: string[];
-  warnings: string[];
-}
-
-projectL5XConflictRegions(input): L5XConflictProjection;
+classifyL5XConflictRegion(currentSource, incomingSource):
+  | L5XVisualConflictRegion
+  | L5XVisualConflictFallback;
 ```
 
-The package owns:
+The package owns complete-fragment recognition, safe in-memory wrapping, parsing, same-kind enforcement, and construction of the existing rung, formatted structured-text, and tag-detail display models. It must not use regular expressions to locate or replace XML elements. A narrow structured XML fragment parser is permitted only to prove that a region contains one complete supported unit; it does not need source locations.
 
-- XML-aware location of programs, RLL routines, and rung elements in all three source documents
-- XML-aware location of controller and program tags in all three source documents
-- stable rung and tag identity and mapping rules
-- detection of one-to-many, many-to-one, duplicate, renumbered, moved, or otherwise ambiguous mappings
-- construction of existing inline rung diff display models for Current versus Incoming context
-- validation of the final composed L5X text
+### Vendor-Ready Boundary
 
-The package must use a structured XML parser/tokenizer and source locations. It must not locate or replace `<Rung>` elements with regular expressions. If the current `fast-xml-parser` path cannot retain source ranges, add a narrowly scoped source-location pass rather than changing the ordinary normalized parser or serializing the whole document through `XMLBuilder`.
+The Git conflict queue, draft decisions, composer, atomic apply, and whole-file
+fallback are vendor-neutral and remain outside `ladder-visualizer`. The shared
+resolver UI consumes normalized preview data only; it never receives XML,
+vendor parser objects, or source that could be written back to the repository.
 
-### Safe Projection Rules
+Phase 2 implements an L5X-first adapter, but the package boundary must allow a
+future vendor to supply its own fragment grammar and validation without changing
+the merge workflow or visual resolver UI:
 
-A conflict can be offered as a complete-rung choice only when:
+```ts
+type VisualConflictKind = 'ladder' | 'structured-text' | 'tag';
 
-- both selected alternatives can be associated with one stable program/routine/rung identity
-- all text conflict regions covered by the visual choice belong exclusively to that rung
-- the complete `<Rung>` source span is available for each selectable side
-- selecting one side replaces the entire rung and cannot retain content from the other side inside it
-- the resulting complete text passes L5X parsing
+interface ConflictVisualAdapter {
+  readonly format: string;
 
-A conflict can be offered as a complete-tag choice only when:
+  classifyRegion(
+    currentSource: string,
+    incomingSource: string,
+  ): VisualConflictRegion | VisualConflictFallback;
 
-- it maps to one stable controller tag identity or one stable program-plus-tag identity
-- all conflict regions covered by the choice belong exclusively to that `<Tag>` element
-- the complete `<Tag>` source span is available for each selectable side
-- selecting one side replaces the entire tag, including attributes, descriptions, data blocks, CDATA, and unsupported child XML
-- the resulting complete text passes L5X parsing
+  validateComposedDocument(source: string): ValidationResult;
+}
+```
 
-Fallback to the text resolver when:
+`L5XConflictVisualAdapter` owns the L5X-only facts: `<Rung>` plus its complete
+`<Comment>` is a ladder unit, `<Tag>` is a tag unit, L5X structured-text
+elements define supported structured-text units, and a temporary
+`RSLogix5000Content` wrapper is required for preview. A future adapter may use
+a different XML envelope, JSON object, text grammar, or no wrapper at all.
+Every adapter returns normalized preview data and preserves original source for
+the existing composer; it must never serialize a normalized model to produce a
+resolution.
 
-- a conflict spans multiple rungs
-- rung identity is ambiguous or the rung moved/renumbered incompatibly
-- a conflict mixes a rung or tag with another entity, or spans data types, AOIs, modules, controller metadata, or routine metadata
-- the routine is structured text rather than RLL
-- source locations cannot be established safely
-- parsing any required side fails
+```mermaid
+flowchart LR
+  Git[Git conflict region] --> Core[Vendor-neutral conflict workflow]
+  Core --> Adapter[Resolve adapter by source format]
+  Adapter --> L5X[L5X visual adapter]
+  Adapter --> Future[Future vendor adapter]
+  L5X --> Preview[Normalized rung, ST, or tag preview]
+  Future --> Preview
+  Preview --> UI[Shared graphical resolver UI]
+  UI --> Core
+```
 
-The L5X resolver may show unsupported conflicts in the same file as an `Other L5X conflicts` group. The user may resolve text-safe regions through the phase 1 text surface, or abandon the detailed draft and choose a complete Current or Incoming file. Whole-file fallback remains visible throughout this workflow.
+The existing `NormalizedRung`, `NormalizedRoutine`, and `NormalizedTag` models
+are the reusable display boundary. They are sufficient for the first adapter,
+but their Rockwell-shaped instruction syntax, routine kinds, and tag categories
+must be reconsidered only when a second vendor's real export fixtures establish
+a concrete mismatch. Do not generalize those types speculatively during the L5X
+MVP.
+
+### Strict Eligibility And Fallback Rules
+
+A visual region is eligible only when both Current and Incoming are self-contained, complete instances of the same supported unit type:
+
+- RLL: one `<Rung>` including its complete `<Comment>` when present; the ladder preview renders the whole rung and comment as one unit.
+- Structured text: one supported complete structured-text unit, rendered as plain formatted code.
+- Tag: one complete `<Tag>`, rendered as a read-only detail card or table.
+
+Resolve the region in the Phase 1 text view when either option is partial XML, contains more than one supported unit, mixes unit kinds, cannot be parsed by the temporary wrapper, belongs to an unsupported L5X area, or has an unsupported structured-text representation. Do not expand a partial conflict to its enclosing rung, comment, tag, or routine. Whole-file Current/Incoming actions remain visible throughout every L5X state.
 
 ### Desktop Components
 
-Add a merge-owned `L5XConflictResolver.tsx` that reuses:
+Add a conflict-owned `L5XConflictResolver.tsx` that reuses:
 
 - `buildInlineDiffModel()` and `InlineDiffRung` for modified-rung comparison
 - `VirtualizedLadderDiagram` for single-sided added/removed rung context
@@ -588,71 +621,57 @@ Add a merge-owned `L5XConflictResolver.tsx` that reuses:
 - package-owned height measurement and virtualization patterns
 - the existing tag-table and tag-diff presentation for controller and program tags
 
-Each visual rung card provides exactly two actions:
+Each visual region card provides exactly two actions:
 
-- `Use Current Rung`
-- `Use Incoming Rung`
+- `Use Current`
+- `Use Incoming`
 
-Each tag row or card provides exactly two actions:
-
-- `Use Current Tag`
-- `Use Incoming Tag`
-
-Do not make SVG instructions or individual tag properties clickable in this phase. A rung or tag decision replaces the complete mapped entity atomically and marks all conflict regions owned exclusively by that entity as decided. The composed source remains the source of truth for apply and validation.
+The label identifies the previewed unit, for example `Current rung` or `Incoming tag`, but the action always selects the entire Git region. Do not make SVG instructions or individual tag properties clickable. A selection marks exactly one region as decided; the shared Phase 1 composer remains the source of truth for apply and validation.
 
 ### Phase 2 Tests
 
 Package tests in `ladder-visualizer`:
 
-- one modified RLL rung mapped to one conflict region
-- one rung containing several underlying text conflict regions
-- added and removed rung cases
-- branches, comments, CDATA, and escaped XML content
-- identical rung numbers in different programs/routines
-- reordered, renumbered, and moved rung ambiguity
-- conflict spanning two rungs
-- mixed rung and tag conflict
-- controller-tag and program-tag add, remove, and modify cases
-- tags containing descriptions, CDATA, multiple `Data` formats, and unsupported child XML
-- duplicate or ambiguous tag identities
-- structured-text routine fallback
-- malformed and unsupported L5X fallback
-- composed output parses and preserves unselected document content
+- one complete RLL rung region per side, including a comment, CDATA, branches, and escaped XML content
+- one complete tag region per side, including descriptions, CDATA, multiple `Data` formats, and unsupported child XML
+- one supported complete structured-text region per side
+- partial rung, comment, tag, and structured-text regions use the text resolver without expansion
+- multiple units in one region, mixed rung/tag regions, and unequal unit kinds use the text resolver
+- malformed and unsupported region fragments use the text resolver
+- composed output uses the chosen original region text and parses as L5X
 
 Desktop tests:
 
 - `.l5x` eligible file routes to ladder resolver
-- complete-rung choice copies the selected side's entire rung, including non-conflicting edits inside it
-- complete-tag choice copies the selected side's entire tag, including source details absent from `NormalizedTag`
+- complete visual-region choice composes the selected side's exact original Git region text
+- rung preview includes its complete comment; tag preview preserves source details absent from `NormalizedTag` because it is not serialized
 - no instruction-level choice controls are rendered
 - no individual tag-property choice controls are rendered
-- unsupported regions retain whole-file fallback and optionally expose text fallback
+- unsupported regions use the existing text resolver and retain whole-file fallback
 - invalid composed L5X disables detailed apply and explains the whole-file fallback
 - valid composed L5X calls the same phase 1 apply method
 - successful apply advances the existing decision queue once
 
 Exit gate:
 
-- real Studio 5000 fixtures with rung and tag conflicts resolve to parseable L5X
-- unsupported mappings fail closed to whole-file fallback, with optional text resolution when safe
-- no normalized-controller serialization or regex XML splicing exists in either repository
+- real Studio 5000 fixtures with complete rung, structured-text, and tag regions resolve to parseable L5X
+- partial, mixed, and unsupported regions route to the text resolver without boundary expansion
+- no normalized-controller serialization, source-span replacement, or regex XML splicing exists in either repository
 
 ### Phase 2 Action Plan
 
-1. **Action:** Select and prove a structured XML tokenizer or source-location strategy against real L5X fixtures containing comments, CDATA, escaped content, and multiple tag data formats.
-  **Project manager note:** This is the main technical uncertainty. Schedule it as a time-boxed spike with a go/no-go review before committing the UI estimate; normalized parser objects alone are not lossless enough for safe replacement.
-2. **Action:** Implement pure source-location indexes for programs, routines, rungs, controller tags, and program tags without changing ordinary `parseString()` behavior.
-  **Project manager note:** The output of this step is exact source ranges, not UI. It enables complete-entity choices while protecting unsupported L5X content from accidental rewriting.
-3. **Action:** Implement three-way rung and tag projection, exclusive conflict-region ownership, ambiguity reason codes, and exact Current/Incoming alternatives.
-  **Project manager note:** This determines which conflicts can be shown safely. Ambiguous mappings are expected product outcomes, not engineering failures; they must produce a categorized fallback reason.
-4. **Action:** Add package tests for complete-rung and complete-tag replacement, additions/deletions, mixed conflicts, moves, duplicate identities, malformed files, and preservation of unselected content.
-  **Project manager note:** Fixture evidence is the acceptance artifact for the projection layer. Use sanitized Studio 5000 exports so estimates and confidence are based on production-like files.
-5. **Action:** Build the Desktop L5X resolver with rung visualization, tag rows, decision counts, mixed unsupported groups, parse validation, and persistent whole-file actions.
-  **Project manager note:** The interface should expose only decisions the projection marked safe. Unsupported areas must be explained plainly and must never trap the user without a whole-file way forward.
-6. **Action:** Integrate entity decisions into the shared composer and prove that choosing Current or Incoming copies the complete entity rather than a hybrid.
-  **Project manager note:** This is the critical product acceptance check. A visual side label is misleading unless the final XML exactly matches that side for the selected rung or tag.
-7. **Action:** Run package tests, type checking, library build, Desktop feature tests, and linked-package integration validation.
-  **Project manager note:** Phase 2 is complete only when the package and its actual Desktop consumer pass together; a package-only demonstration does not prove the shipped workflow.
+1. **Status: Done.** Proved `L5XConflictVisualAdapter` as a narrow, structured complete-fragment classifier against focused L5X fixtures containing rung comments, CDATA, escaped content, structured text, and multiple tag data formats.
+  **Implementation note:** The exported `ConflictVisualAdapter` contract lives in `ladder-visualizer/src/conflict/`. `L5XConflictVisualAdapter` directly instantiates `L5XParser`, classifies exactly one complete Current/Incoming `<Rung>`, `<Tag>`, or `<Line>` pair, and rejects partial, multiple, malformed, and mixed-kind regions. The focused package test covers preview and direct complete-document validation without global `parseString()` AOI-registration side effects.
+2. **Action:** Implement temporary in-memory L5X wrappers and the pure Current/Incoming same-kind preview contract without changing ordinary `parseString()` behavior.
+  **Project manager note:** The wrapper enables existing parsing and rendering while preserving the original Git region source for composition.
+3. **Action:** Add package tests for eligible complete regions and fallback classification for partial, multiple, mixed-kind, malformed, and unsupported regions.
+  **Project manager note:** Fixture evidence must prove that every selected output remains the exact original Git region text, never normalized or reconstructed XML.
+4. **Action:** Build the Desktop L5X resolver with rung diagrams, formatted structured-text cards, tag detail cards, region-wide actions, Phase 1 text routing, parse validation, and persistent whole-file actions.
+  **Project manager note:** The interface must make clear that the choice applies to the displayed conflict section, without exposing XML or internal Git terminology.
+5. **Action:** Reuse the shared composer and prove a visual selection marks exactly one region as decided, composes unchanged selected region text, validates, stages, and advances the queue once.
+  **Project manager note:** No L5X-specific composer or XML replacement path is permitted.
+6. **Action:** Run package tests, type checking, library build, Desktop feature tests, and linked-package integration validation.
+  **Project manager note:** Phase 2 is complete only when the package and its actual Desktop consumer pass together.
 
 ## Phase 3: Integrated Fallback And MVP Release Hardening
 
@@ -689,23 +708,25 @@ Exit gate:
 | --- | --- |
 | `frontend/src/domain/repo/context/RepoContext.types.ts` | Add complete conflict statuses and load/apply contracts. Keep file completion separate from region decisions. |
 | `frontend/src/domain/repo/context/RepoContext.tsx` | Load resolution data, apply composed content, reconcile live merge state, and update analytics. |
-| `frontend/src/features/merge/components/ExplorerMergeModal.tsx` | Own per-file in-memory drafts and pass active resolver state into the queue surface. |
-| `frontend/src/features/merge/components/modal/MergeConflictQueue.tsx` | Retain queue/auto-advance behavior and host the detailed resolver pane. |
-| `frontend/src/features/merge/components/modal/ConflictResolverPane.tsx` | New resolver router and loading/fallback states. |
-| `frontend/src/features/merge/components/modal/TextConflictResolver.tsx` | New block-first text resolution UI. |
-| `frontend/src/features/merge/components/modal/TextConflictBlock.tsx` | New expandable block and line-selection UI. |
-| `frontend/src/features/merge/components/modal/WholeFileConflictFallback.tsx` | New plain-language wrapper around current whole-file actions. |
-| `frontend/src/features/merge/lib/conflict-composer.ts` | New pure composition, completeness, newline, and empty-block rules. |
-| `frontend/src/features/merge/components/modal/L5XConflictResolver.tsx` | Visual complete-rung and complete-tag resolver with persistent whole-file fallback. |
+| `frontend/src/features/merge/components/ExplorerMergeModal.tsx` | Implemented: owns per-file in-memory drafts and coordinates merge workflow with the conflict feature. |
+| `frontend/src/features/conflict/types.ts` | Implemented: plain conflict contracts and generated Wails model mapping. |
+| `frontend/src/features/conflict/components/modal/ConflictQueue.tsx` | Implemented: queue/auto-advance behavior and detailed resolver host. |
+| `frontend/src/features/conflict/components/modal/ConflictResolverPane.tsx` | Implemented: eligibility, loading, error, text resolver, and fallback routing. |
+| `frontend/src/features/conflict/components/modal/TextConflictResolver.tsx` | Implemented: block-first text resolution, navigation, preview, shortcuts, and apply. |
+| `frontend/src/features/conflict/components/modal/TextConflictBlock.tsx` | Implemented: expandable block and line selection with explicit removal. |
+| `frontend/src/features/conflict/components/modal/WholeFileConflictFallback.tsx` | Implemented: plain-language immediate whole-file fallback actions. |
+| `frontend/src/features/conflict/lib/conflict-composer.ts` | Implemented: pure composition, completeness, newline, and empty-block rules. |
+| `frontend/src/features/conflict/components/modal/L5XConflictResolver.tsx` | Phase 2: strict Git-region rung, structured-text, and tag previews with text routing and persistent whole-file fallback. |
 
 ### Ladder Visualizer
 
 | File area | Planned change |
 | --- | --- |
-| `src/parsers/l5x/` | Add source-aware rung and tag location support without altering ordinary normalized parsing behavior. |
-| `src/diff/` | Add pure three-way L5X rung/tag conflict projection types, mapping logic, and reason codes. |
-| `src/index.ts` | Export the package-owned projection contract. |
-| `tests/` | Add real-fixture projection, ambiguity, and parse-validation coverage. |
+| `src/conflict/` | Implemented: exported vendor-neutral `ConflictVisualAdapter`, visual preview, fallback, and validation contracts. |
+| `src/parsers/l5x/` | Add `L5XConflictVisualAdapter`: a narrow complete-fragment classifier and temporary preview wrapper that directly uses `L5XParser` without altering ordinary normalized parsing behavior. |
+| `src/diff/` | Reuse existing display models where appropriate; do not add three-way source projection. |
+| `src/index.ts` | Export the package-owned strict-region preview contract. |
+| `tests/` | Add real-fixture complete-region, fallback, and parse-validation coverage. |
 
 ## Analytics And Diagnostics
 
@@ -735,7 +756,7 @@ After each frontend slice:
 
 ```bash
 cd frontend
-npm exec -- vitest run src/features/merge
+npm exec -- vitest run src/features/conflict src/features/merge
 npm run typecheck
 ```
 
@@ -764,9 +785,9 @@ Manual release validation must include Windows because line endings, executable-
 | Frontend recomputes a merge differently from Git | High | Git backend generates authoritative conflict segments from index stage blobs. Frontend only substitutes explicit decisions. |
 | Index changes after a draft loads | High | Fingerprint stage mode/OIDs and reject stale resolution tokens at apply time. |
 | Line-level combinations produce invalid syntax | Medium | No syntax guarantee for generic text; always show composed preview. L5X has mandatory parse validation. |
-| L5X normalized serialization loses unsupported XML | Critical | Never serialize `NormalizedController`; copy exact selected-side source spans for complete rungs and tags. |
-| Rung or tag mapping is ambiguous | High | Block detailed apply, provide a plain-language reason, and retain whole-file fallback. |
-| A side choice creates a hybrid rung or tag | Critical | Replace the complete entity source span and test non-conflicting edits inside selected entities. |
+| L5X normalized serialization loses unsupported XML | Critical | Never serialize `NormalizedController`; compose the selected original Git region text unchanged. |
+| Partial or mixed L5X region appears visualizable | High | Require one complete, same-kind supported XML unit on both sides; otherwise route to the text resolver. |
+| A side choice creates a hybrid unit | Critical | A visual choice is a region-wide block choice handled by the existing composer; no entity splicing occurs. |
 | Unsupported L5X content traps the user | High | Keep whole-file Current/Incoming actions visible in every L5X resolver state. |
 | Large files freeze the modal | Medium | Enforce backend limits, lazy-load the active file, virtualize long conflict lists, and avoid storing duplicate full strings per decision. |
 | CRLF or final newline changes create unrelated churn | High | Preserve backend newline/BOM metadata and cover it with golden tests on Windows and macOS. |
@@ -782,16 +803,16 @@ The conflict resolution MVP is complete only when:
 - drafts remain in memory until `Resolve File`
 - stale drafts cannot overwrite changed index state
 - successful apply writes and stages once, then advances the queue
-- eligible RLL conflicts appear as complete-rung Current/Incoming choices
-- eligible controller and program tag conflicts appear as complete-tag Current/Incoming choices
-- selected rungs and tags exactly match the chosen side and never become hybrid entities
+- eligible complete RLL rung regions, including comments, appear as graphical Current/Incoming choices
+- eligible complete structured-text and tag regions appear as formatted Current/Incoming choices
+- each visual selection inserts the selected side's exact Git region text and never creates a hybrid region
 - no instruction-level choice exists
 - no individual tag-property choice exists
 - whole-file Current/Incoming fallback is available in every L5X resolver state
 - delete/modify and both-deleted whole-file choices apply the selected side's presence or deletion correctly
-- invalid or ambiguous detailed L5X results are blocked without blocking whole-file recovery
+- partial, mixed, malformed, and unsupported L5X regions route to the text resolver without blocking whole-file recovery
 - real composed fixtures parse successfully in `ladder-visualizer`
-- no code serializes normalized controllers or edits L5X with regex
+- no code serializes normalized controllers, expands conflict boundaries, performs source-span replacement, or edits L5X with regex
 - closing or aborting discards drafts without writing
 - focused and full backend, package, frontend, type, and build validation passes
 - manual Windows and macOS acceptance passes are recorded
@@ -806,6 +827,6 @@ Start with one backend-to-frontend vertical slice for a small UTF-8 `.txt` file 
 4. apply it through a stage-fingerprint-checked backend method
 5. verify the file leaves `git ls-files -u` and the queue advances
 
-After that slice passes, add multi-region navigation, line expansion, and broad text eligibility. The first L5X vertical slice should then use one modified rung and one modified controller tag in the same file, prove exact complete-entity replacement for both, retain a visible whole-file fallback, parse the result, stage it, and advance the queue once.
+After that slice passes, add multi-region navigation, line expansion, and broad text eligibility. The first L5X vertical slice should then use one self-contained rung region with its comment, one self-contained structured-text region, and one self-contained tag region. It should prove that each visual choice composes the selected original Git region text unchanged, retains visible text and whole-file fallbacks, parses the result, stages it, and advances the queue once.
 
 **Related:** [[PLANS_SUMMARY]] | [[Git Workflows]] | [[Viewer System]] | [[L5X Git Diff Noise Reduction Plan]]

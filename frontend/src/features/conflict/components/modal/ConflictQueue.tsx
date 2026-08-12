@@ -27,7 +27,7 @@ const CONFLICT_STATUS_LABELS: Record<ConflictedFile['status'], string> = {
   'deleted-by-them': 'Deleted on destination',
 };
 
-interface MergeConflictQueueProps {
+interface ConflictQueueProps {
   conflictedFiles: ConflictedFile[];
   selectedConflictFile: string | null;
   fileResolutions: Record<string, ResolutionStrategy>;
@@ -45,7 +45,7 @@ interface MergeConflictQueueProps {
   onResolveWithContent?: (content: string) => void | Promise<void>;
 }
 
-function MergeConflictQueue({
+function ConflictQueue({
   conflictedFiles,
   selectedConflictFile,
   fileResolutions,
@@ -61,7 +61,7 @@ function MergeConflictQueue({
   resolutionApplyError,
   onConflictDecision = () => undefined,
   onResolveWithContent = () => undefined,
-}: MergeConflictQueueProps): JSX.Element {
+}: ConflictQueueProps): JSX.Element {
   const unresolvedConflicts = useMemo(
     () => conflictedFiles.filter((file) => !fileResolutions[file.path]),
     [conflictedFiles, fileResolutions],
@@ -186,4 +186,4 @@ function MergeConflictQueue({
   );
 }
 
-export default memo(MergeConflictQueue);
+export default memo(ConflictQueue);
