@@ -10,7 +10,7 @@ import type {
   GitHubCreateChangeRequestResult as GitHubCreateChangeRequestResultModel,
   ChangeRequestSnapshot as ChangeRequestSnapshotModel,
 } from '../../../../bindings/controlzebra/services/models';
-import type { ConflictResolutionData } from '../../../features/merge/types';
+import type { ConflictResolutionData } from '../../../features/conflict/types';
 
 /**
  * Type definitions for RepoContext
@@ -22,7 +22,7 @@ import type { ConflictResolutionData } from '../../../features/merge/types';
  */
 
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
-export type { ConflictResolutionData } from '../../../features/merge/types';
+export type { ConflictResolutionData } from '../../../features/conflict/types';
 
 // ============================================================================
 // Enums and Constants

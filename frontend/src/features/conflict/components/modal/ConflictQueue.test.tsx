@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import MergeConflictQueue from './MergeConflictQueue';
+import ConflictQueue from './ConflictQueue';
 
-describe('MergeConflictQueue', () => {
+describe('ConflictQueue', () => {
   const baseProps = {
     conflictedFiles: [
       { path: 'logic/alpha.L5X', status: 'both-modified' as const },
@@ -25,7 +25,7 @@ describe('MergeConflictQueue', () => {
     const onSelectFile = vi.fn();
 
     render(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         selectedConflictFile={null}
         onSelectFile={onSelectFile}
@@ -40,7 +40,7 @@ describe('MergeConflictQueue', () => {
   it('auto-advances to the next unresolved file after a decision is saved', async () => {
     const onSelectFile = vi.fn();
     const { rerender } = render(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         selectedConflictFile="logic/alpha.L5X"
         onSelectFile={onSelectFile}
@@ -48,7 +48,7 @@ describe('MergeConflictQueue', () => {
     );
 
     rerender(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         selectedConflictFile="logic/alpha.L5X"
         fileResolutions={{ 'logic/alpha.L5X': 'mine' }}
@@ -65,7 +65,7 @@ describe('MergeConflictQueue', () => {
     const onSelectFile = vi.fn();
 
     render(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         selectedConflictFile="logic/beta.L5X"
         fileResolutions={{
@@ -85,7 +85,7 @@ describe('MergeConflictQueue', () => {
     const onSelectFile = vi.fn();
 
     render(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         selectedConflictFile="logic/alpha.L5X"
         onSelectFile={onSelectFile}
@@ -99,7 +99,7 @@ describe('MergeConflictQueue', () => {
 
   it('shows the complete-file fallback when detailed conflict data is unavailable', () => {
     render(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         selectedConflictFile="logic/alpha.L5X"
         onSelectFile={vi.fn()}
@@ -114,7 +114,7 @@ describe('MergeConflictQueue', () => {
     const onSelectFile = vi.fn();
 
     render(
-      <MergeConflictQueue
+      <ConflictQueue
         {...baseProps}
         conflictedFiles={[]}
         selectedConflictFile={null}

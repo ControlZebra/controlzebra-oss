@@ -198,8 +198,8 @@ import type {
   CreateProjectOptions,
   CreateProjectResult,
 } from './RepoContext.types';
-import { mapConflictResolutionData } from '../../../features/merge/types';
-import type { ConflictResolutionData } from '../../../features/merge/types';
+import { mapConflictResolutionData } from '../../../features/conflict/types';
+import type { ConflictResolutionData } from '../../../features/conflict/types';
 
 function normalizeMergeReviewDiffResult(
   filePath: string,

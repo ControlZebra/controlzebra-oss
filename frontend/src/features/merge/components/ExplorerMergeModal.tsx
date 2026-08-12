@@ -52,8 +52,8 @@ import type {
   ConflictRegionDecision,
   ConflictResolutionData,
   TextConflictDraft,
-} from '../types';
-import MergeConflictQueue from './modal/MergeConflictQueue';
+} from '../../conflict';
+import { ConflictQueue } from '../../conflict';
 import { MergeReviewFileList } from './modal/MergeReviewPane';
 import MergeReviewPreview from './modal/MergeReviewPreview';
 import TargetBranchDrawer, { type TargetBranchOption } from './modal/TargetBranchDrawer';
@@ -1178,7 +1178,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
             )}
 
             {displayedOutcomeState === 'resolving' && (
-              <MergeConflictQueue
+              <ConflictQueue
                 conflictedFiles={conflictedFiles}
                 selectedConflictFile={selectedConflictFile}
                 fileResolutions={fileResolutions}
