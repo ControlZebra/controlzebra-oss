@@ -4,11 +4,13 @@ import type {
   ConflictedFile,
   ResolutionStrategy,
 } from '../../../../domain/repo/context/RepoContext.types';
+import { isFileKind } from '../../../../shared/constants/file-types';
 import type {
   ConflictRegionDecision,
   ConflictResolutionData,
   TextConflictDraft,
 } from '../../types';
+import L5XConflictResolver from './L5XConflictResolver';
 import TextConflictResolver from './TextConflictResolver';
 import WholeFileConflictFallback from './WholeFileConflictFallback';
 
@@ -61,6 +63,19 @@ function ConflictResolverPane({
   }
 
   if (data?.success && data.eligible && data.resolutionToken && draft) {
+    if (isFileKind(file.path, 'l5x')) {
+      return (
+        <L5XConflictResolver
+          data={data}
+          draft={draft}
+          disabled={disabled}
+          applyError={applyError}
+          onDecision={onDecision}
+          onApply={onApply}
+          onResolveWholeFile={onResolveWholeFile}
+        />
+      );
+    }
     return (
       <TextConflictResolver
         data={data}
