@@ -4,6 +4,7 @@ import { AppLayout } from '../widgets/layout';
 import Spinner from '../shared/ui/Spinner';
 import { useLoginTheme } from '../shared/hooks/useLoginTheme';
 import { AnalyticsProvider, AuthProvider, RepoProvider } from './providers';
+import { ConflictQueueProvider } from '../features/conflict';
 
 function App(): JSX.Element {
   return (
@@ -45,7 +46,9 @@ function AuthGate(): JSX.Element {
 
   return (
     <RepoProvider>
-      <AppLayout />
+      <ConflictQueueProvider>
+        <AppLayout />
+      </ConflictQueueProvider>
     </RepoProvider>
   );
 }

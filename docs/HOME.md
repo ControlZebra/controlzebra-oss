@@ -55,7 +55,7 @@ ControlZebra is a simplified desktop Git client for **non-technical users** in i
 - [[Context Providers]] — RepoContext, LayoutContext, AuthContext
 - [[UI Components]] — shadcn-style Radix primitives
 - [[Viewer System]] — File viewer & diff viewer registry
-- Feature docs: [[Explorer Feature]], [[Feature Docs#History Feature|History Feature]], [[Feature Docs#Merge Feature|Merge Feature]], [[Feature Docs#Welcome Feature|Welcome Feature]]
+- Feature docs: [[Explorer Feature]], [[Conflict Queue Sidebar]], [[Feature Docs#History Feature|History Feature]], [[Feature Docs#Merge Feature|Merge Feature]], [[Feature Docs#Welcome Feature|Welcome Feature]]
 
 ### 📖 Guides
 - [[Adding a New Service]] — Step-by-step guide for new Go services

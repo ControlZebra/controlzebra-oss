@@ -20,6 +20,7 @@ import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import CreateChangeRequestDialog from '../../reviews/components/CreateChangeRequestDialog';
 import HistoryTimeline from '../../history/components/HistoryTimeline';
+import { ConflictQueueSection } from '../../conflict';
 
 // ============================================================================
 // Types
@@ -186,6 +187,12 @@ function ExplorerView(): JSX.Element {
     openExplorerMergeModal();
   }, [openExplorerMergeModal]);
 
+  // Conflicts are resolved in the combine-changes modal today; this is the one
+  // place to change when the standalone resolver replaces it.
+  const handleOpenConflict = useCallback((): void => {
+    openExplorerMergeModal();
+  }, [openExplorerMergeModal]);
+
   // The synced feature branch is the only state that can open a Change Request.
   const featureBranchName = panelState.type === 'featureBranch' ? panelState.branchName : null;
 
@@ -334,6 +341,8 @@ function ExplorerView(): JSX.Element {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {primaryPanel}
         </div>
+
+        <ConflictQueueSection onSelectFile={handleOpenConflict} />
 
         <section className="flex-1 min-h-0 flex flex-col border-t border-theme-default" aria-label="Timeline">
           <header className="px-3 py-2 border-b border-theme-default shrink-0">

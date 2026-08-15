@@ -1,0 +1,149 @@
+/**
+ * ConflictQueueContext - live queue of files that still need a conflict decision.
+ *
+ * The backend ConflictQueueService is the single source of truth: it pushes a
+ * full snapshot on `conflictQueue:changed` whenever the repository's unmerged
+ * set may have changed. This provider mirrors that snapshot and nothing else.
+ *
+ * It is intentionally independent of RepoContext's legacy `conflictedFiles`
+ * state, which belongs to the conflict resolution workflow being deprecated.
+ */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  ClearRepository,
+  Refresh,
+  SetRepository,
+} from '../../../../bindings/controlzebra/services/conflictqueueservice';
+import type {
+  ConflictQueueEntry,
+  ConflictQueueSnapshot,
+} from '../../../../bindings/controlzebra/services/models';
+import { useRepo } from '../../../context';
+import { onEvent } from '../../../shared/runtime/events';
+
+interface ConflictQueueContextValue {
+  /** Conflicted files for the open repository, sorted by path. */
+  entries: ConflictQueueEntry[];
+  /** Set when the last scan failed. `entries` then holds the last good result. */
+  error: string | null;
+  /** True when there is nothing needing a decision. */
+  isEmpty: boolean;
+  /** Force a rescan, e.g. after a file is resolved and staged. */
+  refresh: () => Promise<void>;
+}
+
+const EMPTY_ENTRIES: ConflictQueueEntry[] = [];
+
+/**
+ * Without a provider the queue reads as empty, so conflict surfaces render
+ * nothing rather than crashing the view that hosts them.
+ */
+const EMPTY_QUEUE: ConflictQueueContextValue = {
+  entries: EMPTY_ENTRIES,
+  error: null,
+  isEmpty: true,
+  refresh: async () => {},
+};
+
+const ConflictQueueContext = createContext<ConflictQueueContextValue>(EMPTY_QUEUE);
+
+interface ConflictQueueProviderProps {
+  children: ReactNode;
+}
+
+export function ConflictQueueProvider({ children }: ConflictQueueProviderProps): JSX.Element {
+  const { repoPath, conflictedFiles } = useRepo();
+  const [snapshot, setSnapshot] = useState<ConflictQueueSnapshot | null>(null);
+  const latestGeneration = useRef(0);
+
+  /**
+   * Applies a snapshot if it is newer than the one already held. Generations
+   * increase strictly, so this drops late or duplicated events without needing
+   * to know which call or event produced them.
+   */
+  const applySnapshot = useCallback((incoming: ConflictQueueSnapshot | null): void => {
+    if (!incoming || incoming.generation <= latestGeneration.current) {
+      return;
+    }
+    latestGeneration.current = incoming.generation;
+    setSnapshot(incoming);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onEvent('conflictQueue:changed', (event: { data: ConflictQueueSnapshot }) => {
+      applySnapshot(event.data);
+    });
+    return () => unsubscribe();
+  }, [applySnapshot]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bind = async (): Promise<void> => {
+      try {
+        const result = repoPath ? await SetRepository(repoPath) : await ClearRepository();
+        if (!cancelled) {
+          applySnapshot(result);
+        }
+      } catch {
+        // The backend keeps its last good state and any error worth showing
+        // arrives on the snapshot, so a failed bind needs no local handling.
+      }
+    };
+
+    void bind();
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath, applySnapshot]);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    try {
+      applySnapshot(await Refresh());
+    } catch {
+      // Same reasoning as bind(): errors arrive on the snapshot.
+    }
+  }, [applySnapshot]);
+
+  /**
+   * The conflict resolution workflow being deprecated stages resolutions
+   * without publishing a repository mutation, so nothing would invalidate the
+   * queue. Its own conflicted-file list shrinks as files are resolved, so we
+   * treat that as the invalidation signal until that workflow is replaced.
+   */
+  const legacyConflictCount = conflictedFiles.length;
+  useEffect(() => {
+    if (!repoPath) {
+      return;
+    }
+    void refresh();
+  }, [legacyConflictCount, repoPath, refresh]);
+
+  const value = useMemo<ConflictQueueContextValue>(() => {
+    // Guard against a snapshot for a repository we are no longer showing.
+    const isCurrentRepo = Boolean(repoPath) && snapshot?.repoPath === repoPath;
+    const entries = isCurrentRepo && snapshot ? snapshot.entries : EMPTY_ENTRIES;
+
+    return {
+      entries,
+      error: isCurrentRepo && snapshot?.error ? snapshot.error : null,
+      isEmpty: entries.length === 0,
+      refresh,
+    };
+  }, [repoPath, snapshot, refresh]);
+
+  return <ConflictQueueContext.Provider value={value}>{children}</ConflictQueueContext.Provider>;
+}
+
+export function useConflictQueue(): ConflictQueueContextValue {
+  return useContext(ConflictQueueContext);
+}
