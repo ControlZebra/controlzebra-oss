@@ -44,6 +44,14 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
 }
 
 /**
+ * SetRepoEventBus wires the service to the repository event bus so state
+ * holding services can react to the operations it runs.
+ */
+export function SetRepoEventBus(bus: $models.RepoEventBus | null): $CancellablePromise<void> {
+    return $Call.ByID(3862646179, bus);
+}
+
+/**
  * SyncWithProgress performs git pull + push with progress updates
  * For branches without an upstream, it skips pull and just pushes with --set-upstream
  * prune: if true, adds --prune to remove stale remote-tracking branches

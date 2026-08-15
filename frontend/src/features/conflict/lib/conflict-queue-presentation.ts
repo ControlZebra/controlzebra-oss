@@ -8,6 +8,7 @@
 import {
   ConflictEligibility,
   ConflictKind,
+  ConflictState,
   type ConflictQueueEntry,
 } from '../../../../bindings/controlzebra/services/models';
 import { getFolderNameFromPath } from '../../../shared/utils/gitHelpers';
@@ -46,6 +47,24 @@ export function isConflictEntryResolvable(entry: ConflictQueueEntry): boolean {
   return entry.eligibility === ConflictEligibility.ConflictEligible;
 }
 
+/** True when the conflict has not happened yet and is waiting on a merge. */
+export function isPredictedConflict(entry: ConflictQueueEntry): boolean {
+  return entry.state === ConflictState.ConflictStatePredicted;
+}
+
+/**
+ * One-line explanation of why upcoming conflicts are listed at all.
+ *
+ * Hedged deliberately: the prediction compares saved work against the target
+ * branch as of the last sync, so unsaved edits and a teammate's newer work are
+ * both invisible to it.
+ */
+export function getPredictedConflictHint(targetBranch: string | null): string {
+  return targetBranch
+    ? `Based on your last sync, these files will likely need a decision when you merge into ${targetBranch}.`
+    : 'Based on your last sync, these files will likely need a decision when you merge.';
+}
+
 export function getConflictKindLabel(entry: ConflictQueueEntry): string {
   return CONFLICT_KIND_LABELS[entry.kind] ?? UNKNOWN_KIND_LABEL;
 }
@@ -61,8 +80,13 @@ export function getConflictIneligibleLabel(entry: ConflictQueueEntry): string | 
  * Full tooltip text: what happened, any limitation, and the path — since the
  * row itself shows the filename only.
  */
-export function getConflictTooltip(entry: ConflictQueueEntry): string {
-  return [getConflictKindLabel(entry), getConflictIneligibleLabel(entry), entry.path]
+export function getConflictTooltip(entry: ConflictQueueEntry, targetBranch: string | null): string {
+  return [
+    getConflictKindLabel(entry),
+    isPredictedConflict(entry) ? getPredictedConflictHint(targetBranch) : null,
+    getConflictIneligibleLabel(entry),
+    entry.path,
+  ]
     .filter(Boolean)
     .join('\n');
 }

@@ -33,6 +33,15 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
 }
 
 /**
+ * SetRepoEventBus wires the watcher to the repository event bus, so changes
+ * made outside the app (a terminal merge, an editor saving a resolved file)
+ * invalidate the services that cache repository state.
+ */
+export function SetRepoEventBus(bus: $models.RepoEventBus | null): $CancellablePromise<void> {
+    return $Call.ByID(2519222806, bus);
+}
+
+/**
  * StopWatching stops watching the current directory
  */
 export function StopWatching(): $CancellablePromise<$models.OperationResult> {

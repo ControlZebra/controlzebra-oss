@@ -19,11 +19,13 @@ import {
 
 interface ConflictQueueRowProps {
   entry: ConflictQueueEntry;
+  targetBranch: string | null;
   onSelect: (entry: ConflictQueueEntry) => void;
 }
 
-function ConflictQueueRow({ entry, onSelect }: ConflictQueueRowProps): JSX.Element {
+function ConflictQueueRow({ entry, targetBranch, onSelect }: ConflictQueueRowProps): JSX.Element {
   const isResolvable = isConflictEntryResolvable(entry);
+  const tooltip = getConflictTooltip(entry, targetBranch);
 
   return (
     <Tooltip>
@@ -31,7 +33,7 @@ function ConflictQueueRow({ entry, onSelect }: ConflictQueueRowProps): JSX.Eleme
         <button
           type="button"
           onClick={() => onSelect(entry)}
-          aria-label={getConflictTooltip(entry)}
+          aria-label={tooltip}
           className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs rounded-none hover:bg-theme-elevated ${
             isResolvable ? 'text-theme-primary' : 'text-theme-muted'
           }`}
@@ -45,7 +47,7 @@ function ConflictQueueRow({ entry, onSelect }: ConflictQueueRowProps): JSX.Eleme
         </button>
       </TooltipTrigger>
       <TooltipContent side="right" className="max-w-xs whitespace-pre-line">
-        {getConflictTooltip(entry)}
+        {tooltip}
       </TooltipContent>
     </Tooltip>
   );

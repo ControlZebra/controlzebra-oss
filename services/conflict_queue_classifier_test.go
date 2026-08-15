@@ -73,7 +73,7 @@ func TestParseUnmergedEntriesGroupsStagesByPath(t *testing.T) {
 		unmergedRecord("100644", "ccc", 3, "src/app.txt") +
 		unmergedRecord("100644", "ddd", 3, "other.txt")
 
-	paths, err := parseUnmergedEntries(output)
+	paths, err := parseUnmergedEntries(strings.Split(output, "\x00"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -99,8 +99,40 @@ func TestParseUnmergedEntriesRejectsMalformedOutput(t *testing.T) {
 	}
 
 	for name, output := range cases {
-		if _, err := parseUnmergedEntries(output); err == nil {
+		if _, err := parseUnmergedEntries(strings.Split(output, "\x00")); err == nil {
 			t.Fatalf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestMergeTreeConflictRecords(t *testing.T) {
+	oid := strings.Repeat("a", 40)
+
+	cases := map[string]struct {
+		output   string
+		expected []string
+	}{
+		"clean merge": {output: oid + "\x00", expected: nil},
+		"conflicts then informational messages": {
+			output:   oid + "\x00100644 bbb 2\tsrc/app.txt\x00100644 ccc 3\tsrc/app.txt\x00\x00Auto-merging src/app.txt\x00",
+			expected: []string{"100644 bbb 2\tsrc/app.txt", "100644 ccc 3\tsrc/app.txt"},
+		},
+		"conflicts with no trailer": {
+			output:   oid + "\x00100644 bbb 2\tsrc/app.txt\x00",
+			expected: []string{"100644 bbb 2\tsrc/app.txt"},
+		},
+		"empty output": {output: "", expected: nil},
+	}
+
+	for name, testCase := range cases {
+		records := mergeTreeConflictRecords(testCase.output)
+		if len(records) != len(testCase.expected) {
+			t.Fatalf("%s: expected %v, got %v", name, testCase.expected, records)
+		}
+		for i := range records {
+			if records[i] != testCase.expected[i] {
+				t.Fatalf("%s: expected %v, got %v", name, testCase.expected, records)
+			}
 		}
 	}
 }

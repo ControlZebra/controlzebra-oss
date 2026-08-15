@@ -33,6 +33,8 @@ import { onEvent } from '../../../shared/runtime/events';
 interface ConflictQueueContextValue {
   /** Conflicted files for the open repository, sorted by path. */
   entries: ConflictQueueEntry[];
+  /** Branch the entries were compared against when they are predicted. */
+  targetBranch: string | null;
   /** Set when the last scan failed. `entries` then holds the last good result. */
   error: string | null;
   /** True when there is nothing needing a decision. */
@@ -49,6 +51,7 @@ const EMPTY_ENTRIES: ConflictQueueEntry[] = [];
  */
 const EMPTY_QUEUE: ConflictQueueContextValue = {
   entries: EMPTY_ENTRIES,
+  targetBranch: null,
   error: null,
   isEmpty: true,
   refresh: async () => {},
@@ -135,6 +138,7 @@ export function ConflictQueueProvider({ children }: ConflictQueueProviderProps):
 
     return {
       entries,
+      targetBranch: isCurrentRepo && snapshot?.targetBranch ? snapshot.targetBranch : null,
       error: isCurrentRepo && snapshot?.error ? snapshot.error : null,
       isEmpty: entries.length === 0,
       refresh,

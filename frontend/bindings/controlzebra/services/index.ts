@@ -65,6 +65,7 @@ export {
     ConflictRegionView,
     ConflictResolutionData,
     ConflictSidesInfo,
+    ConflictState,
     ConflictedFile,
     DataLocations,
     DebugStats,

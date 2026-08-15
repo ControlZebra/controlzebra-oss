@@ -17,6 +17,10 @@ const (
 	RepoMutationCommit     RepoMutationReason = "commit"
 	RepoMutationCheckout   RepoMutationReason = "checkout"
 	RepoMutationOther      RepoMutationReason = "other"
+
+	// RepoMutationWorkingTree is a change to files on disk with no effect on
+	// HEAD or any branch ref, so subscribers can skip commit-level work.
+	RepoMutationWorkingTree RepoMutationReason = "working-tree"
 )
 
 // RepoMutated is published whenever an operation may have changed the

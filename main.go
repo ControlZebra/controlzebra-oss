@@ -70,7 +70,9 @@ func main() {
 	repoEventBus := services.NewRepoEventBus()
 	gitService := services.NewGitService()
 	gitService.SetRepoEventBus(repoEventBus)
-	conflictQueueService := services.NewConflictQueueService()
+	progressService.SetRepoEventBus(repoEventBus)
+	fileWatcherService.SetRepoEventBus(repoEventBus)
+	conflictQueueService := services.NewConflictQueueService(gitService)
 	conflictQueueService.AttachToBus(repoEventBus)
 
 	// Create a new Wails application by providing the necessary options.

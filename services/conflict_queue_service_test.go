@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -362,7 +364,7 @@ func TestConflictQueueReactsToGitServiceOperations(t *testing.T) {
 	gitService := NewGitService()
 	gitService.SetRepoEventBus(bus)
 
-	queue := NewConflictQueueService()
+	queue := NewConflictQueueService(gitService)
 	queue.debounce = time.Millisecond
 	queue.AttachToBus(bus)
 	defer queue.DetachFromBus()
@@ -388,5 +390,145 @@ func TestConflictQueueReactsToGitServiceOperations(t *testing.T) {
 			t.Fatalf("queue did not drain after the merge was aborted: %+v", queue.GetConflictQueue())
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// TestConflictQueuePredictsConflictsBeforeMerge covers the case users hit most:
+// a branch that conflicts with its parent, with no merge started yet.
+func TestConflictQueuePredictsConflictsBeforeMerge(t *testing.T) {
+	repoPath := createTextConflictRepo(t, "control.txt",
+		[]byte("base\n"), []byte("current\n"), []byte("incoming\n"))
+	defer cleanupTestRepo(t, repoPath)
+
+	// Leave the merge behind and sit on the branch, as a user would.
+	gitService := NewGitService()
+	if result := gitService.AbortMerge(repoPath); !result.Success {
+		t.Fatalf("failed to abort merge: %s", result.Error)
+	}
+	mainBranch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current"))
+	runGitCmd(t, repoPath, "checkout", "incoming-test")
+
+	queue := NewConflictQueueService(gitService)
+	snapshot := queue.SetRepository(repoPath)
+
+	if len(snapshot.Entries) != 1 || snapshot.Entries[0].Path != "control.txt" {
+		t.Fatalf("expected the upcoming conflict to be queued, got %+v", snapshot.Entries)
+	}
+	if snapshot.Entries[0].State != ConflictStatePredicted {
+		t.Fatalf("expected a predicted conflict, got %q", snapshot.Entries[0].State)
+	}
+	if snapshot.Entries[0].Kind != ConflictKindBothModified {
+		t.Fatalf("expected both-modified, got %q", snapshot.Entries[0].Kind)
+	}
+	if snapshot.TargetBranch != mainBranch {
+		t.Fatalf("expected the target branch %q, got %q", mainBranch, snapshot.TargetBranch)
+	}
+}
+
+// A branch that merges cleanly must leave the queue empty.
+func TestConflictQueueHasNoPredictionForCleanBranch(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	if err := os.WriteFile(filepath.Join(repoPath, "shared.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	runGitCmd(t, repoPath, "add", "--", "shared.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+	runGitCmd(t, repoPath, "checkout", "-b", "feature")
+	if err := os.WriteFile(filepath.Join(repoPath, "other.txt"), []byte("mine\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	runGitCmd(t, repoPath, "add", "--", "other.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "feature")
+
+	queue := NewConflictQueueService(NewGitService())
+	snapshot := queue.SetRepository(repoPath)
+
+	if len(snapshot.Entries) != 0 || snapshot.TargetBranch != "" {
+		t.Fatalf("expected an empty queue for a clean branch, got %+v", snapshot)
+	}
+}
+
+// An active conflict must win over prediction, so the queue never mixes files
+// the user can resolve now with files they cannot.
+func TestConflictQueuePrefersActiveConflicts(t *testing.T) {
+	repoPath := createTextConflictRepo(t, "control.txt",
+		[]byte("base\n"), []byte("current\n"), []byte("incoming\n"))
+	defer cleanupTestRepo(t, repoPath)
+
+	queue := NewConflictQueueService(NewGitService())
+	snapshot := queue.SetRepository(repoPath)
+
+	if len(snapshot.Entries) != 1 {
+		t.Fatalf("expected the active conflict, got %+v", snapshot.Entries)
+	}
+	if snapshot.Entries[0].State != ConflictStateActive || snapshot.TargetBranch != "" {
+		t.Fatalf("expected an active conflict with no target branch, got %+v", snapshot)
+	}
+}
+
+// countingMergeTarget records how often the queue asked for a merge target.
+type countingMergeTarget struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *countingMergeTarget) mergeTargetRef(_ string) (string, string, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	return "", "", false
+}
+
+func (m *countingMergeTarget) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+// A working-tree edit cannot change what a merge simulation would produce, so
+// the queue must not pay for one on every file save.
+func TestConflictQueueSkipsPredictionForWorkingTreeChanges(t *testing.T) {
+	target := &countingMergeTarget{}
+	queue := NewConflictQueueService(target)
+	queue.git = &scriptedConflictGit{responses: []CommandResult{{Success: true}}}
+	queue.SetRepository(t.TempDir())
+
+	before := target.callCount()
+
+	queue.scan(false, RepoMutationWorkingTree)
+	if target.callCount() != before {
+		t.Fatalf("expected no prediction for a working-tree change, got %d calls", target.callCount()-before)
+	}
+
+	queue.scan(false, RepoMutationCommit)
+	if target.callCount() != before+1 {
+		t.Fatalf("expected a prediction after a commit, got %d calls", target.callCount()-before)
+	}
+}
+
+// A user standing on an integration branch is not preparing to merge away from
+// it, so nothing should be predicted for them.
+func TestMergeTargetRefIgnoresIntegrationBranches(t *testing.T) {
+	repoPath := createTestRepo(t)
+	defer cleanupTestRepo(t, repoPath)
+
+	gitService := NewGitService()
+	runGitCmd(t, repoPath, "checkout", "-B", "main")
+	if err := os.WriteFile(filepath.Join(repoPath, "base.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	runGitCmd(t, repoPath, "add", "--", "base.txt")
+	runGitCmd(t, repoPath, "commit", "-m", "base")
+
+	if _, _, ok := gitService.mergeTargetRef(repoPath); ok {
+		t.Fatal("expected no merge target while on an integration branch")
+	}
+
+	runGitCmd(t, repoPath, "checkout", "-b", "feature")
+	branch, ref, ok := gitService.mergeTargetRef(repoPath)
+	if !ok || branch != "main" || ref == "" {
+		t.Fatalf("expected main as the merge target, got %q %q %v", branch, ref, ok)
 	}
 }

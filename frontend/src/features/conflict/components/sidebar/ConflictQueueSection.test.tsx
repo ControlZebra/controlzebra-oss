@@ -6,6 +6,7 @@ import {
   ConflictFileKind,
   ConflictKind,
   ConflictQueueEntry,
+  ConflictState,
 } from '../../../../../bindings/controlzebra/services/models';
 import ConflictQueueSection from './ConflictQueueSection';
 
@@ -13,6 +14,7 @@ const { queueStore } = vi.hoisted(() => ({
   queueStore: {
     current: {
       entries: [] as ConflictQueueEntry[],
+      targetBranch: null as string | null,
       error: null as string | null,
       isEmpty: true,
       refresh: async () => {},
@@ -27,6 +29,7 @@ vi.mock('../../context/ConflictQueueContext', () => ({
 function makeEntry(overrides: Partial<ConflictQueueEntry>): ConflictQueueEntry {
   return new ConflictQueueEntry({
     path: 'src/app/main.go',
+    state: ConflictState.ConflictStateActive,
     kind: ConflictKind.ConflictKindBothModified,
     fileKind: ConflictFileKind.ConflictFileKindText,
     eligibility: ConflictEligibility.ConflictEligible,
@@ -38,9 +41,14 @@ function makeEntry(overrides: Partial<ConflictQueueEntry>): ConflictQueueEntry {
   });
 }
 
-function setQueue(entries: ConflictQueueEntry[], error: string | null = null): void {
+function setQueue(
+  entries: ConflictQueueEntry[],
+  error: string | null = null,
+  targetBranch: string | null = null
+): void {
   queueStore.current = {
     entries,
+    targetBranch,
     error,
     isEmpty: entries.length === 0,
     refresh: async () => {},
@@ -88,5 +96,24 @@ describe('ConflictQueueSection', () => {
     render(<ConflictQueueSection onSelectFile={vi.fn()} />);
     expect(screen.getByText(/may be out of date/i)).toBeInTheDocument();
     expect(screen.getByText('main.go')).toBeInTheDocument();
+  });
+
+  it('lists conflicts the next merge will produce, naming the target branch', () => {
+    setQueue(
+      [makeEntry({ path: 'Cooker_1.L5X', state: ConflictState.ConflictStatePredicted })],
+      null,
+      'main'
+    );
+
+    render(<ConflictQueueSection onSelectFile={vi.fn()} />);
+
+    expect(
+      screen.getByText(
+        'Based on your last sync, these files will likely need a decision when you merge into main.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cooker_1\.L5X/ })).toHaveAccessibleName(
+      /when you merge into main/
+    );
   });
 });

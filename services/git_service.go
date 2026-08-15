@@ -4948,6 +4948,45 @@ type ParentBranchResult struct {
 	Error        string `json:"error,omitempty"`
 }
 
+// defaultBranchNames are the branch names treated as integration branches:
+// candidates to merge into, and never a branch we assume work is merged from.
+var defaultBranchNames = []string{"main", "master", "develop", "development"}
+
+func isDefaultBranchName(branch string) bool {
+	for _, name := range defaultBranchNames {
+		if branch == name {
+			return true
+		}
+	}
+	return false
+}
+
+// mergeTargetRef resolves the branch the checked-out work would merge into and
+// the ref to compare against, using the same rules merge execution uses.
+//
+// It reports false when there is no merge worth talking about: a detached
+// HEAD, no detectable parent, or an integration branch, which nobody merges
+// *from*. That last case matters because GetParentBranch will happily pair a
+// user sitting on main with a stale develop, and callers that run unprompted
+// would then describe a merge that will never happen.
+func (g *GitService) mergeTargetRef(repoPath string) (branch string, ref string, ok bool) {
+	current := g.DetectRepo(repoPath).Branch
+	if current == "" || isDefaultBranchName(current) {
+		return "", "", false
+	}
+
+	parent := g.GetParentBranch(repoPath)
+	if !parent.Success || parent.ParentBranch == "" || parent.ParentBranch == current {
+		return "", "", false
+	}
+
+	targetRef, err := g.resolveBranchRef(repoPath, parent.ParentBranch, true)
+	if err != nil {
+		return "", "", false
+	}
+	return parent.ParentBranch, targetRef, true
+}
+
 // GetParentBranch attempts to detect the parent branch of the current branch.
 // It uses multiple heuristics in order of reliability:
 // 1. Upstream tracking branch (git config branch.<name>.merge)
@@ -4994,7 +5033,7 @@ func (g *GitService) GetParentBranch(repoPath string) ParentBranchResult {
 
 	// Strategy 2: Find merge-base with common default branches
 	// Check which default branches exist and find the one with the most recent common ancestor
-	defaultBranches := []string{"main", "master", "develop", "development"}
+	defaultBranches := defaultBranchNames
 	for _, defaultBranch := range defaultBranches {
 		// Skip if current branch is the default branch
 		if currentBranch == defaultBranch {

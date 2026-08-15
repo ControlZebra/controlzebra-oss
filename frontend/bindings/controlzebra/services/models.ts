@@ -1034,6 +1034,7 @@ export enum ConflictKind {
  */
 export class ConflictQueueEntry {
     "path": string;
+    "state": ConflictState;
     "kind": ConflictKind;
     "fileKind": ConflictFileKind;
     "eligibility": ConflictEligibility;
@@ -1047,6 +1048,9 @@ export class ConflictQueueEntry {
     constructor($$source: Partial<ConflictQueueEntry> = {}) {
         if (!("path" in $$source)) {
             this["path"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = ConflictState.$zero;
         }
         if (!("kind" in $$source)) {
             this["kind"] = ConflictKind.$zero;
@@ -1090,6 +1094,12 @@ export class ConflictQueueSnapshot {
     "repoPath": string;
     "generation": number;
     "entries": ConflictQueueEntry[];
+
+    /**
+     * TargetBranch is the branch predicted entries were compared against, so
+     * the UI can say which merge they belong to. Empty for active conflicts.
+     */
+    "targetBranch"?: string;
     "scannedAt": number;
     "error"?: string;
 
@@ -1290,6 +1300,20 @@ export class ConflictSidesInfo {
         return new ConflictSidesInfo($$parsedSource as Partial<ConflictSidesInfo>);
     }
 }
+
+/**
+ * ConflictState distinguishes a conflict git is holding in the index right now
+ * from one that a merge has not produced yet.
+ */
+export enum ConflictState {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    ConflictStateActive = "active",
+    ConflictStatePredicted = "predicted",
+};
 
 /**
  * ConflictedFile represents a file with merge conflicts

@@ -1,9 +1,9 @@
 /**
- * Sidebar section listing files that still need a conflict decision.
+ * Sidebar section listing files that need a conflict decision.
  *
- * It renders only when the queue is non-empty, so the sidebar is unchanged
- * during normal work and the list appears the moment a merge, pull, rebase or
- * cherry-pick leaves something unmerged.
+ * It covers both conflicts a merge has already produced and the ones the next
+ * merge will produce, so a file that clashes with the target branch is visible
+ * before the user starts merging rather than only once they are mid-merge.
  */
 import { memo } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -12,6 +12,7 @@ import { ICON_SIZES } from '../../../../shared/constants';
 import { TooltipProvider } from '../../../../shared/ui';
 import type { ConflictQueueEntry } from '../../../../../bindings/controlzebra/services/models';
 import { useConflictQueue } from '../../context/ConflictQueueContext';
+import { getPredictedConflictHint } from '../../lib/conflict-queue-presentation';
 import ConflictQueueRow from './ConflictQueueRow';
 
 interface ConflictQueueSectionProps {
@@ -19,11 +20,14 @@ interface ConflictQueueSectionProps {
 }
 
 function ConflictQueueSection({ onSelectFile }: ConflictQueueSectionProps): JSX.Element | null {
-  const { entries, error, isEmpty } = useConflictQueue();
+  const { entries, targetBranch, error, isEmpty } = useConflictQueue();
 
   if (isEmpty) {
     return null;
   }
+
+  // The backend guarantees a snapshot is either all active or all predicted.
+  const isUpcoming = targetBranch !== null;
 
   return (
     <section
@@ -47,11 +51,20 @@ function ConflictQueueSection({ onSelectFile }: ConflictQueueSectionProps): JSX.
             This list may be out of date. Try again after your next action.
           </p>
         ) : null}
+        {isUpcoming ? (
+          <p className="px-3 pt-2 text-xs text-theme-muted">
+            {getPredictedConflictHint(targetBranch)}
+          </p>
+        ) : null}
         <TooltipProvider delayDuration={300}>
           <ul>
             {entries.map((entry) => (
               <li key={entry.path}>
-                <ConflictQueueRow entry={entry} onSelect={onSelectFile} />
+                <ConflictQueueRow
+                  entry={entry}
+                  targetBranch={targetBranch}
+                  onSelect={onSelectFile}
+                />
               </li>
             ))}
           </ul>

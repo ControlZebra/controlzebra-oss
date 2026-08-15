@@ -20,6 +20,7 @@ import (
 type ProgressService struct {
 	app    *application.App
 	runner *CommandRunner
+	bus    *RepoEventBus
 	mu     sync.Mutex
 }
 
@@ -33,6 +34,19 @@ func NewProgressService() *ProgressService {
 // SetApp sets the Wails application reference for event emission
 func (p *ProgressService) SetApp(app *application.App) {
 	p.app = app
+}
+
+// SetRepoEventBus wires the service to the repository event bus so state
+// holding services can react to the operations it runs.
+func (p *ProgressService) SetRepoEventBus(bus *RepoEventBus) {
+	p.bus = bus
+}
+
+// publishRepoMutation announces that an operation may have changed the
+// repository's unmerged state. It runs even when the operation failed, because
+// a failed pull is exactly how conflicts appear.
+func (p *ProgressService) publishRepoMutation(repoPath string, reason RepoMutationReason) {
+	p.bus.Publish(RepoMutated{RepoPath: repoPath, Reason: reason})
 }
 
 // ProgressUpdate represents a progress event sent to the frontend
@@ -128,6 +142,7 @@ func (p *ProgressService) ensureGitHubHTTPSCredentials(repoPath string) {
 func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune bool, tags bool) OperationResult {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	defer p.publishRepoMutation(repoPath, RepoMutationPull)
 
 	if !p.hasAnyRemote(repoPath) {
 		errMsg := "No remote repository configured. Publish to cloud first."
@@ -272,6 +287,7 @@ func (p *ProgressService) getCurrentBranch(repoPath string) string {
 func (p *ProgressService) PullWithProgress(repoPath, operationID string) OperationResult {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	defer p.publishRepoMutation(repoPath, RepoMutationPull)
 
 	if !p.hasAnyRemote(repoPath) {
 		errMsg := "No remote repository configured. Publish to cloud first."

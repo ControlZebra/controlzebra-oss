@@ -27,6 +27,10 @@ const (
 	symlinkFileMode      = "120000"
 	gitlinkFileMode      = "160000"
 	unmergedRecordFields = 3
+
+	// mergeTreeConflictExitCode is what `git merge-tree --write-tree` returns
+	// when the simulated merge has conflicts.
+	mergeTreeConflictExitCode = 1
 )
 
 // ConflictKind describes how a path became unmerged, derived from which index
@@ -77,10 +81,20 @@ const (
 	ConflictReasonOneSided        = "one-sided"
 )
 
+// ConflictState distinguishes a conflict git is holding in the index right now
+// from one that a merge has not produced yet.
+type ConflictState string
+
+const (
+	ConflictStateActive    ConflictState = "active"
+	ConflictStatePredicted ConflictState = "predicted"
+)
+
 // ConflictQueueEntry is one conflicted path with everything the queue knows
 // about it without parsing conflict regions.
 type ConflictQueueEntry struct {
 	Path             string              `json:"path"`
+	State            ConflictState       `json:"state"`
 	Kind             ConflictKind        `json:"kind"`
 	FileKind         ConflictFileKind    `json:"fileKind"`
 	Eligibility      ConflictEligibility `json:"eligibility"`
@@ -123,32 +137,77 @@ func classifyConflictQueue(git conflictQueueGit, repoPath string) ([]ConflictQue
 		return nil, fmt.Errorf("failed to list unmerged files: %s", getErrorMessage(result))
 	}
 
-	paths, err := parseUnmergedEntries(result.Stdout)
+	paths, err := parseUnmergedEntries(strings.Split(result.Stdout, "\x00"))
 	if err != nil {
 		return nil, err
 	}
-	if len(paths) == 0 {
+	return buildConflictEntries(git, repoPath, paths, ConflictStateActive), nil
+}
+
+// predictConflictQueue simulates merging the current branch into targetRef and
+// classifies whatever that merge would leave unmerged. It is the same
+// simulation the guided merge preflight runs, so the queue can show the files
+// that will need a decision before any merge has started.
+func predictConflictQueue(git conflictQueueGit, repoPath string, targetRef string) ([]ConflictQueueEntry, error) {
+	result := git.RunGit(repoPath, "merge-tree", "--write-tree", "-z", targetRef, "HEAD")
+	if result.ExitCode == 0 {
 		return []ConflictQueueEntry{}, nil
+	}
+	if result.ExitCode != mergeTreeConflictExitCode {
+		return nil, fmt.Errorf("failed to check for upcoming conflicts: %s", getErrorMessage(result))
+	}
+
+	paths, err := parseUnmergedEntries(mergeTreeConflictRecords(result.Stdout))
+	if err != nil {
+		return nil, err
+	}
+	return buildConflictEntries(git, repoPath, paths, ConflictStatePredicted), nil
+}
+
+// mergeTreeConflictRecords extracts the conflicted-file records from NUL
+// separated `git merge-tree --write-tree -z` output. The first record is the
+// resulting tree OID and an empty record ends the conflicted-file section,
+// after which git prints informational messages.
+func mergeTreeConflictRecords(output string) []string {
+	records := strings.Split(output, "\x00")
+	if len(records) <= 1 {
+		return nil
+	}
+
+	records = records[1:]
+	for i, record := range records {
+		if record == "" {
+			return records[:i]
+		}
+	}
+	return records
+}
+
+func buildConflictEntries(git conflictQueueGit, repoPath string, paths []unmergedPath, state ConflictState) []ConflictQueueEntry {
+	if len(paths) == 0 {
+		return []ConflictQueueEntry{}
 	}
 
 	sizes := lookupBlobSizes(git, repoPath, paths)
 
 	entries := make([]ConflictQueueEntry, 0, len(paths))
 	for _, path := range paths {
-		entries = append(entries, classifyUnmergedPath(git, repoPath, path, sizes))
+		entry := classifyUnmergedPath(git, repoPath, path, sizes)
+		entry.State = state
+		entries = append(entries, entry)
 	}
 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
-	return entries, nil
+	return entries
 }
 
-// parseUnmergedEntries turns `git ls-files -u -z` output into per-path stage
+// parseUnmergedEntries turns `git ls-files -u -z` records into per-path stage
 // sets, preserving nothing about git's ordering.
-func parseUnmergedEntries(output string) ([]unmergedPath, error) {
+func parseUnmergedEntries(records []string) ([]unmergedPath, error) {
 	byPath := make(map[string]*unmergedPath)
 	order := []string{}
 
-	for _, record := range strings.Split(output, "\x00") {
+	for _, record := range records {
 		if record == "" {
 			continue
 		}
