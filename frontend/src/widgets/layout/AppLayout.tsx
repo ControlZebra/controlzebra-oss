@@ -1,8 +1,7 @@
-import { memo } from 'react';
+import { lazy, memo, Suspense } from 'react';
 import { LayoutProvider, UpdateProvider, useLayout, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../../shared/ui';
 import RecoveryBanner from '../../shared/ui/RecoveryBanner';
-import ExplorerMergeModal from '../../features/merge/components/ExplorerMergeModal';
 import TitleBar from './TitleBar';
 import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
@@ -12,6 +11,10 @@ import StatusBar from './StatusBar';
 import NonGitFolderPromptModal from './NonGitFolderPromptModal';
 import AdditionalPackagesModal from './AdditionalPackagesModal';
 import GitIdentityPromptModal from './GitIdentityPromptModal';
+
+// Mounted only while open so the merge/conflict bundle (including the ladder
+// visualizer) is fetched on demand and unrelated repo updates cannot re-render it.
+const ExplorerMergeModal = lazy(() => import('../../features/merge/components/ExplorerMergeModal'));
 
 /**
  * AppLayoutInner - Inner component that has access to RepoContext and LayoutContext.
@@ -38,10 +41,14 @@ function AppLayoutInner(): JSX.Element {
       <NonGitFolderPromptModal />
       <AdditionalPackagesModal />
       <GitIdentityPromptModal />
-      <ExplorerMergeModal
-        open={explorerMergeModalOpen}
-        onOpenChange={setExplorerMergeModalOpen}
-      />
+      {explorerMergeModalOpen && (
+        <Suspense fallback={null}>
+          <ExplorerMergeModal
+            open={explorerMergeModalOpen}
+            onOpenChange={setExplorerMergeModalOpen}
+          />
+        </Suspense>
+      )}
       
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left side: Activity bar + Sidebar (full height) */}

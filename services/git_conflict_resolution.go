@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +18,9 @@ const (
 	conflictBlobSizeLimit   = 50 * 1024 * 1024
 	conflictOutputSizeLimit = 100 * 1024 * 1024
 	conflictMarkerSize      = 32
+	// Only this many lines of surrounding context travel to the UI per region;
+	// the resolver never renders more than a short scrollable excerpt.
+	conflictContextLineLimit = 25
 )
 
 type ConflictFileStatus string
@@ -63,6 +68,28 @@ type ConflictSegment struct {
 	Conflict *ConflictRegion `json:"conflict,omitempty"`
 }
 
+// ConflictRegionView is the wire shape of a conflict region. It carries only the
+// region itself plus a trimmed context excerpt, so the payload never scales with
+// file size the way the full segment list did.
+type ConflictRegionView struct {
+	ID            string   `json:"id"`
+	Current       []string `json:"current"`
+	Base          []string `json:"base,omitempty"`
+	Incoming      []string `json:"incoming"`
+	ContextBefore string   `json:"contextBefore,omitempty"`
+	ContextAfter  string   `json:"contextAfter,omitempty"`
+}
+
+// ConflictDecision is one region choice made in the UI. The resolved file is
+// composed here from these decisions, so full file contents never cross the bridge.
+type ConflictDecision struct {
+	RegionID      string `json:"regionId"`
+	Mode          string `json:"mode"`
+	Side          string `json:"side,omitempty"`
+	CurrentLines  []bool `json:"currentLines,omitempty"`
+	IncomingLines []bool `json:"incomingLines,omitempty"`
+}
+
 type ConflictResolutionData struct {
 	Success          bool                     `json:"success"`
 	Path             string                   `json:"path"`
@@ -72,11 +99,19 @@ type ConflictResolutionData struct {
 	Base             ConflictBlob             `json:"base"`
 	Current          ConflictBlob             `json:"current"`
 	Incoming         ConflictBlob             `json:"incoming"`
-	Segments         []ConflictSegment        `json:"segments,omitempty"`
+	Regions          []ConflictRegionView     `json:"regions,omitempty"`
 	ResolutionToken  string                   `json:"resolutionToken,omitempty"`
 	Newline          string                   `json:"newline,omitempty"`
 	HasFinalNewline  bool                     `json:"hasFinalNewline"`
 	Error            string                   `json:"error,omitempty"`
+}
+
+// conflictBlobSet holds the three stage contents. It stays inside the service —
+// only metadata (present/oid/mode) is ever serialized to the frontend.
+type conflictBlobSet struct {
+	base     ConflictBlob
+	current  ConflictBlob
+	incoming ConflictBlob
 }
 
 type conflictStageEntry struct {
@@ -110,68 +145,22 @@ func (g *GitService) GetConflictResolutionData(repoPath string, filePath string)
 
 	data.Status = conflictStatus(entries)
 	data.ResolutionToken = conflictResolutionToken(data.Path, entries)
-	if unsafeMode := firstUnsafeConflictMode(entries); unsafeMode != "" {
-		data.Base = conflictBlobMetadata(entries[1])
-		data.Current = conflictBlobMetadata(entries[2])
-		data.Incoming = conflictBlobMetadata(entries[3])
-		data.Success = true
-		data.IneligibleReason = ConflictReasonUnsafeFileType
-		return data
-	}
-	if g.conflictBlobExceedsLimit(repoPath, entries[1]) || g.conflictBlobExceedsLimit(repoPath, entries[2]) || g.conflictBlobExceedsLimit(repoPath, entries[3]) {
-		data.Base = conflictBlobMetadata(entries[1])
-		data.Current = conflictBlobMetadata(entries[2])
-		data.Incoming = conflictBlobMetadata(entries[3])
-		data.Success = true
-		data.IneligibleReason = ConflictReasonFileTooLarge
-		return data
-	}
-	if data.Base, err = g.loadConflictBlob(repoPath, entries[1]); err != nil {
-		data.Error = err.Error()
-		return data
-	}
-	if data.Current, err = g.loadConflictBlob(repoPath, entries[2]); err != nil {
-		data.Error = err.Error()
-		return data
-	}
-	if data.Incoming, err = g.loadConflictBlob(repoPath, entries[3]); err != nil {
+	data.Base = conflictBlobMetadata(entries[1])
+	data.Current = conflictBlobMetadata(entries[2])
+	data.Incoming = conflictBlobMetadata(entries[3])
+
+	blobs, reason, err := g.loadEligibleConflictBlobs(repoPath, entries)
+	if err != nil {
 		data.Error = err.Error()
 		return data
 	}
 	data.Success = true
-
-	if !data.Current.Present || !data.Incoming.Present {
-		data.IneligibleReason = ConflictReasonMissingSide
-		return data
-	}
-	for _, blob := range []ConflictBlob{data.Base, data.Current, data.Incoming} {
-		if !blob.Present {
-			continue
-		}
-		content := []byte(blob.Content)
-		if len(content) > conflictBlobSizeLimit {
-			data.IneligibleReason = ConflictReasonFileTooLarge
-			return data
-		}
-		if bytes.IndexByte(content, 0) >= 0 {
-			data.IneligibleReason = ConflictReasonBinaryContent
-			return data
-		}
-		if !validUTF8WithOptionalBOM(content) {
-			data.IneligibleReason = ConflictReasonUnsupportedEncoding
-			return data
-		}
-		if !isConservativeText(content) {
-			data.IneligibleReason = ConflictReasonUnsupportedContent
-			return data
-		}
-	}
-	if hasFinalNewline(data.Current.Content) != hasFinalNewline(data.Incoming.Content) {
-		data.IneligibleReason = ConflictReasonLineEndingMismatch
+	if reason != ConflictReasonNone {
+		data.IneligibleReason = reason
 		return data
 	}
 
-	segments, mergedOutput, err := g.generateConflictSegments(repoPath, data)
+	segments, mergedOutput, err := g.generateConflictSegments(repoPath, data.ResolutionToken, blobs)
 	if err != nil {
 		data.IneligibleReason = ConflictReasonGenerationFailed
 		return data
@@ -180,11 +169,108 @@ func (g *GitService) GetConflictResolutionData(repoPath string, filePath string)
 		data.IneligibleReason = ConflictReasonOutputTooLarge
 		return data
 	}
-	data.Newline = detectConflictNewline(mergedOutput, data.Current.Content, data.Incoming.Content, data.Base.Content)
-	data.HasFinalNewline = hasFinalNewline(data.Current.Content)
-	data.Segments = segments
+	data.Newline = detectConflictNewline(mergedOutput, blobs.current.Content, blobs.incoming.Content, blobs.base.Content)
+	data.HasFinalNewline = hasFinalNewline(blobs.current.Content)
+	data.Regions = buildConflictRegionViews(segments)
 	data.Eligible = true
 	return data
+}
+
+// loadEligibleConflictBlobs reads the three stages and applies every eligibility
+// rule. A non-empty reason means section-by-section review is not possible; an
+// error means the stages could not be read at all.
+func (g *GitService) loadEligibleConflictBlobs(
+	repoPath string,
+	entries map[int]conflictStageEntry,
+) (conflictBlobSet, ConflictIneligibleReason, error) {
+	var blobs conflictBlobSet
+
+	if unsafeMode := firstUnsafeConflictMode(entries); unsafeMode != "" {
+		return blobs, ConflictReasonUnsafeFileType, nil
+	}
+	if g.conflictBlobExceedsLimit(repoPath, entries[1]) ||
+		g.conflictBlobExceedsLimit(repoPath, entries[2]) ||
+		g.conflictBlobExceedsLimit(repoPath, entries[3]) {
+		return blobs, ConflictReasonFileTooLarge, nil
+	}
+
+	var err error
+	if blobs.base, err = g.loadConflictBlob(repoPath, entries[1]); err != nil {
+		return blobs, ConflictReasonNone, err
+	}
+	if blobs.current, err = g.loadConflictBlob(repoPath, entries[2]); err != nil {
+		return blobs, ConflictReasonNone, err
+	}
+	if blobs.incoming, err = g.loadConflictBlob(repoPath, entries[3]); err != nil {
+		return blobs, ConflictReasonNone, err
+	}
+
+	if !blobs.current.Present || !blobs.incoming.Present {
+		return blobs, ConflictReasonMissingSide, nil
+	}
+	for _, blob := range []ConflictBlob{blobs.base, blobs.current, blobs.incoming} {
+		if !blob.Present {
+			continue
+		}
+		content := []byte(blob.Content)
+		if len(content) > conflictBlobSizeLimit {
+			return blobs, ConflictReasonFileTooLarge, nil
+		}
+		if bytes.IndexByte(content, 0) >= 0 {
+			return blobs, ConflictReasonBinaryContent, nil
+		}
+		if !validUTF8WithOptionalBOM(content) {
+			return blobs, ConflictReasonUnsupportedEncoding, nil
+		}
+		if !isConservativeText(content) {
+			return blobs, ConflictReasonUnsupportedContent, nil
+		}
+	}
+	if hasFinalNewline(blobs.current.Content) != hasFinalNewline(blobs.incoming.Content) {
+		return blobs, ConflictReasonLineEndingMismatch, nil
+	}
+
+	return blobs, ConflictReasonNone, nil
+}
+
+func buildConflictRegionViews(segments []ConflictSegment) []ConflictRegionView {
+	views := make([]ConflictRegionView, 0)
+	for index, segment := range segments {
+		if segment.Kind != "conflict" || segment.Conflict == nil {
+			continue
+		}
+
+		view := ConflictRegionView{
+			ID:       segment.Conflict.ID,
+			Current:  segment.Conflict.Current,
+			Base:     segment.Conflict.Base,
+			Incoming: segment.Conflict.Incoming,
+		}
+		if index > 0 && segments[index-1].Kind == "context" {
+			view.ContextBefore = trailingContextLines(segments[index-1].Text, conflictContextLineLimit)
+		}
+		if index+1 < len(segments) && segments[index+1].Kind == "context" {
+			view.ContextAfter = leadingContextLines(segments[index+1].Text, conflictContextLineLimit)
+		}
+		views = append(views, view)
+	}
+	return views
+}
+
+func trailingContextLines(text string, limit int) string {
+	lines := splitLinesRetainingEndings(text)
+	if len(lines) <= limit {
+		return text
+	}
+	return strings.Join(lines[len(lines)-limit:], "")
+}
+
+func leadingContextLines(text string, limit int) string {
+	lines := splitLinesRetainingEndings(text)
+	if len(lines) <= limit {
+		return text
+	}
+	return strings.Join(lines[:limit], "")
 }
 
 func (g *GitService) ResolveConflictWithContent(repoPath string, filePath string, resolutionToken string, content string) OperationResult {
@@ -207,19 +293,81 @@ func (g *GitService) ResolveConflictWithContent(repoPath string, filePath string
 	if unsafeMode := firstUnsafeConflictMode(entries); unsafeMode != "" {
 		return failedOp(unsupportedConflictModeMessage(unsafeMode))
 	}
-	contentBytes := []byte(content)
-	if len(contentBytes) > conflictOutputSizeLimit {
+
+	return g.writeAndStageResolvedConflict(repoPath, normalizedPath, destination, []byte(content), entries)
+}
+
+// ResolveConflictWithDecisions composes the resolved file from per-region choices.
+// Composition happens here rather than in the UI so the frontend never needs the
+// full file text, and the resolved document is never rebuilt on every render.
+func (g *GitService) ResolveConflictWithDecisions(repoPath string, filePath string, resolutionToken string, decisions []ConflictDecision) OperationResult {
+	normalizedPath := normalizeMergePath(filePath)
+	destination, err := safeConflictDestination(repoPath, normalizedPath)
+	if err != nil {
+		return failedOp("Invalid conflict path")
+	}
+	state := g.GetMergeState(repoPath)
+	if !state.InMerge && !state.InSquashMerge && !state.InCherryPick && !state.InRevert {
+		return failedOp("No supported conflict operation is in progress")
+	}
+	entries, err := g.loadConflictStageEntries(repoPath, normalizedPath)
+	if err != nil || len(entries) == 0 {
+		return failedOp("The file is no longer conflicted")
+	}
+	if conflictResolutionToken(normalizedPath, entries) != resolutionToken {
+		return failedOp("This conflict changed after it was opened. Reload it before resolving.")
+	}
+
+	blobs, reason, err := g.loadEligibleConflictBlobs(repoPath, entries)
+	if err != nil {
+		return failedOp("Failed to read the conflicting file versions")
+	}
+	if reason == ConflictReasonUnsafeFileType {
+		return failedOp(unsupportedConflictModeMessage(firstUnsafeConflictMode(entries)))
+	}
+	if reason != ConflictReasonNone {
+		return failedOp("This conflict can no longer be resolved section by section. Reload it and choose the complete file.")
+	}
+
+	segments, mergedOutput, err := g.generateConflictSegments(repoPath, resolutionToken, blobs)
+	if err != nil {
+		return failedOp("ControlZebra could not rebuild the conflict sections. Reload the conflict and try again.")
+	}
+	if len(mergedOutput) > conflictOutputSizeLimit {
 		return failedOp("Resolved content is too large")
 	}
-	if bytes.IndexByte(contentBytes, 0) >= 0 || !utf8.Valid(contentBytes) {
+
+	newline := detectConflictNewline(mergedOutput, blobs.current.Content, blobs.incoming.Content, blobs.base.Content)
+	content, err := composeConflictResolution(segments, decisions, newline, hasFinalNewline(blobs.current.Content))
+	if err != nil {
+		return failedOp(err.Error())
+	}
+
+	return g.writeAndStageResolvedConflict(repoPath, normalizedPath, destination, []byte(content), entries)
+}
+
+func (g *GitService) writeAndStageResolvedConflict(
+	repoPath string,
+	normalizedPath string,
+	destination string,
+	content []byte,
+	entries map[int]conflictStageEntry,
+) OperationResult {
+	if len(content) > conflictOutputSizeLimit {
+		return failedOp("Resolved content is too large")
+	}
+	if bytes.IndexByte(content, 0) >= 0 || !utf8.Valid(content) {
 		return failedOp("Resolved content must be valid UTF-8 text")
+	}
+	if isL5XPath(normalizedPath) && !isWellFormedXML(content) {
+		return failedOp("The resolved file is not a well-formed L5X document.\nAdjust your choices or keep the complete file.")
 	}
 
 	mode := os.FileMode(0644)
 	if current, ok := entries[2]; ok && current.mode == "100755" {
 		mode = 0755
 	}
-	if err = writeResolvedConflictFile(destination, contentBytes, mode); err != nil {
+	if err := writeResolvedConflictFile(destination, content, mode); err != nil {
 		return failedOp("Failed to write resolved file: " + err.Error())
 	}
 
@@ -228,6 +376,138 @@ func (g *GitService) ResolveConflictWithContent(repoPath string, filePath string
 		return failedOp("The resolved file was written, but could not be staged. Retry Resolve File. " + getErrorMessage(addResult))
 	}
 	return successOp(fmt.Sprintf("Resolved '%s'", normalizedPath))
+}
+
+func isL5XPath(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), ".l5x")
+}
+
+// isWellFormedXML streams the document through a token decoder. It allocates no
+// tree, so it stays cheap even for very large L5X files, while still catching a
+// composition that would write structurally broken XML into the working tree.
+func isWellFormedXML(content []byte) bool {
+	decoder := xml.NewDecoder(bytes.NewReader(stripUTF8BOM(content)))
+	// Content already passed UTF-8 validation, so honour any declared encoding as-is
+	// instead of rejecting documents for a charset name we do not need to convert.
+	decoder.CharsetReader = func(_ string, input io.Reader) (io.Reader, error) {
+		return input, nil
+	}
+
+	depth := 0
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			return depth == 0
+		}
+		if err != nil {
+			return false
+		}
+		switch token.(type) {
+		case xml.StartElement:
+			depth++
+		case xml.EndElement:
+			depth--
+		}
+	}
+}
+
+func composeConflictResolution(
+	segments []ConflictSegment,
+	decisions []ConflictDecision,
+	newline string,
+	terminateFinalLine bool,
+) (string, error) {
+	if newline == "" {
+		newline = "\n"
+	}
+
+	decisionsByRegion := make(map[string]ConflictDecision, len(decisions))
+	for _, decision := range decisions {
+		decisionsByRegion[decision.RegionID] = decision
+	}
+
+	regionIDs := make(map[string]struct{})
+	for _, segment := range segments {
+		if segment.Kind == "conflict" && segment.Conflict != nil {
+			regionIDs[segment.Conflict.ID] = struct{}{}
+		}
+	}
+	for _, decision := range decisions {
+		if _, known := regionIDs[decision.RegionID]; !known {
+			return "", fmt.Errorf("This conflict changed after it was opened. Reload it before resolving.")
+		}
+	}
+
+	var output strings.Builder
+	for index, segment := range segments {
+		if segment.Kind == "context" {
+			output.WriteString(segment.Text)
+			continue
+		}
+		if segment.Conflict == nil {
+			continue
+		}
+
+		decision, decided := decisionsByRegion[segment.Conflict.ID]
+		if !decided {
+			return "", fmt.Errorf("Choose a version for every conflict before resolving the file.")
+		}
+		resolved, err := resolveConflictRegion(*segment.Conflict, decision, newline, index < len(segments)-1 || terminateFinalLine)
+		if err != nil {
+			return "", err
+		}
+		output.WriteString(resolved)
+	}
+
+	return output.String(), nil
+}
+
+func resolveConflictRegion(
+	region ConflictRegion,
+	decision ConflictDecision,
+	newline string,
+	terminateWithNewline bool,
+) (string, error) {
+	var selected []string
+
+	switch decision.Mode {
+	case "block":
+		if decision.Side != "current" && decision.Side != "incoming" {
+			return "", fmt.Errorf("Choose a version for every conflict before resolving the file.")
+		}
+		if decision.Side == "current" {
+			selected = region.Current
+		} else {
+			selected = region.Incoming
+		}
+	case "lines":
+		if len(decision.CurrentLines) != len(region.Current) || len(decision.IncomingLines) != len(region.Incoming) {
+			return "", fmt.Errorf("This conflict changed after it was opened. Reload it before resolving.")
+		}
+		for index, keep := range decision.CurrentLines {
+			if keep {
+				selected = append(selected, region.Current[index])
+			}
+		}
+		for index, keep := range decision.IncomingLines {
+			if keep {
+				selected = append(selected, region.Incoming[index])
+			}
+		}
+		if len(selected) == 0 {
+			return "", fmt.Errorf("Choose at least one line for every conflict before resolving the file.")
+		}
+	case "remove":
+		return "", nil
+	default:
+		return "", fmt.Errorf("Choose a version for every conflict before resolving the file.")
+	}
+
+	content := strings.Join(selected, newline)
+	if len(selected) > 0 && terminateWithNewline {
+		content += newline
+	}
+	return content, nil
 }
 
 func (g *GitService) resolveConflictWithStage(repoPath string, filePath string, stage int, sideName string) OperationResult {
@@ -425,7 +705,7 @@ func conflictResolutionToken(path string, entries map[int]conflictStageEntry) st
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func (g *GitService) generateConflictSegments(repoPath string, data ConflictResolutionData) ([]ConflictSegment, string, error) {
+func (g *GitService) generateConflictSegments(repoPath string, resolutionToken string, blobs conflictBlobSet) ([]ConflictSegment, string, error) {
 	temporaryDir, err := os.MkdirTemp("", "controlzebra-merge-file-*")
 	if err != nil {
 		return nil, "", err
@@ -435,21 +715,21 @@ func (g *GitService) generateConflictSegments(repoPath string, data ConflictReso
 	currentPath := filepath.Join(temporaryDir, "current")
 	basePath := filepath.Join(temporaryDir, "base")
 	incomingPath := filepath.Join(temporaryDir, "incoming")
-	if err := os.WriteFile(currentPath, stripUTF8BOM([]byte(data.Current.Content)), 0600); err != nil {
+	if err := os.WriteFile(currentPath, stripUTF8BOM([]byte(blobs.current.Content)), 0600); err != nil {
 		return nil, "", err
 	}
-	if err := os.WriteFile(basePath, stripUTF8BOM([]byte(data.Base.Content)), 0600); err != nil {
+	if err := os.WriteFile(basePath, stripUTF8BOM([]byte(blobs.base.Content)), 0600); err != nil {
 		return nil, "", err
 	}
-	if err := os.WriteFile(incomingPath, stripUTF8BOM([]byte(data.Incoming.Content)), 0600); err != nil {
+	if err := os.WriteFile(incomingPath, stripUTF8BOM([]byte(blobs.incoming.Content)), 0600); err != nil {
 		return nil, "", err
 	}
 
-	labelToken := data.ResolutionToken[:16]
+	labelToken := resolutionToken[:16]
 	currentLabel := "CONTROLZEBRA_CURRENT_" + labelToken
 	baseLabel := "CONTROLZEBRA_BASE_" + labelToken
 	incomingLabel := "CONTROLZEBRA_INCOMING_" + labelToken
-	for _, content := range []string{data.Base.Content, data.Current.Content, data.Incoming.Content} {
+	for _, content := range []string{blobs.base.Content, blobs.current.Content, blobs.incoming.Content} {
 		if strings.Contains(content, currentLabel) || strings.Contains(content, baseLabel) || strings.Contains(content, incomingLabel) {
 			return nil, "", fmt.Errorf("conflict marker collision")
 		}
@@ -461,7 +741,7 @@ func (g *GitService) generateConflictSegments(repoPath string, data ConflictReso
 		return nil, "", fmt.Errorf("Git could not generate conflict regions: %s", getErrorMessage(result))
 	}
 	mergedOutput := result.Stdout
-	if hasUTF8BOM([]byte(data.Current.Content)) {
+	if hasUTF8BOM([]byte(blobs.current.Content)) {
 		mergedOutput = "\ufeff" + mergedOutput
 	}
 	segments, err := parseConflictSegments(mergedOutput, currentLabel, baseLabel, incomingLabel)

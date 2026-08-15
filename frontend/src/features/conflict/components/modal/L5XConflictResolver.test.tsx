@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  ConflictRegion,
   ConflictRegionDecision,
   ConflictResolutionData,
   TextConflictDraft,
@@ -11,6 +12,17 @@ import L5XConflictResolver from './L5XConflictResolver';
 
 const classifyRegionMock = vi.fn();
 const validateComposedDocumentMock = vi.fn();
+
+function region(partial: Partial<ConflictRegion> & { id: string }): ConflictRegion {
+  return {
+    current: [],
+    base: [],
+    incoming: [],
+    contextBefore: '',
+    contextAfter: '',
+    ...partial,
+  };
+}
 
 vi.mock('ladder-visualizer', () => ({
   l5xConflictVisualAdapter: {
@@ -42,18 +54,15 @@ function buildData(overrides?: Partial<ConflictResolutionData>): ConflictResolut
     base: { present: true },
     current: { present: true },
     incoming: { present: true },
-    segments: [
-      { kind: 'context', text: '<Controller>\n' },
-      {
-        kind: 'conflict',
-        conflict: {
-          id: 'region-1',
-          current: ['<Rung Number="0"><Text>XIC(A)OTE(B);</Text></Rung>'],
-          base: [],
-          incoming: ['<Rung Number="0"><Text>XIC(C)OTE(D);</Text></Rung>'],
-        },
-      },
-      { kind: 'context', text: '</Controller>\n' },
+    regions: [
+      region({
+        id: 'region-1',
+        current: ['<Rung Number="0"><Text>XIC(A)OTE(B);</Text></Rung>'],
+        base: [],
+        incoming: ['<Rung Number="0"><Text>XIC(C)OTE(D);</Text></Rung>'],
+        contextBefore: '<Controller>\n',
+        contextAfter: '</Controller>\n',
+      }),
     ],
     resolutionToken: 'token-1',
     newline: '\n',
@@ -67,7 +76,7 @@ function Harness({
   onResolveWholeFile = vi.fn(),
   resolutionData,
 }: {
-  onApply: (content: string) => void;
+  onApply: () => void;
   onResolveWholeFile?: (strategy: 'mine' | 'theirs' | 'both') => void;
   resolutionData: ConflictResolutionData;
 }): JSX.Element {
@@ -75,11 +84,10 @@ function Harness({
     path: resolutionData.path,
     resolutionToken: resolutionData.resolutionToken || '',
     decisions: Object.fromEntries(
-      resolutionData.segments.flatMap((segment) => (
-        segment.kind === 'conflict'
-          ? [[segment.conflict.id, { mode: 'unresolved' } satisfies ConflictRegionDecision]]
-          : []
-      )),
+      resolutionData.regions.map((conflictRegion) => [
+        conflictRegion.id,
+        { mode: 'unresolved' } satisfies ConflictRegionDecision,
+      ]),
     ),
   });
 
@@ -103,7 +111,7 @@ describe('L5XConflictResolver', () => {
     validateComposedDocumentMock.mockReset();
   });
 
-  it('renders a rung preview for eligible regions and composes the selected side on apply', () => {
+  it('renders a rung preview for eligible regions and applies the selected side', () => {
     classifyRegionMock.mockReturnValue({
       kind: 'ladder',
       current: { number: 0, comment: 'C', raw: 'raw', elements: [], instructions: [] },
@@ -124,9 +132,77 @@ describe('L5XConflictResolver', () => {
     expect(resolveButton).toBeEnabled();
 
     fireEvent.click(resolveButton);
-    expect(onApply).toHaveBeenCalledWith(
-      '<Controller>\n<Rung Number="0"><Text>XIC(A)OTE(B);</Text></Rung>\n</Controller>\n',
-    );
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows only the file name and whole-file actions in the header', () => {
+    classifyRegionMock.mockReturnValue({
+      kind: 'ladder',
+      current: { number: 0, raw: 'raw', elements: [], instructions: [] },
+      incoming: { number: 0, raw: 'raw', elements: [], instructions: [] },
+    });
+
+    const resolutionData = buildData({
+      regions: [
+        region({
+          id: 'region-1',
+          current: ['<![CDATA[NOP();]]>'],
+          incoming: ['<![CDATA[OTE(a);]]>'],
+          contextBefore: '<Rung Number="0" Type="N">\n<Text>\n',
+          contextAfter: '</Text>\n</Rung>\n',
+        }),
+      ],
+    });
+
+    render(<Harness onApply={vi.fn()} resolutionData={resolutionData} />);
+
+    expect(screen.getByText('Programs/Main.L5X')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep Current File' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep Incoming File' })).toBeInTheDocument();
+
+    expect(screen.queryByText(/Resolve ladder logic conflicts/)).toBeNull();
+    expect(screen.queryByText(/decided/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use all Current' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use all Incoming' })).toBeNull();
+    expect(screen.queryByLabelText('Context before conflict')).toBeNull();
+    expect(screen.queryByLabelText('Context after conflict')).toBeNull();
+  });
+
+  it('classifies only the region on screen', () => {
+    classifyRegionMock.mockReturnValue({
+      kind: 'ladder',
+      current: { number: 0, raw: 'raw', elements: [], instructions: [] },
+      incoming: { number: 0, raw: 'raw', elements: [], instructions: [] },
+    });
+
+    const resolutionData = buildData({
+      regions: [
+        region({ id: 'region-1', current: ['<Rung Number="0"/>'], incoming: ['<Rung Number="1"/>'] }),
+        region({ id: 'region-2', current: ['<Rung Number="2"/>'], incoming: ['<Rung Number="3"/>'] }),
+        region({ id: 'region-3', current: ['<Rung Number="4"/>'], incoming: ['<Rung Number="5"/>'] }),
+      ],
+    });
+
+    render(<Harness onApply={vi.fn()} resolutionData={resolutionData} />);
+
+    expect(classifyRegionMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next conflict' }));
+    expect(classifyRegionMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('never validates the composed document in the render path', () => {
+    classifyRegionMock.mockReturnValue({
+      kind: 'ladder',
+      current: { number: 0, raw: 'raw', elements: [], instructions: [] },
+      incoming: { number: 0, raw: 'raw', elements: [], instructions: [] },
+    });
+
+    render(<Harness onApply={vi.fn()} resolutionData={buildData()} />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Use Current' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve File' }));
+
+    expect(validateComposedDocumentMock).not.toHaveBeenCalled();
   });
 
   it('routes non-eligible regions to the text block with line-mode expansion', () => {
@@ -139,25 +215,26 @@ describe('L5XConflictResolver', () => {
     expect(screen.getByRole('button', { name: /Choose individual lines/ })).toBeInTheDocument();
   });
 
-  it('blocks apply when the composed document fails L5X validation', () => {
+  it('surfaces an apply error returned by the service', () => {
     classifyRegionMock.mockReturnValue({
       kind: 'ladder',
       current: { number: 0, raw: 'raw', elements: [], instructions: [] },
       incoming: { number: 0, raw: 'raw', elements: [], instructions: [] },
     });
-    validateComposedDocumentMock.mockReturnValue({ valid: false });
 
-    const onApply = vi.fn();
-    render(<Harness onApply={onApply} resolutionData={buildData()} />);
+    render(
+      <L5XConflictResolver
+        data={buildData()}
+        draft={{ path: 'Programs/Main.L5X', resolutionToken: 'token-1', decisions: {} }}
+        disabled={false}
+        applyError="The resolved file is not a well-formed L5X document."
+        onDecision={vi.fn()}
+        onApply={vi.fn()}
+        onResolveWholeFile={vi.fn()}
+      />,
+    );
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Use Current' }));
-
-    const resolveButton = screen.getByRole('button', { name: 'Resolve File' });
-    expect(resolveButton).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/not a valid L5X document/);
-
-    fireEvent.click(resolveButton);
-    expect(onApply).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/not a well-formed L5X document/);
   });
 
   it('exposes persistent Keep Current File / Keep Incoming File actions and confirms before discarding drafts', () => {

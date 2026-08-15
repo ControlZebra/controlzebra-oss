@@ -75,7 +75,7 @@ import {
   ResolveConflictKeepOurs,
   ResolveConflictKeepTheirs,
   ResolveConflictKeepBoth,
-  ResolveConflictWithContent,
+  ResolveConflictWithDecisions,
   AbortMerge,
   CompleteMerge,
   AbortCurrentOperation,
@@ -198,7 +198,8 @@ import type {
   CreateProjectOptions,
   CreateProjectResult,
 } from './RepoContext.types';
-import { mapConflictResolutionData } from '../../../features/conflict/types';
+import { mapConflictResolutionData, toConflictDecisionPayload } from '../../../features/conflict/types';
+import type { ConflictRegionDecision } from '../../../features/conflict/types';
 import type { ConflictResolutionData } from '../../../features/conflict/types';
 
 function normalizeMergeReviewDiffResult(
@@ -2115,10 +2116,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
   }, [repoPath, showMessage]);
 
-  const resolveConflictWithContent = useCallback(async (
+  const resolveConflictWithDecisions = useCallback(async (
     filePath: string,
     token: string,
-    content: string,
+    decisions: Record<string, ConflictRegionDecision>,
   ): Promise<boolean> => {
     if (!repoPath || !filePath || !token) {
       showMessage('error', 'Invalid conflict resolution data');
@@ -2127,7 +2128,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
     setIsResolvingConflict(true);
     try {
-      const result = await ResolveConflictWithContent(repoPath, filePath, token, content);
+      const result = await ResolveConflictWithDecisions(repoPath, filePath, token, toConflictDecisionPayload(decisions));
 
       if (!result.success) {
         showMessage('error', result.error || result.message || 'Failed to resolve conflict');
@@ -3812,7 +3813,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     mergeState,
     isResolvingConflict,
     loadConflictResolutionData,
-    resolveConflictWithContent,
+    resolveConflictWithDecisions,
     resolveConflict,
     applyAllResolutions,
     abortMerge,
@@ -3906,7 +3907,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     detectedParentBranch, fetchParentBranch, conflictSidesInfo,
     isSquashMerge,
     fileResolutions, setFileResolution, mergeState, isResolvingConflict,
-    loadConflictResolutionData, resolveConflictWithContent,
+    loadConflictResolutionData, resolveConflictWithDecisions,
     resolveConflict, applyAllResolutions, abortMerge, completeMerge, refreshMergeState,
     abortCurrentOperation,
     abortCherryPick, continueCherryPick, skipCherryPickCommit,

@@ -10,7 +10,7 @@ import type {
   GitHubCreateChangeRequestResult as GitHubCreateChangeRequestResultModel,
   ChangeRequestSnapshot as ChangeRequestSnapshotModel,
 } from '../../../../bindings/controlzebra/services/models';
-import type { ConflictResolutionData } from '../../../features/conflict/types';
+import type { ConflictRegionDecision, ConflictResolutionData } from '../../../features/conflict/types';
 
 /**
  * Type definitions for RepoContext
@@ -665,7 +665,11 @@ export interface RepoContextValue {
   mergeState: MergeState | null;
   isResolvingConflict: boolean;
   loadConflictResolutionData: (path: string) => Promise<ConflictResolutionData | null>;
-  resolveConflictWithContent: (path: string, token: string, content: string) => Promise<boolean>;
+  resolveConflictWithDecisions: (
+    path: string,
+    token: string,
+    decisions: Record<string, ConflictRegionDecision>,
+  ) => Promise<boolean>;
   resolveConflict: (filePath: string, strategy: ResolutionStrategy) => Promise<boolean>;
   applyAllResolutions: () => Promise<boolean>;
   abortMerge: () => Promise<boolean>;

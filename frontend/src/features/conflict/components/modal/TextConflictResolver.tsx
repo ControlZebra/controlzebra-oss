@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   AlertDialog,
@@ -18,7 +18,7 @@ import type {
   ConflictSide,
   TextConflictDraft,
 } from '../../types';
-import { composeConflictResolution } from '../../lib/conflict-composer';
+import { areConflictDecisionsComplete, isDecisionUsable } from '../../types';
 import TextConflictBlock from './TextConflictBlock';
 
 interface TextConflictResolverProps {
@@ -27,7 +27,7 @@ interface TextConflictResolverProps {
   disabled: boolean;
   applyError?: string;
   onDecision: (regionId: string, decision: ConflictRegionDecision) => void;
-  onApply: (content: string) => void | Promise<void>;
+  onApply: () => void | Promise<void>;
 }
 
 function TextConflictResolver({
@@ -42,30 +42,18 @@ function TextConflictResolver({
   const [expandedRegionIds, setExpandedRegionIds] = useState<Set<string>>(() => new Set());
   const [pendingBulkSide, setPendingBulkSide] = useState<ConflictSide | null>(null);
   const [pendingRemoveRegionId, setPendingRemoveRegionId] = useState<string | null>(null);
-  const conflictRegions = data.segments.flatMap((segment) => (
-    segment.kind === 'conflict' ? [segment.conflict] : []
-  ));
-  const composed = composeConflictResolution({
-    segments: data.segments,
-    decisions: draft.decisions,
-    newline: data.newline,
-    hasFinalNewline: data.hasFinalNewline,
-  });
-  const undecidedRegionIds = new Set([
-    ...composed.validation.unresolvedRegionIds,
-    ...composed.validation.invalidDecisionIds,
-  ]);
-  const decidedCount = conflictRegions.length - undecidedRegionIds.size;
+  const conflictRegions = data.regions;
+  const decidedCount = useMemo(
+    () => conflictRegions.filter((region) => isDecisionUsable(region, draft.decisions[region.id])).length,
+    [conflictRegions, draft.decisions],
+  );
+  const canResolve = useMemo(
+    () => areConflictDecisionsComplete(conflictRegions, draft.decisions),
+    [conflictRegions, draft.decisions],
+  );
   const activeRegion = conflictRegions[activeConflictIndex];
-  const activeSegmentIndex = activeRegion
-    ? data.segments.findIndex((segment) => (
-        segment.kind === 'conflict' && segment.conflict.id === activeRegion.id
-      ))
-    : -1;
-  const segmentBefore = activeSegmentIndex > 0 ? data.segments[activeSegmentIndex - 1] : undefined;
-  const segmentAfter = activeSegmentIndex >= 0 ? data.segments[activeSegmentIndex + 1] : undefined;
-  const contextBefore = segmentBefore?.kind === 'context' ? segmentBefore.text : '';
-  const contextAfter = segmentAfter?.kind === 'context' ? segmentAfter.text : '';
+  const contextBefore = activeRegion?.contextBefore ?? '';
+  const contextAfter = activeRegion?.contextAfter ?? '';
   const hasExistingChoices = Object.values(draft.decisions).some((decision) => decision.mode !== 'unresolved');
 
   useEffect(() => {
@@ -180,16 +168,6 @@ function TextConflictResolver({
               )}
             </>
           )}
-
-          <section>
-            <h4 className="mb-2 text-sm font-medium text-theme-primary">Resolved file preview</h4>
-            <pre
-              aria-label="Resolved file preview"
-              className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-theme-default bg-theme-base p-4 font-mono text-xs text-theme-secondary"
-            >
-              {composed.ok ? composed.content : 'Choose Current or Incoming for every conflict to preview the resolved file.'}
-            </pre>
-          </section>
         </div>
       </div>
 
@@ -203,10 +181,10 @@ function TextConflictResolver({
           <p className="text-xs text-theme-muted">The file is unchanged until you resolve it.</p>
           <Button
             type="button"
-            disabled={disabled || !composed.ok}
+            disabled={disabled || !canResolve}
             onClick={() => {
-              if (composed.ok) {
-                void onApply(composed.content);
+              if (canResolve) {
+                void onApply();
               }
             }}
           >

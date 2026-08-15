@@ -42,7 +42,7 @@ interface ConflictQueueProps {
   resolutionLoadError?: string;
   resolutionApplyError?: string;
   onConflictDecision?: (regionId: string, decision: ConflictRegionDecision) => void;
-  onResolveWithContent?: (content: string) => void | Promise<void>;
+  onResolveWithDecisions?: () => void | Promise<void>;
 }
 
 function ConflictQueue({
@@ -60,7 +60,7 @@ function ConflictQueue({
   resolutionLoadError,
   resolutionApplyError,
   onConflictDecision = () => undefined,
-  onResolveWithContent = () => undefined,
+  onResolveWithDecisions = () => undefined,
 }: ConflictQueueProps): JSX.Element {
   const unresolvedConflicts = useMemo(
     () => conflictedFiles.filter((file) => !fileResolutions[file.path]),
@@ -178,7 +178,7 @@ function ConflictQueue({
           applyError={resolutionApplyError}
           disabled={isResolvingConflict}
           onDecision={onConflictDecision}
-          onApply={onResolveWithContent}
+          onApply={onResolveWithDecisions}
           onResolveWholeFile={(strategy) => onResolve(activeConflict.path, strategy)}
         />
       </div>

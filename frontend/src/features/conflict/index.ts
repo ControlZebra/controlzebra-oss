@@ -1,10 +1,9 @@
 export { default as ConflictQueue } from './components/modal/ConflictQueue';
 export {
-  composeConflictResolution,
-  validateConflictDecisions,
-} from './lib/conflict-composer';
-export {
+  areConflictDecisionsComplete,
+  isDecisionUsable,
   mapConflictResolutionData,
+  toConflictDecisionPayload,
   type ConflictBlob,
   type ConflictFileStatus,
   type ConflictIneligibleReason,
@@ -12,7 +11,6 @@ export {
   type ConflictRegion,
   type ConflictRegionDecision,
   type ConflictResolutionData,
-  type ConflictSegment,
   type ConflictSide,
   type TextConflictDraft,
 } from './types';
