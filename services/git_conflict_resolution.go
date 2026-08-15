@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	conflictBlobSizeLimit   = 2 * 1024 * 1024
-	conflictOutputSizeLimit = 4 * 1024 * 1024
+	conflictBlobSizeLimit   = 50 * 1024 * 1024
+	conflictOutputSizeLimit = 100 * 1024 * 1024
 	conflictMarkerSize      = 32
 )
 
