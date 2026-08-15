@@ -4,6 +4,7 @@ This document replaces the previous collection of detailed plan files in this fo
 
 ## Active Follow-Up Plans
 
+- [[Merge and Conflict Workflow Separation Plan]] - Proposed refactor separating merge planning, repository-wide conflict resolution, and the globally accessible Next Step Advisor conflict queue.
 - [[L5X Git Diff Noise Reduction Plan]] - Active implementation plan for reducing Studio 5000 L5X Git diff noise through semantic canonicalization and Git textconv integration.
 - [[Python Automation MVP Plan]] - Active implementation plan for repo-scoped Python automations with managed runtime, isolated dependencies, and non-blocking app-driven triggers.
 - [[Developer Mode Implementation Plan]] - Proposed plan for a persisted, global developer-tools gate, beginning with controlled access to Debug Logs.
