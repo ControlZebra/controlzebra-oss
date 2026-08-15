@@ -65,6 +65,14 @@ func main() {
 	localBinService := services.NewLocalBinService()
 	updateService := services.NewUpdateService(Version)
 
+	// The repository event bus lets state-holding services react to git
+	// operations without those operations depending on the services.
+	repoEventBus := services.NewRepoEventBus()
+	gitService := services.NewGitService()
+	gitService.SetRepoEventBus(repoEventBus)
+	conflictQueueService := services.NewConflictQueueService()
+	conflictQueueService.AttachToBus(repoEventBus)
+
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
 	// 'Assets' configures the asset server with the 'FS' variable pointing to the frontend files.
@@ -74,7 +82,7 @@ func main() {
 		Name:        "control-zebra",
 		Description: "ControlZebra",
 		Services: []application.Service{
-			application.NewService(services.NewGitService()),
+			application.NewService(gitService),
 			application.NewService(services.NewLFSService()),
 			application.NewService(services.NewGitHubService()),
 			application.NewService(services.NewImageDiffService()),
@@ -88,6 +96,7 @@ func main() {
 			application.NewService(debugService),
 			application.NewService(localBinService),
 			application.NewService(updateService),
+			application.NewService(conflictQueueService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -105,6 +114,7 @@ func main() {
 	fileWatcherService.SetApp(app)
 	localBinService.SetApp(app)
 	updateService.SetApp(app)
+	conflictQueueService.SetApp(app)
 
 	if runtime.GOOS == "windows" {
 		go func() {

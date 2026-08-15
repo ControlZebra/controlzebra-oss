@@ -19,6 +19,7 @@
 | 11 | [[AuthService]] | `services/auth_service.go` | ~95 | Supabase session persistence via OS keychain | No |
 | 12 | [[DebugService]] | `services/debug_service.go` | ~67 | Runtime debug logging facade (toggle, export) | Yes (`debug:new-log`) |
 | 13 | [[LocalBinService]] | `services/local_bin_service.go` | ~505 | Windows portable CLI toolchain download | Yes (`local-bin:progress`) |
+| 14 | [[ConflictQueueService]] | `services/conflict_queue_service.go` | ~230 | Authoritative queue of conflicted files for the open repository | Yes (`conflictQueue:changed`) |
 
 ## Infrastructure (Not Registered, But Critical)
 
@@ -28,6 +29,8 @@
 | `services/cli_resolver.go` | [[CLI Resolver]] — Resolves git/gh/lfs binary paths | [[CLI Resolver]] |
 | `services/data_paths.go` | [[Data Paths]] — XDG-compliant storage layout + migration | [[Data Paths]] |
 | `services/debug_logger.go` | [[Debug Logger]] — Thread-safe ring-buffer singleton | [[Debug Logger]] |
+| `services/repo_events.go` | RepoEventBus — In-process repository mutation events | [[ConflictQueueService]] |
+| `services/conflict_queue_classifier.go` | Conflict classification (kind, file kind, eligibility) | [[ConflictQueueService]] |
 | `services/local_bin_paths.go` | Platform-specific portable tool storage paths | — |
 | `services/sysproc_windows.go` | Windows: hides console windows | — |
 | `services/sysproc_unix.go` | Unix: process group attributes | — |

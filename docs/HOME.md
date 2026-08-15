@@ -27,7 +27,7 @@ ControlZebra is a simplified desktop Git client for **non-technical users** in i
 - [[Viewer System]] — Pluggable file viewer & diff viewer registry
 
 ### 🔧 Technical — Backend Services
-- [[Services Index]] — All 13 registered services at a glance
+- [[Services Index]] — All 14 registered services at a glance
 - [[GitService]] — Core git operations (115+ methods)
 - [[LFSService]] — Git Large File Storage
 - [[GitHubService]] — GitHub CLI wrapper & device-flow auth
@@ -35,6 +35,7 @@ ControlZebra is a simplified desktop Git client for **non-technical users** in i
 - [[SettingsService]] — App settings & git identity
 - [[ProgressService]] — Git operation progress streaming
 - [[FileWatcherService]] — Filesystem monitoring
+- [[ConflictQueueService]] — Queue of files still needing a conflict decision
 - [[FileSystemService]] — File operations & directory listing
 - [[Other Services#ImageDiffService|ImageDiffService]] — Pixel-level image comparison
 - [[Other Services#AuthService|AuthService]] — Supabase session keychain persistence
