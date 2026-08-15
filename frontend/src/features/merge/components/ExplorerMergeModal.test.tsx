@@ -35,7 +35,7 @@ function createControllerValue(overrides: Record<string, unknown> = {}) {
     isResolvingConflict: false,
     conflictSidesInfo: null,
     loadConflictResolutionData: vi.fn().mockResolvedValue(null),
-    resolveConflictWithContent: vi.fn().mockResolvedValue(false),
+    resolveConflictWithDecisions: vi.fn().mockResolvedValue(false),
     isSquashMerge: true,
     setIsSquashMerge: vi.fn(),
     currentBranch: 'feature/tank-logic',
@@ -310,7 +310,7 @@ describe('ExplorerMergeModal', () => {
     expect(openInDefaultApp).not.toHaveBeenCalled();
   });
 
-  it('loads an eligible text conflict, previews a choice, and applies the composed file', async () => {
+  it('loads an eligible text conflict and sends the decisions to the service', async () => {
     const loadConflictResolutionData = vi.fn().mockResolvedValue({
       success: true,
       path: 'notes/process.txt',
@@ -319,24 +319,21 @@ describe('ExplorerMergeModal', () => {
       base: { present: true },
       current: { present: true },
       incoming: { present: true },
-      segments: [
-        { kind: 'context', text: 'before\n' },
+      regions: [
         {
-          kind: 'conflict',
-          conflict: {
-            id: 'region-1',
-            current: ['current value'],
-            base: ['old value'],
-            incoming: ['incoming value'],
-          },
+          id: 'region-1',
+          current: ['current value'],
+          base: ['old value'],
+          incoming: ['incoming value'],
+          contextBefore: 'before\n',
+          contextAfter: 'after\n',
         },
-        { kind: 'context', text: 'after\n' },
       ],
       resolutionToken: 'token-1',
       newline: '\n',
       hasFinalNewline: true,
     });
-    const resolveConflictWithContent = vi.fn().mockResolvedValue(true);
+    const resolveConflictWithDecisions = vi.fn().mockResolvedValue(true);
 
     useMergeFlowControllerMock.mockReturnValue(createControllerValue({
       conflictedFiles: [{ path: 'notes/process.txt', status: 'both-modified' }],
@@ -353,7 +350,7 @@ describe('ExplorerMergeModal', () => {
         liveMergePhase: 'resolving',
       },
       loadConflictResolutionData,
-      resolveConflictWithContent,
+      resolveConflictWithDecisions,
     }));
 
     render(<ExplorerMergeModal open onOpenChange={vi.fn()} />);
@@ -363,14 +360,15 @@ describe('ExplorerMergeModal', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Use Incoming/ }));
 
-    expect(screen.getByLabelText('Resolved file preview')).toHaveTextContent('before incoming value after');
+    expect(screen.queryByLabelText('Resolved file preview')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Context before conflict')).toHaveTextContent('before');
     fireEvent.click(screen.getByRole('button', { name: 'Resolve File' }));
 
     await waitFor(() => {
-      expect(resolveConflictWithContent).toHaveBeenCalledWith(
+      expect(resolveConflictWithDecisions).toHaveBeenCalledWith(
         'notes/process.txt',
         'token-1',
-        'before\nincoming value\nafter\n',
+        { 'region-1': { mode: 'block', side: 'incoming' } },
       );
     });
   });
@@ -388,15 +386,14 @@ describe('ExplorerMergeModal', () => {
       base: { present: true },
       current: { present: true },
       incoming: { present: true },
-      segments: [
+      regions: [
         {
-          kind: 'conflict',
-          conflict: {
-            id: `region-${path}`,
-            current: [`current ${path}`],
-            base: [`old ${path}`],
-            incoming: [`incoming ${path}`],
-          },
+          id: `region-${path}`,
+          current: [`current ${path}`],
+          base: [`old ${path}`],
+          incoming: [`incoming ${path}`],
+          contextBefore: '',
+          contextAfter: '',
         },
       ],
       resolutionToken: `token-${path}`,

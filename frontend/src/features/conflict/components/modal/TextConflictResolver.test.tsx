@@ -3,11 +3,23 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
+  ConflictRegion,
   ConflictRegionDecision,
   ConflictResolutionData,
   TextConflictDraft,
 } from '../../types';
 import TextConflictResolver from './TextConflictResolver';
+
+function region(partial: Partial<ConflictRegion> & { id: string }): ConflictRegion {
+  return {
+    current: [],
+    base: [],
+    incoming: [],
+    contextBefore: '',
+    contextAfter: '',
+    ...partial,
+  };
+}
 
 const data: ConflictResolutionData = {
   success: true,
@@ -17,18 +29,15 @@ const data: ConflictResolutionData = {
   base: { present: true },
   current: { present: true },
   incoming: { present: true },
-  segments: [
-    { kind: 'context', text: 'header\n' },
-    {
-      kind: 'conflict',
-      conflict: {
-        id: 'region-1',
-        current: ['current setting'],
-        base: ['old setting'],
-        incoming: ['incoming setting'],
-      },
-    },
-    { kind: 'context', text: 'footer\n' },
+  regions: [
+    region({
+      id: 'region-1',
+      current: ['current setting'],
+      base: ['old setting'],
+      incoming: ['incoming setting'],
+      contextBefore: 'header\n',
+      contextAfter: 'footer\n',
+    }),
   ],
   resolutionToken: 'token-1',
   newline: '\n',
@@ -36,7 +45,7 @@ const data: ConflictResolutionData = {
 };
 
 function ResolverHarness({ onApply, applyError, resolutionData = data }: {
-  onApply: (content: string) => void;
+  onApply: () => void;
   applyError?: string;
   resolutionData?: ConflictResolutionData;
 }): JSX.Element {
@@ -44,11 +53,10 @@ function ResolverHarness({ onApply, applyError, resolutionData = data }: {
     path: resolutionData.path,
     resolutionToken: resolutionData.resolutionToken || '',
     decisions: Object.fromEntries(
-      resolutionData.segments.flatMap((segment) => (
-        segment.kind === 'conflict'
-          ? [[segment.conflict.id, { mode: 'unresolved' } satisfies ConflictRegionDecision]]
-          : []
-      )),
+      resolutionData.regions.map((conflictRegion) => [
+        conflictRegion.id,
+        { mode: 'unresolved' } satisfies ConflictRegionDecision,
+      ]),
     ),
   });
 
@@ -72,21 +80,29 @@ function ResolverHarness({ onApply, applyError, resolutionData = data }: {
 }
 
 describe('TextConflictResolver', () => {
-  it('keeps Resolve File disabled until a choice produces a complete preview', () => {
+  it('keeps Resolve File disabled until every conflict has a choice', () => {
     const onApply = vi.fn();
     render(<ResolverHarness onApply={onApply} />);
 
     const resolveButton = screen.getByRole('button', { name: 'Resolve File' });
     expect(resolveButton).toBeDisabled();
-    expect(screen.getByLabelText('Resolved file preview')).toHaveTextContent('Choose Current or Incoming');
+    expect(screen.getByText('0 of 1 decided')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Use Current/ }));
 
     expect(resolveButton).toBeEnabled();
-    expect(screen.getByLabelText('Resolved file preview')).toHaveTextContent('header current setting footer');
+    expect(screen.getByText('1 of 1 decided')).toBeInTheDocument();
 
     fireEvent.click(resolveButton);
-    expect(onApply).toHaveBeenCalledWith('header\ncurrent setting\nfooter\n');
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders only the trimmed context supplied for the active region', () => {
+    render(<ResolverHarness onApply={vi.fn()} />);
+
+    expect(screen.getByLabelText('Context before conflict')).toHaveTextContent('header');
+    expect(screen.getByLabelText('Context after conflict')).toHaveTextContent('footer');
+    expect(screen.queryByLabelText('Resolved file preview')).not.toBeInTheDocument();
   });
 
   it('shows an inline retry message without clearing the selected choice', () => {
@@ -107,28 +123,23 @@ describe('TextConflictResolver', () => {
   it('shows one conflict at a time and keeps decisions while navigating', () => {
     const resolutionData: ConflictResolutionData = {
       ...data,
-      segments: [
-        { kind: 'context', text: 'header\n' },
-        {
-          kind: 'conflict',
-          conflict: {
-            id: 'region-1',
-            current: ['current first'],
-            base: ['old first'],
-            incoming: ['incoming first'],
-          },
-        },
-        { kind: 'context', text: 'middle\n' },
-        {
-          kind: 'conflict',
-          conflict: {
-            id: 'region-2',
-            current: ['current second'],
-            base: ['old second'],
-            incoming: ['incoming second'],
-          },
-        },
-        { kind: 'context', text: 'footer\n' },
+      regions: [
+        region({
+          id: 'region-1',
+          current: ['current first'],
+          base: ['old first'],
+          incoming: ['incoming first'],
+          contextBefore: 'header\n',
+          contextAfter: 'middle\n',
+        }),
+        region({
+          id: 'region-2',
+          current: ['current second'],
+          base: ['old second'],
+          incoming: ['incoming second'],
+          contextBefore: 'middle\n',
+          contextAfter: 'footer\n',
+        }),
       ],
     };
 
@@ -153,16 +164,13 @@ describe('TextConflictResolver', () => {
   it('inherits a block choice in line mode and allows lines from both sides', () => {
     const resolutionData: ConflictResolutionData = {
       ...data,
-      segments: [
-        {
-          kind: 'conflict',
-          conflict: {
-            id: 'region-1',
-            current: ['current one', 'current two'],
-            base: ['old'],
-            incoming: ['incoming one', 'incoming two'],
-          },
-        },
+      regions: [
+        region({
+          id: 'region-1',
+          current: ['current one', 'current two'],
+          base: ['old'],
+          incoming: ['incoming one', 'incoming two'],
+        }),
       ],
       hasFinalNewline: false,
     };
@@ -186,7 +194,29 @@ describe('TextConflictResolver', () => {
     expect(screen.getByRole('checkbox', { name: /Incoming line 1/ })).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Resolve File' }));
-    expect(onApply).toHaveBeenCalledWith('current one\nincoming one');
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Resolve File disabled when a line choice selects nothing', () => {
+    const resolutionData: ConflictResolutionData = {
+      ...data,
+      regions: [
+        region({
+          id: 'region-1',
+          current: ['current one'],
+          base: [],
+          incoming: ['incoming one'],
+        }),
+      ],
+    };
+
+    render(<ResolverHarness onApply={vi.fn()} resolutionData={resolutionData} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Use Current/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose individual lines' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Current line 1/ }));
+
+    expect(screen.getByRole('button', { name: 'Resolve File' })).toBeDisabled();
   });
 
   it('requires confirmation before explicitly removing a conflict section', async () => {
@@ -205,22 +235,15 @@ describe('TextConflictResolver', () => {
     expect(screen.getByText('Section removed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resolve File' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: 'Resolve File' }));
-    expect(onApply).toHaveBeenCalledWith('header\nfooter\n');
+    expect(onApply).toHaveBeenCalledTimes(1);
   });
 
   it('fills every conflict from one side and confirms before replacing detailed choices', async () => {
     const resolutionData: ConflictResolutionData = {
       ...data,
-      segments: [
-        {
-          kind: 'conflict',
-          conflict: { id: 'region-1', current: ['current one'], base: [], incoming: ['incoming one'] },
-        },
-        { kind: 'context', text: 'middle\n' },
-        {
-          kind: 'conflict',
-          conflict: { id: 'region-2', current: ['current two'], base: [], incoming: ['incoming two'] },
-        },
+      regions: [
+        region({ id: 'region-1', current: ['current one'], incoming: ['incoming one'], contextAfter: 'middle\n' }),
+        region({ id: 'region-2', current: ['current two'], incoming: ['incoming two'], contextBefore: 'middle\n' }),
       ],
       hasFinalNewline: false,
     };
@@ -240,6 +263,6 @@ describe('TextConflictResolver', () => {
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     });
     fireEvent.click(screen.getByRole('button', { name: 'Resolve File' }));
-    expect(onApply).toHaveBeenCalledWith('incoming one\nmiddle\nincoming two');
+    expect(onApply).toHaveBeenCalledTimes(1);
   });
 });

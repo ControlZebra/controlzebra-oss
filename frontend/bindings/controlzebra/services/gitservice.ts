@@ -884,6 +884,17 @@ export function ResolveConflictWithContent(repoPath: string, filePath: string, r
 }
 
 /**
+ * ResolveConflictWithDecisions composes the resolved file from per-region choices.
+ * Composition happens here rather than in the UI so the frontend never needs the
+ * full file text, and the resolved document is never rebuilt on every render.
+ */
+export function ResolveConflictWithDecisions(repoPath: string, filePath: string, resolutionToken: string, decisions: $models.ConflictDecision[]): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3281313503, repoPath, filePath, resolutionToken, decisions).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * Restore reverts a file to its HEAD state, discarding working tree changes.
  * Does NOT affect staged changes - use Unstage first if needed.
  * Equivalent to: git restore <path> (Git 2.23+) or git checkout -- <path>

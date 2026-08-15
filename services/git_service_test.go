@@ -2457,14 +2457,11 @@ func TestConflictResolutionDataAndApply(t *testing.T) {
 	if !data.Base.Present || !data.Current.Present || !data.Incoming.Present {
 		t.Fatalf("expected all three conflict stages: %#v", data)
 	}
-	conflictCount := 0
-	for _, segment := range data.Segments {
-		if segment.Kind == "conflict" {
-			conflictCount++
-		}
+	if len(data.Regions) != 1 {
+		t.Fatalf("expected one true conflict region, got %d in %#v", len(data.Regions), data.Regions)
 	}
-	if conflictCount != 1 {
-		t.Fatalf("expected one true conflict region, got %d in %#v", conflictCount, data.Segments)
+	if data.Base.Content != "" || data.Current.Content != "" || data.Incoming.Content != "" {
+		t.Fatalf("expected blob contents to stay in the service, got %#v", data)
 	}
 	newBlob := exec.Command("git", "hash-object", "-w", "--stdin")
 	newBlob.Dir = repoPath
@@ -2552,9 +2549,9 @@ func TestConflictResolutionDataPreservesTextFormatMetadata(t *testing.T) {
 			if data.Newline != test.newline || data.HasFinalNewline != test.hasFinalNewline {
 				t.Fatalf("unexpected format metadata: newline=%q final=%v", data.Newline, data.HasFinalNewline)
 			}
-			hasBOM := len(data.Segments) > 0 && data.Segments[0].Kind == "context" && strings.HasPrefix(data.Segments[0].Text, "\ufeff")
+			hasBOM := len(data.Regions) > 0 && strings.HasPrefix(data.Regions[0].ContextBefore, "\ufeff")
 			if hasBOM != test.hasBOM {
-				t.Fatalf("unexpected BOM preservation: got %v in %#v", hasBOM, data.Segments)
+				t.Fatalf("unexpected BOM preservation: got %v in %#v", hasBOM, data.Regions)
 			}
 		})
 	}
@@ -2645,14 +2642,8 @@ func TestConflictResolutionDataReturnsMultipleTrueRegions(t *testing.T) {
 	if !data.Success || !data.Eligible {
 		t.Fatalf("expected eligible multi-region data, got success=%v eligible=%v reason=%q error=%q", data.Success, data.Eligible, data.IneligibleReason, data.Error)
 	}
-	regionCount := 0
-	for _, segment := range data.Segments {
-		if segment.Kind == "conflict" {
-			regionCount++
-		}
-	}
-	if regionCount != 2 {
-		t.Fatalf("expected two conflict regions, got %d in %#v", regionCount, data.Segments)
+	if len(data.Regions) != 2 {
+		t.Fatalf("expected two conflict regions, got %d in %#v", len(data.Regions), data.Regions)
 	}
 }
 
@@ -2686,13 +2677,12 @@ func TestParseConflictSegmentsIsStrictAboutGeneratedMarkers(t *testing.T) {
 func TestGenerateConflictSegmentsRejectsLabelCollision(t *testing.T) {
 	token := strings.Repeat("a", 64)
 	label := "CONTROLZEBRA_CURRENT_" + token[:16]
-	data := ConflictResolutionData{
-		ResolutionToken: token,
-		Base:            ConflictBlob{Present: true, Content: "base\n"},
-		Current:         ConflictBlob{Present: true, Content: label + "\ncurrent\n"},
-		Incoming:        ConflictBlob{Present: true, Content: "incoming\n"},
+	blobs := conflictBlobSet{
+		base:     ConflictBlob{Present: true, Content: "base\n"},
+		current:  ConflictBlob{Present: true, Content: label + "\ncurrent\n"},
+		incoming: ConflictBlob{Present: true, Content: "incoming\n"},
 	}
-	if _, _, err := NewGitService().generateConflictSegments(t.TempDir(), data); err == nil || !strings.Contains(err.Error(), "collision") {
+	if _, _, err := NewGitService().generateConflictSegments(t.TempDir(), token, blobs); err == nil || !strings.Contains(err.Error(), "collision") {
 		t.Fatalf("expected marker label collision rejection, got %v", err)
 	}
 }

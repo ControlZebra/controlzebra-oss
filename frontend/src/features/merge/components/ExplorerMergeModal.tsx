@@ -217,11 +217,7 @@ function createTextConflictDraft(data: ConflictResolutionData): TextConflictDraf
     path: data.path,
     resolutionToken: data.resolutionToken,
     decisions: Object.fromEntries(
-      data.segments.flatMap((segment) => (
-        segment.kind === 'conflict'
-          ? [[segment.conflict.id, { mode: 'unresolved' } satisfies ConflictRegionDecision]]
-          : []
-      )),
+      data.regions.map((region) => [region.id, { mode: 'unresolved' } satisfies ConflictRegionDecision]),
     ),
   };
 }
@@ -239,7 +235,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     fileResolutions,
     isResolvingConflict,
     loadConflictResolutionData,
-    resolveConflictWithContent,
+    resolveConflictWithDecisions,
     isSquashMerge,
     currentBranch,
     availableBranches,
@@ -468,7 +464,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     setResolutionApplyErrors((current) => ({ ...current, [selectedConflictFile]: '' }));
   }, [selectedConflictFile]);
 
-  const handleResolveWithContent = useCallback(async (content: string): Promise<void> => {
+  const handleResolveWithDecisions = useCallback(async (): Promise<void> => {
     if (!selectedConflictFile) {
       return;
     }
@@ -480,7 +476,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     }
 
     setResolutionApplyErrors((current) => ({ ...current, [filePath]: '' }));
-    const success = await resolveConflictWithContent(filePath, draft.resolutionToken, content);
+    const success = await resolveConflictWithDecisions(filePath, draft.resolutionToken, draft.decisions);
 
     if (!success) {
       setResolutionApplyErrors((current) => ({
@@ -508,7 +504,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
     setSelectedConflictFile(null);
   }, [
     conflictDrafts,
-    resolveConflictWithContent,
+    resolveConflictWithDecisions,
     selectedConflictFile,
     setSelectedConflictFile,
   ]);
@@ -1199,7 +1195,7 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
                   ? resolutionApplyErrors[selectedConflictFile]
                   : undefined}
                 onConflictDecision={handleConflictDecision}
-                onResolveWithContent={handleResolveWithContent}
+                onResolveWithDecisions={handleResolveWithDecisions}
               />
             )}
 

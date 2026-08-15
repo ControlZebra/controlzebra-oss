@@ -35,7 +35,7 @@ interface ConflictResolverPaneProps {
   applyError?: string;
   disabled: boolean;
   onDecision: (regionId: string, decision: ConflictRegionDecision) => void;
-  onApply: (content: string) => void | Promise<void>;
+  onApply: () => void | Promise<void>;
   onResolveWholeFile: (strategy: ResolutionStrategy) => void | Promise<void>;
 }
 

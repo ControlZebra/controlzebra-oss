@@ -1,8 +1,7 @@
 import type {
   ConflictBlob as GeneratedConflictBlob,
-  ConflictRegion as GeneratedConflictRegion,
+  ConflictRegionView as GeneratedConflictRegionView,
   ConflictResolutionData as GeneratedConflictResolutionData,
-  ConflictSegment as GeneratedConflictSegment,
 } from '../../../bindings/controlzebra/services/models';
 
 export type ConflictFileStatus =
@@ -24,11 +23,11 @@ export type ConflictIneligibleReason =
   | 'conflict-generation-failed'
   | 'output-too-large';
 
+/** Stage metadata only. Blob contents stay in the Go service. */
 export interface ConflictBlob {
   present: boolean;
   oid?: string;
   mode?: string;
-  content?: string;
 }
 
 export interface ConflictRegion {
@@ -36,11 +35,9 @@ export interface ConflictRegion {
   current: string[];
   base: string[];
   incoming: string[];
+  contextBefore: string;
+  contextAfter: string;
 }
-
-export type ConflictSegment =
-  | { kind: 'context'; text: string }
-  | { kind: 'conflict'; conflict: ConflictRegion };
 
 export type ConflictSide = 'current' | 'incoming';
 
@@ -70,7 +67,7 @@ export interface ConflictResolutionData {
   base: ConflictBlob;
   current: ConflictBlob;
   incoming: ConflictBlob;
-  segments: ConflictSegment[];
+  regions: ConflictRegion[];
   resolutionToken?: string;
   newline?: string;
   hasFinalNewline: boolean;
@@ -81,29 +78,16 @@ const mapConflictBlob = (blob: GeneratedConflictBlob): ConflictBlob => ({
   present: blob.present,
   oid: blob.oid,
   mode: blob.mode,
-  content: blob.content,
 });
 
-const mapConflictRegion = (region: GeneratedConflictRegion): ConflictRegion => ({
+const mapConflictRegion = (region: GeneratedConflictRegionView): ConflictRegion => ({
   id: region.id,
   current: [...region.current],
   base: [...(region.base ?? [])],
   incoming: [...region.incoming],
+  contextBefore: region.contextBefore ?? '',
+  contextAfter: region.contextAfter ?? '',
 });
-
-const mapConflictSegment = (segment: GeneratedConflictSegment): ConflictSegment => {
-  if (segment.kind === 'conflict' && segment.conflict) {
-    return {
-      kind: 'conflict',
-      conflict: mapConflictRegion(segment.conflict),
-    };
-  }
-
-  return {
-    kind: 'context',
-    text: segment.text ?? '',
-  };
-};
 
 export const mapConflictResolutionData = (
   data: GeneratedConflictResolutionData,
@@ -116,9 +100,67 @@ export const mapConflictResolutionData = (
   base: mapConflictBlob(data.base),
   current: mapConflictBlob(data.current),
   incoming: mapConflictBlob(data.incoming),
-  segments: (data.segments ?? []).map(mapConflictSegment),
+  regions: (data.regions ?? []).map(mapConflictRegion),
   resolutionToken: data.resolutionToken,
   newline: data.newline,
   hasFinalNewline: data.hasFinalNewline,
   error: data.error,
 });
+
+/**
+ * Serializes draft decisions for the Go composer. Regions left unresolved are
+ * omitted so the service reports them as undecided.
+ */
+export const toConflictDecisionPayload = (
+  decisions: Record<string, ConflictRegionDecision>,
+): Array<{
+  regionId: string;
+  mode: string;
+  side?: string;
+  currentLines?: boolean[];
+  incomingLines?: boolean[];
+}> => Object.entries(decisions).flatMap(([regionId, decision]) => {
+  switch (decision.mode) {
+    case 'block':
+      return [{ regionId, mode: 'block', side: decision.side }];
+    case 'lines':
+      return [{
+        regionId,
+        mode: 'lines',
+        currentLines: [...decision.lines.current],
+        incomingLines: [...decision.lines.incoming],
+      }];
+    case 'remove':
+      return [{ regionId, mode: 'remove' }];
+    default:
+      return [];
+  }
+});
+
+/** True when every region has a usable choice, without composing the file. */
+export const areConflictDecisionsComplete = (
+  regions: ConflictRegion[],
+  decisions: Record<string, ConflictRegionDecision>,
+): boolean => regions.every((region) => isDecisionUsable(region, decisions[region.id]));
+
+export const isDecisionUsable = (
+  region: ConflictRegion,
+  decision?: ConflictRegionDecision,
+): boolean => {
+  if (!decision) {
+    return false;
+  }
+
+  switch (decision.mode) {
+    case 'block':
+      return decision.side === 'current' || decision.side === 'incoming';
+    case 'lines':
+      return decision.lines.current.length === region.current.length
+        && decision.lines.incoming.length === region.incoming.length
+        && (decision.lines.current.some(Boolean) || decision.lines.incoming.some(Boolean));
+    case 'remove':
+      return true;
+    default:
+      return false;
+  }
+};
