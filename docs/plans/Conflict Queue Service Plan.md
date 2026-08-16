@@ -4,11 +4,18 @@
 
 ## Status
 
-Implemented 2026-08-15. See [[ConflictQueueService]] for the shipped contract.
+Implemented 2026-08-15. See [[ConflictQueueService]] for the shipped contract,
+which is authoritative where this plan and the code disagree.
 
 All four phases are complete: the event bus, the classifier, the queue service,
 and the wiring plus documentation. The frontend queue UI described in
-[[Merge and Conflict Workflow Separation Plan]] is not part of this work.
+[[Merge and Conflict Workflow Separation Plan]] is not part of this work; the
+sidebar that consumes this service shipped separately under
+[[Conflict Queue Sidebar Plan]].
+
+This document has been reconciled with the code as of 2026-08-16. Where the
+implementation went beyond the approved design, the change is called out in
+[[#Deviations from the original design]].
 
 Scope is **backend only**. This plan does not modify the existing conflict
 resolution workflow (`services/git_conflict_resolution.go` and its
@@ -37,11 +44,11 @@ The result is that "what still needs a decision?" has no single owner.
 | Decision | Direction |
 | --- | --- |
 | Shape | Stateful `ConflictQueueService`, single source of truth, pushes updates. |
-| Refresh trigger | Explicit invalidation only. No fsnotify, no polling. |
-| Invalidation source | Small internal event bus: `GitService` publishes "repo mutated"; the queue subscribes. |
+| Refresh trigger | Explicit invalidation only. No polling. |
+| Invalidation source | Small internal event bus. `GitService`, `ProgressService`, and `FileWatcherService` publish "repo mutated"; the queue subscribes. |
 | Per-entry analysis | Classification only: conflict type, file kind, eligibility, reason, size. No segment parsing. |
 | Repository scope | One queue for the currently open repository. Reset on repository change. |
-| Session memory | None. The queue is a pure mirror of git's unmerged set. |
+| Session memory | None. The queue is a mirror of git's unmerged set, plus the predicted set when nothing is unmerged. |
 | Event payload | Full snapshot plus a generation counter. No deltas. |
 | Ordering | Alphabetical by repository-relative path. |
 | Failure behavior | Keep the last good snapshot and attach an error to the pushed state. |
@@ -52,15 +59,22 @@ The result is that "what still needs a decision?" has no single owner.
 ## Architecture
 
 ```text
-GitService (merge, pull, cherry-pick, revert, rebase, stash, abort, continue)
-  -> publishes RepoMutated{repoPath} on the internal event bus
-       -> ConflictQueueService.invalidate()
-            -> debounce ~150ms, coalesce
+GitService / ProgressService (merge, pull, cherry-pick, revert, stash, commit,
+  checkout, abort, continue) and FileWatcherService (working-tree edits)
+  -> publish RepoMutated{repoPath, reason} on the internal event bus
+       -> ConflictQueueService.scheduleScan(reason)
+            -> debounce 150ms, coalesce, one scan at a time
                  -> rescan: git ls-files -u  ->  classify each entry
+                      -> if nothing unmerged and reason != working-tree:
+                           git merge-tree --write-tree  ->  predicted entries
                       -> new snapshot (generation++)
                            -> Wails event "conflictQueue:changed" (full snapshot)
                                 -> frontend renders the queue
 ```
+
+Background rescans emit only when the classified set, target branch, or error
+actually changed, so a busy file watcher does not churn the UI. Scans requested
+directly through `SetRepository` or `Refresh` always emit.
 
 The frontend may also call `GetConflictQueue()` directly for the initial paint
 or after a reload; it returns the current snapshot without forcing a rescan.
@@ -70,6 +84,8 @@ or after a reload; it returns the current snapshot without forcing a rescan.
 | Concern | Owner |
 | --- | --- |
 | Which files are conflicted | `ConflictQueueService` |
+| Which files a pending merge will conflict on | `ConflictQueueService` |
+| Which branch that merge targets | `GitService`, via the `conflictQueueMergeTarget` seam |
 | What kind of conflict each file has | `ConflictQueueService` |
 | Whether a file is resolvable in-app | `ConflictQueueService` (classification) |
 | How a file is resolved | Existing resolution workflow (untouched) |
@@ -87,8 +103,11 @@ type ConflictFileKind string // text, l5x, image, binary, submodule, symlink, un
 
 type ConflictEligibility string // eligible, ineligible
 
+type ConflictState string // active, predicted
+
 type ConflictQueueEntry struct {
     Path            string              `json:"path"`
+    State           ConflictState       `json:"state"`
     Kind            ConflictKind        `json:"kind"`
     FileKind        ConflictFileKind    `json:"fileKind"`
     Eligibility     ConflictEligibility `json:"eligibility"`
@@ -100,13 +119,18 @@ type ConflictQueueEntry struct {
 }
 
 type ConflictQueueSnapshot struct {
-    RepoPath   string               `json:"repoPath"`
-    Generation uint64               `json:"generation"`
-    Entries    []ConflictQueueEntry `json:"entries"`
-    ScannedAt  time.Time            `json:"scannedAt"`
-    Error      string               `json:"error,omitempty"`
+    RepoPath     string               `json:"repoPath"`
+    Generation   uint64               `json:"generation"`
+    Entries      []ConflictQueueEntry `json:"entries"`
+    TargetBranch string               `json:"targetBranch,omitempty"`
+    ScannedAt    int64                `json:"scannedAt"`
+    Error        string               `json:"error,omitempty"`
 }
 ```
+
+`ScannedAt` is Unix milliseconds rather than `time.Time`, so the generated
+TypeScript binding is a plain number. `TargetBranch` is set only for predicted
+snapshots; it is empty when the entries are active conflicts.
 
 Bound methods exposed to the frontend:
 
@@ -114,18 +138,25 @@ Bound methods exposed to the frontend:
   repository, clear prior state, scan once.
 - `GetConflictQueue() ConflictQueueSnapshot` — current snapshot, no rescan.
 - `Refresh() ConflictQueueSnapshot` — force an immediate coalesced rescan.
-- `ClearRepository()` — unbind, emit an empty snapshot.
+- `ClearRepository() ConflictQueueSnapshot` — unbind, emit and return an empty
+  snapshot.
+
+Non-bound wiring methods: `SetApp`, `AttachToBus`, `DetachFromBus`.
 
 Emitted event: `conflictQueue:changed` with a `ConflictQueueSnapshot` payload.
 
 ### Invariants
 
-1. An entry exists if and only if git reports the path as unmerged at scan time.
+1. An `active` entry exists if and only if git reports the path as unmerged at
+   scan time. A snapshot is either entirely active or entirely predicted;
+   prediction runs only when the unmerged set is empty.
 2. `Generation` increases strictly on every emitted snapshot.
 3. A snapshot with a non-empty `Error` carries the last good `Entries`, and its
    `ScannedAt` is the timestamp of that last good scan.
 4. Entries are sorted by `Path` with a stable, byte-wise comparison.
 5. No caller outside the service can mutate a snapshot; snapshots are copied out.
+6. A scan whose repository changed while it was running is discarded rather
+   than applied to the new repository.
 
 ## Classification Rules
 
@@ -140,17 +171,36 @@ porcelain status, because it gives modes, blob IDs, and stage presence directly.
 - **Eligibility** is `ineligible` with a reason for: submodules, symlinks, any
   blob over the size limit, non-UTF-8 text, and binary kinds without a dedicated
   viewer. Everything else is `eligible`.
-- Classification reads blob metadata by default and only reads content up to a
-  fixed sniff limit, so a rescan cost stays proportional to the number of
-  conflicted files, not repository size.
+- Classification reads blob metadata by default and only reads content up to an
+  8 KB sniff limit, so a rescan cost stays proportional to the number of
+  conflicted files, not repository size. The size limit for eligibility is
+  50 MB.
+
+### Prediction
+
+When the index holds nothing unmerged, the queue runs
+`git merge-tree --write-tree -z <targetRef> HEAD` — the same simulation the
+guided merge preflight uses — and classifies whatever that merge would leave
+unmerged, tagging each entry `predicted`. Exit code 1 means conflicts; any
+other non-zero exit is a scan error.
+
+Prediction is skipped when the triggering reason is `working-tree`, because the
+simulation compares commits and a working-tree edit cannot change its answer.
+It is also skipped when no merge target can be resolved.
 
 ## Implementation Phases
 
 ### Phase 0 — Event bus
 
 Add a minimal in-process publish/subscribe type in `services` with a single
-`RepoMutated{RepoPath}` message. Synchronous fan-out to non-blocking
-subscribers. No external dependency.
+`RepoMutated{RepoPath, Reason}` message. Synchronous fan-out to non-blocking
+subscribers, with panics contained so one subscriber cannot break delivery to
+the others. No external dependency.
+
+`Reason` is a `RepoMutationReason`: `merge`, `pull`, `cherry-pick`, `revert`,
+`rebase`, `stash`, `abort`, `continue`, `commit`, `checkout`, `working-tree`,
+or `other`. It exists so subscribers can skip commit-level work for a change
+that only touched files on disk.
 
 Deliverables: `services/repo_events.go`, `services/repo_events_test.go`.
 
@@ -173,7 +223,7 @@ Deliverables: `services/conflict_queue_service.go` and its test file.
 ### Phase 3 — Wiring
 
 Register the service in `main.go`, publish `RepoMutated` from the
-conflict-producing `GitService` operations, and subscribe the queue.
+conflict-producing operations, and subscribe the queue.
 
 The resolution workflow is not touched. Because it is scheduled for
 deprecation, it does not publish mutations, so the frontend must call
@@ -181,14 +231,33 @@ deprecation, it does not publish mutations, so the frontend must call
 pull, sync, cherry-pick, revert, stash, checkout, commit, reset, discard,
 abort, continue, and skip — updates the queue on its own.
 
-Deliverables: `main.go` wiring, deferred publish calls on 32 `GitService`
-operations, and an integration test running the real bus, `GitService`, and
-queue against a conflicted repository.
+Deliverables: `main.go` wiring (bus construction, `SetRepoEventBus` on
+`GitService`, `ProgressService`, and `FileWatcherService`, `AttachToBus` and
+`SetApp` on the queue, service registration), deferred publish calls on 32
+`GitService` operations plus 2 `ProgressService` operations and the file
+watcher's debounced emit, and an integration test running the real bus,
+`GitService`, and queue against a conflicted repository.
 
 ### Phase 4 — Documentation
 
-Add `docs/technical/backend/services/ConflictQueueService.md` and register the
-`conflictQueue:changed` event in the events reference.
+Add `docs/technical/backend/services/ConflictQueueService.md`, list the service
+in `docs/technical/backend/Services Index.md`, and register the
+`conflictQueue:changed` event in `docs/technical/reference/Event Reference.md`.
+
+## Deviations from the original design
+
+These shipped differently from the approved design above and are recorded here
+so the delta is explicit rather than discovered.
+
+| Area | Approved | Shipped | Why |
+| --- | --- | --- | --- |
+| Scope of the queue | Active conflicts only | Also predicts the next merge's conflicts when nothing is unmerged | The user needs to see a clash before starting the merge, not only mid-merge |
+| Snapshot shape | No branch context | Added `TargetBranch`; entries carry `State` | The UI must say which merge predicted entries belong to |
+| `ScannedAt` | `time.Time` | Unix milliseconds (`int64`) | Cleaner generated TypeScript binding |
+| Invalidation | "No fsnotify" | `FileWatcherService` publishes `working-tree` mutations | The queue would otherwise go stale on manual edits; the reason tag keeps the cost down by skipping prediction |
+| Bus message | `RepoMutated{RepoPath}` | Added `Reason` | Lets subscribers skip work that a given mutation cannot affect |
+| Emission | Emit on every scan | Background scans emit only on a real change | Prevents watcher-driven churn in the UI |
+| Publishers | `GitService` only | Also `ProgressService` and `FileWatcherService` | Progress-wrapped pull/sync bypass the plain `GitService` paths |
 
 ## Testing Strategy
 
@@ -203,13 +272,18 @@ Add `docs/technical/backend/services/ConflictQueueService.md` and register the
   The generation never resets, per Invariant 2, so the frontend can always treat
   a lower generation as stale.
 - Ordering test: entries sorted alphabetically regardless of git output order.
+- Prediction tests: a repository with no unmerged files but a conflicting target
+  branch yields `predicted` entries and a `TargetBranch`; a `working-tree`
+  mutation skips prediction entirely.
+- Emission test: a background scan that classifies an identical set emits
+  nothing, while `Refresh` always emits.
 
 ## Non-Goals
 
 - Changing, wrapping, or refactoring the existing conflict resolution workflow.
 - Parsing conflict regions or precomputing auto-resolvable hunks.
 - Persisting the queue across restarts.
-- Multi-repository queues, filesystem watching, and background polling. The API
-  is shaped so these can be added later without a breaking change.
+- Multi-repository queues and background polling. The API is shaped so these
+  can be added later without a breaking change.
 
 **Related:** [[Merge and Conflict Workflow Separation Plan]] | [[Text and Ladder Conflict Resolution Plan]] | [[GitService]]

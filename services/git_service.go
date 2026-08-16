@@ -3341,24 +3341,42 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 	done := LogMethod("GitService.GetMergeState", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 	state := MergeState{}
-	gitDir := filepath.Join(repoPath, ".git")
 
-	// Check for merge in progress (.git/MERGE_HEAD)
-	mergePath := filepath.Join(gitDir, "MERGE_HEAD")
+	// Ask git where its administrative files are. A linked worktree keeps
+	// per-worktree state outside <repo>/.git, so joining ".git" is wrong there.
+	// One rev-parse call resolves every name, in order.
+	adminNames := []string{
+		"MERGE_HEAD", "MERGE_MSG", "SQUASH_MSG",
+		"rebase-merge", "rebase-apply", "rebase-apply/applying",
+		"CHERRY_PICK_HEAD", "REVERT_HEAD",
+		"BISECT_LOG", "BISECT_START", "HEAD",
+		"index.lock", "HEAD.lock", "config.lock",
+	}
+	resolved, err := gitAdminPaths(g.runner, repoPath, adminNames...)
+	if err != nil {
+		return state
+	}
+	gitPaths := make(map[string]string, len(adminNames))
+	for i, name := range adminNames {
+		gitPaths[name] = resolved[i]
+	}
+
+	// Check for merge in progress (MERGE_HEAD)
+	mergePath := gitPaths["MERGE_HEAD"]
 	if _, err := os.Stat(mergePath); err == nil {
 		state.InMerge = true
 		state.StuckType = "merge"
 		state.UserMessage = "A merge operation was interrupted. Resolve conflicts or abort to continue."
 		// Try to read the merge message
-		msgPath := filepath.Join(gitDir, "MERGE_MSG")
+		msgPath := gitPaths["MERGE_MSG"]
 		if msgData, err := os.ReadFile(msgPath); err == nil {
 			state.Message = strings.TrimSpace(string(msgData))
 		}
 	}
 
-	// Check for squash merge in progress (.git/SQUASH_MSG)
+	// Check for squash merge in progress (SQUASH_MSG)
 	// git merge --squash does NOT create MERGE_HEAD, so we detect it separately.
-	squashMsgPath := filepath.Join(gitDir, "SQUASH_MSG")
+	squashMsgPath := gitPaths["SQUASH_MSG"]
 	if _, err := os.Stat(squashMsgPath); err == nil {
 		state.InSquashMerge = true
 		if state.StuckType == "" {
@@ -3373,10 +3391,10 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for rebase in progress (.git/rebase-merge or .git/rebase-apply)
+	// Check for rebase in progress (rebase-merge or rebase-apply)
 	// Note: Rebase workflow is deprecated - we only detect it to help users abort
-	rebasePath := filepath.Join(gitDir, "rebase-merge")
-	rebaseApplyPath := filepath.Join(gitDir, "rebase-apply")
+	rebasePath := gitPaths["rebase-merge"]
+	rebaseApplyPath := gitPaths["rebase-apply"]
 	if _, err := os.Stat(rebasePath); err == nil {
 		state.InRebase = true
 		if state.StuckType == "" {
@@ -3385,7 +3403,7 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	} else if _, err := os.Stat(rebaseApplyPath); err == nil {
 		// Check if it's actually an AM operation (patch application)
-		applyingPath := filepath.Join(rebaseApplyPath, "applying")
+		applyingPath := gitPaths["rebase-apply/applying"]
 		if _, err := os.Stat(applyingPath); err == nil {
 			state.InAM = true
 			if state.StuckType == "" {
@@ -3401,8 +3419,8 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for cherry-pick in progress (.git/CHERRY_PICK_HEAD)
-	cherryPickPath := filepath.Join(gitDir, "CHERRY_PICK_HEAD")
+	// Check for cherry-pick in progress (CHERRY_PICK_HEAD)
+	cherryPickPath := gitPaths["CHERRY_PICK_HEAD"]
 	if _, err := os.Stat(cherryPickPath); err == nil {
 		state.InCherryPick = true
 		if state.StuckType == "" {
@@ -3411,8 +3429,8 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for revert in progress (.git/REVERT_HEAD)
-	revertPath := filepath.Join(gitDir, "REVERT_HEAD")
+	// Check for revert in progress (REVERT_HEAD)
+	revertPath := gitPaths["REVERT_HEAD"]
 	if _, err := os.Stat(revertPath); err == nil {
 		state.InRevert = true
 		if state.StuckType == "" {
@@ -3421,9 +3439,9 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for bisect in progress (.git/BISECT_LOG or .git/BISECT_START)
-	bisectLogPath := filepath.Join(gitDir, "BISECT_LOG")
-	bisectStartPath := filepath.Join(gitDir, "BISECT_START")
+	// Check for bisect in progress (BISECT_LOG or BISECT_START)
+	bisectLogPath := gitPaths["BISECT_LOG"]
+	bisectStartPath := gitPaths["BISECT_START"]
 	if _, err := os.Stat(bisectLogPath); err == nil {
 		state.InBisect = true
 		if state.StuckType == "" {
@@ -3439,7 +3457,7 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 	}
 
 	// Check for detached HEAD state
-	headPath := filepath.Join(gitDir, "HEAD")
+	headPath := gitPaths["HEAD"]
 	if headData, err := os.ReadFile(headPath); err == nil {
 		headContent := strings.TrimSpace(string(headData))
 		// If HEAD contains a commit hash instead of "ref: refs/heads/..."
@@ -3453,12 +3471,11 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for stale lock files (.git/index.lock and others)
+	// Check for stale lock files (index.lock and others)
 	lockFiles := []string{}
 	potentialLocks := []string{"index.lock", "HEAD.lock", "config.lock"}
 	for _, lockFile := range potentialLocks {
-		lockPath := filepath.Join(gitDir, lockFile)
-		if _, err := os.Stat(lockPath); err == nil {
+		if _, err := os.Stat(gitPaths[lockFile]); err == nil {
 			lockFiles = append(lockFiles, lockFile)
 		}
 	}
@@ -4254,8 +4271,9 @@ func (g *GitService) AbortMerge(repoPath string) OperationResult {
 			return failedOp("Failed to abort squash merge: " + getErrorMessage(result))
 		}
 		// Clean up the SQUASH_MSG file that git reset --merge doesn't remove
-		squashMsgPath := filepath.Join(repoPath, ".git", "SQUASH_MSG")
-		os.Remove(squashMsgPath)
+		if squashMsgPath, err := gitAdminPath(g.runner, repoPath, "SQUASH_MSG"); err == nil {
+			os.Remove(squashMsgPath)
+		}
 		return successOp("Squash merge aborted")
 	}
 
@@ -4632,7 +4650,10 @@ func (g *GitService) GetBisectState(repoPath string) map[string]interface{} {
 	info["inBisect"] = true
 
 	// Read bisect log
-	bisectLogPath := filepath.Join(repoPath, ".git", "BISECT_LOG")
+	bisectLogPath, err := gitAdminPath(g.runner, repoPath, "BISECT_LOG")
+	if err != nil {
+		return info
+	}
 	if data, err := os.ReadFile(bisectLogPath); err == nil {
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines {
@@ -4765,7 +4786,10 @@ func (g *GitService) RemoveStaleLock(repoPath string, lockFile string, confirm b
 		return failedOp(fmt.Sprintf("Unknown lock file: %s", lockFile))
 	}
 
-	lockPath := filepath.Join(repoPath, ".git", lockFile)
+	lockPath, err := gitAdminPath(g.runner, repoPath, lockFile)
+	if err != nil {
+		return failedOp("Could not locate this project's internal files. Reopen the project and try again.")
+	}
 
 	// Check if lock file exists
 	if _, err := os.Stat(lockPath); os.IsNotExist(err) {
@@ -4795,9 +4819,13 @@ func (g *GitService) RemoveAllStaleLocks(repoPath string, confirm bool) Operatio
 	removed := []string{}
 	failed := []string{}
 
-	for _, lockFile := range state.LockFiles {
-		lockPath := filepath.Join(repoPath, ".git", lockFile)
-		if err := os.Remove(lockPath); err != nil {
+	lockPaths, err := gitAdminPaths(g.runner, repoPath, state.LockFiles...)
+	if err != nil {
+		return failedOp("Could not locate this project's internal files. Reopen the project and try again.")
+	}
+
+	for i, lockFile := range state.LockFiles {
+		if err := os.Remove(lockPaths[i]); err != nil {
 			failed = append(failed, lockFile)
 		} else {
 			removed = append(removed, lockFile)
@@ -5364,9 +5392,15 @@ type LockFileInfo struct {
 // This lock file is created by Git during operations and can be left behind if
 // a process crashes or is interrupted.
 func (g *GitService) CheckLockFile(repoPath string) LockFileInfo {
-	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+	lockPath, err := gitAdminPath(g.runner, repoPath, "index.lock")
+	if err != nil {
+		return LockFileInfo{
+			IndexLockExists: false,
+			Error:           "Failed to check lock file: " + err.Error(),
+		}
+	}
 
-	_, err := os.Stat(lockPath)
+	_, err = os.Stat(lockPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return LockFileInfo{
@@ -5400,10 +5434,13 @@ func (g *GitService) RemoveLockFile(repoPath string) OperationResult {
 		return failedOp("Not a valid git repository")
 	}
 
-	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+	lockPath, err := gitAdminPath(g.runner, repoPath, "index.lock")
+	if err != nil {
+		return failedOp("Failed to check lock file: " + err.Error())
+	}
 
 	// Check if lock file exists
-	_, err := os.Stat(lockPath)
+	_, err = os.Stat(lockPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return OperationResult{

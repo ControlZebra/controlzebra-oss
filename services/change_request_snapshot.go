@@ -9,10 +9,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -114,28 +112,15 @@ type ChangeRequestFileContentResult struct {
 // Per-repository serialization
 // ============================================================================
 
-// changeRequestRepoLocks serializes Change Request git work per repository.
+// lockChangeRequestRepo acquires the per-repository lock and returns its
+// release function.
 //
 // This lock lives in the backend on purpose. A React-side operation lock cannot
 // serialize against RepositorySettingsService, which runs auto-fetch, LFS fetch,
-// and maintenance from Go timers.
-var changeRequestRepoLocks sync.Map
-
-// lockChangeRequestRepo acquires the per-repository lock and returns its
-// release function.
+// and maintenance from Go timers. It delegates to the shared repository
+// coordinator so linked worktrees of one repository serialize together.
 func lockChangeRequestRepo(repoPath string) func() {
-	value, _ := changeRequestRepoLocks.LoadOrStore(changeRequestLockKey(repoPath), &sync.Mutex{})
-	mutex := value.(*sync.Mutex)
-	mutex.Lock()
-	return mutex.Unlock
-}
-
-func changeRequestLockKey(repoPath string) string {
-	cleaned := filepath.Clean(strings.TrimSpace(repoPath))
-	if runtime.GOOS == "windows" {
-		return strings.ToLower(cleaned)
-	}
-	return cleaned
+	return sharedRepositoryCoordinator.lockRepo(repoPath)
 }
 
 // ============================================================================
