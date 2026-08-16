@@ -27,7 +27,9 @@ rediscussion inside a phase.
 | Resolver UI | Reuse `frontend/src/features/conflict` components. Swap `repoPath` for `sessionId` in the data layer only. |
 | Windows verification | Manual verification checkpoints. No Windows CI in this plan. |
 | Scope | Regular and squash merge, one active session per Git common repository, saved revisions only. |
-| Apply primitive | `git merge --ff-only <resultOID>` run in the worktree that owns the destination. The result is always built on the captured destination revision, so the fast-forward updates ref, index, and files together and refuses on its own rather than overwriting local work. Proven in Phase 0. |
+| Apply primitive | Chosen from how the destination is being used, because no single command is correct for all three cases. Nothing has it checked out: `git update-ref <destinationRef> <resultOID> <destinationOID>`, a true compare-and-swap with no working files to disturb. The open project has it checked out: `git merge --ff-only <resultOID>`, which updates ref, index, and files together and refuses on its own rather than overwriting local work. Another linked worktree has it checked out: stop and report `blocked`. Proven in Phase 0 and Phase 2. |
+| Destination revision | The local `refs/heads/<branch>` only. Readiness does not fetch, so a destination that exists only on the remote is not yet a destination and readiness stays silent. Revisited in Phase 4. |
+| Branch after Finish | The user stays on the branch they were working on. Unlike `prepareMergeTargetBaseline`, Finish never checks out the destination. |
 | Result creation primitive | `git commit-tree`. It takes explicit parents, gives exact control over regular and squash topology, and cannot run repository hooks. Proven in Phase 0. |
 
 ## Product Decision
@@ -423,40 +425,58 @@ Goal: the backend can prepare and apply a result. No UI yet.
 
 ### Actions
 
-- [ ] Add `services/integration_session_service.go` with the service struct,
-      `NewIntegrationSessionService(git *GitService)`, and `SetApp`.
-- [ ] Register it in `main.go` next to `conflictQueueService` (currently lines 70
-      to 101 and 119): construct it, attach it to `repoEventBus`, add it to
-      `Services`, and call `SetApp` after `application.New`.
-- [ ] Capture the immutable tuple on session creation. Resolve the destination
-      with the existing `GitService.mergeTargetRef`
-      (`services/git_service.go:4964`). Do not add a new setting.
-- [ ] Implement preparation: create the detached worktree, run the mode-specific
-      merge with `--no-commit`, and classify the outcome.
-- [ ] Implement result creation with hooks disabled, writing the result to
+- [x] Add `services/integration_session_service.go` with the service struct,
+      `NewIntegrationSessionService(git *GitService)`, and `SetApp`. The
+      constructor takes the `integrationMergeTarget` seam rather than the
+      concrete type, matching `ConflictQueueService`, so the service is testable
+      without a live repository. The Phase 0 outcome strings moved here from
+      `integration_session_messages_test.go`, which kept its two rules as tests
+      against the production map.
+- [x] Register it in `main.go` next to `conflictQueueService`: construct it,
+      give it the `repoEventBus`, add it to `Services`, call `SetApp` after
+      `application.New`, and kick off `RecoverSessions` on a goroutine so an
+      unfinished review from a previous run is reconciled before the user can
+      act on it.
+- [x] Capture the immutable tuple on session creation. The destination comes
+      from `GitService.mergeTargetRef`, but only its branch name: that method
+      prefers the remote-tracking ref, and Finish can only update a local
+      branch. Readiness therefore captures `refs/heads/<branch>` and stays
+      silent when no local branch exists.
+- [x] Implement preparation: create the detached worktree, run the mode-specific
+      merge with `--no-commit`, and classify the outcome with the existing
+      `classifyConflictQueue`. Work already contained in the destination
+      short-circuits to `ready` with the destination as its own result, so a
+      no-op integration never creates an empty merge commit.
+- [x] Implement result creation with hooks disabled, writing the result to
       `refs/controlzebra/integration/<sessionID>`, mirroring the private
       namespace pattern of `changeRequestRefNamespace`.
-- [ ] Implement the ten-step Finish protocol using the sequence proven in
-      Phase 0. Reuse the prepared result. Never re-run the merge when a valid
-      result exists.
-- [ ] Implement `blocked` detection and its recovery path.
-- [ ] Implement session replacement: mark the old session obsolete before
+- [x] Implement the ten-step Finish protocol using the sequence proven in
+      Phase 0. The prepared result is reused; the merge is never re-run. Steps 2
+      and 5 both validate revisions on purpose: step 2 avoids taking the
+      coordinator pointlessly, step 5 closes the race once it is held.
+- [x] Implement `blocked` detection and its recovery path. A refusal keeps the
+      prepared result, so Finish can simply be chosen again once the user has
+      dealt with whatever was in the way.
+- [x] Implement session replacement: mark the old session obsolete before
       cleanup, and drop late results by session ID and generation.
-- [ ] Publish repository mutations through `RepoEventBus` after a successful
-      Finish so `ConflictQueueService` and the file watcher refresh.
-- [ ] Enforce one in-flight preparation per common repository.
-- [ ] Add `services/integration_session_service_test.go` covering create,
+- [x] Publish repository mutations through `RepoEventBus` after a successful
+      Finish so `ConflictQueueService` and the file watcher refresh. Both the
+      open project and the working copy that owns the destination are announced.
+- [x] Enforce one in-flight preparation per common repository.
+- [x] Add `services/integration_session_service_test.go` covering create,
       prepare, conflict-free ready, conflicting needs-decisions, obsolete
-      replacement, blocked, cancel, apply, and restart reconciliation.
+      replacement, blocked, cancel, apply, and restart reconciliation. Both
+      reachable apply paths are covered: destination checked out nowhere, and
+      destination checked out in the open project after the user switched to it.
 
 ### Exit Criteria
 
-- [ ] A conflict-free readiness check reaches `ready` and changes no ref.
-- [ ] Finish applies the prepared result and the destination checkout's files,
+- [x] A conflict-free readiness check reaches `ready` and changes no ref.
+- [x] Finish applies the prepared result and the destination checkout's files,
       index, and ref all agree.
-- [ ] Every Phase 0 checked-out-destination assertion still holds when driven
+- [x] Every Phase 0 checked-out-destination assertion still holds when driven
       through the service rather than the harness.
-- [ ] Do not start Phase 3 until this exit criterion passes.
+- [x] Do not start Phase 3 until this exit criterion passes.
 
 ## Phase 3 - Session Queue And Resolution
 
@@ -669,8 +689,12 @@ Answer before the phase that needs them, not before starting.
    cleared by the OS, and that risk is accepted: startup reconciliation already
    has to treat a missing workspace as a recoverable failure, so a purge lands on
    a path that must work anyway.
-2. Phase 2: on a fresh clone with no upstream, `mergeTargetRef` may report not
-   ok. Does readiness stay silent, or does the UI prompt once for a destination?
+2. ~~Phase 2: on a fresh clone with no upstream, `mergeTargetRef` may report not
+   ok. Does readiness stay silent, or does the UI prompt once for a
+   destination?~~ Answered: readiness stays silent and creates no session.
+   Nothing has gone wrong when there is no local destination branch, and
+   prompting on a fresh clone would be noise. Phase 4 may add an affordance if
+   real usage shows one is needed.
 3. Phase 4: how long may a preparation run before the UI reports progress rather
    than staying silent? Large LFS repositories will exceed the 30-second
    `CommandRunner` default and need an explicit timeout, as

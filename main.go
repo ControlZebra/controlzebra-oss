@@ -74,6 +74,8 @@ func main() {
 	fileWatcherService.SetRepoEventBus(repoEventBus)
 	conflictQueueService := services.NewConflictQueueService(gitService)
 	conflictQueueService.AttachToBus(repoEventBus)
+	integrationSessionService := services.NewIntegrationSessionService(gitService)
+	integrationSessionService.SetRepoEventBus(repoEventBus)
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -99,6 +101,7 @@ func main() {
 			application.NewService(localBinService),
 			application.NewService(updateService),
 			application.NewService(conflictQueueService),
+			application.NewService(integrationSessionService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -117,6 +120,11 @@ func main() {
 	localBinService.SetApp(app)
 	updateService.SetApp(app)
 	conflictQueueService.SetApp(app)
+	integrationSessionService.SetApp(app)
+
+	// An unfinished review from a previous run must be reconciled before the
+	// user can act on it. This only reports damage; it never moves a ref.
+	go integrationSessionService.RecoverSessions()
 
 	if runtime.GOOS == "windows" {
 		go func() {

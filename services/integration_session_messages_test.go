@@ -6,35 +6,14 @@ import (
 	"testing"
 )
 
-// Phase 0 of the Isolated Conflict Resolution Plan locks down the wording for
-// every outcome the isolated integration workflow can report, before any
-// service exists to report them. Phase 2 moves this map into the service; until
-// then it lives in a test file so Phase 0 writes no production code.
-//
-// Every message is two parts: what happened, then a concrete next step.
-var integrationSessionOutcomeMessages = map[string]string{
-	"scheduled": "Your saved work is queued for a compatibility check. Keep working, and we'll tell you when it finishes.",
-
-	"preparing": "We're checking your saved work against the shared project. Keep working, nothing in your project is being changed.",
-
-	"needs-decisions": "Some files were changed in both your work and the shared project. Open Conflict Review to pick which version to keep for each file.",
-
-	"ready": "Your work is ready to be combined with the shared project. Choose Finish when you want to send it.",
-
-	"blocked": "Your work is ready, but this project has unsaved files that would be replaced. Save or discard those files, then choose Finish again.",
-
-	"obsolete": "Your saved work changed, so Conflict Review was refreshed. Review the latest files before finishing.",
-
-	"failed": "The compatibility check couldn't finish, and nothing in your project was changed. Try again, and contact support if it keeps failing.",
-
-	"cancelled": "Conflict Review was cancelled and your decisions were deleted. Nothing in your project or the shared project changed.",
-
-	"recovered": "ControlZebra found an unfinished check after restarting. Review the files again before choosing Finish.",
-}
+// Phase 0 of the Isolated Conflict Resolution Plan locked down the wording for
+// every outcome the isolated integration workflow can report. Phase 2 moved the
+// map itself into integration_session_service.go; these tests stayed behind and
+// now enforce the two rules against the production strings.
 
 var integrationSessionOutcomeStates = []string{
-	"scheduled", "preparing", "needs-decisions", "ready", "blocked",
-	"obsolete", "failed", "cancelled", "recovered",
+	"scheduled", "preparing", "needs-decisions", "ready", "applying",
+	"blocked", "completed", "obsolete", "failed", "cancelled", "recovered",
 }
 
 // gitJargonPattern matches the vocabulary users of ControlZebra do not know.
