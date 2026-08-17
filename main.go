@@ -76,6 +76,8 @@ func main() {
 	conflictQueueService.AttachToBus(repoEventBus)
 	integrationSessionService := services.NewIntegrationSessionService(gitService)
 	integrationSessionService.SetRepoEventBus(repoEventBus)
+	integrationSessionService.SetSettings(settingsService)
+	integrationSessionService.AttachToBus(repoEventBus)
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.

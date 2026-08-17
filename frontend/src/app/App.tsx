@@ -5,6 +5,8 @@ import Spinner from '../shared/ui/Spinner';
 import { useLoginTheme } from '../shared/hooks/useLoginTheme';
 import { AnalyticsProvider, AuthProvider, RepoProvider } from './providers';
 import { ConflictQueueProvider } from '../features/conflict';
+import { IntegrationSessionProvider } from '../features/integration';
+import { LayoutProvider } from '../context';
 
 function App(): JSX.Element {
   return (
@@ -44,11 +46,17 @@ function AuthGate(): JSX.Element {
     );
   }
 
+  // LayoutProvider sits above the conflict providers because the queue reads
+  // Developer Mode from it to choose its source.
   return (
     <RepoProvider>
-      <ConflictQueueProvider>
-        <AppLayout />
-      </ConflictQueueProvider>
+      <LayoutProvider>
+        <IntegrationSessionProvider>
+          <ConflictQueueProvider>
+            <AppLayout />
+          </ConflictQueueProvider>
+        </IntegrationSessionProvider>
+      </LayoutProvider>
     </RepoProvider>
   );
 }

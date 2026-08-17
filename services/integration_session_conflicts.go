@@ -1,0 +1,197 @@
+package services
+
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
+// Conflict decisions for an isolated review are made against the session's own
+// workspace, never against the user's open project. The frontend only ever
+// holds a session id and repository-relative paths, so the workspace location
+// stays a backend detail.
+
+// IntegrationSessionConflictsEvent carries a full queue snapshot for one
+// session. It is deliberately separate from ConflictQueueChangedEvent so the
+// repository-bound queue and the session queue never overwrite each other.
+const IntegrationSessionConflictsEvent = "integrationSession:conflicts"
+
+// Sides the whole-file fallback can keep, matching the frontend's resolution
+// strategy names.
+const (
+	integrationSideMine   = "mine"
+	integrationSideTheirs = "theirs"
+)
+
+// SessionConflictSnapshot is the complete, self-contained queue state for one
+// session. Generation lets the frontend drop a snapshot belonging to a review
+// that has since been replaced.
+type SessionConflictSnapshot struct {
+	SessionID  string               `json:"sessionId"`
+	Generation uint64               `json:"generation"`
+	Entries    []ConflictQueueEntry `json:"entries"`
+	ScannedAt  int64                `json:"scannedAt"`
+	Error      string               `json:"error,omitempty"`
+}
+
+// GetSessionConflicts returns the files this review is currently asking about.
+func (s *IntegrationSessionService) GetSessionConflicts(sessionID string) SessionConflictSnapshot {
+	session, err := s.store.load(sessionID)
+	if err != nil {
+		return SessionConflictSnapshot{}
+	}
+	if session.State != integrationStateNeedsDecisions {
+		return s.conflictSnapshot(session, []ConflictQueueEntry{}, nil)
+	}
+	return s.scanSessionConflicts(session)
+}
+
+// GetSessionConflictResolutionData loads one conflicted file for the resolver.
+func (s *IntegrationSessionService) GetSessionConflictResolutionData(sessionID string, filePath string) ConflictResolutionData {
+	session, path, err := s.queuedSessionFile(sessionID, filePath)
+	if err != nil {
+		return ConflictResolutionData{Path: normalizeMergePath(filePath), Error: err.Error()}
+	}
+	return s.target.conflictResolutionData(session.WorkspacePath, path, true)
+}
+
+// ResolveSessionConflictWithDecisions applies per-region choices to one file.
+func (s *IntegrationSessionService) ResolveSessionConflictWithDecisions(sessionID string, filePath string, resolutionToken string, decisions []ConflictDecision) OperationResult {
+	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
+		return s.target.resolveConflictWithDecisions(session.WorkspacePath, path, resolutionToken, decisions, true)
+	})
+}
+
+// ResolveSessionConflictWithContent applies a fully composed file.
+func (s *IntegrationSessionService) ResolveSessionConflictWithContent(sessionID string, filePath string, resolutionToken string, content string) OperationResult {
+	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
+		return s.target.resolveConflictWithContent(session.WorkspacePath, path, resolutionToken, content, true)
+	})
+}
+
+// ResolveSessionConflictWithSide keeps one whole version of the file.
+func (s *IntegrationSessionService) ResolveSessionConflictWithSide(sessionID string, filePath string, side string) OperationResult {
+	stage := conflictStageOurs
+	sideName := "current"
+	switch strings.TrimSpace(side) {
+	case integrationSideMine:
+	case integrationSideTheirs:
+		stage = conflictStageTheirs
+		sideName = "incoming"
+	default:
+		return failedOp("Choose which version of the file to keep, then try again.")
+	}
+
+	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
+		return s.target.resolveConflictWithStage(session.WorkspacePath, path, stage, sideName, true)
+	})
+}
+
+// resolveInSession is the shared shape of every session resolution: check the
+// file really is waiting for a decision, delegate to the existing resolver, and
+// republish the queue so a fully resolved review becomes ready to finish.
+func (s *IntegrationSessionService) resolveInSession(
+	sessionID string,
+	filePath string,
+	resolve func(session integrationSession, path string) OperationResult,
+) OperationResult {
+	session, path, err := s.queuedSessionFile(sessionID, filePath)
+	if err != nil {
+		return failedOp(err.Error())
+	}
+
+	result := resolve(session, path)
+	if !result.Success {
+		return result
+	}
+
+	s.refreshSessionConflicts(session)
+	return result
+}
+
+// queuedSessionFile confirms the review is still asking about this exact file
+// before anything is read or written. A session id therefore cannot be used to
+// reach a file the user was never shown.
+func (s *IntegrationSessionService) queuedSessionFile(sessionID string, filePath string) (integrationSession, string, error) {
+	session, err := s.store.load(sessionID)
+	if err != nil {
+		return integrationSession{}, "", fmt.Errorf("This review is no longer available. Save your work again to start a new check.")
+	}
+	if session.State != integrationStateNeedsDecisions {
+		return integrationSession{}, "", fmt.Errorf("This review has no files waiting for a decision. Refresh and try again.")
+	}
+	if err := verifyIntegrationOwnership(s.git, session.WorkspacePath, session.SessionID); err != nil {
+		return integrationSession{}, "", fmt.Errorf("This review's working files are missing. Save your work again to start a new check.")
+	}
+
+	path := normalizeMergePath(filePath)
+	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	if err != nil {
+		return integrationSession{}, "", fmt.Errorf("Couldn't read the files waiting for a decision. Try again in a moment.")
+	}
+	for _, entry := range entries {
+		if entry.Path == path {
+			return session, path, nil
+		}
+	}
+	return integrationSession{}, "", fmt.Errorf("That file isn't waiting for a decision. Refresh the list and try again.")
+}
+
+// refreshSessionConflicts rescans after a decision, promotes a fully resolved
+// review to ready, and publishes both the queue and the session state.
+//
+// A session replaced while the caller was working is dropped rather than
+// published: its answer belongs to a review nobody is looking at any more.
+func (s *IntegrationSessionService) refreshSessionConflicts(session integrationSession) SessionConflictSnapshot {
+	current, err := s.store.load(session.SessionID)
+	if err != nil || current.Generation != session.Generation || current.State != integrationStateNeedsDecisions {
+		return SessionConflictSnapshot{}
+	}
+
+	snapshot := s.scanSessionConflicts(current)
+	if snapshot.Error != "" || len(snapshot.Entries) > 0 {
+		s.emitConflicts(snapshot)
+		return snapshot
+	}
+
+	if resultErr := s.createResult(&current); resultErr != nil {
+		current.State = integrationStateFailed
+		current.Error = resultErr.Error()
+	}
+	current.UpdatedAt = time.Now().Unix()
+	if saveErr := s.store.save(current); saveErr != nil {
+		return snapshot
+	}
+
+	s.emitConflicts(snapshot)
+	s.emit(current)
+	return snapshot
+}
+
+func (s *IntegrationSessionService) scanSessionConflicts(session integrationSession) SessionConflictSnapshot {
+	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	return s.conflictSnapshot(session, entries, err)
+}
+
+func (s *IntegrationSessionService) conflictSnapshot(session integrationSession, entries []ConflictQueueEntry, err error) SessionConflictSnapshot {
+	snapshot := SessionConflictSnapshot{
+		SessionID:  session.SessionID,
+		Generation: session.Generation,
+		Entries:    entries,
+		ScannedAt:  time.Now().UnixMilli(),
+	}
+	if snapshot.Entries == nil {
+		snapshot.Entries = []ConflictQueueEntry{}
+	}
+	if err != nil {
+		snapshot.Entries = []ConflictQueueEntry{}
+		snapshot.Error = err.Error()
+	}
+	return snapshot
+}
+
+func (s *IntegrationSessionService) emitConflicts(snapshot SessionConflictSnapshot) {
+	if s.app != nil && snapshot.SessionID != "" {
+		s.app.Event.Emit(IntegrationSessionConflictsEvent, snapshot)
+	}
+}

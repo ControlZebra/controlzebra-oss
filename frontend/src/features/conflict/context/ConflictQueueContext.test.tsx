@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConflictQueueEntry, ConflictQueueSnapshot } from '../../../../bindings/controlzebra/services/models';
 import { ConflictQueueProvider, useConflictQueue } from './ConflictQueueContext';
 
-const { repoStore, bindings, eventBus } = vi.hoisted(() => ({
+const { repoStore, bindings, eventBus, integrationStore } = vi.hoisted(() => ({
   repoStore: { current: { repoPath: '/repo', conflictedFiles: [] as unknown[] } },
   bindings: {
     SetRepository: vi.fn(),
@@ -12,10 +12,22 @@ const { repoStore, bindings, eventBus } = vi.hoisted(() => ({
     Refresh: vi.fn(),
   },
   eventBus: { handler: null as ((event: { data: unknown }) => void) | null },
+  integrationStore: {
+    current: {
+      enabled: false,
+      entries: [] as ConflictQueueEntry[],
+      error: null as string | null,
+      refresh: vi.fn(),
+    },
+  },
 }));
 
 vi.mock('../../../context', () => ({
   useRepo: () => repoStore.current,
+}));
+
+vi.mock('../../integration', () => ({
+  useIntegrationSession: () => integrationStore.current,
 }));
 
 vi.mock('../../../../bindings/controlzebra/services/conflictqueueservice', () => bindings);
@@ -43,8 +55,11 @@ function snapshot(
   });
 }
 
+let refreshQueue: (() => Promise<void>) | null = null;
+
 function Probe(): JSX.Element {
-  const { entries, error } = useConflictQueue();
+  const { entries, error, refresh } = useConflictQueue();
+  refreshQueue = refresh;
   return (
     <div>
       <span data-testid="paths">{entries.map((entry) => entry.path).join(',')}</span>
@@ -67,6 +82,12 @@ describe('ConflictQueueProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     repoStore.current = { repoPath: '/repo', conflictedFiles: [] };
+    integrationStore.current = {
+      enabled: false,
+      entries: [],
+      error: null,
+      refresh: vi.fn(),
+    };
     bindings.SetRepository.mockResolvedValue(snapshot(1, ['a.txt']));
     bindings.ClearRepository.mockResolvedValue(snapshot(1, [], { repoPath: '' }));
     bindings.Refresh.mockResolvedValue(snapshot(1, ['a.txt']));
@@ -114,5 +135,43 @@ describe('ConflictQueueProvider', () => {
     await renderProvider();
     expect(bindings.ClearRepository).toHaveBeenCalled();
     expect(screen.getByTestId('paths')).toHaveTextContent('');
+  });
+
+  describe('with the isolated review as the source', () => {
+    beforeEach(() => {
+      integrationStore.current = {
+        enabled: true,
+        entries: [new ConflictQueueEntry({ path: 'session.txt' })],
+        error: 'review scan failed',
+        refresh: vi.fn(),
+      };
+    });
+
+    it('reads entries from the review and unbinds the repository queue', async () => {
+      await renderProvider();
+
+      expect(bindings.SetRepository).not.toHaveBeenCalled();
+      expect(bindings.ClearRepository).toHaveBeenCalled();
+      expect(screen.getByTestId('paths')).toHaveTextContent('session.txt');
+      expect(screen.getByTestId('error')).toHaveTextContent('review scan failed');
+    });
+
+    it('ignores repository queue events', async () => {
+      await renderProvider();
+      await act(async () => {
+        eventBus.handler?.({ data: snapshot(9, ['repo.txt']) });
+      });
+      expect(screen.getByTestId('paths')).toHaveTextContent('session.txt');
+    });
+
+    it('refreshes the review instead of the repository queue', async () => {
+      await renderProvider();
+      await act(async () => {
+        await refreshQueue?.();
+      });
+
+      expect(integrationStore.current.refresh).toHaveBeenCalled();
+      expect(bindings.Refresh).not.toHaveBeenCalled();
+    });
   });
 });

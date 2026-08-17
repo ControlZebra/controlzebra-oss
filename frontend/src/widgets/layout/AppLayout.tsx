@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense } from 'react';
-import { LayoutProvider, UpdateProvider, useLayout, useRepo } from '../../context';
+import { UpdateProvider, useLayout, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../../shared/ui';
 import RecoveryBanner from '../../shared/ui/RecoveryBanner';
 import TitleBar from './TitleBar';
@@ -71,9 +71,7 @@ function AppLayoutInner(): JSX.Element {
 function AppLayout(): JSX.Element {
   return (
     <UpdateProvider>
-      <LayoutProvider>
-        <AppLayoutInner />
-      </LayoutProvider>
+      <AppLayoutInner />
     </UpdateProvider>
   );
 }

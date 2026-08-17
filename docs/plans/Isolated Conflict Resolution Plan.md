@@ -484,7 +484,8 @@ Goal: route existing conflict tooling at the session workspace.
 
 ### Actions
 
-- [ ] Add `SessionConflictSnapshot` to the session service:
+- [x] Add `SessionConflictSnapshot` to the session service, in the new
+      `services/integration_session_conflicts.go`:
 
   ```go
   type SessionConflictSnapshot struct {
@@ -496,39 +497,49 @@ Goal: route existing conflict tooling at the session workspace.
   }
   ```
 
-- [ ] Emit an `integrationSession:conflicts` event carrying that snapshot. Do not
-      reuse `conflictQueue:changed`, and do not rebind `ConflictQueueService` to
-      the session workspace.
-- [ ] Call `classifyConflictQueue` from
-      `services/conflict_queue_classifier.go` against the session workspace,
-      unchanged. Never call `predictConflictQueue` from the session path.
-- [ ] Add session-keyed resolution entry points that resolve the workspace on the
-      backend, verify the requested relative path is in the current session
-      queue, and delegate to the existing helpers in
-      `services/git_conflict_resolution.go`:
-  - [ ] `GetSessionConflictResolutionData(sessionID, relPath)`
-  - [ ] `ResolveSessionConflictWithDecisions(sessionID, relPath, token, decisions)`
-  - [ ] `ResolveSessionConflictWithContent(sessionID, relPath, token, content)`
-  - [ ] `ResolveSessionConflictWithSide(sessionID, relPath, side)`
-- [ ] Refactor `GetConflictResolutionData` so its merge-state gate is a parameter
-      rather than a hard-coded `g.GetMergeState(repoPath)` call. The session path
-      is already known to be mid-merge.
-- [ ] Preserve every existing protection: stale resolution tokens, path safety
-      via `safeRepoRelativePath`, encoding, size limit, file mode, atomic write,
-      and index staging.
-- [ ] Ignore late events whose session ID or generation does not match the active
-      session.
-- [ ] Require an empty real-conflict queue before result creation.
-- [ ] Do not reuse decisions from an obsolete session in this release.
-- [ ] Regenerate bindings with `task common:generate:bindings`.
+- [x] Emit an `integrationSession:conflicts` event carrying that snapshot.
+      `ConflictQueueService` was not touched and `conflictQueue:changed` was not
+      reused, so the repository queue and the session queue can never overwrite
+      each other. `prepare` now returns the entries it already classified, so
+      reaching `needs-decisions` publishes the queue without a second scan.
+- [x] Call `classifyConflictQueue` against the session workspace, unchanged.
+      `predictConflictQueue` is not reachable from the session path.
+- [x] Add session-keyed resolution entry points. All four share
+      `resolveInSession`, which checks the file really is waiting for a decision,
+      delegates, and republishes:
+  - [x] `GetSessionConflictResolutionData(sessionID, relPath)`
+  - [x] `ResolveSessionConflictWithDecisions(sessionID, relPath, token, decisions)`
+  - [x] `ResolveSessionConflictWithContent(sessionID, relPath, token, content)`
+  - [x] `ResolveSessionConflictWithSide(sessionID, relPath, side)`
+- [x] Refactor the merge-state gate into a parameter. `conflictOperationActive`
+      is now the only place that inspects the state, and each exported entry
+      point is a one-line wrapper over a gate-free core taking `inOperation`.
+      `resolveConflictWithStage` gained the same parameter, so its two callers in
+      `git_service.go` keep the rebase-inclusive gate they always had.
+- [x] Preserve every existing protection. Nothing inside
+      `git_conflict_resolution.go` moved, so tokens, `safeRepoRelativePath`,
+      encoding, size, mode, atomic write, and staging are literally the same
+      code. Queue membership is an additional gate on top, not a replacement:
+      a session id cannot reach a file the user was never shown.
+- [x] Ignore late events whose session ID or generation does not match.
+      `refreshSessionConflicts` reloads the record and drops anything whose
+      generation moved or which is no longer awaiting decisions.
+- [x] Require an empty real-conflict queue before result creation. The check
+      lives inside `createResult`, so both callers are covered rather than each
+      trusting its own earlier scan.
+- [x] Do not reuse decisions from an obsolete session in this release.
+- [x] Regenerate bindings with `task common:generate:bindings`.
 
 ### Exit Criteria
 
-- [ ] Text, ladder, and whole-file decisions all stage correctly in the session
-      workspace and never touch the open project.
-- [ ] No frontend API accepts or receives a filesystem path outside the open
-      repository.
-- [ ] A stale token is rejected with the existing error, unchanged.
+- [x] Text, ladder, and whole-file decisions all stage correctly in the session
+      workspace and never touch the open project. Covered by
+      `services/integration_session_conflicts_test.go`, which asserts both the
+      open project and the linked worktree stay clean.
+- [x] No frontend API accepts or receives a filesystem path outside the open
+      repository. The entry points take a session id and a repository-relative
+      path; `WorkspacePath` is resolved on the backend and never serialized.
+- [x] A stale token is rejected with the existing error, unchanged.
 
 ## Phase 4 - Background Readiness Workflow
 
@@ -536,53 +547,114 @@ Goal: the user-visible workflow, behind Developer Mode.
 
 ### Actions
 
-- [ ] Emit a post-save repository event from the Save Changes path carrying
-      repository identity, so the session service can debounce and schedule.
-      Extend `RepoMutationCommit` handling in `services/repo_events.go` rather
-      than adding a parallel bus.
-- [ ] Implement debounced scheduling in the session service. Coalesce a burst of
-      saves into one preparation. Mirror the debounce approach already used by
-      `ConflictQueueService.scheduleScan`.
-- [ ] Add
+Delivered in two passes. Pass A is the data path, Pass B is the merge UI.
+
+#### Pass A - background scheduling and the queue source
+
+- [x] Emit a post-save repository event from the Save Changes path carrying
+      repository identity. Nothing new was needed: `CommitAll` already publishes
+      `RepoMutated{RepoPath, RepoMutationCommit}`, and the session service
+      derives the common-directory identity from that path exactly as
+      `PrepareReadiness` already did. Adding a parallel event would have
+      duplicated identity resolution for no gain.
+- [x] Implement debounced scheduling in the session service, in the new
+      `services/integration_session_scheduler.go`. It mirrors
+      `ConflictQueueService`: an `AttachToBus`/`DetachFromBus` pair, a per-path
+      timer replaced on each trigger, and `afterFunc` injected for tests. Only
+      `RepoMutationCommit` schedules; every other reason either cannot change
+      what the destination would receive, or is Finish itself. The quiet period
+      is one second rather than the queue's 150ms, because a save is a
+      deliberate act and preparation is expensive.
+- [x] Gate the automatic path on Developer Mode. The flag is read fresh from
+      `SettingsService` on every trigger through the `integrationSettings` seam,
+      so turning the flag off stops the next check with no invalidation wiring.
+      With the flag off nothing runs: no worktree, no git calls.
+- [x] Bound integration git calls at five minutes. The service's own
+      `CommandRunner` carries the longer timeout, because both preparation and
+      Finish materialize a whole tree and the 30-second default is wrong for a
+      large LFS project. `preparing` surfaces immediately rather than after a
+      delay, since the state is worded as non-blocking.
+- [x] A scheduled check always assumes a squash finish, matching the product
+      default. Choosing a regular finish instead no longer matches the captured
+      tuple, so a fresh session is prepared on demand.
+- [x] Add
       `frontend/src/features/integration/context/IntegrationSessionContext.tsx`
-      holding session state, subscribing to `integrationSession:conflicts`, and
-      exposing `finish`, `cancelReview`, and `refresh`.
-- [ ] Add a source switch inside
-      `frontend/src/features/conflict/context/ConflictQueueContext.tsx`: when
-      `useLayout().developerModeEnabled` is true, read entries from the session
-      context instead of `SetRepository` and `Refresh`. This is the only conflict
-      file that changes.
-- [ ] Leave every component under `features/conflict/components/` unchanged. They
-      must not learn about sessions.
-- [ ] Update `frontend/src/features/explorer/pages/MergeRequestScreen.tsx` to
-      render Ready to Finish, Files Needing a Decision, blocked, and obsolete
-      states without navigating the user away from current work.
-- [ ] Reduce `frontend/src/features/merge/components/ExplorerMergeModal.tsx`
-      under the flag to a Finish confirmation. Remove the preflight check step
-      and the in-modal blocking resolution step.
-- [ ] Trim `MergeFlowStep` in
-      `frontend/src/features/merge/hooks/useMergeFlowController.ts` under the
-      flag: `check` and `resolve` no longer apply.
-- [ ] Retarget `MergeReviewPane` and `MergeReviewDiffModal` at the session's
-      captured source and destination OIDs so review shows exactly what Finish
-      will apply.
-- [ ] Add the refresh notice shown when a new saved revision discards prior
-      decisions.
-- [ ] Add the Cancel Review confirmation that states decisions will be deleted
+      holding session state, subscribing to both `integrationSession:conflicts`
+      and `integrationSession:changed`, and exposing `finish`, `cancelReview`,
+      and `refresh`. A state change for a review it does not recognize triggers
+      an authoritative re-read rather than a guess that the review belongs to
+      the open project. Scans are ordered by `scannedAt`, since every snapshot
+      for one session shares a generation.
+- [x] Add a source switch inside
+      `frontend/src/features/conflict/context/ConflictQueueContext.tsx`. This is
+      the only conflict file that changed. When the review is the source the
+      provider also unbinds the repository queue, so the backend stops doing
+      prediction work nobody reads.
+- [x] Hoist `LayoutProvider` from `AppLayout.tsx` into `App.tsx` above the
+      conflict providers. `useLayout` throws outside its provider, and
+      `LayoutContext` imports nothing from `RepoContext`, so hoisting is safe
+      and keeps one source of truth for the flag. Reading the setting a second
+      time would have gone stale the moment the user toggled it.
+- [x] Leave every component under `features/conflict/components/` unchanged.
+      They must not learn about sessions.
+- [x] Hide predicted entries entirely when the flag is on. Unbinding the
+      repository queue removes them at the source rather than filtering them
+      in the UI.
+- [x] Add `IntegrationSessionContext.test.tsx` and extend
+      `ConflictQueueContext.test.tsx` to cover both sources.
+
+#### Pass B - the merge UI
+
+- [x] Render Ready to Finish, Files Needing a Decision, blocked, and checking
+      states without navigating the user away from current work. Not in
+      `MergeRequestScreen.tsx`: that file, along with `AllSyncedScreen`,
+      `ReadyToPushScreen`, and `CommitScreen`, is exported from
+      `features/explorer/pages/index.ts` but rendered nowhere, left behind by
+      the frontend restructure. The live surface is `ExplorerView` feeding
+      `ExplorerStatusPanel`, which gained one optional `review` prop and a
+      state-aware title on the `featureBranch` panel. Files needing a decision
+      were already covered by `ConflictQueueSection`, which Pass A made
+      session-backed.
+- [x] Reduce `ExplorerMergeModal.tsx` under the flag to a Finish confirmation.
+      The reduced flow lives in the new `MergeFinishModal.tsx` and
+      `ExplorerMergeModal` became a two-line switch on
+      `useLayout().developerModeEnabled`. Two components rather than branches
+      threaded through 1,315 lines, so Phase 5 deletes the legacy one whole.
+      The new modal never calls `useMergeFlowController`, so no preflight check
+      and no blocking resolution step can run.
+- [ ] Trim `MergeFlowStep` in `useMergeFlowController.ts`. Deferred to Phase 5.
+      The flagged path no longer uses the hook at all, so `check` and `resolve`
+      are already unreachable when the flag is on, but the union cannot shrink
+      while the legacy component still relies on both.
+- [x] Retarget review at the session's captured source and destination OIDs.
+      `loadMergeReviewFiles` and `loadMergeReviewFileDiff` already pass their
+      arguments straight to `ListMergeReviewFiles` and `DiffMergeReviewFileRaw`,
+      and a commit OID is a valid ref, so this was an argument swap with no
+      context change. `MergeReviewPane` needed no retargeting either, being
+      presentational; it gained one `selectable` prop so the file list can drop
+      checkboxes that mean nothing when Finish applies the whole result.
+      `MergeReviewDiffModal.tsx` was left alone: it has no importers anywhere in
+      `frontend/src` and is Phase 5's to delete.
+- [x] Add the refresh notice shown when a new saved revision discards prior
+      decisions. Detected in the modal by the session id changing while it is
+      open, because a replaced session is cancelled and cleaned up on the
+      backend and so can never be shown as `obsolete`.
+- [x] Add the Cancel Review confirmation that states decisions will be deleted
       and that neither branch changes.
-- [ ] Hide predicted entries entirely when the flag is on.
-- [ ] Add tests: `IntegrationSessionContext.test.tsx`, an updated
-      `ConflictQueueContext.test.tsx` covering both sources, and an updated
-      `ExplorerMergeModal.test.tsx` for the reduced flow.
+- [x] Add `MergeFinishModal.test.tsx` for the reduced flow. The existing
+      `ExplorerMergeModal.test.tsx` was left untouched and still passes, which is
+      the evidence that the legacy path is unchanged.
 
 ### Exit Criteria
 
-- [ ] With Developer Mode off, behavior is unchanged and all existing frontend
+- [x] With Developer Mode off, behavior is unchanged and all existing frontend
       tests pass untouched.
-- [ ] With Developer Mode on, saving on a feature branch produces a readiness
+- [x] With Developer Mode on, saving on a feature branch produces a readiness
       result without blocking the user.
-- [ ] The open project stays editable while decisions are pending.
-- [ ] Restart and project switching preserve an active review.
+- [x] The open project stays editable while decisions are pending.
+- [ ] Restart and project switching preserve an active review. Restart is
+      covered by `RecoverSessions` and its Phase 2 tests; project switching
+      through the running UI has not been exercised manually yet.
 
 ## Phase 5 - Deprecation, Migration, And Hardening
 
@@ -695,8 +767,11 @@ Answer before the phase that needs them, not before starting.
    Nothing has gone wrong when there is no local destination branch, and
    prompting on a fresh clone would be noise. Phase 4 may add an affordance if
    real usage shows one is needed.
-3. Phase 4: how long may a preparation run before the UI reports progress rather
-   than staying silent? Large LFS repositories will exceed the 30-second
+3. ~~Phase 4: how long may a preparation run before the UI reports progress
+   rather than staying silent?~~ Answered: five minutes, applied to the session
+   service's own `CommandRunner` so both preparation and Finish are covered.
+   `preparing` surfaces immediately rather than after a delay, because its
+   wording already tells the user to keep working. Large LFS repositories will exceed the 30-second
    `CommandRunner` default and need an explicit timeout, as
    `changeRequestFetchTimeout` already does.
 4. Phase 5: should Finish reuse `ProgressService` for streaming progress, or is a

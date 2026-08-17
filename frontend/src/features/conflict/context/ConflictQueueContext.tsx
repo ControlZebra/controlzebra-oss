@@ -7,6 +7,10 @@
  *
  * It is intentionally independent of RepoContext's legacy `conflictedFiles`
  * state, which belongs to the conflict resolution workflow being deprecated.
+ *
+ * Behind Developer Mode the queue reads from the isolated review instead. That
+ * source is the only thing that changes: every component below this provider
+ * sees the same entries and never learns which source produced them.
  */
 import {
   createContext,
@@ -28,6 +32,7 @@ import type {
   ConflictQueueSnapshot,
 } from '../../../../bindings/controlzebra/services/models';
 import { useRepo } from '../../../context';
+import { useIntegrationSession } from '../../integration';
 import { onEvent } from '../../../shared/runtime/events';
 
 interface ConflictQueueContextValue {
@@ -65,6 +70,8 @@ interface ConflictQueueProviderProps {
 
 export function ConflictQueueProvider({ children }: ConflictQueueProviderProps): JSX.Element {
   const { repoPath, conflictedFiles } = useRepo();
+  const integration = useIntegrationSession();
+  const useSessionSource = integration.enabled;
   const [snapshot, setSnapshot] = useState<ConflictQueueSnapshot | null>(null);
   const latestGeneration = useRef(0);
 
@@ -82,18 +89,26 @@ export function ConflictQueueProvider({ children }: ConflictQueueProviderProps):
   }, []);
 
   useEffect(() => {
+    if (useSessionSource) {
+      return;
+    }
+
     const unsubscribe = onEvent('conflictQueue:changed', (event: { data: ConflictQueueSnapshot }) => {
       applySnapshot(event.data);
     });
     return () => unsubscribe();
-  }, [applySnapshot]);
+  }, [useSessionSource, applySnapshot]);
 
   useEffect(() => {
     let cancelled = false;
 
+    // Unbinding when the review takes over stops the repository queue doing
+    // work nobody reads, including the prediction pass.
     const bind = async (): Promise<void> => {
       try {
-        const result = repoPath ? await SetRepository(repoPath) : await ClearRepository();
+        const result = repoPath && !useSessionSource
+          ? await SetRepository(repoPath)
+          : await ClearRepository();
         if (!cancelled) {
           applySnapshot(result);
         }
@@ -107,15 +122,20 @@ export function ConflictQueueProvider({ children }: ConflictQueueProviderProps):
     return () => {
       cancelled = true;
     };
-  }, [repoPath, applySnapshot]);
+  }, [useSessionSource, repoPath, applySnapshot]);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (useSessionSource) {
+      await integration.refresh();
+      return;
+    }
+
     try {
       applySnapshot(await Refresh());
     } catch {
       // Same reasoning as bind(): errors arrive on the snapshot.
     }
-  }, [applySnapshot]);
+  }, [useSessionSource, integration, applySnapshot]);
 
   /**
    * The conflict resolution workflow being deprecated stages resolutions
@@ -125,13 +145,25 @@ export function ConflictQueueProvider({ children }: ConflictQueueProviderProps):
    */
   const legacyConflictCount = conflictedFiles.length;
   useEffect(() => {
-    if (!repoPath) {
+    if (useSessionSource || !repoPath) {
       return;
     }
     void refresh();
-  }, [legacyConflictCount, repoPath, refresh]);
+  }, [useSessionSource, legacyConflictCount, repoPath, refresh]);
 
   const value = useMemo<ConflictQueueContextValue>(() => {
+    if (useSessionSource) {
+      // The review reports only real unmerged files, so nothing predicted can
+      // reach the resolver and there is no branch to attribute entries to.
+      return {
+        entries: integration.entries,
+        targetBranch: null,
+        error: integration.error,
+        isEmpty: integration.entries.length === 0,
+        refresh,
+      };
+    }
+
     // Guard against a snapshot for a repository we are no longer showing.
     const isCurrentRepo = Boolean(repoPath) && snapshot?.repoPath === repoPath;
     const entries = isCurrentRepo && snapshot ? snapshot.entries : EMPTY_ENTRIES;
@@ -143,7 +175,7 @@ export function ConflictQueueProvider({ children }: ConflictQueueProviderProps):
       isEmpty: entries.length === 0,
       refresh,
     };
-  }, [repoPath, snapshot, refresh]);
+  }, [useSessionSource, integration.entries, integration.error, repoPath, snapshot, refresh]);
 
   return <ConflictQueueContext.Provider value={value}>{children}</ConflictQueueContext.Provider>;
 }

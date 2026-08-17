@@ -1357,6 +1357,7 @@ export class DataLocations {
     "localDataDir": string;
     "logsDir": string;
     "cacheDir": string;
+    "integrationDir": string;
     "toolsBinDir": string;
     "webView2Dir": string;
     "migrationMarkerFile": string;
@@ -1385,6 +1386,9 @@ export class DataLocations {
         }
         if (!("cacheDir" in $$source)) {
             this["cacheDir"] = "";
+        }
+        if (!("integrationDir" in $$source)) {
+            this["integrationDir"] = "";
         }
         if (!("toolsBinDir" in $$source)) {
             this["toolsBinDir"] = "";
@@ -3130,6 +3134,77 @@ export class ImageDiffResult {
 }
 
 /**
+ * IntegrationSessionSnapshot is the complete state the frontend sees. It
+ * deliberately carries no filesystem path: temporary workspace locations never
+ * cross the Wails boundary.
+ */
+export class IntegrationSessionSnapshot {
+    "sessionId": string;
+    "state": string;
+    "message": string;
+    "mergeMode": string;
+    "sourceBranch": string;
+    "sourceOid": string;
+    "targetBranch": string;
+    "destinationOid": string;
+    "generation": number;
+    "hasResult": boolean;
+    "active": boolean;
+    "error"?: string;
+    "updatedAt": number;
+
+    /** Creates a new IntegrationSessionSnapshot instance. */
+    constructor($$source: Partial<IntegrationSessionSnapshot> = {}) {
+        if (!("sessionId" in $$source)) {
+            this["sessionId"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+        if (!("mergeMode" in $$source)) {
+            this["mergeMode"] = "";
+        }
+        if (!("sourceBranch" in $$source)) {
+            this["sourceBranch"] = "";
+        }
+        if (!("sourceOid" in $$source)) {
+            this["sourceOid"] = "";
+        }
+        if (!("targetBranch" in $$source)) {
+            this["targetBranch"] = "";
+        }
+        if (!("destinationOid" in $$source)) {
+            this["destinationOid"] = "";
+        }
+        if (!("generation" in $$source)) {
+            this["generation"] = 0;
+        }
+        if (!("hasResult" in $$source)) {
+            this["hasResult"] = false;
+        }
+        if (!("active" in $$source)) {
+            this["active"] = false;
+        }
+        if (!("updatedAt" in $$source)) {
+            this["updatedAt"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new IntegrationSessionSnapshot instance from a string or object.
+     */
+    static createFrom($$source: any = {}): IntegrationSessionSnapshot {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new IntegrationSessionSnapshot($$parsedSource as Partial<IntegrationSessionSnapshot>);
+    }
+}
+
+/**
  * LFSFileStatus represents the LFS status of a file
  */
 export class LFSFileStatus {
@@ -4647,6 +4722,69 @@ export class RepositorySettings {
             $$parsedSource["maintenanceSettings"] = $$createField7_0($$parsedSource["maintenanceSettings"]);
         }
         return new RepositorySettings($$parsedSource as Partial<RepositorySettings>);
+    }
+}
+
+/**
+ * SessionConflictSnapshot is the complete, self-contained queue state for one
+ * session. Generation lets the frontend drop a snapshot belonging to a review
+ * that has since been replaced.
+ */
+export class SessionConflictSnapshot {
+    "sessionId": string;
+    "generation": number;
+    "entries": ConflictQueueEntry[];
+    "scannedAt": number;
+    "error"?: string;
+
+    /** Creates a new SessionConflictSnapshot instance. */
+    constructor($$source: Partial<SessionConflictSnapshot> = {}) {
+        if (!("sessionId" in $$source)) {
+            this["sessionId"] = "";
+        }
+        if (!("generation" in $$source)) {
+            this["generation"] = 0;
+        }
+        if (!("entries" in $$source)) {
+            this["entries"] = [];
+        }
+        if (!("scannedAt" in $$source)) {
+            this["scannedAt"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SessionConflictSnapshot instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SessionConflictSnapshot {
+        const $$createField2_0 = $$createType17;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("entries" in $$parsedSource) {
+            $$parsedSource["entries"] = $$createField2_0($$parsedSource["entries"]);
+        }
+        return new SessionConflictSnapshot($$parsedSource as Partial<SessionConflictSnapshot>);
+    }
+}
+
+/**
+ * SettingsService manages app and user settings
+ */
+export class SettingsService {
+
+    /** Creates a new SettingsService instance. */
+    constructor($$source: Partial<SettingsService> = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SettingsService instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SettingsService {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SettingsService($$parsedSource as Partial<SettingsService>);
     }
 }
 

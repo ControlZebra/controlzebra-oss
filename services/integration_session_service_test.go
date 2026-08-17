@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Phase 2 of the Isolated Conflict Resolution Plan. These tests drive the real
@@ -20,6 +21,9 @@ func newTestIntegrationService(t *testing.T) *IntegrationSessionService {
 		store:         newIntegrationSessionStore(dir),
 		workspaceRoot: integrationWorkspaceRoot(dir),
 		preparing:     map[string]bool{},
+		scheduled:     map[string]*time.Timer{},
+		debounce:      integrationReadinessDebounce,
+		afterFunc:     time.AfterFunc,
 	}
 }
 

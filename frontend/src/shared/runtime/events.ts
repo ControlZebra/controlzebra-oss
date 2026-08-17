@@ -33,7 +33,9 @@ export type AppEvent =
   | 'debug:new-log'
   | 'debug:state-changed'
   | 'background-task-completed'
-  | 'conflictQueue:changed';
+  | 'conflictQueue:changed'
+  | 'integrationSession:changed'
+  | 'integrationSession:conflicts';
 
 // ---------------------------------------------------------------------------
 // Subscription helper

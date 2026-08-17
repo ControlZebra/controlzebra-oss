@@ -3554,7 +3554,7 @@ func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) O
 		return failedOp("File path is required")
 	}
 
-	return g.resolveConflictWithStage(repoPath, filePath, 2, "current")
+	return g.resolveConflictWithStage(repoPath, filePath, 2, "current", g.conflictOperationActive(repoPath, true))
 }
 
 // ResolveConflictKeepTheirs resolves a conflict by keeping their version.
@@ -3566,7 +3566,7 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 		return failedOp("File path is required")
 	}
 
-	return g.resolveConflictWithStage(repoPath, filePath, 3, "incoming")
+	return g.resolveConflictWithStage(repoPath, filePath, 3, "incoming", g.conflictOperationActive(repoPath, true))
 }
 
 // ResolveConflictKeepBoth resolves a conflict by keeping both versions.

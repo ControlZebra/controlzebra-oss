@@ -21,6 +21,7 @@ import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import CreateChangeRequestDialog from '../../reviews/components/CreateChangeRequestDialog';
 import HistoryTimeline from '../../history/components/HistoryTimeline';
 import { ConflictQueueSection } from '../../conflict';
+import { useIntegrationSession } from '../../integration';
 
 // ============================================================================
 // Types
@@ -196,6 +197,17 @@ function ExplorerView(): JSX.Element {
   // The synced feature branch is the only state that can open a Change Request.
   const featureBranchName = panelState.type === 'featureBranch' ? panelState.branchName : null;
 
+  const { session: reviewSession, entries: reviewEntries } = useIntegrationSession();
+  const reviewStatus = useMemo(() => (
+    reviewSession
+      ? {
+        state: reviewSession.state,
+        message: reviewSession.message,
+        conflictCount: reviewEntries.length,
+      }
+      : undefined
+  ), [reviewSession, reviewEntries.length]);
+
   // Check whether GitHub can accept a Change Request for the current branch so
   // the button can be shown eligible, or disabled with a clear reason.
   useEffect(() => {
@@ -310,6 +322,7 @@ function ExplorerView(): JSX.Element {
         hasUpstream={panelState.type === 'push' ? panelState.hasUpstream : undefined}
         hasRemote={hasRemote}
         totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
+        review={reviewStatus}
         onInitialize={startTracking}
         onInstallRequiredPackages={installRequiredPackages}
         onSync={syncRepo}

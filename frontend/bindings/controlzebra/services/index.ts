@@ -10,6 +10,7 @@ import * as FileWatcherService from "./filewatcherservice.js";
 import * as GitHubService from "./githubservice.js";
 import * as GitService from "./gitservice.js";
 import * as ImageDiffService from "./imagediffservice.js";
+import * as IntegrationSessionService from "./integrationsessionservice.js";
 import * as LFSService from "./lfsservice.js";
 import * as LocalBinService from "./localbinservice.js";
 import * as ProgressService from "./progressservice.js";
@@ -26,6 +27,7 @@ export {
     GitHubService,
     GitService,
     ImageDiffService,
+    IntegrationSessionService,
     LFSService,
     LocalBinService,
     ProgressService,
@@ -108,6 +110,7 @@ export {
     GitignoreTemplateOption,
     GraphCommit,
     ImageDiffResult,
+    IntegrationSessionSnapshot,
     LFSFileStatus,
     LFSInfo,
     LFSLock,
@@ -142,6 +145,8 @@ export {
     RepoPersonalConfig,
     RepoStatus,
     RepositorySettings,
+    SessionConflictSnapshot,
+    SettingsService,
     StartUpdateOptions,
     StashEntry,
     TrackedPattern,

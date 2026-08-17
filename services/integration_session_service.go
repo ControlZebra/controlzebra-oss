@@ -51,11 +51,15 @@ var integrationSessionOutcomeMessages = map[string]string{
 	"recovered": "ControlZebra found an unfinished check after restarting. Review the files again before choosing Finish.",
 }
 
-// integrationMergeTarget resolves the branch the open work will be combined
-// into. Same seam ConflictQueueService uses, so the session service can reuse
-// GitService's branch rules without depending on the rest of it.
-type integrationMergeTarget interface {
+// integrationGit is the slice of GitService the session service needs: the
+// rules that pick the destination branch, and the conflict resolution core.
+// Keeping it narrow lets tests drive the service without the rest of GitService.
+type integrationGit interface {
 	mergeTargetRef(repoPath string) (branch string, ref string, ok bool)
+	conflictResolutionData(repoPath string, filePath string, inOperation bool) ConflictResolutionData
+	resolveConflictWithContent(repoPath string, filePath string, resolutionToken string, content string, inOperation bool) OperationResult
+	resolveConflictWithDecisions(repoPath string, filePath string, resolutionToken string, decisions []ConflictDecision, inOperation bool) OperationResult
+	resolveConflictWithStage(repoPath string, filePath string, stage int, sideName string, inOperation bool) OperationResult
 }
 
 // IntegrationSessionSnapshot is the complete state the frontend sees. It
@@ -77,28 +81,48 @@ type IntegrationSessionSnapshot struct {
 	UpdatedAt      int64  `json:"updatedAt"`
 }
 
+// integrationGitTimeout bounds every git call this service makes. Preparation
+// materializes a whole tree and merges it, and Finish writes that tree into the
+// user's project, so the 30-second default is wrong for a large LFS project.
+const integrationGitTimeout = 5 * time.Minute
+
 type IntegrationSessionService struct {
-	app    *application.App
-	git    *CommandRunner
-	target integrationMergeTarget
-	store  *integrationSessionStore
-	bus    *RepoEventBus
+	app      *application.App
+	git      *CommandRunner
+	target   integrationGit
+	settings integrationSettings
+	store    *integrationSessionStore
+	bus      *RepoEventBus
 
 	workspaceRoot string
 
-	// preparing enforces one in-flight preparation per common repository.
+	// preparing enforces one in-flight preparation per common repository, and
+	// scheduled holds the debounce timer per repository path.
 	mu        sync.Mutex
 	preparing map[string]bool
+	scheduled map[string]*time.Timer
+
+	unsubscribe func()
+
+	// Injection points for tests.
+	debounce  time.Duration
+	afterFunc func(time.Duration, func()) *time.Timer
 }
 
-func NewIntegrationSessionService(target integrationMergeTarget) *IntegrationSessionService {
+func NewIntegrationSessionService(target integrationGit) *IntegrationSessionService {
 	locations := resolveDataLocations()
+	runner := NewCommandRunner()
+	runner.Timeout = integrationGitTimeout
+
 	return &IntegrationSessionService{
-		git:           NewCommandRunner(),
+		git:           runner,
 		target:        target,
 		store:         newIntegrationSessionStore(locations.IntegrationDir),
 		workspaceRoot: integrationWorkspaceRoot(locations.IntegrationDir),
 		preparing:     map[string]bool{},
+		scheduled:     map[string]*time.Timer{},
+		debounce:      integrationReadinessDebounce,
+		afterFunc:     time.AfterFunc,
 	}
 }
 
@@ -164,7 +188,8 @@ func (s *IntegrationSessionService) PrepareReadiness(repoPath string, squashMerg
 		return snapshot
 	}
 
-	if err := s.prepare(&session); err != nil {
+	entries, err := s.prepare(&session)
+	if err != nil {
 		session.State = integrationStateFailed
 		session.Error = err.Error()
 	}
@@ -176,6 +201,9 @@ func (s *IntegrationSessionService) PrepareReadiness(repoPath string, squashMerg
 	}
 
 	snapshot := s.emit(session)
+	if session.State == integrationStateNeedsDecisions {
+		s.emitConflicts(s.conflictSnapshot(session, entries, nil))
+	}
 	done(snapshot, nil)
 	return snapshot
 }
@@ -372,18 +400,22 @@ func (s *IntegrationSessionService) newSession(repoPath string, identity string,
 
 // prepare materializes the workspace, runs the real merge, and classifies the
 // outcome. On any failure the workspace is unwound so nothing is left behind.
-func (s *IntegrationSessionService) prepare(session *integrationSession) error {
+// The classified entries come back so the caller can publish them without
+// rescanning.
+func (s *IntegrationSessionService) prepare(session *integrationSession) ([]ConflictQueueEntry, error) {
+	empty := []ConflictQueueEntry{}
+
 	// Work already contained in the destination has nothing to integrate. The
 	// destination revision is its own result, so Finish becomes a no-op rather
 	// than an empty merge commit nobody asked for.
 	if s.git.RunGit(session.OpenProjectPath, "merge-base", "--is-ancestor", session.SourceOID, session.DestinationOID).Success {
 		session.State = integrationStateReady
 		session.ResultOID = session.DestinationOID
-		return nil
+		return empty, nil
 	}
 
 	if err := createIntegrationWorkspace(s.git, session.OpenProjectPath, session.SessionID, session.DestinationOID, session.WorkspacePath); err != nil {
-		return err
+		return empty, err
 	}
 
 	args := []string{"merge", "--no-commit", "--no-ff", session.SourceOID}
@@ -395,19 +427,19 @@ func (s *IntegrationSessionService) prepare(session *integrationSession) error {
 	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
 	if err != nil {
 		forceRemoveIntegrationWorkspace(s.git, session.OpenProjectPath, session.WorkspacePath)
-		return fmt.Errorf("failed to inspect the checked files: %w", err)
+		return empty, fmt.Errorf("failed to inspect the checked files: %w", err)
 	}
 	if len(entries) > 0 {
 		session.State = integrationStateNeedsDecisions
-		return nil
+		return entries, nil
 	}
 	if !mergeResult.Success {
 		// No unmerged files, so this was a real failure rather than a conflict.
 		forceRemoveIntegrationWorkspace(s.git, session.OpenProjectPath, session.WorkspacePath)
-		return fmt.Errorf("failed to check this work against the shared project: %s", getErrorMessage(mergeResult))
+		return empty, fmt.Errorf("failed to check this work against the shared project: %s", getErrorMessage(mergeResult))
 	}
 
-	return s.createResult(session)
+	return empty, s.createResult(session)
 }
 
 // createResult writes the prepared result into the private integration
@@ -415,6 +447,16 @@ func (s *IntegrationSessionService) prepare(session *integrationSession) error {
 // cannot run repository hooks, so a project's pre-commit hook never sees a
 // commit the user did not make.
 func (s *IntegrationSessionService) createResult(session *integrationSession) error {
+	// A result may only be built from a fully resolved workspace, so every
+	// caller pays for one authoritative check rather than trusting its own.
+	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	if err != nil {
+		return fmt.Errorf("failed to inspect the checked files: %w", err)
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("some files still need a decision")
+	}
+
 	treeResult := s.git.RunGit(session.WorkspacePath, "write-tree")
 	treeOID := strings.TrimSpace(treeResult.Stdout)
 	if !treeResult.Success || treeOID == "" {

@@ -24,11 +24,13 @@ interface MergeReviewPaneProps {
   isLoadingMergeReviewFiles: boolean;
   isLoadingReviewDiff: boolean;
   conflictFilePaths?: string[];
-  onToggleReviewFile: (filePath: string) => void;
-  onToggleAllReviewFiles: () => void;
+  onToggleReviewFile?: (filePath: string) => void;
+  onToggleAllReviewFiles?: () => void;
   onReviewFile: (filePath: string) => Promise<void>;
   showToolbar?: boolean;
   showFrame?: boolean;
+  /** False when Finish applies the whole result, so picking files means nothing. */
+  selectable?: boolean;
 }
 
 interface MergeReviewFileListProps {
@@ -39,8 +41,9 @@ interface MergeReviewFileListProps {
   conflictFilePaths?: string[];
   title?: string;
   description?: string;
-  onToggleReviewFile: (filePath: string) => void;
-  onToggleAllReviewFiles: () => void;
+  selectable?: boolean;
+  onToggleReviewFile?: (filePath: string) => void;
+  onToggleAllReviewFiles?: () => void;
   onReviewFile: (filePath: string) => void;
 }
 
@@ -52,6 +55,7 @@ export function MergeReviewFileList({
   conflictFilePaths = [],
   title = 'Selected files',
   description = 'These are the files that will be included when you continue the merge.',
+  selectable = true,
   onToggleReviewFile,
   onToggleAllReviewFiles,
   onReviewFile,
@@ -73,15 +77,17 @@ export function MergeReviewFileList({
         <Badge variant="outline">{selectedReviewFiles.length}/{mergeReviewFiles.length}</Badge>
       </div>
 
-      <label className="flex items-center gap-2 px-4 py-2.5 border-b border-theme-default text-sm text-theme-secondary">
-        <input
-          type="checkbox"
-          checked={allReviewFilesSelected}
-          onChange={onToggleAllReviewFiles}
-          className="rounded border-theme-default bg-theme-base"
-        />
-        Select all files
-      </label>
+      {selectable && (
+        <label className="flex items-center gap-2 px-4 py-2.5 border-b border-theme-default text-sm text-theme-secondary">
+          <input
+            type="checkbox"
+            checked={allReviewFilesSelected}
+            onChange={onToggleAllReviewFiles}
+            className="rounded border-theme-default bg-theme-base"
+          />
+          Select all files
+        </label>
+      )}
 
       <div className="flex-1 overflow-auto p-2 space-y-1">
         {isLoadingMergeReviewFiles ? (
@@ -104,12 +110,14 @@ export function MergeReviewFileList({
               }`}
             >
               <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => onToggleReviewFile(file.path)}
-                  className="mt-1 rounded border-theme-default bg-theme-base"
-                />
+                {selectable && (
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => onToggleReviewFile?.(file.path)}
+                    className="mt-1 rounded border-theme-default bg-theme-base"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-theme-primary text-sm break-all">{formatMergeReviewFileLabel(file)}</p>
@@ -150,6 +158,7 @@ function MergeReviewPane({
   onReviewFile,
   showToolbar = true,
   showFrame = true,
+  selectable = true,
 }: MergeReviewPaneProps): JSX.Element {
   const [isFilesOpen, setIsFilesOpen] = useState(false);
 
@@ -242,6 +251,7 @@ function MergeReviewPane({
                   reviewFilePath={activeReviewPath}
                   isLoadingMergeReviewFiles={isLoadingMergeReviewFiles}
                   conflictFilePaths={conflictFilePaths}
+                  selectable={selectable}
                   onToggleReviewFile={onToggleReviewFile}
                   onToggleAllReviewFiles={onToggleAllReviewFiles}
                   onReviewFile={(filePath) => handleReviewSelection(filePath, true)}

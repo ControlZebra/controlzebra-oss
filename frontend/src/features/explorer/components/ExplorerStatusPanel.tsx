@@ -61,6 +61,8 @@ interface ExplorerStatusPanelProps {
   hasUpstream?: boolean;
   hasRemote?: boolean;
   totalLocalCommits?: number;
+  /** The background compatibility check, when one has run for this branch. */
+  review?: { state: string; message: string; conflictCount: number };
   onInitialize?: () => void;
   onInstallRequiredPackages?: () => Promise<boolean>;
   onSync?: () => void;
@@ -152,6 +154,7 @@ function ExplorerStatusPanel({
   hasUpstream = true,
   hasRemote = true,
   totalLocalCommits = 0,
+  review,
   onInitialize,
   onInstallRequiredPackages,
   onSync,
@@ -320,22 +323,40 @@ function ExplorerStatusPanel({
       );
     }
 
-    case 'featureBranch':
+    case 'featureBranch': {
+      const isChecking = review?.state === 'preparing' || review?.state === 'scheduled';
+      const isReady = review?.state === 'ready';
+      const needsDecisions = review?.state === 'needs-decisions';
+      const isBlocked = review?.state === 'blocked';
+
+      const title = isReady
+        ? 'Ready to finish'
+        : needsDecisions
+          ? 'Some files need a decision'
+          : isBlocked
+            ? 'Almost ready'
+            : isChecking
+              ? 'Checking your work'
+              : 'Branch synced';
+
       return (
         <PanelLayout
           type="featureBranch"
-          title="Branch synced"
+          title={title}
           subtitle={<><span>{branchName}</span> is up to date</>}
         >
-          <Button 
+          {review && (
+            <p className="text-theme-muted text-xs mb-3 text-left">{review.message}</p>
+          )}
+          <Button
             onClick={handleOpenCombineChanges}
-            disabled={operationInProgress}
+            disabled={operationInProgress || isChecking}
             size="sm"
             variant="secondary"
             className="w-full"
           >
             <Merge style={ICON_STYLES.sm as CSSProperties} />
-            I am ready to merge
+            {review ? 'Finish this work' : 'I am ready to merge'}
           </Button>
           {onCreateChangeRequest && (
             <span
@@ -356,6 +377,7 @@ function ExplorerStatusPanel({
           )}
         </PanelLayout>
       );
+    }
 
     case 'synced':
     default: {
