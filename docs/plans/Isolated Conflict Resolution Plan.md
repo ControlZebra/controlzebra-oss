@@ -1,11 +1,353 @@
-# Isolated Pre-Merge Conflict Readiness Action Plan
+# Feature Branch Conflict Resolution Pivot Plan
 
-> Prepare and resolve real integration conflicts while feature development is
-> still active, without changing either branch until the user chooses Finish.
+> When the user opts in while saving, fetch the latest shared work, merge it
+> into the feature branch in the open project, resolve any conflicts there,
+> create the merge commit automatically, and ask before sharing it.
 
 ## Status
 
-Action plan, 2026-08-16. Supersedes the design-only revision of the same name.
+Pivot action plan, 2026-08-22.
+
+This plan replaces the prepared-result design implemented in Phases 0-4 of the
+former **Isolated Pre-Merge Conflict Readiness Action Plan**. The existing code
+is the migration baseline, not the target architecture.
+
+The target behavior follows this workflow in the open project:
+
+```bash
+git fetch <remote>
+git merge --no-edit <remote>/<destination>
+# resolve and stage conflicted files
+git commit --no-edit
+git push <remote> <feature-branch>            # only after user confirmation
+```
+
+Every command continues to run through `CommandRunner`. The commands above
+describe behavior, not direct `os/exec` call sites.
+
+## Approved Scope
+
+| Decision | Approved choice |
+| --- | --- |
+| Outcome | Permanently merge the destination into the actual feature branch. |
+| Destination | Fetch and merge the latest remote destination. |
+| Fetch policy | Fetch only after an opted-in Save Changes succeeds. |
+| Trigger | A **Check for conflicts** checkbox below Save Changes. Unchecked means save only; checked means save, then start the workflow. |
+| Working copy | Use the open project only. Do not create or discover linked worktrees. |
+| Commit | Create a regular merge commit automatically with Git's default message after all decisions are staged. |
+| Push | Ask before pushing. Never push automatically after Save Changes. |
+| Merge strategy | Regular merge only. Remove squash support from this workflow. |
+| Migration | Replace the prepared-result session design rather than adding a second mode. |
+
+## Product Consequence
+
+This pivot deliberately reverses the former plan's central invariant.
+
+Previously, ControlZebra merged the feature into a detached checkout of the
+local destination, stored a private prepared result, and moved the destination
+only when the user chose **Finish**. Neither user branch moved during review.
+
+Now, ControlZebra merges the fetched remote destination into the actual feature
+branch. A conflict-free merge immediately creates a local merge commit. A
+conflicting merge leaves the open project in a real interrupted merge until the
+user resolves or cancels it.
+
+The feature branch is already checked out in the open project when Save Changes
+runs. The workflow always uses that project and is not isolated. Ordinary Save
+Changes must be disabled while Conflict Review is active.
+
+## Target Workflow
+
+```mermaid
+flowchart TD
+      A["User sets Check for conflicts"] --> B["User chooses Save Changes"]
+      B --> C{"Option checked?"}
+      C -- No --> D["Save only"]
+      C -- Yes --> E["Save, then resolve feature, remote, and destination"]
+      E --> F["Fetch latest shared work"]
+      F --> I["Verify open project is clean and revision is current"]
+    I --> J["Merge remote destination into feature branch"]
+    J --> K{"Conflicts?"}
+    K -- No --> L["Local merge commit created"]
+    K -- Yes --> M["Show Files Needing a Decision"]
+    M --> N["Resolve and stage each file"]
+    N --> O{"Files left?"}
+    O -- Yes --> M
+    O -- No --> P["Create merge commit with default message"]
+    L --> Q["Your work is up to date"]
+    P --> Q
+    Q --> R["Offer Share updated work"]
+    R --> S{"User confirms?"}
+    S -- Yes --> T["Push feature branch"]
+    S -- No --> U["Keep local merge commit"]
+```
+
+### User-Facing Terms
+
+| Internal action | User-facing term |
+| --- | --- |
+| Fetch remote destination | Check for shared updates |
+| Merge destination into feature | Update your work |
+| Unmerged files | Files Needing a Decision |
+| Abort merge | Cancel update |
+| Merge committed locally | Your work is up to date |
+| Push feature branch | Share updated work |
+
+UI text must not expose checkout, ref, index, HEAD, SHA, or merge-commit terms.
+Errors have two parts: what happened, then a concrete recovery action.
+
+## Safety Model
+
+One update attempt captures:
+
+```text
+repository common directory
+feature branch ref and pre-merge revision
+remote name
+remote destination ref and post-fetch revision
+open project path
+```
+
+Required invariants:
+
+- One common repository has at most one active update.
+- Fetch completes before the remote destination revision is captured.
+- The open project is clean and its feature revision is current before the
+      merge starts.
+- Automatic update never pushes.
+- Conflict APIs accept only files in the real unmerged index.
+- Final resolution uses `git commit --no-edit`, not `commit-tree`.
+- Cancel before commit runs `git merge --abort` and verifies the feature ref,
+  index, and files against the captured pre-merge revision.
+- Cancel is not offered after the merge commit exists. Rewind is separate.
+- The workflow never creates, discovers, locks, or removes linked worktrees.
+- Cancel restores the open project in place; cleanup never removes it.
+- Push verifies that the feature branch still points to the completed result.
+- Frontend APIs continue to use session IDs and repository-relative paths only.
+
+## Save Option
+
+Add a **Check for conflicts** checkbox directly below the Save Changes button.
+It is optional and unchecked by default.
+
+- Unchecked: Save Changes ends after the user's work is saved.
+- Checked: after Save Changes succeeds, start this workflow immediately.
+- A failed Save Changes never fetches or starts a merge.
+- The checkbox is disabled while saving or while Conflict Review is active.
+- The workflow uses the repository and feature revision produced by that exact
+      Save Changes operation; it is not scheduled by a general repository event.
+
+Run a fresh porcelain status check immediately before merge. If the open
+project is no longer clean, enter `blocked` without starting a merge. Do not
+hold a Go mutex during human conflict review; persisted session ownership is
+the long-lived guard and the shared repository coordinator protects short
+transitions.
+
+## Session Lifecycle
+
+```text
+scheduled -> fetching -> starting
+  -> needs-decisions -> committing -> updated
+  -> updated -> sharing -> shared
+  -> blocked -> scheduled | cancelled
+  -> needs-decisions -> cancelling -> cancelled
+  -> any nonterminal state -> failed
+```
+
+`ready`, `applying`, `completed`, `obsolete`, `MergeMode`, and `HasResult` are
+prepared-result concepts and are removed.
+
+## Current Implementation Audit
+
+### Reuse
+
+| Existing area | Reuse |
+| --- | --- |
+| `repo_identity.go` and `repo_coordinator.go` | Common-repository identity and short transition locks. |
+| `integration_session_store.go` | Atomic persistence and opaque IDs; bump its schema. |
+| `integration_session_conflicts.go` | Session file gates, stale-event handling, and resolver delegation. |
+| `classifyConflictQueue` | Real unmerged-entry classification. |
+| `git_conflict_resolution.go` | Tokens, path checks, file protections, and staging. |
+| Integration context and conflict UI | Session/event adapter and presentation. |
+
+### Replace Or Delete
+
+| Current implementation | Pivot |
+| --- | --- |
+| `resolveTarget` captures a local destination without fetching. | Fetch, then capture the remote-tracking destination. |
+| Scheduler calls `PrepareReadiness(repoPath, true)` after every save. | Delete automatic scheduling. The Save Changes UI explicitly calls `UpdateFeatureFromDestination(repoPath)` only when the checkbox is checked. |
+| Workspace is detached at `DestinationOID`. | Delete session workspace creation and use the open project. |
+| `prepare` merges source into destination. | Merge remote destination into feature. |
+| Conflict code swaps ours/theirs for the old direction. | Remove swaps after direction tests verify feature as ours and shared destination as theirs. |
+| `createResult` uses `commit-tree` and a private ref. | Delete; use normal merge completion. |
+| `FinishSession` applies a prepared result to destination. | Delete; add explicit `ShareSession`. |
+| Cancel deletes a harmless detached review. | Abort and verify an interrupted merge in the open project. |
+| Recovery never moves a ref. | Reconcile real merge state; abort only on explicit user cancellation. |
+| Finish modal applies prepared work. | Show update status, Conflict Review, Cancel update, and Share updated work. |
+
+## Backend API Target
+
+| Method | Contract |
+| --- | --- |
+| `UpdateFeatureFromDestination(repoPath)` | After an opted-in save, fetch and start or complete a regular merge in the open project. |
+| `ListSessions(repoPath)` | List sessions for the common repository. |
+| `GetSessionState(sessionID)` | Return one complete update snapshot. |
+| `GetSessionConflicts(sessionID)` | Return the real conflict queue. |
+| Existing session resolution methods | Resolve and stage a queued file in the open project. |
+| `CancelSession(sessionID)` | Abort and verify an interrupted merge in the open project. |
+| `ShareSession(sessionID)` | After explicit confirmation, push the unchanged completed feature revision. |
+| `RecoverSessions()` | Reconcile records, refs, and the open project's merge state without automatic branch movement. |
+
+Fetch, merge, commit, and push use the service's five-minute `CommandRunner`
+timeout and noninteractive environment.
+
+## Persistence Migration
+
+Bump the session schema. Never reinterpret schema-v1 prepared-result records as
+active branch merges. On first startup:
+
+1. Verify ownership and remove schema-v1 detached workspaces.
+2. Delete `refs/controlzebra/integration/<sessionID>`.
+3. Delete metadata only after cleanup succeeds.
+4. Never apply a schema-v1 prepared result or move a user branch.
+5. Persist a recoverable failure when cleanup cannot be verified.
+
+New records include `remoteName`, `remoteDestinationRef`,
+`remoteDestinationOID`, `featureOIDBeforeMerge`, `featureOIDAfterMerge`,
+`openProjectPath`, and `pushState`.
+
+## Pivot Phases
+
+### Phase P0 - Contract And Git Harness
+
+- [ ] Prove fetch plus regular merge into the checked-out feature branch.
+- [ ] Verify first parent is the pre-merge feature and second parent is the
+      fetched destination.
+- [ ] Prove conflict staging plus `git commit --no-edit` and full restoration
+      through `git merge --abort`.
+- [ ] Prove staged, unstaged, and untracked work blocks before merge.
+- [ ] Cover fetch/auth failures, branch movement, hook failure, and push
+      rejection.
+- [ ] Decide and test hook behavior. Normal merge and commit run project hooks
+      unless explicitly disabled.
+- [ ] Add plain-English state message tests.
+
+Exit: focused harness tests pass on macOS.
+
+### Phase P1 - Target And Open Project Merge
+
+- [ ] Fetch and capture the remote destination.
+- [ ] Delete checkout-owner discovery and managed workspace creation.
+- [ ] Require the open project to be on the feature branch saved by the user.
+- [ ] Validate clean porcelain status immediately before merge.
+- [ ] Remove squash mode from model, API, bindings, and tests.
+- [ ] Run `git merge --no-edit <remote-destination-ref>`.
+- [ ] Remove ours/theirs translation after direction tests pass.
+
+Exit: the open project can reach updated or needs-decisions; it never pushes.
+
+### Phase P2 - Resolution, Commit, Cancel, And Recovery
+
+- [ ] Point conflict operations at the open project.
+- [ ] After the last decision, re-scan and run `git commit --no-edit`.
+- [ ] Verify topology and feature ref before state `updated`.
+- [ ] Redefine cancellation as merge abort plus restoration verification.
+- [ ] Reconcile real merge state across restart.
+- [ ] Test crashes around merge, decisions, commit, abort, and cleanup.
+- [ ] Clean schema-v1 sessions without applying prepared results.
+
+Exit: restart preserves review, cancellation fully restores, and completed
+updates survive cleanup.
+
+### Phase P3 - Explicit Share And Frontend Pivot
+
+- [ ] Replace readiness and Finish calls with update state and `ShareSession`.
+- [ ] Add the unchecked-by-default **Check for conflicts** checkbox directly
+      below Save Changes.
+- [ ] Start the workflow only from a successful Save Changes when checked;
+      remove the repository-event trigger and debounce.
+- [ ] Replace the Finish modal's prepared-result assumptions.
+- [ ] Disable ordinary Save Changes while the open project needs decisions.
+- [ ] Retain text, ladder, and whole-file resolution UI.
+- [ ] Confirm Cancel update with the restoration consequence.
+- [ ] Offer **Share updated work** only after state `updated`.
+- [ ] Leave local update intact after push rejection and allow retry.
+- [ ] Route active sessions correctly across project switching.
+
+Exit: no UI says Finish or implies that the destination branch will move.
+
+### Phase P4 - Delete Prepared-Result Infrastructure
+
+- [ ] Delete result creation/application, private result refs, detached
+      destination workspaces, worktree ownership code used only by sessions,
+      and the integration-session scheduler.
+- [ ] Remove prepared-result states, fields, and squash mode.
+- [ ] Remove the Developer Mode gate after acceptance tests pass.
+- [ ] Regenerate bindings and update technical documentation.
+
+Exit: no active integration-session code references `commit-tree`,
+`integrationResultRef`, `FinishSession`, or `integrationModeSquash`.
+
+### Phase P5 - Hardening
+
+- [ ] Test LFS, filters, hooks, submodules, large files, renames, and deletes.
+- [ ] Test auth expiry, force-updated/deleted remote destinations, offline retry,
+      and non-fast-forward push rejection.
+- [ ] Test disk exhaustion, Windows paths/locks, restart, and project switching.
+- [ ] Execute the Windows checklist and run full backend/frontend suites.
+
+## Acceptance Criteria
+
+- Fetch precedes remote destination capture.
+- Each checked, successful Save Changes starts at most one regular merge of the
+      remote destination into the actual feature branch.
+- Conflict-free updates create a local merge commit automatically.
+- Conflict decisions come only from real unmerged entries; the final decision
+  automatically creates the default merge commit.
+- Commit parents are feature-before-update, then fetched destination.
+- Unchecked Save Changes never fetches or starts conflict checking.
+- Checked Save Changes starts the workflow only after the save succeeds.
+- The open project is always used; this workflow never creates a linked
+      worktree.
+- Dirty work blocks before merge and is never overwritten.
+- Cancel restores the exact pre-merge feature state.
+- Completed local updates are not silently rewound.
+- Push requires explicit confirmation; failure leaves a retryable local update.
+- No temporary branch, private prepared-result ref, or Finish application path
+  remains after migration.
+- Session paths never cross the frontend boundary.
+- Restart and project switching preserve active conflicts.
+- Backend and frontend test suites pass.
+
+## Non-Goals
+
+- Rebase or squash.
+- Updating the destination branch.
+- Automatic push after Save Changes.
+- Temporary ControlZebra branches.
+- Silent stash, discard, or overwrite.
+- Predicted conflicts as decision items.
+- More than one active update per open project.
+
+## Explicit Risks
+
+1. The normal open-project path is no longer isolated.
+2. An opted-in Save Changes moves the feature branch and creates a commit.
+3. Normal merge completion may run project-controlled hooks.
+4. Automatic fetch must remain noninteractive and translate auth failures.
+5. External branch/ref movement requires repeated revision validation.
+
+These risks are accepted for planning by the approved workflow, but recovery
+must be proven before removing the Developer Mode gate.
+
+---
+
+## Historical Implementation Baseline
+
+The remainder of this document records the superseded prepared-result plan and
+the delivered Phases 0-4. It is retained for migration traceability only. Its
+decisions, architecture, future Phase 5, acceptance criteria, and open questions
+are no longer authoritative.
 
 This plan supersedes the merge-generated conflict lifecycle in
 [[Merge and Conflict Workflow Separation Plan]]. That plan remains relevant to
@@ -25,6 +367,7 @@ rediscussion inside a phase.
 | Deprecation strategy | Feature-flag the session path behind Developer Mode, run both paths, delete the old path in Phase 5. |
 | Destination resolution | Reuse `GitService.mergeTargetRef` for v1. No new per-repo destination setting. |
 | Resolver UI | Reuse `frontend/src/features/conflict` components. Swap `repoPath` for `sessionId` in the data layer only. |
+| Readiness fallback | Saving remains the primary background trigger. If the user opens Finish before a session exists, run the same squash readiness check on demand and show progress in the modal. Never fall back to the legacy preflight or live merge. |
 | Windows verification | Manual verification checkpoints. No Windows CI in this plan. |
 | Scope | Regular and squash merge, one active session per Git common repository, saved revisions only. |
 | Apply primitive | Chosen from how the destination is being used, because no single command is correct for all three cases. Nothing has it checked out: `git update-ref <destinationRef> <resultOID> <destinationOID>`, a true compare-and-swap with no working files to disturb. The open project has it checked out: `git merge --ff-only <resultOID>`, which updates ref, index, and files together and refuses on its own rather than overwriting local work. Another linked worktree has it checked out: stop and report `blocked`. Proven in Phase 0 and Phase 2. |
@@ -79,10 +422,10 @@ What exists today in `controlzebra-oss`, and what each piece becomes.
 | Existing code | Today's behavior | Disposition |
 | --- | --- | --- |
 | `features/conflict/context/ConflictQueueContext.tsx` | Calls `SetRepository`, `ClearRepository`, and `Refresh`, and subscribes to `conflictQueue:changed`. | The single data-layer seam. Gains a session-backed source behind the flag. |
-| `features/conflict/components/modal/*` and `components/sidebar/*` | Resolver pane, text and L5X resolvers, whole-file fallback, sidebar queue. | Reuse unchanged. They must never learn about sessions. |
+| `features/conflict/components/modal/*` and `components/sidebar/*` | Resolver pane, text and L5X resolvers, whole-file fallback, sidebar queue. | Reuse as presentation components. They must never receive a session id or workspace path; a thin session controller may adapt their existing file and action props. |
 | `features/conflict/lib/conflict-queue-presentation.ts`, `types.ts` | Presentation mapping and decision payload helpers. | Reuse. Extend only if a new session state needs a label. |
 | `features/merge/hooks/useMergeFlowController.ts` | `MergeFlowStep` of `check`, `review`, `resolve`, `complete`. Drives the live merge. | The `check` and `resolve` steps disappear. Replaced by a readiness hook. |
-| `features/merge/components/ExplorerMergeModal.tsx`, `modal/MergeReviewPane.tsx`, `modal/TargetBranchDrawer.tsx`, `MergeReviewDiffModal.tsx` | Blocking merge modal with preflight and in-modal resolution. | Reduced to a Finish confirmation plus read-only review. Blocking resolution removed. |
+| `features/merge/components/ExplorerMergeModal.tsx`, `modal/MergeReviewPane.tsx`, `modal/TargetBranchDrawer.tsx`, `MergeReviewDiffModal.tsx` | Blocking merge modal with preflight and in-modal resolution. | Reduced to a Finish surface with read-only review and the reused session resolver when decisions remain. Legacy preflight and live-merge resolution are removed. |
 | `features/explorer/pages/MergeRequestScreen.tsx` | Explorer sub-screen for the merge state. | Becomes the Ready to Finish and Needs Decisions surface. |
 | `domain/repo/context/RepoContext.tsx` and `.types.ts` | Holds merge state, conflicted files, and merge actions. | Merge-state fields shrink to interrupted-repo recovery only. |
 | `context/LayoutContext.tsx` `developerModeEnabled`, `services/settings_service.go` `AppSettings.DeveloperModeEnabled` | Existing Developer Mode flag with settings persistence. | The gate for the session path through Phase 4. |
@@ -547,7 +890,8 @@ Goal: the user-visible workflow, behind Developer Mode.
 
 ### Actions
 
-Delivered in two passes. Pass A is the data path, Pass B is the merge UI.
+Delivered in two planned passes, followed by targeted wiring repairs found
+during manual workflow review. Pass A is the data path, Pass B is the merge UI.
 
 #### Pass A - background scheduling and the queue source
 
@@ -581,22 +925,28 @@ Delivered in two passes. Pass A is the data path, Pass B is the merge UI.
       `frontend/src/features/integration/context/IntegrationSessionContext.tsx`
       holding session state, subscribing to both `integrationSession:conflicts`
       and `integrationSession:changed`, and exposing `finish`, `cancelReview`,
-      and `refresh`. A state change for a review it does not recognize triggers
-      an authoritative re-read rather than a guess that the review belongs to
-      the open project. Scans are ordered by `scannedAt`, since every snapshot
-      for one session shares a generation.
+      `refresh`, on-demand readiness, and the four session-keyed conflict
+      operations. A state change for a review it does not recognize triggers an
+      authoritative re-read rather than a guess that the review belongs to the
+      open project. Scans are ordered by `scannedAt`, since every snapshot for
+      one session shares a generation.
 - [x] Add a source switch inside
       `frontend/src/features/conflict/context/ConflictQueueContext.tsx`. This is
-      the only conflict file that changed. When the review is the source the
-      provider also unbinds the repository queue, so the backend stops doing
-      prediction work nobody reads.
+      the conflict data-layer seam. When the review is the source the provider
+      also unbinds the repository queue, so the backend stops doing prediction
+      work nobody reads.
 - [x] Hoist `LayoutProvider` from `AppLayout.tsx` into `App.tsx` above the
       conflict providers. `useLayout` throws outside its provider, and
       `LayoutContext` imports nothing from `RepoContext`, so hoisting is safe
       and keeps one source of truth for the flag. Reading the setting a second
       time would have gone stale the moment the user toggled it.
-- [x] Leave every component under `features/conflict/components/` unchanged.
-      They must not learn about sessions.
+- [x] Keep session identity out of every component under
+      `features/conflict/components/`. `SessionConflictResolver` is the thin
+      controller that maps session entries and operations into `ConflictQueue`.
+      `ConflictQueue` gained a local display-file type for the richer session
+      statuses, and `ConflictResolverPane` narrowed its file dependency to
+      `{ path: string }`; neither component receives a session id or workspace
+      path.
 - [x] Hide predicted entries entirely when the flag is on. Unbinding the
       repository queue removes them at the source rather than filtering them
       in the UI.
@@ -620,8 +970,18 @@ Delivered in two passes. Pass A is the data path, Pass B is the merge UI.
       `ExplorerMergeModal` became a two-line switch on
       `useLayout().developerModeEnabled`. Two components rather than branches
       threaded through 1,315 lines, so Phase 5 deletes the legacy one whole.
-      The new modal never calls `useMergeFlowController`, so no preflight check
-      and no blocking resolution step can run.
+      The new modal never calls `useMergeFlowController`, so no legacy preflight
+      check or live merge can run. When the session is `needs-decisions`, it
+      embeds `SessionConflictResolver` in the existing modal and stages choices
+      only in the isolated workspace.
+- [x] Add an on-demand readiness fallback for **I am ready to merge**. The
+      button still only opens the modal, but an open `MergeFinishModal` with no
+      active session asks `IntegrationSessionContext` to call
+      `PrepareReadiness(repoPath, true)` exactly once. This covers saved work
+      created before Developer Mode was enabled, before startup, or after an
+      earlier review was removed. Existing sessions are reused, and the modal
+      shows **Checking your saved work** instead of a blank review while the
+      check runs.
 - [ ] Trim `MergeFlowStep` in `useMergeFlowController.ts`. Deferred to Phase 5.
       The flagged path no longer uses the hook at all, so `check` and `resolve`
       are already unreachable when the flag is on, but the union cannot shrink
@@ -641,9 +1001,13 @@ Delivered in two passes. Pass A is the data path, Pass B is the merge UI.
       backend and so can never be shown as `obsolete`.
 - [x] Add the Cancel Review confirmation that states decisions will be deleted
       and that neither branch changes.
-- [x] Add `MergeFinishModal.test.tsx` for the reduced flow. The existing
-      `ExplorerMergeModal.test.tsx` was left untouched and still passes, which is
-      the evidence that the legacy path is unchanged.
+- [x] Add `MergeFinishModal.test.tsx` for the reduced flow and
+      `SessionConflictResolver.test.tsx` for session data loading, region
+      decisions, and whole-file decisions. Extend
+      `IntegrationSessionContext.test.tsx` to cover on-demand preparation,
+      conflict loading, and the Developer Mode gate. The existing
+      `ExplorerMergeModal.test.tsx` was left untouched and still passes, which
+      is the evidence that the legacy path is unchanged.
 
 ### Exit Criteria
 
@@ -651,6 +1015,8 @@ Delivered in two passes. Pass A is the data path, Pass B is the merge UI.
       tests pass untouched.
 - [x] With Developer Mode on, saving on a feature branch produces a readiness
       result without blocking the user.
+- [x] With Developer Mode on, opening Finish without an existing session starts
+      one readiness check and presents progress instead of an empty modal.
 - [x] The open project stays editable while decisions are pending.
 - [ ] Restart and project switching preserve an active review. Restart is
       covered by `RecoverSessions` and its Phase 2 tests; project switching

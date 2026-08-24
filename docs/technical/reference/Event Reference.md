@@ -16,6 +16,8 @@
 | `background-task-completed` | `BackgroundTaskStatus` | RepositorySettingsService | RepoSettingsPage | Background task finished |
 | `debug:new-log` | `LogEntry` | DebugLogger | DebugPage | New debug log entry |
 | `conflictQueue:changed` | `ConflictQueueSnapshot` | ConflictQueueService | Conflict queue UI | Full snapshot of files still needing a conflict decision |
+| `integrationSession:changed` | `IntegrationSessionSnapshot` | IntegrationSessionService | IntegrationSessionContext | Full isolated-review state snapshot |
+| `integrationSession:conflicts` | `SessionConflictSnapshot` | IntegrationSessionService | IntegrationSessionContext | Full file-decision queue for one isolated review |
 
 ## Payload Types
 
@@ -90,6 +92,38 @@ type ConflictQueueEntry struct {
 ```
 
 See [[ConflictQueueService]] for the full contract.
+
+### IntegrationSessionSnapshot
+```go
+type IntegrationSessionSnapshot struct {
+    SessionID      string `json:"sessionId"`
+    State          string `json:"state"`
+    Message        string `json:"message"`
+    MergeMode      string `json:"mergeMode"`
+    SourceBranch   string `json:"sourceBranch"`
+    SourceOID      string `json:"sourceOid"`
+    TargetBranch   string `json:"targetBranch"`
+    DestinationOID string `json:"destinationOid"`
+    Generation     uint64 `json:"generation"`
+    HasResult      bool   `json:"hasResult"`
+    Active         bool   `json:"active"`
+    Error          string `json:"error,omitempty"`
+    UpdatedAt      int64  `json:"updatedAt"`
+}
+```
+
+### SessionConflictSnapshot
+```go
+type SessionConflictSnapshot struct {
+    SessionID  string               `json:"sessionId"`
+    Generation uint64               `json:"generation"`
+    Entries    []ConflictQueueEntry `json:"entries"`
+    ScannedAt  int64                `json:"scannedAt"`
+    Error      string               `json:"error,omitempty"`
+}
+```
+
+See [[IntegrationSessionService]] for the complete workflow and state model.
 
 ## Subscribing (Frontend)
 

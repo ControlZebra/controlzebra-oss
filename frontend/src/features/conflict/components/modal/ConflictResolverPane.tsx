@@ -1,7 +1,6 @@
 import { Loader2 } from 'lucide-react';
 
 import type {
-  ConflictedFile,
   ResolutionStrategy,
 } from '../../../../domain/repo/context/RepoContext.types';
 import { isFileKind } from '../../../../shared/constants/file-types';
@@ -27,7 +26,7 @@ const INELIGIBLE_REASON_LABELS: Record<string, string> = {
 };
 
 interface ConflictResolverPaneProps {
-  file: ConflictedFile;
+  file: { path: string };
   data?: ConflictResolutionData;
   draft?: TextConflictDraft;
   isLoading: boolean;

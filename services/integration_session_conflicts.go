@@ -52,13 +52,19 @@ func (s *IntegrationSessionService) GetSessionConflictResolutionData(sessionID s
 	if err != nil {
 		return ConflictResolutionData{Path: normalizeMergePath(filePath), Error: err.Error()}
 	}
-	return s.target.conflictResolutionData(session.WorkspacePath, path, true)
+	return integrationConflictResolutionData(s.target.conflictResolutionData(session.WorkspacePath, path, true))
 }
 
 // ResolveSessionConflictWithDecisions applies per-region choices to one file.
 func (s *IntegrationSessionService) ResolveSessionConflictWithDecisions(sessionID string, filePath string, resolutionToken string, decisions []ConflictDecision) OperationResult {
 	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
-		return s.target.resolveConflictWithDecisions(session.WorkspacePath, path, resolutionToken, decisions, true)
+		return s.target.resolveConflictWithDecisions(
+			session.WorkspacePath,
+			path,
+			resolutionToken,
+			integrationConflictDecisions(decisions),
+			true,
+		)
 	})
 }
 
@@ -71,12 +77,12 @@ func (s *IntegrationSessionService) ResolveSessionConflictWithContent(sessionID 
 
 // ResolveSessionConflictWithSide keeps one whole version of the file.
 func (s *IntegrationSessionService) ResolveSessionConflictWithSide(sessionID string, filePath string, side string) OperationResult {
-	stage := conflictStageOurs
+	stage := conflictStageTheirs
 	sideName := "current"
 	switch strings.TrimSpace(side) {
 	case integrationSideMine:
 	case integrationSideTheirs:
-		stage = conflictStageTheirs
+		stage = conflictStageOurs
 		sideName = "incoming"
 	default:
 		return failedOp("Choose which version of the file to keep, then try again.")
@@ -170,7 +176,55 @@ func (s *IntegrationSessionService) refreshSessionConflicts(session integrationS
 
 func (s *IntegrationSessionService) scanSessionConflicts(session integrationSession) SessionConflictSnapshot {
 	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	for index := range entries {
+		entries[index] = integrationConflictQueueEntry(entries[index])
+	}
 	return s.conflictSnapshot(session, entries, err)
+}
+
+func integrationConflictQueueEntry(entry ConflictQueueEntry) ConflictQueueEntry {
+	switch entry.Kind {
+	case ConflictKindAddedByUs:
+		entry.Kind = ConflictKindAddedByThem
+	case ConflictKindAddedByThem:
+		entry.Kind = ConflictKindAddedByUs
+	case ConflictKindDeletedByUs:
+		entry.Kind = ConflictKindDeletedByThem
+	case ConflictKindDeletedByThem:
+		entry.Kind = ConflictKindDeletedByUs
+	}
+	entry.HasOurs, entry.HasTheirs = entry.HasTheirs, entry.HasOurs
+	return entry
+}
+
+func integrationConflictResolutionData(data ConflictResolutionData) ConflictResolutionData {
+	data.Current, data.Incoming = data.Incoming, data.Current
+	switch data.Status {
+	case ConflictStatusDeletedByUs:
+		data.Status = ConflictStatusDeletedByThem
+	case ConflictStatusDeletedByThem:
+		data.Status = ConflictStatusDeletedByUs
+	}
+	for index := range data.Regions {
+		data.Regions[index].Current, data.Regions[index].Incoming =
+			data.Regions[index].Incoming, data.Regions[index].Current
+	}
+	return data
+}
+
+func integrationConflictDecisions(decisions []ConflictDecision) []ConflictDecision {
+	translated := make([]ConflictDecision, len(decisions))
+	for index, decision := range decisions {
+		decision.CurrentLines, decision.IncomingLines = decision.IncomingLines, decision.CurrentLines
+		switch decision.Side {
+		case "current":
+			decision.Side = "incoming"
+		case "incoming":
+			decision.Side = "current"
+		}
+		translated[index] = decision
+	}
+	return translated
 }
 
 func (s *IntegrationSessionService) conflictSnapshot(session integrationSession, entries []ConflictQueueEntry, err error) SessionConflictSnapshot {

@@ -19,16 +19,23 @@ import ConflictResolverPane from './ConflictResolverPane';
 
 const iconLg: CSSProperties = { width: ICON_SIZES.lg * 2, height: ICON_SIZES.lg * 2 };
 
-const CONFLICT_STATUS_LABELS: Record<ConflictedFile['status'], string> = {
+export interface ConflictQueueFile {
+  path: string;
+  status: ConflictedFile['status'] | 'added-by-us' | 'added-by-them';
+}
+
+const CONFLICT_STATUS_LABELS: Record<ConflictQueueFile['status'], string> = {
   'both-modified': 'Both changed',
   'both-added': 'Both added',
   'both-deleted': 'Both deleted',
+  'added-by-us': 'Only Current has this file',
+  'added-by-them': 'Only Incoming has this file',
   'deleted-by-us': 'Deleted on your branch',
   'deleted-by-them': 'Deleted on destination',
 };
 
 interface ConflictQueueProps {
-  conflictedFiles: ConflictedFile[];
+  conflictedFiles: ConflictQueueFile[];
   selectedConflictFile: string | null;
   fileResolutions: Record<string, ResolutionStrategy>;
   isResolvingConflict: boolean;

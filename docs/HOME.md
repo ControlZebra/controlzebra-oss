@@ -36,6 +36,7 @@ ControlZebra is a simplified desktop Git client for **non-technical users** in i
 - [[ProgressService]] — Git operation progress streaming
 - [[FileWatcherService]] — Filesystem monitoring
 - [[ConflictQueueService]] — Queue of files still needing a conflict decision
+- [[IntegrationSessionService]] — Isolated readiness, conflict decisions, and guarded Finish
 - [[FileSystemService]] — File operations & directory listing
 - [[Other Services#ImageDiffService|ImageDiffService]] — Pixel-level image comparison
 - [[Other Services#AuthService|AuthService]] — Supabase session keychain persistence

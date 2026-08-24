@@ -42,7 +42,7 @@ func TestSessionConflictQueueListsTheFilesNeedingADecision(t *testing.T) {
 }
 
 func TestSessionConflictResolutionDataLoadsWithoutARepositoryPath(t *testing.T) {
-	service, _, snapshot := needsDecisionsFixture(t)
+	service, fixture, snapshot := needsDecisionsFixture(t)
 
 	data := service.GetSessionConflictResolutionData(snapshot.SessionID, "shared.txt")
 
@@ -52,12 +52,68 @@ func TestSessionConflictResolutionDataLoadsWithoutARepositoryPath(t *testing.T) 
 	if data.ResolutionToken == "" || len(data.Regions) == 0 {
 		t.Fatalf("expected regions and a token, got %+v", data)
 	}
+	current := runGitOutput(t, fixture.openProject, "show", data.Current.OID)
+	incoming := runGitOutput(t, fixture.openProject, "show", data.Incoming.OID)
+	if current != "line\nfeature\n" || incoming != "line\nmain\n" {
+		t.Fatalf("expected Current to be feature and Incoming to be main, got current %q incoming %q", current, incoming)
+	}
 }
 
-func TestResolvingEverySessionConflictMakesTheReviewReady(t *testing.T) {
-	service, fixture, snapshot := needsDecisionsFixture(t)
+func TestSessionWholeFileChoicesUseProductSideSemantics(t *testing.T) {
+	tests := []struct {
+		name        string
+		side        string
+		wantContent string
+	}{
+		{name: "current keeps feature", side: integrationSideMine, wantContent: "line\nfeature\n"},
+		{name: "incoming keeps destination", side: integrationSideTheirs, wantContent: "line\nmain\n"},
+	}
 
-	result := service.ResolveSessionConflictWithSide(snapshot.SessionID, "shared.txt", integrationSideTheirs)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, fixture, snapshot := needsDecisionsFixture(t)
+
+			result := service.ResolveSessionConflictWithSide(snapshot.SessionID, "shared.txt", test.side)
+			if !result.Success {
+				t.Fatalf("resolve failed: %s", result.Error)
+			}
+
+			session, err := service.store.load(snapshot.SessionID)
+			if err != nil {
+				t.Fatalf("load session: %v", err)
+			}
+			if session.State != integrationStateReady {
+				t.Fatalf("expected ready after the last decision, got %q (%s)", session.State, session.Error)
+			}
+			if strings.TrimSpace(session.ResultOID) == "" {
+				t.Fatal("expected a prepared result")
+			}
+			if content := runGitOutput(t, fixture.openProject, "show", session.ResultOID+":shared.txt"); content != test.wantContent {
+				t.Fatalf("prepared result contains %q, expected %q", content, test.wantContent)
+			}
+			assertResultUnreachable(t, fixture.openProject, session.ResultOID)
+
+			for _, path := range []string{fixture.openProject, fixture.linkedWorktree} {
+				if status := strings.TrimSpace(runGitOutput(t, path, "status", "--porcelain")); status != "" {
+					t.Fatalf("a decision changed the user's project %s:\n%s", path, status)
+				}
+			}
+		})
+	}
+}
+
+func TestSessionSectionChoiceKeepsCurrentFeatureContent(t *testing.T) {
+	service, fixture, snapshot := needsDecisionsFixture(t)
+	data := service.GetSessionConflictResolutionData(snapshot.SessionID, "shared.txt")
+	if len(data.Regions) != 1 {
+		t.Fatalf("expected one conflict region, got %+v", data.Regions)
+	}
+
+	result := service.ResolveSessionConflictWithDecisions(snapshot.SessionID, "shared.txt", data.ResolutionToken, []ConflictDecision{{
+		RegionID: data.Regions[0].ID,
+		Mode:     "block",
+		Side:     "current",
+	}})
 	if !result.Success {
 		t.Fatalf("resolve failed: %s", result.Error)
 	}
@@ -66,18 +122,51 @@ func TestResolvingEverySessionConflictMakesTheReviewReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load session: %v", err)
 	}
-	if session.State != integrationStateReady {
-		t.Fatalf("expected ready after the last decision, got %q (%s)", session.State, session.Error)
+	if content := runGitOutput(t, fixture.openProject, "show", session.ResultOID+":shared.txt"); content != "line\nfeature\n" {
+		t.Fatalf("prepared result contains %q, expected feature content", content)
 	}
-	if strings.TrimSpace(session.ResultOID) == "" {
-		t.Fatal("expected a prepared result")
-	}
-	assertResultUnreachable(t, fixture.openProject, session.ResultOID)
+}
 
-	for _, path := range []string{fixture.openProject, fixture.linkedWorktree} {
-		if status := strings.TrimSpace(runGitOutput(t, path, "status", "--porcelain")); status != "" {
-			t.Fatalf("a decision changed the user's project %s:\n%s", path, status)
+func TestIntegrationConflictQueueUsesProductSideSemantics(t *testing.T) {
+	tests := []struct {
+		gitKind     ConflictKind
+		productKind ConflictKind
+	}{
+		{gitKind: ConflictKindAddedByUs, productKind: ConflictKindAddedByThem},
+		{gitKind: ConflictKindAddedByThem, productKind: ConflictKindAddedByUs},
+		{gitKind: ConflictKindDeletedByUs, productKind: ConflictKindDeletedByThem},
+		{gitKind: ConflictKindDeletedByThem, productKind: ConflictKindDeletedByUs},
+	}
+
+	for _, test := range tests {
+		entry := integrationConflictQueueEntry(ConflictQueueEntry{
+			Kind:      test.gitKind,
+			HasOurs:   true,
+			HasTheirs: false,
+		})
+		if entry.Kind != test.productKind || entry.HasOurs || !entry.HasTheirs {
+			t.Fatalf("Git kind %q translated to %+v, expected kind %q with sides swapped", test.gitKind, entry, test.productKind)
 		}
+	}
+}
+
+func TestIntegrationConflictDecisionsUseGitStageSemantics(t *testing.T) {
+	decisions := []ConflictDecision{{
+		RegionID:      "region-1",
+		Mode:          "lines",
+		Side:          "current",
+		CurrentLines:  []bool{true, false},
+		IncomingLines: []bool{false, true},
+	}}
+
+	translated := integrationConflictDecisions(decisions)
+	if translated[0].Side != "incoming" ||
+		!translated[0].CurrentLines[1] || translated[0].CurrentLines[0] ||
+		!translated[0].IncomingLines[0] || translated[0].IncomingLines[1] {
+		t.Fatalf("unexpected translated decision: %+v", translated[0])
+	}
+	if decisions[0].Side != "current" || !decisions[0].CurrentLines[0] {
+		t.Fatalf("input decision was mutated: %+v", decisions[0])
 	}
 }
 

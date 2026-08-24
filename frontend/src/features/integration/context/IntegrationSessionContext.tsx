@@ -23,8 +23,13 @@ import {
 import {
   CancelSession,
   FinishSession,
+  GetSessionConflictResolutionData,
   GetSessionConflicts,
   ListSessions,
+  PrepareReadiness,
+  ResolveSessionConflictWithContent,
+  ResolveSessionConflictWithDecisions,
+  ResolveSessionConflictWithSide,
 } from '../../../../bindings/controlzebra/services/integrationsessionservice';
 import type {
   ConflictQueueEntry,
@@ -34,6 +39,12 @@ import type {
 } from '../../../../bindings/controlzebra/services/models';
 import { useLayout, useRepo } from '../../../context';
 import { onEvent } from '../../../shared/runtime/events';
+import {
+  mapConflictResolutionData,
+  toConflictDecisionPayload,
+  type ConflictRegionDecision,
+  type ConflictResolutionData,
+} from '../../conflict/types';
 
 /** States a review can still be acted on from. */
 export const SESSION_NEEDS_DECISIONS = 'needs-decisions';
@@ -50,14 +61,32 @@ interface IntegrationSessionContextValue {
   entries: ConflictQueueEntry[];
   /** Set when the last scan failed. */
   error: string | null;
-  /** True while Finish or Cancel Review is running. */
+  /** True while a readiness action is running. */
   isBusy: boolean;
+  /** Run the default readiness check for the open project. */
+  prepareReadiness: () => Promise<IntegrationSessionSnapshot | null>;
   /** Apply the prepared result to the shared project. */
   finish: () => Promise<OperationResult | null>;
   /** Discard the review. Neither branch changes. */
   cancelReview: () => Promise<OperationResult | null>;
   /** Re-read the review and its files from the backend. */
   refresh: () => Promise<void>;
+  /** Load one session file for the existing conflict visualizer. */
+  loadConflictResolutionData: (filePath: string) => Promise<ConflictResolutionData | null>;
+  /** Apply section-by-section choices to one session file. */
+  resolveConflictWithDecisions: (
+    filePath: string,
+    token: string,
+    decisions: Record<string, ConflictRegionDecision>,
+  ) => Promise<OperationResult | null>;
+  /** Apply fully composed content to one session file. */
+  resolveConflictWithContent: (
+    filePath: string,
+    token: string,
+    content: string,
+  ) => Promise<OperationResult | null>;
+  /** Keep one complete version of a session file. */
+  resolveConflictWithSide: (filePath: string, side: string) => Promise<OperationResult | null>;
 }
 
 const EMPTY_ENTRIES: ConflictQueueEntry[] = [];
@@ -72,9 +101,14 @@ const NO_SESSION: IntegrationSessionContextValue = {
   entries: EMPTY_ENTRIES,
   error: null,
   isBusy: false,
+  prepareReadiness: async () => null,
   finish: async () => null,
   cancelReview: async () => null,
   refresh: async () => {},
+  loadConflictResolutionData: async () => null,
+  resolveConflictWithDecisions: async () => null,
+  resolveConflictWithContent: async () => null,
+  resolveConflictWithSide: async () => null,
 };
 
 const IntegrationSessionContext = createContext<IntegrationSessionContextValue>(NO_SESSION);
@@ -201,6 +235,30 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
     [refresh],
   );
 
+  const prepareReadiness = useCallback(async (): Promise<IntegrationSessionSnapshot | null> => {
+    if (!enabled || !repoPath) {
+      return null;
+    }
+
+    setIsBusy(true);
+    try {
+      const prepared = await PrepareReadiness(repoPath, true);
+      if (!prepared.sessionId) {
+        return null;
+      }
+
+      applySession(prepared);
+      if (prepared.state === SESSION_NEEDS_DECISIONS) {
+        applyConflicts(await GetSessionConflicts(prepared.sessionId));
+      }
+      return prepared;
+    } catch {
+      return null;
+    } finally {
+      setIsBusy(false);
+    }
+  }, [enabled, repoPath, applySession, applyConflicts]);
+
   const finish = useCallback(
     () => runSessionAction(FinishSession),
     [runSessionAction],
@@ -211,6 +269,49 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
     [runSessionAction],
   );
 
+  const loadConflictResolutionData = useCallback(async (
+    filePath: string,
+  ): Promise<ConflictResolutionData | null> => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId || !filePath) {
+      return null;
+    }
+
+    try {
+      return mapConflictResolutionData(await GetSessionConflictResolutionData(sessionId, filePath));
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const resolveConflictWithDecisions = useCallback((
+    filePath: string,
+    token: string,
+    decisions: Record<string, ConflictRegionDecision>,
+  ): Promise<OperationResult | null> => runSessionAction((sessionId) => (
+    ResolveSessionConflictWithDecisions(
+      sessionId,
+      filePath,
+      token,
+      toConflictDecisionPayload(decisions),
+    )
+  )), [runSessionAction]);
+
+  const resolveConflictWithContent = useCallback((
+    filePath: string,
+    token: string,
+    content: string,
+  ): Promise<OperationResult | null> => runSessionAction((sessionId) => (
+    ResolveSessionConflictWithContent(sessionId, filePath, token, content)
+  )), [runSessionAction]);
+
+  const resolveConflictWithSide = useCallback((
+    filePath: string,
+    side: string,
+  ): Promise<OperationResult | null> => runSessionAction((sessionId) => (
+    ResolveSessionConflictWithSide(sessionId, filePath, side)
+  )), [runSessionAction]);
+
   const value = useMemo<IntegrationSessionContextValue>(() => {
     const needsDecisions = session?.state === SESSION_NEEDS_DECISIONS;
 
@@ -220,11 +321,29 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
       entries: needsDecisions && conflicts ? conflicts.entries : EMPTY_ENTRIES,
       error: conflicts?.error ? conflicts.error : null,
       isBusy,
+      prepareReadiness,
       finish,
       cancelReview,
       refresh,
+      loadConflictResolutionData,
+      resolveConflictWithDecisions,
+      resolveConflictWithContent,
+      resolveConflictWithSide,
     };
-  }, [enabled, session, conflicts, isBusy, finish, cancelReview, refresh]);
+  }, [
+    enabled,
+    session,
+    conflicts,
+    isBusy,
+    prepareReadiness,
+    finish,
+    cancelReview,
+    refresh,
+    loadConflictResolutionData,
+    resolveConflictWithDecisions,
+    resolveConflictWithContent,
+    resolveConflictWithSide,
+  ]);
 
   return (
     <IntegrationSessionContext.Provider value={value}>

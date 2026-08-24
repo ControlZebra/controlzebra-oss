@@ -25,6 +25,7 @@ import {
 } from '../../../shared/ui';
 import { useRepo, type MergeReviewDiffResult } from '../../../context';
 import { useIntegrationSession } from '../../integration';
+import SessionConflictResolver from '../../integration/components/SessionConflictResolver';
 import MergeReviewPane from './modal/MergeReviewPane';
 
 const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
@@ -42,7 +43,15 @@ function MergeFinishModal({ open, onOpenChange }: MergeFinishModalProps): JSX.El
     loadMergeReviewFiles,
     loadMergeReviewFileDiff,
   } = useRepo();
-  const { session, entries, isBusy, finish, cancelReview, refresh } = useIntegrationSession();
+  const {
+    session,
+    entries,
+    isBusy,
+    prepareReadiness,
+    finish,
+    cancelReview,
+    refresh,
+  } = useIntegrationSession();
 
   const [reviewFilePath, setReviewFilePath] = useState<string | null>(null);
   const [reviewDiff, setReviewDiff] = useState<MergeReviewDiffResult | null>(null);
@@ -51,10 +60,24 @@ function MergeFinishModal({ open, onOpenChange }: MergeFinishModalProps): JSX.El
   const [wasRefreshed, setWasRefreshed] = useState(false);
 
   const seenSessionIdRef = useRef('');
+  const hasRequestedPreparationRef = useRef(false);
 
   const sourceOid = session?.sourceOid ?? '';
   const destinationOid = session?.destinationOid ?? '';
   const state = session?.state ?? '';
+
+  useEffect(() => {
+    if (!open) {
+      hasRequestedPreparationRef.current = false;
+      return;
+    }
+    if (session || hasRequestedPreparationRef.current) {
+      return;
+    }
+
+    hasRequestedPreparationRef.current = true;
+    void prepareReadiness();
+  }, [open, session, prepareReadiness]);
 
   // A different review while the modal is open means a newer save replaced it,
   // and the decisions made against the old one are gone with it.
@@ -75,14 +98,14 @@ function MergeFinishModal({ open, onOpenChange }: MergeFinishModalProps): JSX.El
   // Review is anchored to the exact revisions the result was built from, so it
   // shows what Finish will apply rather than what the branches look like now.
   useEffect(() => {
-    if (!open || !sourceOid || !destinationOid) {
+    if (!open || state === 'needs-decisions' || !sourceOid || !destinationOid) {
       return;
     }
 
     setReviewFilePath(null);
     setReviewDiff(null);
     void loadMergeReviewFiles(destinationOid, sourceOid);
-  }, [open, sourceOid, destinationOid, loadMergeReviewFiles]);
+  }, [open, state, sourceOid, destinationOid, loadMergeReviewFiles]);
 
   const handleReviewFile = useCallback(async (filePath: string): Promise<void> => {
     setReviewFilePath(filePath);
@@ -158,7 +181,9 @@ function MergeFinishModal({ open, onOpenChange }: MergeFinishModalProps): JSX.El
 
                 <AlertDialogDescription className="mt-3">
                   {session?.message
-                    ?? 'Nothing has been checked yet. Save your changes, and we\u2019ll check them against the shared project.'}
+                    ?? (isBusy
+                      ? 'Checking your saved work against the shared project. You can keep working while this finishes.'
+                      : 'Nothing has been checked yet. Save your changes, and we\u2019ll check them against the shared project.')}
                 </AlertDialogDescription>
               </div>
 
@@ -186,7 +211,9 @@ function MergeFinishModal({ open, onOpenChange }: MergeFinishModalProps): JSX.El
           </div>
 
           <div className="flex-1 min-h-0 overflow-hidden px-5 py-4">
-            {session && sourceOid ? (
+            {state === 'needs-decisions' ? (
+              <SessionConflictResolver />
+            ) : session && sourceOid ? (
               <MergeReviewPane
                 repoPath={repoPath}
                 mergeReviewFiles={mergeReviewFiles}
@@ -199,6 +226,11 @@ function MergeFinishModal({ open, onOpenChange }: MergeFinishModalProps): JSX.El
                 onReviewFile={handleReviewFile}
                 selectable={false}
               />
+            ) : isBusy ? (
+              <div className="flex h-full items-center justify-center gap-3 text-sm text-theme-muted">
+                <Loader2 style={iconSm} className="animate-spin" />
+                <span>Checking your saved work</span>
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-theme-muted">
                 Nothing to review yet.

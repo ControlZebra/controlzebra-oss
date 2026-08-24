@@ -14,9 +14,14 @@ const { repoStore, layoutStore, bindings, eventBus } = vi.hoisted(() => ({
   layoutStore: { current: { developerModeEnabled: true } },
   bindings: {
     ListSessions: vi.fn(),
+    PrepareReadiness: vi.fn(),
     GetSessionConflicts: vi.fn(),
+    GetSessionConflictResolutionData: vi.fn(),
     FinishSession: vi.fn(),
     CancelSession: vi.fn(),
+    ResolveSessionConflictWithContent: vi.fn(),
+    ResolveSessionConflictWithDecisions: vi.fn(),
+    ResolveSessionConflictWithSide: vi.fn(),
   },
   eventBus: { handlers: new Map<string, (event: { data: unknown }) => void>() },
 }));
@@ -78,16 +83,48 @@ describe('IntegrationSessionProvider', () => {
     repoStore.current = { repoPath: '/repo' };
     layoutStore.current = { developerModeEnabled: true };
     bindings.ListSessions.mockResolvedValue([session('needs-decisions')]);
+    bindings.PrepareReadiness.mockResolvedValue(session('ready'));
     bindings.GetSessionConflicts.mockResolvedValue(conflicts(10, ['a.txt']));
+    bindings.GetSessionConflictResolutionData.mockResolvedValue({
+      success: true,
+      path: 'a.txt',
+      eligible: true,
+      base: { present: true },
+      current: { present: true },
+      incoming: { present: true },
+      regions: [],
+      hasFinalNewline: true,
+    });
     bindings.FinishSession.mockResolvedValue(new OperationResult({ success: true }));
     bindings.CancelSession.mockResolvedValue(new OperationResult({ success: true }));
+    bindings.ResolveSessionConflictWithContent.mockResolvedValue(new OperationResult({ success: true }));
+    bindings.ResolveSessionConflictWithDecisions.mockResolvedValue(new OperationResult({ success: true }));
+    bindings.ResolveSessionConflictWithSide.mockResolvedValue(new OperationResult({ success: true }));
   });
 
   it('stays silent with developer mode off', async () => {
     layoutStore.current = { developerModeEnabled: false };
-    await renderProvider();
+
+    function Actions(): JSX.Element {
+      const { prepareReadiness } = useIntegrationSession();
+      return <button type="button" onClick={() => void prepareReadiness()}>prepare</button>;
+    }
+
+    await act(async () => {
+      render(
+        <IntegrationSessionProvider>
+          <Probe />
+          <Actions />
+        </IntegrationSessionProvider>,
+      );
+    });
+
+    await act(async () => {
+      screen.getByText('prepare').click();
+    });
 
     expect(bindings.ListSessions).not.toHaveBeenCalled();
+    expect(bindings.PrepareReadiness).not.toHaveBeenCalled();
     expect(screen.getByTestId('state')).toHaveTextContent('');
     expect(screen.getByTestId('paths')).toHaveTextContent('');
   });
@@ -97,6 +134,57 @@ describe('IntegrationSessionProvider', () => {
 
     expect(bindings.ListSessions).toHaveBeenCalledWith('/repo');
     expect(screen.getByTestId('state')).toHaveTextContent('needs-decisions');
+    expect(screen.getByTestId('paths')).toHaveTextContent('a.txt');
+  });
+
+  it('prepares the default finish mode on demand and adopts the result', async () => {
+    bindings.ListSessions.mockResolvedValue([]);
+
+    function Actions(): JSX.Element {
+      const { prepareReadiness } = useIntegrationSession();
+      return <button type="button" onClick={() => void prepareReadiness()}>prepare</button>;
+    }
+
+    await act(async () => {
+      render(
+        <IntegrationSessionProvider>
+          <Probe />
+          <Actions />
+        </IntegrationSessionProvider>,
+      );
+    });
+
+    await act(async () => {
+      screen.getByText('prepare').click();
+    });
+
+    expect(bindings.PrepareReadiness).toHaveBeenCalledWith('/repo', true);
+    expect(screen.getByTestId('state')).toHaveTextContent('ready');
+  });
+
+  it('loads decision files returned by an on-demand check', async () => {
+    bindings.ListSessions.mockResolvedValue([]);
+    bindings.PrepareReadiness.mockResolvedValue(session('needs-decisions'));
+
+    function Actions(): JSX.Element {
+      const { prepareReadiness } = useIntegrationSession();
+      return <button type="button" onClick={() => void prepareReadiness()}>prepare</button>;
+    }
+
+    await act(async () => {
+      render(
+        <IntegrationSessionProvider>
+          <Probe />
+          <Actions />
+        </IntegrationSessionProvider>,
+      );
+    });
+
+    await act(async () => {
+      screen.getByText('prepare').click();
+    });
+
+    expect(bindings.GetSessionConflicts).toHaveBeenCalledWith('abc');
     expect(screen.getByTestId('paths')).toHaveTextContent('a.txt');
   });
 
@@ -167,5 +255,66 @@ describe('IntegrationSessionProvider', () => {
       screen.getByText('cancel').click();
     });
     expect(bindings.CancelSession).toHaveBeenCalledWith('abc');
+  });
+
+  it('loads and resolves conflict files through the active session', async () => {
+    function Actions(): JSX.Element {
+      const {
+        loadConflictResolutionData,
+        resolveConflictWithDecisions,
+        resolveConflictWithContent,
+        resolveConflictWithSide,
+      } = useIntegrationSession();
+      return (
+        <div>
+          <button type="button" onClick={() => void loadConflictResolutionData('a.txt')}>load</button>
+          <button
+            type="button"
+            onClick={() => void resolveConflictWithDecisions('a.txt', 'token', {
+              region: { mode: 'block', side: 'current' },
+            })}
+          >
+            decide
+          </button>
+          <button
+            type="button"
+            onClick={() => void resolveConflictWithContent('a.txt', 'token', 'resolved')}
+          >
+            compose
+          </button>
+          <button type="button" onClick={() => void resolveConflictWithSide('a.txt', 'mine')}>side</button>
+        </div>
+      );
+    }
+
+    await act(async () => {
+      render(
+        <IntegrationSessionProvider>
+          <Actions />
+        </IntegrationSessionProvider>,
+      );
+    });
+
+    await act(async () => {
+      screen.getByText('load').click();
+      screen.getByText('decide').click();
+      screen.getByText('compose').click();
+      screen.getByText('side').click();
+    });
+
+    expect(bindings.GetSessionConflictResolutionData).toHaveBeenCalledWith('abc', 'a.txt');
+    expect(bindings.ResolveSessionConflictWithDecisions).toHaveBeenCalledWith(
+      'abc',
+      'a.txt',
+      'token',
+      [{ regionId: 'region', mode: 'block', side: 'current' }],
+    );
+    expect(bindings.ResolveSessionConflictWithContent).toHaveBeenCalledWith(
+      'abc',
+      'a.txt',
+      'token',
+      'resolved',
+    );
+    expect(bindings.ResolveSessionConflictWithSide).toHaveBeenCalledWith('abc', 'a.txt', 'mine');
   });
 });
