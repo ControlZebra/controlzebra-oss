@@ -220,29 +220,44 @@ New records include `remoteName`, `remoteDestinationRef`,
 
 ### Phase P0 - Contract And Git Harness
 
-- [ ] Prove fetch plus regular merge into the checked-out feature branch.
-- [ ] Verify first parent is the pre-merge feature and second parent is the
+- [x] Prove fetch plus regular merge into the checked-out feature branch.
+- [x] Verify first parent is the pre-merge feature and second parent is the
       fetched destination.
-- [ ] Prove conflict staging plus `git commit --no-edit` and full restoration
+- [x] Prove conflict staging plus `git commit --no-edit` and full restoration
       through `git merge --abort`.
-- [ ] Prove staged, unstaged, and untracked work blocks before merge.
-- [ ] Cover fetch/auth failures, branch movement, hook failure, and push
+- [x] Prove staged, unstaged, and untracked work blocks before merge.
+- [x] Cover fetch/auth failures, branch movement, hook failure, and push
       rejection.
-- [ ] Decide and test hook behavior. Normal merge and commit run project hooks
+- [x] Decide and test hook behavior. Normal merge and commit run project hooks
       unless explicitly disabled.
-- [ ] Add plain-English state message tests.
+- [x] Add plain-English state message tests.
 
-Exit: focused harness tests pass on macOS.
+Exit: focused harness tests pass on macOS. Completed 2026-08-24.
 
 ### Phase P1 - Target And Open Project Merge
 
-- [ ] Fetch and capture the remote destination.
-- [ ] Delete checkout-owner discovery and managed workspace creation.
-- [ ] Require the open project to be on the feature branch saved by the user.
-- [ ] Validate clean porcelain status immediately before merge.
-- [ ] Remove squash mode from model, API, bindings, and tests.
-- [ ] Run `git merge --no-edit <remote-destination-ref>`.
-- [ ] Remove ours/theirs translation after direction tests pass.
+- [x] Fetch the selected destination remote, then capture its remote-tracking
+      revision.
+- [x] Stop the active update path from discovering checkout owners or creating
+      managed workspaces. The unreachable prepared-result helpers remain until
+      Phase P4, as agreed for the migration boundary.
+- [x] Require the open project to remain on the feature branch and revision
+      captured before fetch.
+- [x] Validate porcelain status immediately before merge, including untracked
+      files.
+- [x] Remove squash mode from the exported API, snapshot model, bindings, and
+      active-path tests. Internal unreachable prepared-result fields remain
+      until Phase P4.
+- [x] Run `git merge --no-edit <captured-remote-destination-oid>` in the open
+      project. Using the captured OID keeps the merge immutable after fetch.
+- [x] Use native ours/theirs direction for active sessions after direction
+      tests pass. Translation remains scoped only to unreachable legacy
+      workspace records until Phase P4 deletes that path.
+
+Completed 2026-08-24. `UpdateFeatureFromDestination(repoPath)` reaches
+`updated`, `needs-decisions`, `blocked`, or `failed` without pushing. The old
+automatic post-save scheduler is disconnected so ordinary Save Changes cannot
+start this mutating workflow before Phase P3 adds the explicit checkbox.
 
 Exit: the open project can reach updated or needs-decisions; it never pushes.
 

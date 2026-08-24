@@ -89,21 +89,6 @@ export function ListSessions(repoPath: string): $CancellablePromise<$models.Inte
 }
 
 /**
- * PrepareReadiness runs an authoritative integration check for the work
- * currently checked out in repoPath.
- * 
- * It returns an empty snapshot, silently, when there is no destination worth
- * checking against: a detached HEAD, an integration branch nobody merges from,
- * or a destination that exists only on the remote. Nothing has gone wrong in
- * those cases, so there is nothing to report.
- */
-export function PrepareReadiness(repoPath: string, squashMerge: boolean): $CancellablePromise<$models.IntegrationSessionSnapshot> {
-    return $Call.ByID(3366731183, repoPath, squashMerge).then(($result: any) => {
-        return $$createType3($result);
-    });
-}
-
-/**
  * RecoverSessions reconciles persisted sessions with the worktrees and refs
  * they claim. Called once at startup. It never moves a ref.
  */
@@ -161,6 +146,16 @@ export function SetRepoEventBus(bus: $models.RepoEventBus | null): $CancellableP
  */
 export function SetSettings(settings: $models.SettingsService | null): $CancellablePromise<void> {
     return $Call.ByID(2275590811, settings);
+}
+
+/**
+ * UpdateFeatureFromDestination starts the update mutation. Session snapshots
+ * are published through events and the session query methods.
+ */
+export function UpdateFeatureFromDestination(repoPath: string): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(3151023925, repoPath).then(($result: any) => {
+        return $$createType0($result);
+    });
 }
 
 // Private type creation functions

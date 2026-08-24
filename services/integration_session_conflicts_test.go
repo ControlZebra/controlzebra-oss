@@ -18,7 +18,7 @@ func needsDecisionsFixture(t *testing.T) (*IntegrationSessionService, integratio
 	commitFileAt(t, fixture.openProject, "shared.txt", "line\nmain\n", "main edit")
 	commitFileAt(t, fixture.linkedWorktree, "shared.txt", "line\nfeature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(fixture.linkedWorktree, false)
+	snapshot := service.prepareReadinessLegacy(fixture.linkedWorktree, false)
 	if snapshot.State != integrationStateNeedsDecisions {
 		t.Fatalf("expected needs-decisions, got %q (%s)", snapshot.State, snapshot.Error)
 	}
@@ -124,49 +124,6 @@ func TestSessionSectionChoiceKeepsCurrentFeatureContent(t *testing.T) {
 	}
 	if content := runGitOutput(t, fixture.openProject, "show", session.ResultOID+":shared.txt"); content != "line\nfeature\n" {
 		t.Fatalf("prepared result contains %q, expected feature content", content)
-	}
-}
-
-func TestIntegrationConflictQueueUsesProductSideSemantics(t *testing.T) {
-	tests := []struct {
-		gitKind     ConflictKind
-		productKind ConflictKind
-	}{
-		{gitKind: ConflictKindAddedByUs, productKind: ConflictKindAddedByThem},
-		{gitKind: ConflictKindAddedByThem, productKind: ConflictKindAddedByUs},
-		{gitKind: ConflictKindDeletedByUs, productKind: ConflictKindDeletedByThem},
-		{gitKind: ConflictKindDeletedByThem, productKind: ConflictKindDeletedByUs},
-	}
-
-	for _, test := range tests {
-		entry := integrationConflictQueueEntry(ConflictQueueEntry{
-			Kind:      test.gitKind,
-			HasOurs:   true,
-			HasTheirs: false,
-		})
-		if entry.Kind != test.productKind || entry.HasOurs || !entry.HasTheirs {
-			t.Fatalf("Git kind %q translated to %+v, expected kind %q with sides swapped", test.gitKind, entry, test.productKind)
-		}
-	}
-}
-
-func TestIntegrationConflictDecisionsUseGitStageSemantics(t *testing.T) {
-	decisions := []ConflictDecision{{
-		RegionID:      "region-1",
-		Mode:          "lines",
-		Side:          "current",
-		CurrentLines:  []bool{true, false},
-		IncomingLines: []bool{false, true},
-	}}
-
-	translated := integrationConflictDecisions(decisions)
-	if translated[0].Side != "incoming" ||
-		!translated[0].CurrentLines[1] || translated[0].CurrentLines[0] ||
-		!translated[0].IncomingLines[0] || translated[0].IncomingLines[1] {
-		t.Fatalf("unexpected translated decision: %+v", translated[0])
-	}
-	if decisions[0].Side != "current" || !decisions[0].CurrentLines[0] {
-		t.Fatalf("input decision was mutated: %+v", decisions[0])
 	}
 }
 

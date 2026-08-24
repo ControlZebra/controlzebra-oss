@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -273,5 +274,357 @@ func TestIntegrationHarnessPreparedResultIsUnreachableFromBranches(t *testing.T)
 		if _, err := runGitAllowFail(t, fixture.openProject, "merge-base", "--is-ancestor", resultOID, head); err == nil {
 			t.Fatalf("prepared result is an ancestor of %s", head)
 		}
+	}
+}
+
+// pivotIntegrationFixture models the replacement workflow: the feature branch
+// is checked out in the open project while another clone advances shared work.
+type pivotIntegrationFixture struct {
+	openProject string
+	sharedClone string
+	remotePath  string
+}
+
+func newPivotIntegrationFixture(t *testing.T) pivotIntegrationFixture {
+	t.Helper()
+
+	openProject := createTestRepo(t)
+	t.Cleanup(func() { cleanupTestRepo(t, openProject) })
+	runGitCmd(t, openProject, "config", "core.autocrlf", "false")
+	commitFileAt(t, openProject, "shared.txt", "base\n", "base")
+	runGitCmd(t, openProject, "branch", "-M", "main")
+
+	remotePath := createBareRemoteAndLink(t, openProject)
+	t.Cleanup(func() { os.RemoveAll(remotePath) })
+	runGitCmd(t, openProject, "push", "-u", "origin", "main")
+	runGitCmd(t, remotePath, "symbolic-ref", "HEAD", "refs/heads/main")
+
+	sharedClone := filepath.Join(t.TempDir(), "shared-clone")
+	runGitCmd(t, filepath.Dir(sharedClone), "clone", remotePath, sharedClone)
+	runGitCmd(t, sharedClone, "config", "user.name", "Shared User")
+	runGitCmd(t, sharedClone, "config", "user.email", "shared@example.com")
+	runGitCmd(t, sharedClone, "config", "core.autocrlf", "false")
+
+	runGitCmd(t, openProject, "checkout", "-b", "feature")
+	return pivotIntegrationFixture{
+		openProject: openProject,
+		sharedClone: sharedClone,
+		remotePath:  remotePath,
+	}
+}
+
+func (fixture pivotIntegrationFixture) advanceDestination(t *testing.T, relPath string, content string) string {
+	t.Helper()
+	destinationOID := commitFileAt(t, fixture.sharedClone, relPath, content, "shared update")
+	runGitCmd(t, fixture.sharedClone, "push", "origin", "main")
+	return destinationOID
+}
+
+func validatePivotStart(t *testing.T, repoPath string, featureBranch string, featureOID string, destinationOID string) error {
+	t.Helper()
+	if branch := strings.TrimSpace(runGitOutput(t, repoPath, "branch", "--show-current")); branch != featureBranch {
+		return fmt.Errorf("open project switched to %s", branch)
+	}
+	if currentFeatureOID := revParse(t, repoPath, "refs/heads/"+featureBranch); currentFeatureOID != featureOID {
+		return fmt.Errorf("feature changed from %s to %s", featureOID, currentFeatureOID)
+	}
+	if currentDestinationOID := revParse(t, repoPath, "refs/remotes/origin/main"); currentDestinationOID != destinationOID {
+		return fmt.Errorf("shared destination changed from %s to %s", destinationOID, currentDestinationOID)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, repoPath, "status", "--porcelain")); status != "" {
+		return fmt.Errorf("open project has unsaved changes: %s", status)
+	}
+	return nil
+}
+
+func completeCleanPivotMerge(t *testing.T, fixture pivotIntegrationFixture) (string, string, string) {
+	t.Helper()
+	featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+	destinationOID := fixture.advanceDestination(t, "shared.txt", "shared\n")
+	runGitCmd(t, fixture.openProject, "fetch", "origin")
+	if got := revParse(t, fixture.openProject, "refs/remotes/origin/main"); got != destinationOID {
+		t.Fatalf("fetch captured destination %s, want %s", got, destinationOID)
+	}
+	runGitCmd(t, fixture.openProject, "merge", "--no-edit", "origin/main")
+	return featureOID, destinationOID, revParse(t, fixture.openProject, "HEAD")
+}
+
+func TestPivotIntegrationHarnessFetchThenCleanMerge(t *testing.T) {
+	fixture := newPivotIntegrationFixture(t)
+	featureOID, destinationOID, resultOID := completeCleanPivotMerge(t, fixture)
+
+	parents := parentsOf(t, fixture.openProject, resultOID)
+	if len(parents) != 2 || parents[0] != featureOID || parents[1] != destinationOID {
+		t.Fatalf("expected parents [%s %s], got %v", featureOID, destinationOID, parents)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, fixture.openProject, "status", "--porcelain")); status != "" {
+		t.Fatalf("open project is dirty after clean update:\n%s", status)
+	}
+}
+
+func TestPivotIntegrationHarnessConflictDirectionAndMergeParents(t *testing.T) {
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	destinationOID := fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	runGitCmd(t, fixture.openProject, "fetch", "origin")
+	if _, err := runGitAllowFail(t, fixture.openProject, "merge", "--no-edit", "origin/main"); err == nil {
+		t.Fatal("expected the destination update to require a decision")
+	}
+
+	if got := runGitOutput(t, fixture.openProject, "show", ":2:shared.txt"); got != "feature\n" {
+		t.Fatalf("expected stage 2 to contain feature work, got %q", got)
+	}
+	if got := runGitOutput(t, fixture.openProject, "show", ":3:shared.txt"); got != "shared\n" {
+		t.Fatalf("expected stage 3 to contain shared work, got %q", got)
+	}
+
+	if err := os.WriteFile(filepath.Join(fixture.openProject, "shared.txt"), []byte("resolved\n"), 0o644); err != nil {
+		t.Fatalf("write resolved file: %v", err)
+	}
+	runGitCmd(t, fixture.openProject, "add", "--", "shared.txt")
+	runGitCmd(t, fixture.openProject, "commit", "--no-edit")
+
+	parents := parentsOf(t, fixture.openProject, "HEAD")
+	if len(parents) != 2 || parents[0] != featureOID || parents[1] != destinationOID {
+		t.Fatalf("expected parents [%s %s], got %v", featureOID, destinationOID, parents)
+	}
+}
+
+func TestPivotIntegrationHarnessAbortRestoresOpenProject(t *testing.T) {
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	indexTreeBefore := strings.TrimSpace(runGitOutput(t, fixture.openProject, "write-tree"))
+	fileBefore, err := os.ReadFile(filepath.Join(fixture.openProject, "shared.txt"))
+	if err != nil {
+		t.Fatalf("read feature file: %v", err)
+	}
+
+	runGitCmd(t, fixture.openProject, "fetch", "origin")
+	if _, err := runGitAllowFail(t, fixture.openProject, "merge", "--no-edit", "origin/main"); err == nil {
+		t.Fatal("expected the destination update to require a decision")
+	}
+	runGitCmd(t, fixture.openProject, "merge", "--abort")
+
+	if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+		t.Fatalf("feature revision changed after cancellation: got %s, want %s", got, featureOID)
+	}
+	if got := strings.TrimSpace(runGitOutput(t, fixture.openProject, "write-tree")); got != indexTreeBefore {
+		t.Fatalf("index tree changed after cancellation: got %s, want %s", got, indexTreeBefore)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, fixture.openProject, "status", "--porcelain")); status != "" {
+		t.Fatalf("open project is dirty after cancellation:\n%s", status)
+	}
+	fileAfter, err := os.ReadFile(filepath.Join(fixture.openProject, "shared.txt"))
+	if err != nil {
+		t.Fatalf("read restored feature file: %v", err)
+	}
+	if string(fileAfter) != string(fileBefore) {
+		t.Fatalf("file changed after cancellation: got %q, want %q", fileAfter, fileBefore)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+		t.Fatal("merge metadata remains after cancellation")
+	}
+}
+
+func TestPivotIntegrationHarnessDirtyWorkBlocksBeforeMerge(t *testing.T) {
+	tests := []struct {
+		name  string
+		dirty func(t *testing.T, repoPath string)
+	}{
+		{
+			name: "staged",
+			dirty: func(t *testing.T, repoPath string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(repoPath, "shared.txt"), []byte("staged\n"), 0o644); err != nil {
+					t.Fatalf("write staged change: %v", err)
+				}
+				runGitCmd(t, repoPath, "add", "--", "shared.txt")
+			},
+		},
+		{
+			name: "unstaged",
+			dirty: func(t *testing.T, repoPath string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(repoPath, "shared.txt"), []byte("unstaged\n"), 0o644); err != nil {
+					t.Fatalf("write unstaged change: %v", err)
+				}
+			},
+		},
+		{
+			name: "untracked",
+			dirty: func(t *testing.T, repoPath string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(repoPath, "untracked.txt"), []byte("untracked\n"), 0o644); err != nil {
+					t.Fatalf("write untracked change: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newPivotIntegrationFixture(t)
+			featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+			destinationOID := fixture.advanceDestination(t, "destination.txt", "shared\n")
+			runGitCmd(t, fixture.openProject, "fetch", "origin")
+			test.dirty(t, fixture.openProject)
+
+			if err := validatePivotStart(t, fixture.openProject, "feature", featureOID, destinationOID); err == nil {
+				t.Fatal("expected dirty work to block before merge")
+			}
+			if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+				t.Fatal("merge started despite dirty work")
+			}
+			if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+				t.Fatalf("feature moved while blocked: got %s, want %s", got, featureOID)
+			}
+		})
+	}
+}
+
+func TestPivotIntegrationHarnessStaleStartStateIsRejected(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(t *testing.T, fixture pivotIntegrationFixture)
+	}{
+		{
+			name: "feature revision moved",
+			mutate: func(t *testing.T, fixture pivotIntegrationFixture) {
+				commitFileAt(t, fixture.openProject, "later-feature.txt", "later\n", "later feature update")
+			},
+		},
+		{
+			name: "remote destination moved",
+			mutate: func(t *testing.T, fixture pivotIntegrationFixture) {
+				fixture.advanceDestination(t, "later-shared.txt", "later\n")
+				runGitCmd(t, fixture.openProject, "fetch", "origin")
+			},
+		},
+		{
+			name: "checked out branch changed",
+			mutate: func(t *testing.T, fixture pivotIntegrationFixture) {
+				runGitCmd(t, fixture.openProject, "checkout", "main")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newPivotIntegrationFixture(t)
+			featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+			destinationOID := fixture.advanceDestination(t, "destination.txt", "shared\n")
+			runGitCmd(t, fixture.openProject, "fetch", "origin")
+			test.mutate(t, fixture)
+
+			if err := validatePivotStart(t, fixture.openProject, "feature", featureOID, destinationOID); err == nil {
+				t.Fatal("expected stale start state to be rejected")
+			}
+			if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+				t.Fatal("merge started despite stale state")
+			}
+		})
+	}
+}
+
+func TestPivotIntegrationHarnessFetchFailuresDoNotMoveFeature(t *testing.T) {
+	t.Run("remote unavailable", func(t *testing.T) {
+		fixture := newPivotIntegrationFixture(t)
+		featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+		offlinePath := fixture.remotePath + ".offline"
+		if err := os.Rename(fixture.remotePath, offlinePath); err != nil {
+			t.Fatalf("make remote unavailable: %v", err)
+		}
+		t.Cleanup(func() { os.RemoveAll(offlinePath) })
+
+		if _, err := runGitAllowFail(t, fixture.openProject, "fetch", "origin"); err == nil {
+			t.Fatal("expected fetch to fail while the remote is unavailable")
+		}
+		if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+			t.Fatalf("feature moved after fetch failure: got %s, want %s", got, featureOID)
+		}
+	})
+
+	t.Run("authentication rejected", func(t *testing.T) {
+		fixture := newPivotIntegrationFixture(t)
+		featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+		uploadPack := filepath.Join(t.TempDir(), "reject-upload-pack")
+		if err := os.WriteFile(uploadPack, []byte("#!/bin/sh\necho 'Authentication failed' >&2\nexit 1\n"), 0o755); err != nil {
+			t.Fatalf("write rejecting upload-pack: %v", err)
+		}
+
+		if _, err := runGitAllowFail(t, fixture.openProject, "fetch", "--upload-pack="+uploadPack, "origin"); err == nil {
+			t.Fatal("expected authenticated fetch to be rejected")
+		}
+		if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+			t.Fatalf("feature moved after authentication failure: got %s, want %s", got, featureOID)
+		}
+	})
+}
+
+func TestPivotIntegrationHarnessCommitHookFailureKeepsMergeRecoverable(t *testing.T) {
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	destinationOID := fixture.advanceDestination(t, "shared.txt", "shared\n")
+	runGitCmd(t, fixture.openProject, "fetch", "origin")
+	if _, err := runGitAllowFail(t, fixture.openProject, "merge", "--no-edit", "origin/main"); err == nil {
+		t.Fatal("expected the destination update to require a decision")
+	}
+	if err := os.WriteFile(filepath.Join(fixture.openProject, "shared.txt"), []byte("resolved\n"), 0o644); err != nil {
+		t.Fatalf("write resolved file: %v", err)
+	}
+	runGitCmd(t, fixture.openProject, "add", "--", "shared.txt")
+
+	markerDir := t.TempDir()
+	plantFailingHooks(t, fixture.openProject, markerDir, "pre-commit")
+	if _, err := runGitAllowFail(t, fixture.openProject, "commit", "--no-edit"); err == nil {
+		t.Fatal("expected the project hook to block merge completion")
+	}
+	if _, err := os.Stat(filepath.Join(markerDir, "pre-commit")); err != nil {
+		t.Fatalf("expected pre-commit hook to run: %v", err)
+	}
+	if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+		t.Fatalf("feature moved after hook failure: got %s, want %s", got, featureOID)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err != nil {
+		t.Fatal("merge is not recoverable after hook failure")
+	}
+
+	if err := os.Remove(filepath.Join(fixture.openProject, ".git", "hooks", "pre-commit")); err != nil {
+		t.Fatalf("remove failing hook: %v", err)
+	}
+	runGitCmd(t, fixture.openProject, "commit", "--no-edit")
+	parents := parentsOf(t, fixture.openProject, "HEAD")
+	if len(parents) != 2 || parents[0] != featureOID || parents[1] != destinationOID {
+		t.Fatalf("expected parents [%s %s], got %v", featureOID, destinationOID, parents)
+	}
+}
+
+func TestPivotIntegrationHarnessPushRejectionKeepsLocalUpdate(t *testing.T) {
+	fixture := newPivotIntegrationFixture(t)
+	_, _, resultOID := completeCleanPivotMerge(t, fixture)
+
+	hooksDir := filepath.Join(fixture.remotePath, "hooks")
+	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+		t.Fatalf("create remote hooks directory: %v", err)
+	}
+	rejectHook := []byte("#!/bin/sh\necho 'sharing rejected' >&2\nexit 1\n")
+	if err := os.WriteFile(filepath.Join(hooksDir, "pre-receive"), rejectHook, 0o755); err != nil {
+		t.Fatalf("write rejecting pre-receive hook: %v", err)
+	}
+
+	if _, err := runGitAllowFail(t, fixture.openProject, "push", "origin", "feature"); err == nil {
+		t.Fatal("expected sharing to be rejected")
+	}
+	if got := revParse(t, fixture.openProject, "HEAD"); got != resultOID {
+		t.Fatalf("local update moved after rejected share: got %s, want %s", got, resultOID)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, fixture.openProject, "status", "--porcelain")); status != "" {
+		t.Fatalf("open project is dirty after rejected share:\n%s", status)
+	}
+	if _, err := runGitAllowFail(t, fixture.remotePath, "rev-parse", "--verify", "refs/heads/feature"); err == nil {
+		t.Fatal("remote feature exists despite rejected share")
 	}
 }

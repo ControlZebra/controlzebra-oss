@@ -52,17 +52,24 @@ func (s *IntegrationSessionService) GetSessionConflictResolutionData(sessionID s
 	if err != nil {
 		return ConflictResolutionData{Path: normalizeMergePath(filePath), Error: err.Error()}
 	}
-	return integrationConflictResolutionData(s.target.conflictResolutionData(session.WorkspacePath, path, true))
+	data := s.target.conflictResolutionData(session.WorkspacePath, path, true)
+	if sessionUsesLegacyWorkspace(session) {
+		return integrationConflictResolutionData(data)
+	}
+	return data
 }
 
 // ResolveSessionConflictWithDecisions applies per-region choices to one file.
 func (s *IntegrationSessionService) ResolveSessionConflictWithDecisions(sessionID string, filePath string, resolutionToken string, decisions []ConflictDecision) OperationResult {
 	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
+		if sessionUsesLegacyWorkspace(session) {
+			decisions = integrationConflictDecisions(decisions)
+		}
 		return s.target.resolveConflictWithDecisions(
 			session.WorkspacePath,
 			path,
 			resolutionToken,
-			integrationConflictDecisions(decisions),
+			decisions,
 			true,
 		)
 	})
@@ -77,18 +84,24 @@ func (s *IntegrationSessionService) ResolveSessionConflictWithContent(sessionID 
 
 // ResolveSessionConflictWithSide keeps one whole version of the file.
 func (s *IntegrationSessionService) ResolveSessionConflictWithSide(sessionID string, filePath string, side string) OperationResult {
-	stage := conflictStageTheirs
-	sideName := "current"
-	switch strings.TrimSpace(side) {
-	case integrationSideMine:
-	case integrationSideTheirs:
-		stage = conflictStageOurs
-		sideName = "incoming"
-	default:
-		return failedOp("Choose which version of the file to keep, then try again.")
-	}
-
 	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
+		stage := conflictStageOurs
+		sideName := "current"
+		switch strings.TrimSpace(side) {
+		case integrationSideMine:
+		case integrationSideTheirs:
+			stage = conflictStageTheirs
+			sideName = "incoming"
+		default:
+			return failedOp("Choose which version of the file to keep, then try again.")
+		}
+		if sessionUsesLegacyWorkspace(session) {
+			if stage == conflictStageOurs {
+				stage = conflictStageTheirs
+			} else {
+				stage = conflictStageOurs
+			}
+		}
 		return s.target.resolveConflictWithStage(session.WorkspacePath, path, stage, sideName, true)
 	})
 }
@@ -176,10 +189,16 @@ func (s *IntegrationSessionService) refreshSessionConflicts(session integrationS
 
 func (s *IntegrationSessionService) scanSessionConflicts(session integrationSession) SessionConflictSnapshot {
 	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
-	for index := range entries {
-		entries[index] = integrationConflictQueueEntry(entries[index])
+	if sessionUsesLegacyWorkspace(session) {
+		for index := range entries {
+			entries[index] = integrationConflictQueueEntry(entries[index])
+		}
 	}
 	return s.conflictSnapshot(session, entries, err)
+}
+
+func sessionUsesLegacyWorkspace(session integrationSession) bool {
+	return session.RemoteName == "" && session.WorkspacePath != ""
 }
 
 func integrationConflictQueueEntry(entry ConflictQueueEntry) ConflictQueueEntry {

@@ -3142,7 +3142,6 @@ export class IntegrationSessionSnapshot {
     "sessionId": string;
     "state": string;
     "message": string;
-    "mergeMode": string;
     "sourceBranch": string;
     "sourceOid": string;
     "targetBranch": string;
@@ -3163,9 +3162,6 @@ export class IntegrationSessionSnapshot {
         }
         if (!("message" in $$source)) {
             this["message"] = "";
-        }
-        if (!("mergeMode" in $$source)) {
-            this["mergeMode"] = "";
         }
         if (!("sourceBranch" in $$source)) {
             this["sourceBranch"] = "";

@@ -26,10 +26,10 @@ import {
   GetSessionConflictResolutionData,
   GetSessionConflicts,
   ListSessions,
-  PrepareReadiness,
   ResolveSessionConflictWithContent,
   ResolveSessionConflictWithDecisions,
   ResolveSessionConflictWithSide,
+  UpdateFeatureFromDestination,
 } from '../../../../bindings/controlzebra/services/integrationsessionservice';
 import type {
   ConflictQueueEntry,
@@ -242,8 +242,14 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
 
     setIsBusy(true);
     try {
-      const prepared = await PrepareReadiness(repoPath, true);
-      if (!prepared.sessionId) {
+      const result = await UpdateFeatureFromDestination(repoPath);
+      if (!result.success) {
+        return null;
+      }
+
+      const sessions = await ListSessions(repoPath);
+      const prepared = [...sessions].reverse().find((entry) => !FINISHED_STATES.has(entry.state)) ?? null;
+      if (!prepared) {
         return null;
       }
 

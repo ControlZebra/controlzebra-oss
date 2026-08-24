@@ -28,27 +28,18 @@ const IntegrationSessionChangedEvent = "integrationSession:changed"
 // Locked down in Phase 0 and enforced by tests in
 // integration_session_messages_test.go.
 var integrationSessionOutcomeMessages = map[string]string{
-	integrationStateScheduled: "Your saved work is queued for a compatibility check. Keep working, and we'll tell you when it finishes.",
-
-	integrationStatePreparing: "We're checking your saved work against the shared project. Keep working, nothing in your project is being changed.",
-
-	integrationStateNeedsDecisions: "Some files were changed in both your work and the shared project. Open Conflict Review to pick which version to keep for each file.",
-
-	integrationStateReady: "Your work is ready to be combined with the shared project. Choose Finish when you want to send it.",
-
-	integrationStateBlocked: "Your work is ready, but this project has unsaved files that would be replaced. Save or discard those files, then choose Finish again.",
-
-	integrationStateObsolete: "Your saved work changed, so Conflict Review was refreshed. Review the latest files before finishing.",
-
-	integrationStateFailed: "The compatibility check couldn't finish, and nothing in your project was changed. Try again, and contact support if it keeps failing.",
-
-	integrationStateCancelled: "Conflict Review was cancelled and your decisions were deleted. Nothing in your project or the shared project changed.",
-
-	integrationStateApplying: "We're combining your work with the shared project. This only takes a moment.",
-
-	integrationStateCompleted: "Your work is now part of the shared project. You can keep working on this project as usual.",
-
-	"recovered": "ControlZebra found an unfinished check after restarting. Review the files again before choosing Finish.",
+	integrationStateScheduled:      "Your saved work is waiting for a shared update check. Keep working until the check starts.",
+	integrationStateFetching:       "ControlZebra is checking for shared updates. Keep this project open until the check finishes.",
+	integrationStateStarting:       "Shared updates are ready to be added to your work. Keep this project open while the update starts.",
+	integrationStateNeedsDecisions: "Some files were changed in both your work and the shared project. Open Conflict Review to choose what to keep in each file.",
+	integrationStateCommitting:     "Your file decisions are complete, and ControlZebra is updating your work. Keep this project open until it finishes.",
+	integrationStateUpdated:        "Your work is up to date with the shared project. Review it, then choose Share updated work when you are ready.",
+	integrationStateSharing:        "ControlZebra is sharing your updated work. Keep this project open until sharing finishes.",
+	integrationStateShared:         "Your updated work was shared successfully. You can keep working on this project as usual.",
+	integrationStateBlocked:        "Shared updates could not be added because this project changed. Save or discard those changes, then check again.",
+	integrationStateCancelling:     "ControlZebra is cancelling the update and restoring your work. Keep this project open until restoration finishes.",
+	integrationStateCancelled:      "The update was cancelled, and your work was restored. Check your files before continuing.",
+	integrationStateFailed:         "The update could not finish safely. Check your files, then try again or contact support.",
 }
 
 // integrationGit is the slice of GitService the session service needs: the
@@ -69,7 +60,6 @@ type IntegrationSessionSnapshot struct {
 	SessionID      string `json:"sessionId"`
 	State          string `json:"state"`
 	Message        string `json:"message"`
-	MergeMode      string `json:"mergeMode"`
 	SourceBranch   string `json:"sourceBranch"`
 	SourceOID      string `json:"sourceOid"`
 	TargetBranch   string `json:"targetBranch"`
@@ -137,14 +127,14 @@ func (s *IntegrationSessionService) SetRepoEventBus(bus *RepoEventBus) {
 	s.bus = bus
 }
 
-// PrepareReadiness runs an authoritative integration check for the work
+// prepareReadinessLegacy runs an authoritative integration check for the work
 // currently checked out in repoPath.
 //
 // It returns an empty snapshot, silently, when there is no destination worth
 // checking against: a detached HEAD, an integration branch nobody merges from,
 // or a destination that exists only on the remote. Nothing has gone wrong in
 // those cases, so there is nothing to report.
-func (s *IntegrationSessionService) PrepareReadiness(repoPath string, squashMerge bool) IntegrationSessionSnapshot {
+func (s *IntegrationSessionService) prepareReadinessLegacy(repoPath string, squashMerge bool) IntegrationSessionSnapshot {
 	done := LogMethod("IntegrationSessionService.PrepareReadiness", map[string]interface{}{"repoPath": repoPath, "squashMerge": squashMerge})
 
 	repoPath = strings.TrimSpace(repoPath)
@@ -328,6 +318,289 @@ type integrationTarget struct {
 	targetBranch   string
 	destinationRef string
 	destinationOID string
+	remoteName     string
+}
+
+// UpdateFeatureFromDestination starts the update mutation. Session snapshots
+// are published through events and the session query methods.
+func (s *IntegrationSessionService) UpdateFeatureFromDestination(repoPath string) OperationResult {
+	snapshot := s.updateFeatureFromDestination(repoPath)
+	if snapshot.State == integrationStateFailed || snapshot.State == integrationStateBlocked {
+		return failedOp(snapshot.Error)
+	}
+	return successOp(snapshot.Message)
+}
+
+// updateFeatureFromDestination fetches the selected shared destination and
+// merges that exact revision into the feature branch checked out in repoPath.
+// It never pushes. A conflicting merge remains active in the open project so
+// the existing session-keyed resolution APIs can resolve its real index.
+func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string) IntegrationSessionSnapshot {
+	done := LogMethod("IntegrationSessionService.UpdateFeatureFromDestination", map[string]interface{}{"repoPath": repoPath})
+	repoPath = strings.TrimSpace(repoPath)
+	if repoPath == "" {
+		err := fmt.Errorf("No project is open. Open your project, then try again.")
+		snapshot := s.failedSnapshot(err)
+		done(snapshot, err)
+		return snapshot
+	}
+
+	target, ok := s.resolveRemoteTarget(repoPath)
+	if !ok {
+		snapshot := s.failedSnapshot(fmt.Errorf("No shared project could be found. Connect this project to its shared destination, then try again."))
+		done(snapshot, nil)
+		return snapshot
+	}
+
+	identity := repositoryLockKey(s.git, repoPath)
+	if !s.claimPreparation(identity) {
+		snapshot := IntegrationSessionSnapshot{State: integrationStateFetching, Message: integrationSessionOutcomeMessages[integrationStateFetching]}
+		done(snapshot, nil)
+		return snapshot
+	}
+	defer s.releasePreparation(identity)
+
+	release := sharedRepositoryCoordinator.lockRepo(repoPath)
+	defer release()
+	if existing, found := s.currentSession(identity); found && integrationSessionIsUsable(existing) {
+		snapshot := s.snapshot(existing)
+		done(snapshot, nil)
+		return snapshot
+	}
+
+	session, err := s.newUpdateSession(repoPath, identity, target)
+	if err != nil {
+		snapshot := s.failedSnapshot(err)
+		done(snapshot, err)
+		return snapshot
+	}
+	if err := s.store.save(session); err != nil {
+		snapshot := s.failedUpdateSnapshot()
+		done(snapshot, err)
+		return snapshot
+	}
+	s.emit(session)
+
+	fetchResult := s.git.RunGit(repoPath, "fetch", target.remoteName)
+	if !fetchResult.Success {
+		return s.failUpdate(
+			&session,
+			"ControlZebra couldn't check for shared updates. Check your connection and sign-in, then try again.",
+			fmt.Errorf("fetch shared updates: %s", getErrorMessage(fetchResult)),
+			done,
+		)
+	}
+
+	destinationOID, revisionOK := s.revision(repoPath, target.destinationRef)
+	if !revisionOK {
+		return s.failUpdate(
+			&session,
+			"ControlZebra couldn't read the latest shared work. Check that the shared destination still exists, then try again.",
+			fmt.Errorf("resolve fetched destination %q", target.destinationRef),
+			done,
+		)
+	}
+	session.RemoteDestinationOID = destinationOID
+	session.DestinationOID = destinationOID
+	session.State = integrationStateStarting
+	session.UpdatedAt = time.Now().Unix()
+	if err := s.store.save(session); err != nil {
+		return s.failUpdate(
+			&session,
+			"ControlZebra couldn't save the update status. Keep the project open, then close and reopen ControlZebra.",
+			err,
+			done,
+		)
+	}
+	s.emit(session)
+
+	if err := s.validateUpdateStart(session); err != nil {
+		session.State = integrationStateBlocked
+		session.Error = err.Error()
+		session.UpdatedAt = time.Now().Unix()
+		if saveErr := s.store.save(session); saveErr != nil {
+			return s.failUpdate(
+				&session,
+				"ControlZebra couldn't save the update status. Keep the project open, then close and reopen ControlZebra.",
+				saveErr,
+				done,
+			)
+		}
+		snapshot := s.emit(session)
+		done(snapshot, err)
+		return snapshot
+	}
+
+	mergeResult := s.git.RunGit(repoPath, "merge", "--no-edit", destinationOID)
+	entries, classifyErr := classifyConflictQueue(s.git, repoPath)
+	if classifyErr != nil {
+		return s.failUpdate(
+			&session,
+			"ControlZebra couldn't inspect the files needing a decision. Close and reopen the project, then try again.",
+			classifyErr,
+			done,
+		)
+	}
+	if len(entries) > 0 {
+		session.State = integrationStateNeedsDecisions
+		session.UpdatedAt = time.Now().Unix()
+		if saveErr := s.store.save(session); saveErr != nil {
+			return s.failUpdate(
+				&session,
+				"ControlZebra couldn't save the conflict review. Keep the project open, then close and reopen ControlZebra.",
+				saveErr,
+				done,
+			)
+		}
+		snapshot := s.emit(session)
+		s.emitConflicts(s.conflictSnapshot(session, entries, nil))
+		done(snapshot, nil)
+		return snapshot
+	}
+	if !mergeResult.Success {
+		return s.failUpdate(
+			&session,
+			"The update could not finish in this project. Check your project requirements, then try again.",
+			fmt.Errorf("merge shared updates: %s", getErrorMessage(mergeResult)),
+			done,
+		)
+	}
+
+	afterOID, revisionOK := s.revision(repoPath, session.SourceRef)
+	if !revisionOK {
+		return s.failUpdate(
+			&session,
+			"ControlZebra couldn't verify the updated work. Close and reopen the project before continuing.",
+			fmt.Errorf("resolve updated feature %q", session.SourceRef),
+			done,
+		)
+	}
+	session.FeatureOIDAfterMerge = afterOID
+	session.ResultOID = afterOID
+	session.State = integrationStateUpdated
+	session.UpdatedAt = time.Now().Unix()
+	if err := s.store.save(session); err != nil {
+		return s.failUpdate(
+			&session,
+			"ControlZebra couldn't save the completed update status. Keep the project open, then close and reopen ControlZebra.",
+			err,
+			done,
+		)
+	}
+	s.publishMutation(repoPath)
+	snapshot := s.emit(session)
+	done(snapshot, nil)
+	return snapshot
+}
+
+func (s *IntegrationSessionService) resolveRemoteTarget(repoPath string) (integrationTarget, bool) {
+	targetBranch, selectedRef, ok := s.target.mergeTargetRef(repoPath)
+	if !ok {
+		return integrationTarget{}, false
+	}
+
+	sourceRefResult := s.git.RunGit(repoPath, "symbolic-ref", "--quiet", "HEAD")
+	sourceRef := strings.TrimSpace(sourceRefResult.Stdout)
+	if !sourceRefResult.Success || !strings.HasPrefix(sourceRef, "refs/heads/") {
+		return integrationTarget{}, false
+	}
+	sourceOID, ok := s.revision(repoPath, sourceRef)
+	if !ok {
+		return integrationTarget{}, false
+	}
+
+	remoteName, remoteRef, ok := integrationRemoteRef(selectedRef, targetBranch)
+	if !ok {
+		return integrationTarget{}, false
+	}
+	return integrationTarget{
+		sourceBranch:   strings.TrimPrefix(sourceRef, "refs/heads/"),
+		sourceRef:      sourceRef,
+		sourceOID:      sourceOID,
+		targetBranch:   targetBranch,
+		destinationRef: remoteRef,
+		remoteName:     remoteName,
+	}, true
+}
+
+func integrationRemoteRef(selectedRef string, targetBranch string) (string, string, bool) {
+	ref := strings.TrimSpace(selectedRef)
+	ref = strings.TrimPrefix(ref, "refs/remotes/")
+	remoteName, branch, found := strings.Cut(ref, "/")
+	if !found || remoteName == "" || branch != targetBranch {
+		return "", "", false
+	}
+	return remoteName, "refs/remotes/" + remoteName + "/" + branch, true
+}
+
+func (s *IntegrationSessionService) newUpdateSession(repoPath string, identity string, target integrationTarget) (integrationSession, error) {
+	sessionID, err := newIntegrationSessionID()
+	if err != nil {
+		return integrationSession{}, err
+	}
+	now := time.Now().Unix()
+	return integrationSession{
+		SessionID:             sessionID,
+		RepositoryCommonDir:   identity,
+		OpenProjectPath:       repoPath,
+		OperationKind:         "merge",
+		SourceRef:             target.sourceRef,
+		SourceOID:             target.sourceOID,
+		DestinationRef:        target.destinationRef,
+		RemoteName:            target.remoteName,
+		RemoteDestinationRef:  target.destinationRef,
+		FeatureOIDBeforeMerge: target.sourceOID,
+		State:                 integrationStateFetching,
+		Generation:            uint64(now),
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}, nil
+}
+
+func (s *IntegrationSessionService) validateUpdateStart(session integrationSession) error {
+	currentRef := strings.TrimSpace(s.git.RunGit(session.OpenProjectPath, "symbolic-ref", "--quiet", "HEAD").Stdout)
+	if currentRef != session.SourceRef {
+		return fmt.Errorf("this project switched after saving. Switch back to your saved work, then try again")
+	}
+	currentOID, ok := s.revision(session.OpenProjectPath, session.SourceRef)
+	if !ok || currentOID != session.FeatureOIDBeforeMerge {
+		return fmt.Errorf("your saved work changed before the update started. Save again, then retry")
+	}
+	remoteOID, ok := s.revision(session.OpenProjectPath, session.RemoteDestinationRef)
+	if !ok || remoteOID != session.RemoteDestinationOID {
+		return fmt.Errorf("the shared project changed before the update started. Check for shared updates again")
+	}
+	status := s.git.RunGit(session.OpenProjectPath, "status", "--porcelain")
+	if !status.Success || strings.TrimSpace(status.Stdout) != "" {
+		return fmt.Errorf("this project has unsaved files. Save or discard them, then try again")
+	}
+	return nil
+}
+
+func (s *IntegrationSessionService) failUpdate(
+	session *integrationSession,
+	userError string,
+	cause error,
+	done func(interface{}, error),
+) IntegrationSessionSnapshot {
+	session.State = integrationStateFailed
+	session.Error = userError
+	session.UpdatedAt = time.Now().Unix()
+	if saveErr := s.store.save(*session); saveErr != nil {
+		cause = fmt.Errorf("%w; save failed update state: %v", cause, saveErr)
+	}
+	snapshot := s.emit(*session)
+	done(snapshot, cause)
+	return snapshot
+}
+
+func (s *IntegrationSessionService) failedUpdateSnapshot() IntegrationSessionSnapshot {
+	return IntegrationSessionSnapshot{
+		State:     integrationStateFailed,
+		Message:   integrationSessionOutcomeMessages[integrationStateFailed],
+		Error:     "ControlZebra couldn't save the update status. Close and reopen ControlZebra, then try again.",
+		UpdatedAt: time.Now().Unix(),
+	}
 }
 
 // resolveTarget captures local revisions only. Phase 2 does not fetch, so a
@@ -666,7 +939,18 @@ func (s *IntegrationSessionService) sessionMatchesTarget(session integrationSess
 // integrationSessionIsUsable reports whether a session still has an answer the
 // user can act on, as opposed to one that needs redoing.
 func integrationSessionIsUsable(session integrationSession) bool {
-	return session.State == integrationStateReady || session.State == integrationStateNeedsDecisions
+	switch session.State {
+	case integrationStateFetching,
+		integrationStateStarting,
+		integrationStateNeedsDecisions,
+		integrationStateUpdated,
+		integrationStateSharing,
+		integrationStateBlocked,
+		integrationStateReady:
+		return true
+	default:
+		return false
+	}
 }
 
 // currentSession returns the newest non-terminal session for a repository.
@@ -738,10 +1022,9 @@ func (s *IntegrationSessionService) snapshot(session integrationSession) Integra
 		SessionID:      session.SessionID,
 		State:          session.State,
 		Message:        s.messageFor(session.State),
-		MergeMode:      session.MergeMode,
 		SourceBranch:   strings.TrimPrefix(session.SourceRef, "refs/heads/"),
 		SourceOID:      session.SourceOID,
-		TargetBranch:   strings.TrimPrefix(session.DestinationRef, "refs/heads/"),
+		TargetBranch:   integrationDestinationBranch(session),
 		DestinationOID: session.DestinationOID,
 		Generation:     session.Generation,
 		HasResult:      strings.TrimSpace(session.ResultOID) != "",
@@ -749,6 +1032,13 @@ func (s *IntegrationSessionService) snapshot(session integrationSession) Integra
 		Error:          session.Error,
 		UpdatedAt:      session.UpdatedAt,
 	}
+}
+
+func integrationDestinationBranch(session integrationSession) string {
+	if session.RemoteName != "" {
+		return strings.TrimPrefix(session.RemoteDestinationRef, "refs/remotes/"+session.RemoteName+"/")
+	}
+	return strings.TrimPrefix(session.DestinationRef, "refs/heads/")
 }
 
 func (s *IntegrationSessionService) failedSnapshot(err error) IntegrationSessionSnapshot {

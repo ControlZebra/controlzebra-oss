@@ -118,6 +118,20 @@ func TestIntegrationSessionStoreSkipsUnreadableRecords(t *testing.T) {
 	}
 }
 
+func TestIntegrationSessionStoreQuarantinesSchemaV1Records(t *testing.T) {
+	sessionID, err := newIntegrationSessionID()
+	if err != nil {
+		t.Fatalf("create session id: %v", err)
+	}
+	payload, err := json.Marshal(map[string]any{"schemaVersion": 1, "sessionId": sessionID})
+	if err != nil {
+		t.Fatalf("encode schema-v1 record: %v", err)
+	}
+	if _, err := decodeIntegrationSession(payload); err == nil {
+		t.Fatal("expected schema-v1 record to be quarantined")
+	}
+}
+
 func TestIntegrationSessionStoreDeleteIsIdempotent(t *testing.T) {
 	store := newTestSessionStore(t)
 	sessionID, _ := newIntegrationSessionID()

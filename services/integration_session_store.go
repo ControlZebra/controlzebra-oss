@@ -19,7 +19,7 @@ import (
 const (
 	// integrationSessionSchemaVersion guards forward compatibility. A session
 	// written by a newer build is ignored rather than misread.
-	integrationSessionSchemaVersion = 1
+	integrationSessionSchemaVersion = 2
 
 	integrationSessionsSubDir  = "sessions"
 	integrationWorkspaceSubDir = "workspaces"
@@ -32,8 +32,15 @@ const (
 // services/integration_session_messages_test.go.
 const (
 	integrationStateScheduled      = "scheduled"
+	integrationStateFetching       = "fetching"
+	integrationStateStarting       = "starting"
+	integrationStateCommitting     = "committing"
+	integrationStateSharing        = "sharing"
+	integrationStateShared         = "shared"
+	integrationStateCancelling     = "cancelling"
 	integrationStatePreparing      = "preparing"
 	integrationStateNeedsDecisions = "needs-decisions"
+	integrationStateUpdated        = "updated"
 	integrationStateReady          = "ready"
 	integrationStateApplying       = "applying"
 	integrationStateBlocked        = "blocked"
@@ -65,11 +72,16 @@ type integrationSession struct {
 	OperationKind string `json:"operationKind"`
 	MergeMode     string `json:"mergeMode"`
 
-	SourceRef      string `json:"sourceRef"`
-	SourceOID      string `json:"sourceOid"`
-	DestinationRef string `json:"destinationRef"`
-	DestinationOID string `json:"destinationOid"`
-	ResultOID      string `json:"resultOid,omitempty"`
+	SourceRef             string `json:"sourceRef"`
+	SourceOID             string `json:"sourceOid"`
+	DestinationRef        string `json:"destinationRef"`
+	DestinationOID        string `json:"destinationOid"`
+	ResultOID             string `json:"resultOid,omitempty"`
+	RemoteName            string `json:"remoteName,omitempty"`
+	RemoteDestinationRef  string `json:"remoteDestinationRef,omitempty"`
+	RemoteDestinationOID  string `json:"remoteDestinationOid,omitempty"`
+	FeatureOIDBeforeMerge string `json:"featureOidBeforeMerge,omitempty"`
+	FeatureOIDAfterMerge  string `json:"featureOidAfterMerge,omitempty"`
 
 	State      string `json:"state"`
 	Generation uint64 `json:"generation"`
@@ -250,8 +262,8 @@ func decodeIntegrationSession(payload []byte) (integrationSession, error) {
 	if err := json.Unmarshal(payload, &session); err != nil {
 		return integrationSession{}, fmt.Errorf("failed to decode session: %w", err)
 	}
-	if session.SchemaVersion > integrationSessionSchemaVersion {
-		return integrationSession{}, fmt.Errorf("session was written by a newer version")
+	if session.SchemaVersion != integrationSessionSchemaVersion {
+		return integrationSession{}, fmt.Errorf("session uses unsupported schema version %d", session.SchemaVersion)
 	}
 	if !isValidIntegrationSessionID(session.SessionID) {
 		return integrationSession{}, fmt.Errorf("session has an invalid id")

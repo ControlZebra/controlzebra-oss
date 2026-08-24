@@ -72,7 +72,7 @@ func (s *IntegrationSessionService) runScheduledReadiness(repoPath string) {
 	if !s.developerModeEnabled() {
 		return
 	}
-	s.PrepareReadiness(repoPath, true)
+	s.prepareReadinessLegacy(repoPath, true)
 }
 
 func (s *IntegrationSessionService) developerModeEnabled() bool {

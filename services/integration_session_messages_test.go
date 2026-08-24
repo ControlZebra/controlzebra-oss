@@ -12,8 +12,8 @@ import (
 // now enforce the two rules against the production strings.
 
 var integrationSessionOutcomeStates = []string{
-	"scheduled", "preparing", "needs-decisions", "ready", "applying",
-	"blocked", "completed", "obsolete", "failed", "cancelled", "recovered",
+	"scheduled", "fetching", "starting", "needs-decisions", "committing", "updated",
+	"sharing", "shared", "blocked", "cancelling", "cancelled", "failed",
 }
 
 // gitJargonPattern matches the vocabulary users of ControlZebra do not know.

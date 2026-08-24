@@ -14,7 +14,7 @@ const { repoStore, layoutStore, bindings, eventBus } = vi.hoisted(() => ({
   layoutStore: { current: { developerModeEnabled: true } },
   bindings: {
     ListSessions: vi.fn(),
-    PrepareReadiness: vi.fn(),
+    UpdateFeatureFromDestination: vi.fn(),
     GetSessionConflicts: vi.fn(),
     GetSessionConflictResolutionData: vi.fn(),
     FinishSession: vi.fn(),
@@ -83,7 +83,7 @@ describe('IntegrationSessionProvider', () => {
     repoStore.current = { repoPath: '/repo' };
     layoutStore.current = { developerModeEnabled: true };
     bindings.ListSessions.mockResolvedValue([session('needs-decisions')]);
-    bindings.PrepareReadiness.mockResolvedValue(session('ready'));
+    bindings.UpdateFeatureFromDestination.mockResolvedValue(new OperationResult({ success: true }));
     bindings.GetSessionConflicts.mockResolvedValue(conflicts(10, ['a.txt']));
     bindings.GetSessionConflictResolutionData.mockResolvedValue({
       success: true,
@@ -124,7 +124,7 @@ describe('IntegrationSessionProvider', () => {
     });
 
     expect(bindings.ListSessions).not.toHaveBeenCalled();
-    expect(bindings.PrepareReadiness).not.toHaveBeenCalled();
+    expect(bindings.UpdateFeatureFromDestination).not.toHaveBeenCalled();
     expect(screen.getByTestId('state')).toHaveTextContent('');
     expect(screen.getByTestId('paths')).toHaveTextContent('');
   });
@@ -138,7 +138,9 @@ describe('IntegrationSessionProvider', () => {
   });
 
   it('prepares the default finish mode on demand and adopts the result', async () => {
-    bindings.ListSessions.mockResolvedValue([]);
+    bindings.ListSessions
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([session('ready')]);
 
     function Actions(): JSX.Element {
       const { prepareReadiness } = useIntegrationSession();
@@ -158,13 +160,14 @@ describe('IntegrationSessionProvider', () => {
       screen.getByText('prepare').click();
     });
 
-    expect(bindings.PrepareReadiness).toHaveBeenCalledWith('/repo', true);
+    expect(bindings.UpdateFeatureFromDestination).toHaveBeenCalledWith('/repo');
     expect(screen.getByTestId('state')).toHaveTextContent('ready');
   });
 
   it('loads decision files returned by an on-demand check', async () => {
-    bindings.ListSessions.mockResolvedValue([]);
-    bindings.PrepareReadiness.mockResolvedValue(session('needs-decisions'));
+    bindings.ListSessions
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([session('needs-decisions')]);
 
     function Actions(): JSX.Element {
       const { prepareReadiness } = useIntegrationSession();

@@ -49,12 +49,125 @@ func assertResultUnreachable(t *testing.T, repoPath string, oid string) {
 	}
 }
 
+func runFeatureUpdate(t *testing.T, service *IntegrationSessionService, repoPath string) (OperationResult, IntegrationSessionSnapshot) {
+	t.Helper()
+	result := service.UpdateFeatureFromDestination(repoPath)
+	sessions := service.ListSessions(repoPath)
+	if len(sessions) == 0 {
+		t.Fatal("expected the update to persist a session")
+	}
+	return result, sessions[len(sessions)-1]
+}
+
+func TestUpdateFeatureFromDestinationFetchesAndMergesIntoOpenProject(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+	destinationOID := fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	result, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+
+	if !result.Success {
+		t.Fatalf("expected update operation to succeed: %s", result.Error)
+	}
+	if snapshot.State != integrationStateUpdated {
+		t.Fatalf("expected updated, got %q (%s)", snapshot.State, snapshot.Error)
+	}
+	resultOID := revParse(t, fixture.openProject, "HEAD")
+	parents := parentsOf(t, fixture.openProject, resultOID)
+	if len(parents) != 2 || parents[0] != featureOID || parents[1] != destinationOID {
+		t.Fatalf("expected parents [%s %s], got %v", featureOID, destinationOID, parents)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, fixture.openProject, "status", "--porcelain")); status != "" {
+		t.Fatalf("open project is dirty after update:\n%s", status)
+	}
+	if worktrees := strings.Count(runGitOutput(t, fixture.openProject, "worktree", "list", "--porcelain"), "worktree "); worktrees != 1 {
+		t.Fatalf("expected only the open project, got %d working copies", worktrees)
+	}
+}
+
+func TestUpdateFeatureFromDestinationLeavesRealConflictsInOpenProject(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	result, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+
+	if !result.Success {
+		t.Fatalf("expected conflict review to start: %s", result.Error)
+	}
+	if snapshot.State != integrationStateNeedsDecisions {
+		t.Fatalf("expected needs-decisions, got %q (%s)", snapshot.State, snapshot.Error)
+	}
+	if got := runGitOutput(t, fixture.openProject, "show", ":2:shared.txt"); got != "feature\n" {
+		t.Fatalf("expected feature work as current content, got %q", got)
+	}
+	if got := runGitOutput(t, fixture.openProject, "show", ":3:shared.txt"); got != "shared\n" {
+		t.Fatalf("expected shared work as incoming content, got %q", got)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err != nil {
+		t.Fatal("expected the open project to remain in the active update")
+	}
+}
+
+func TestUpdateFeatureFromDestinationBlocksDirtyProjectBeforeMerge(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+	fixture.advanceDestination(t, "shared.txt", "shared\n")
+	if err := os.WriteFile(filepath.Join(fixture.openProject, "unsaved.txt"), []byte("unsaved\n"), 0o644); err != nil {
+		t.Fatalf("write unsaved file: %v", err)
+	}
+
+	result, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+
+	if result.Success {
+		t.Fatal("expected dirty project to block the update operation")
+	}
+	if snapshot.State != integrationStateBlocked {
+		t.Fatalf("expected blocked, got %q (%s)", snapshot.State, snapshot.Error)
+	}
+	if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+		t.Fatalf("feature moved while blocked: got %s, want %s", got, featureOID)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+		t.Fatal("merge started despite unsaved files")
+	}
+}
+
+func TestUpdateFeatureFromDestinationFetchFailureLeavesFeatureUnchanged(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "feature.txt", "feature\n", "feature update")
+	offlinePath := fixture.remotePath + ".offline"
+	if err := os.Rename(fixture.remotePath, offlinePath); err != nil {
+		t.Fatalf("make remote unavailable: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(offlinePath) })
+
+	result, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+
+	if result.Success {
+		t.Fatal("expected fetch failure to fail the update operation")
+	}
+	if snapshot.State != integrationStateFailed {
+		t.Fatalf("expected failed, got %q", snapshot.State)
+	}
+	if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+		t.Fatalf("feature moved after fetch failure: got %s, want %s", got, featureOID)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+		t.Fatal("merge started after fetch failure")
+	}
+}
+
 func TestPrepareReadinessStaysSilentWithoutADestination(t *testing.T) {
 	service := newTestIntegrationService(t)
 	fixture := newLinkedWorktreeRepo(t)
 
 	// Sitting on the integration branch itself: nothing to check against.
-	snapshot := service.PrepareReadiness(fixture.openProject, false)
+	snapshot := service.prepareReadinessLegacy(fixture.openProject, false)
 
 	if snapshot.SessionID != "" || snapshot.State != "" {
 		t.Fatalf("expected no session, got %+v", snapshot)
@@ -76,7 +189,7 @@ func TestPrepareReadinessReachesReadyWithoutMovingAnyBranch(t *testing.T) {
 	sourceBefore := revParse(t, repo, "refs/heads/feature")
 	destinationBefore := revParse(t, repo, "refs/heads/main")
 
-	snapshot := service.PrepareReadiness(repo, false)
+	snapshot := service.prepareReadinessLegacy(repo, false)
 
 	if snapshot.State != integrationStateReady {
 		t.Fatalf("expected ready, got %q (%s)", snapshot.State, snapshot.Error)
@@ -111,7 +224,7 @@ func TestPrepareReadinessReportsFilesNeedingADecision(t *testing.T) {
 	commitFileAt(t, fixture.openProject, "shared.txt", "line\nmain\n", "main edit")
 	commitFileAt(t, fixture.linkedWorktree, "shared.txt", "line\nfeature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(fixture.linkedWorktree, false)
+	snapshot := service.prepareReadinessLegacy(fixture.linkedWorktree, false)
 
 	if snapshot.State != integrationStateNeedsDecisions {
 		t.Fatalf("expected needs-decisions, got %q (%s)", snapshot.State, snapshot.Error)
@@ -132,8 +245,8 @@ func TestPrepareReadinessReusesAMatchingSession(t *testing.T) {
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	first := service.PrepareReadiness(repo, false)
-	second := service.PrepareReadiness(repo, false)
+	first := service.prepareReadinessLegacy(repo, false)
+	second := service.prepareReadinessLegacy(repo, false)
 
 	if first.SessionID == "" || first.SessionID != second.SessionID {
 		t.Fatalf("expected the same session, got %q then %q", first.SessionID, second.SessionID)
@@ -145,14 +258,14 @@ func TestPrepareReadinessReplacesTheSessionWhenSavedWorkChanges(t *testing.T) {
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	first := service.PrepareReadiness(repo, false)
+	first := service.prepareReadinessLegacy(repo, false)
 	firstSession, err := service.store.load(first.SessionID)
 	if err != nil {
 		t.Fatalf("load first session: %v", err)
 	}
 
 	commitFileAt(t, repo, "feature.txt", "changed again\n", "second feature edit")
-	second := service.PrepareReadiness(repo, false)
+	second := service.prepareReadinessLegacy(repo, false)
 
 	if second.SessionID == first.SessionID {
 		t.Fatal("expected a fresh session after the saved work changed")
@@ -170,7 +283,7 @@ func TestFinishAppliesTheResultWhenTheDestinationIsCheckedOutNowhere(t *testing.
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(repo, false)
+	snapshot := service.prepareReadinessLegacy(repo, false)
 	if snapshot.State != integrationStateReady {
 		t.Fatalf("expected ready, got %q (%s)", snapshot.State, snapshot.Error)
 	}
@@ -204,7 +317,7 @@ func TestFinishAppliesIntoACheckedOutDestination(t *testing.T) {
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(repo, false)
+	snapshot := service.prepareReadinessLegacy(repo, false)
 	session, err := service.store.load(snapshot.SessionID)
 	if err != nil {
 		t.Fatalf("load session: %v", err)
@@ -238,7 +351,7 @@ func TestFinishStopsWhenAnotherWorkingCopyOwnsTheDestination(t *testing.T) {
 	fixture := newLinkedWorktreeRepo(t)
 	commitFileAt(t, fixture.linkedWorktree, "feature.txt", "from feature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(fixture.linkedWorktree, false)
+	snapshot := service.prepareReadinessLegacy(fixture.linkedWorktree, false)
 	if snapshot.State != integrationStateReady {
 		t.Fatalf("expected ready, got %q (%s)", snapshot.State, snapshot.Error)
 	}
@@ -269,7 +382,7 @@ func TestFinishRefusesWhenTheSavedWorkChanged(t *testing.T) {
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(repo, false)
+	snapshot := service.prepareReadinessLegacy(repo, false)
 	destinationBefore := revParse(t, repo, "refs/heads/main")
 
 	commitFileAt(t, repo, "feature.txt", "changed again\n", "second feature edit")
@@ -291,7 +404,7 @@ func TestCancelSessionIsIdempotentAndLeavesNothingBehind(t *testing.T) {
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(repo, false)
+	snapshot := service.prepareReadinessLegacy(repo, false)
 	session, err := service.store.load(snapshot.SessionID)
 	if err != nil {
 		t.Fatalf("load session: %v", err)
@@ -327,7 +440,7 @@ func TestRecoverSessionsFlagsAReviewWhoseFilesAreGone(t *testing.T) {
 	repo := newFeatureBranchRepo(t)
 	commitFileAt(t, repo, "feature.txt", "from feature\n", "feature edit")
 
-	snapshot := service.PrepareReadiness(repo, false)
+	snapshot := service.prepareReadinessLegacy(repo, false)
 	session, err := service.store.load(snapshot.SessionID)
 	if err != nil {
 		t.Fatalf("load session: %v", err)
