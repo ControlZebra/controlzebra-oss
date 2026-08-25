@@ -268,6 +268,17 @@ func (s *IntegrationSessionService) CancelSession(sessionID string) OperationRes
 	release := sharedRepositoryCoordinator.lockRepo(session.OpenProjectPath)
 	defer release()
 
+	if sessionIsUpdate(session) {
+		if err := cancelUpdateSession(s.git, s.store, session); err != nil {
+			result := failedOp(err.Error())
+			done(result, err)
+			return result
+		}
+		result := successOp(integrationSessionOutcomeMessages[integrationStateCancelled])
+		done(result, nil)
+		return result
+	}
+
 	if err := cancelIntegrationSession(s.git, s.store, session); err != nil {
 		result := failedOp("Couldn't fully clean up this review. Close and reopen the project, then try again.")
 		done(result, err)
@@ -466,19 +477,9 @@ func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string
 		)
 	}
 
-	afterOID, revisionOK := s.revision(repoPath, session.SourceRef)
-	if !revisionOK {
-		return s.failUpdate(
-			&session,
-			"ControlZebra couldn't verify the updated work. Close and reopen the project before continuing.",
-			fmt.Errorf("resolve updated feature %q", session.SourceRef),
-			done,
-		)
+	if err := s.finalizeUpdated(&session); err != nil {
+		return s.failUpdate(&session, err.Error(), err, done)
 	}
-	session.FeatureOIDAfterMerge = afterOID
-	session.ResultOID = afterOID
-	session.State = integrationStateUpdated
-	session.UpdatedAt = time.Now().Unix()
 	if err := s.store.save(session); err != nil {
 		return s.failUpdate(
 			&session,
@@ -601,6 +602,69 @@ func (s *IntegrationSessionService) failedUpdateSnapshot() IntegrationSessionSna
 		Error:     "ControlZebra couldn't save the update status. Close and reopen ControlZebra, then try again.",
 		UpdatedAt: time.Now().Unix(),
 	}
+}
+
+// completeUpdate creates the merge commit once every conflicted file has a
+// decision. It re-scans authoritatively rather than trusting the caller, then
+// runs git commit --no-edit in the open project so the real merge finishes.
+func (s *IntegrationSessionService) completeUpdate(session *integrationSession) error {
+	repo := session.OpenProjectPath
+
+	entries, err := classifyConflictQueue(s.git, repo)
+	if err != nil {
+		return fmt.Errorf("ControlZebra couldn't inspect the files needing a decision. Close and reopen the project, then try again.")
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("some files still need a decision")
+	}
+
+	session.State = integrationStateCommitting
+	session.UpdatedAt = time.Now().Unix()
+	if saveErr := s.store.save(*session); saveErr != nil {
+		return fmt.Errorf("ControlZebra couldn't save the update status. Keep the project open, then close and reopen ControlZebra.")
+	}
+	s.emit(*session)
+
+	commit := s.git.RunGit(repo, "commit", "--no-edit")
+	if !commit.Success {
+		return fmt.Errorf("The update could not finish in this project. Check your project requirements, then try again.")
+	}
+
+	return s.finalizeUpdated(session)
+}
+
+// finalizeUpdated verifies the merge topology and feature ref, then records the
+// completed update. It is shared by the conflict-free path and the resolved
+// path so both reach state updated only after the same checks pass.
+func (s *IntegrationSessionService) finalizeUpdated(session *integrationSession) error {
+	afterOID, ok := s.revision(session.OpenProjectPath, session.SourceRef)
+	if !ok {
+		return fmt.Errorf("ControlZebra couldn't verify the updated work. Close and reopen the project before continuing.")
+	}
+	if err := s.verifyUpdateTopology(session.OpenProjectPath, *session, afterOID); err != nil {
+		return err
+	}
+	session.FeatureOIDAfterMerge = afterOID
+	session.ResultOID = afterOID
+	session.State = integrationStateUpdated
+	session.UpdatedAt = time.Now().Unix()
+	return nil
+}
+
+// verifyUpdateTopology confirms the merge commit combines exactly the work this
+// session captured: first parent the feature before the merge, second parent
+// the fetched shared destination. A mismatch means something else moved the
+// feature branch, so the update is not trusted.
+func (s *IntegrationSessionService) verifyUpdateTopology(repo string, session integrationSession, afterOID string) error {
+	first, ok := s.revision(repo, afterOID+"^1")
+	if !ok || first != session.FeatureOIDBeforeMerge {
+		return fmt.Errorf("The updated work doesn't include your saved work as expected. Close and reopen the project, then check your files.")
+	}
+	second, ok := s.revision(repo, afterOID+"^2")
+	if !ok || second != session.RemoteDestinationOID {
+		return fmt.Errorf("The updated work doesn't include the shared updates as expected. Close and reopen the project, then check your files.")
+	}
+	return nil
 }
 
 // resolveTarget captures local revisions only. Phase 2 does not fetch, so a

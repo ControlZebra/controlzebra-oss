@@ -1,7 +1,10 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -31,6 +34,10 @@ type integrationReconcileOutcome struct {
 // whose prepared result has vanished becomes a recoverable failure the user is
 // told about, rather than something this function silently repairs.
 func reconcileIntegrationSessions(runner gitAdminPathRunner, store *integrationSessionStore) ([]integrationReconcileOutcome, error) {
+	if err := cleanSchemaV1Sessions(runner, store); err != nil {
+		return nil, err
+	}
+
 	sessions, err := store.list()
 	if err != nil {
 		return nil, err
@@ -80,6 +87,9 @@ func integrationSessionDamage(runner gitAdminPathRunner, session integrationSess
 	if strings.TrimSpace(session.OpenProjectPath) == "" {
 		return "This review lost track of its project."
 	}
+	if sessionIsUpdate(session) {
+		return integrationUpdateSessionDamage(runner, session)
+	}
 	if err := verifyIntegrationOwnership(runner, session.WorkspacePath, session.SessionID); err != nil {
 		return "The files this review was using are gone."
 	}
@@ -91,6 +101,76 @@ func integrationSessionDamage(runner gitAdminPathRunner, session integrationSess
 		return "The saved work this review was based on is no longer available."
 	}
 	return ""
+}
+
+// integrationUpdateSessionDamage reconciles a pivot update against the open
+// project's real merge state. It reports damage; it never moves a ref.
+func integrationUpdateSessionDamage(runner gitAdminPathRunner, session integrationSession) string {
+	if !revisionExists(runner, session.OpenProjectPath, session.FeatureOIDBeforeMerge) {
+		return "The saved work this update was based on is no longer available."
+	}
+	switch session.State {
+	case integrationStateNeedsDecisions:
+		if !mergeInProgress(runner, session.OpenProjectPath) {
+			return "This update was interrupted before it finished. Check for shared updates again."
+		}
+	case integrationStateUpdated, integrationStateSharing, integrationStateShared:
+		if !revisionExists(runner, session.OpenProjectPath, session.FeatureOIDAfterMerge) {
+			return "The updated work for this review is no longer available."
+		}
+	}
+	return ""
+}
+
+// cleanSchemaV1Sessions removes prepared-result records written before the
+// pivot schema bump. They are deleted without ever being applied: their
+// workspace and private result ref are cleaned first, then the record file.
+func cleanSchemaV1Sessions(runner gitAdminPathRunner, store *integrationSessionStore) error {
+	entries, err := os.ReadDir(store.root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read the session directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(store.root, entry.Name())
+		payload, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var record legacySchemaRecord
+		if err := json.Unmarshal(payload, &record); err != nil {
+			continue
+		}
+		if record.SchemaVersion >= integrationSessionSchemaVersion {
+			continue
+		}
+
+		if strings.TrimSpace(record.OpenProjectPath) != "" {
+			if strings.TrimSpace(record.WorkspacePath) != "" {
+				forceRemoveIntegrationWorkspace(runner, record.OpenProjectPath, record.WorkspacePath)
+			}
+			if ref, err := integrationResultRef(record.SessionID); err == nil {
+				runner.RunGit(record.OpenProjectPath, "update-ref", "-d", ref)
+			}
+		}
+		os.Remove(path)
+	}
+	return nil
+}
+
+// legacySchemaRecord is the minimal shape needed to clean a pre-pivot record
+// whose full schema this build no longer parses.
+type legacySchemaRecord struct {
+	SchemaVersion   int    `json:"schemaVersion"`
+	SessionID       string `json:"sessionId"`
+	OpenProjectPath string `json:"openProjectPath"`
+	WorkspacePath   string `json:"workspacePath"`
 }
 
 func revisionExists(runner gitAdminPathRunner, repoPath string, oid string) bool {

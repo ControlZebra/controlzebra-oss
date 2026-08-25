@@ -435,6 +435,104 @@ func TestCancelSessionIsIdempotentAndLeavesNothingBehind(t *testing.T) {
 	}
 }
 
+// --- Phase P2 --------------------------------------------------------------
+
+// TestUpdateResolvingLastConflictCommitsInTheOpenProject drives a conflicting
+// update to a decision, then confirms the real merge commit lands in the open
+// project with the expected topology.
+func TestUpdateResolvingLastConflictCommitsInTheOpenProject(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	destinationOID := fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	_, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+	if snapshot.State != integrationStateNeedsDecisions {
+		t.Fatalf("expected needs-decisions, got %q (%s)", snapshot.State, snapshot.Error)
+	}
+
+	if result := service.ResolveSessionConflictWithSide(snapshot.SessionID, "shared.txt", integrationSideTheirs); !result.Success {
+		t.Fatalf("resolve conflict: %s", result.Error)
+	}
+
+	updated := service.GetSessionState(snapshot.SessionID)
+	if updated.State != integrationStateUpdated {
+		t.Fatalf("expected updated after last decision, got %q (%s)", updated.State, updated.Error)
+	}
+
+	resultOID := revParse(t, fixture.openProject, "HEAD")
+	parents := parentsOf(t, fixture.openProject, resultOID)
+	if len(parents) != 2 || parents[0] != featureOID || parents[1] != destinationOID {
+		t.Fatalf("expected parents [%s %s], got %v", featureOID, destinationOID, parents)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, fixture.openProject, "status", "--porcelain")); status != "" {
+		t.Fatalf("open project dirty after commit:\n%s", status)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+		t.Fatal("merge still in progress after the final decision")
+	}
+}
+
+// TestCancelUpdateAbortsTheMergeAndRestoresTheFeature confirms cancelling a
+// conflicting update aborts the real merge and leaves the feature exactly where
+// it started.
+func TestCancelUpdateAbortsTheMergeAndRestoresTheFeature(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	_, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+	if snapshot.State != integrationStateNeedsDecisions {
+		t.Fatalf("expected needs-decisions, got %q (%s)", snapshot.State, snapshot.Error)
+	}
+
+	if result := service.CancelSession(snapshot.SessionID); !result.Success {
+		t.Fatalf("cancel update: %s", result.Error)
+	}
+
+	if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+		t.Fatalf("feature moved after cancel: got %s, want %s", got, featureOID)
+	}
+	if status := strings.TrimSpace(runGitOutput(t, fixture.openProject, "status", "--porcelain")); status != "" {
+		t.Fatalf("open project dirty after cancel:\n%s", status)
+	}
+	if _, err := runGitAllowFail(t, fixture.openProject, "rev-parse", "--verify", "MERGE_HEAD"); err == nil {
+		t.Fatal("merge still in progress after cancel")
+	}
+	if _, err := service.store.load(snapshot.SessionID); !os.IsNotExist(err) {
+		t.Fatalf("cancel left the session record behind: %v", err)
+	}
+}
+
+// TestReconcileFlagsAnInterruptedUpdate confirms a needs-decisions update whose
+// merge was aborted out from under it is reported as a recoverable failure.
+func TestReconcileFlagsAnInterruptedUpdate(t *testing.T) {
+	service := newTestIntegrationService(t)
+	fixture := newPivotIntegrationFixture(t)
+	featureOID := commitFileAt(t, fixture.openProject, "shared.txt", "feature\n", "feature update")
+	fixture.advanceDestination(t, "shared.txt", "shared\n")
+
+	_, snapshot := runFeatureUpdate(t, service, fixture.openProject)
+	if snapshot.State != integrationStateNeedsDecisions {
+		t.Fatalf("expected needs-decisions, got %q (%s)", snapshot.State, snapshot.Error)
+	}
+
+	// The merge is interrupted outside ControlZebra.
+	runGitCmd(t, fixture.openProject, "merge", "--abort")
+
+	if result := service.RecoverSessions(); !result.Success {
+		t.Fatalf("recovery failed: %s", result.Error)
+	}
+	recovered := service.GetSessionState(snapshot.SessionID)
+	if recovered.State != integrationStateFailed || recovered.Error == "" {
+		t.Fatalf("expected an interrupted update to be flagged, got %q (%s)", recovered.State, recovered.Error)
+	}
+	if got := revParse(t, fixture.openProject, "HEAD"); got != featureOID {
+		t.Fatalf("reconciliation moved the feature to %s", got)
+	}
+}
+
 func TestRecoverSessionsFlagsAReviewWhoseFilesAreGone(t *testing.T) {
 	service := newTestIntegrationService(t)
 	repo := newFeatureBranchRepo(t)

@@ -263,16 +263,16 @@ Exit: the open project can reach updated or needs-decisions; it never pushes.
 
 ### Phase P2 - Resolution, Commit, Cancel, And Recovery
 
-- [ ] Point conflict operations at the open project.
-- [ ] After the last decision, re-scan and run `git commit --no-edit`.
-- [ ] Verify topology and feature ref before state `updated`.
-- [ ] Redefine cancellation as merge abort plus restoration verification.
-- [ ] Reconcile real merge state across restart.
-- [ ] Test crashes around merge, decisions, commit, abort, and cleanup.
-- [ ] Clean schema-v1 sessions without applying prepared results.
+- [x] Point conflict operations at the open project.
+- [x] After the last decision, re-scan and run `git commit --no-edit`.
+- [x] Verify topology and feature ref before state `updated`.
+- [x] Redefine cancellation as merge abort plus restoration verification.
+- [x] Reconcile real merge state across restart.
+- [x] Test crashes around merge, decisions, commit, abort, and cleanup.
+- [x] Clean schema-v1 sessions without applying prepared results.
 
 Exit: restart preserves review, cancellation fully restores, and completed
-updates survive cleanup.
+updates survive cleanup. Completed 2026-08-25.
 
 ### Phase P3 - Explicit Share And Frontend Pivot
 

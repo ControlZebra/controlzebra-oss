@@ -179,6 +179,38 @@ func cancelIntegrationSession(runner gitAdminPathRunner, store *integrationSessi
 	return store.delete(session.SessionID)
 }
 
+// cancelUpdateSession aborts an in-progress merge in the open project and
+// verifies the feature branch is fully restored before discarding the record.
+// It never rewinds a merge that already committed: once the update exists, the
+// user must use Rewind, which is a separate action.
+func cancelUpdateSession(runner gitAdminPathRunner, store *integrationSessionStore, session integrationSession) error {
+	repo := session.OpenProjectPath
+
+	if mergeInProgress(runner, repo) {
+		if abort := runner.RunGit(repo, "merge", "--abort"); !abort.Success {
+			return fmt.Errorf("Couldn't cancel the update. Close and reopen the project, then try again.")
+		}
+	}
+
+	head := strings.TrimSpace(runner.RunGit(repo, "rev-parse", "--verify", "--quiet", session.SourceRef+"^{commit}").Stdout)
+	if head != session.FeatureOIDBeforeMerge {
+		return fmt.Errorf("This update was already added to your work. Use Rewind to undo it instead of cancelling.")
+	}
+
+	status := runner.RunGit(repo, "status", "--porcelain")
+	if !status.Success || strings.TrimSpace(status.Stdout) != "" {
+		return fmt.Errorf("Your work couldn't be fully restored. Close and reopen the project, then check your files.")
+	}
+
+	return store.delete(session.SessionID)
+}
+
+// mergeInProgress reports whether the open project is mid-merge, i.e. MERGE_HEAD
+// exists.
+func mergeInProgress(runner gitAdminPathRunner, repoPath string) bool {
+	return runner.RunGit(repoPath, "rev-parse", "--verify", "--quiet", "MERGE_HEAD").Success
+}
+
 func isMissingWorktreeMessage(message string) bool {
 	lowered := strings.ToLower(message)
 	return strings.Contains(lowered, "is not a working tree") ||

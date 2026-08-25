@@ -52,7 +52,7 @@ func (s *IntegrationSessionService) GetSessionConflictResolutionData(sessionID s
 	if err != nil {
 		return ConflictResolutionData{Path: normalizeMergePath(filePath), Error: err.Error()}
 	}
-	data := s.target.conflictResolutionData(session.WorkspacePath, path, true)
+	data := s.target.conflictResolutionData(integrationResolutionRepo(session), path, true)
 	if sessionUsesLegacyWorkspace(session) {
 		return integrationConflictResolutionData(data)
 	}
@@ -66,7 +66,7 @@ func (s *IntegrationSessionService) ResolveSessionConflictWithDecisions(sessionI
 			decisions = integrationConflictDecisions(decisions)
 		}
 		return s.target.resolveConflictWithDecisions(
-			session.WorkspacePath,
+			integrationResolutionRepo(session),
 			path,
 			resolutionToken,
 			decisions,
@@ -78,7 +78,7 @@ func (s *IntegrationSessionService) ResolveSessionConflictWithDecisions(sessionI
 // ResolveSessionConflictWithContent applies a fully composed file.
 func (s *IntegrationSessionService) ResolveSessionConflictWithContent(sessionID string, filePath string, resolutionToken string, content string) OperationResult {
 	return s.resolveInSession(sessionID, filePath, func(session integrationSession, path string) OperationResult {
-		return s.target.resolveConflictWithContent(session.WorkspacePath, path, resolutionToken, content, true)
+		return s.target.resolveConflictWithContent(integrationResolutionRepo(session), path, resolutionToken, content, true)
 	})
 }
 
@@ -102,7 +102,7 @@ func (s *IntegrationSessionService) ResolveSessionConflictWithSide(sessionID str
 				stage = conflictStageOurs
 			}
 		}
-		return s.target.resolveConflictWithStage(session.WorkspacePath, path, stage, sideName, true)
+		return s.target.resolveConflictWithStage(integrationResolutionRepo(session), path, stage, sideName, true)
 	})
 }
 
@@ -139,12 +139,15 @@ func (s *IntegrationSessionService) queuedSessionFile(sessionID string, filePath
 	if session.State != integrationStateNeedsDecisions {
 		return integrationSession{}, "", fmt.Errorf("This review has no files waiting for a decision. Refresh and try again.")
 	}
-	if err := verifyIntegrationOwnership(s.git, session.WorkspacePath, session.SessionID); err != nil {
-		return integrationSession{}, "", fmt.Errorf("This review's working files are missing. Save your work again to start a new check.")
+	repo := integrationResolutionRepo(session)
+	if !sessionIsUpdate(session) {
+		if err := verifyIntegrationOwnership(s.git, session.WorkspacePath, session.SessionID); err != nil {
+			return integrationSession{}, "", fmt.Errorf("This review's working files are missing. Save your work again to start a new check.")
+		}
 	}
 
 	path := normalizeMergePath(filePath)
-	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	entries, err := classifyConflictQueue(s.git, repo)
 	if err != nil {
 		return integrationSession{}, "", fmt.Errorf("Couldn't read the files waiting for a decision. Try again in a moment.")
 	}
@@ -173,7 +176,12 @@ func (s *IntegrationSessionService) refreshSessionConflicts(session integrationS
 		return snapshot
 	}
 
-	if resultErr := s.createResult(&current); resultErr != nil {
+	if sessionIsUpdate(current) {
+		if commitErr := s.completeUpdate(&current); commitErr != nil {
+			current.State = integrationStateFailed
+			current.Error = commitErr.Error()
+		}
+	} else if resultErr := s.createResult(&current); resultErr != nil {
 		current.State = integrationStateFailed
 		current.Error = resultErr.Error()
 	}
@@ -188,13 +196,29 @@ func (s *IntegrationSessionService) refreshSessionConflicts(session integrationS
 }
 
 func (s *IntegrationSessionService) scanSessionConflicts(session integrationSession) SessionConflictSnapshot {
-	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	entries, err := classifyConflictQueue(s.git, integrationResolutionRepo(session))
 	if sessionUsesLegacyWorkspace(session) {
 		for index := range entries {
 			entries[index] = integrationConflictQueueEntry(entries[index])
 		}
 	}
 	return s.conflictSnapshot(session, entries, err)
+}
+
+// sessionIsUpdate reports whether a session is a pivot update that merges into
+// the open project, as opposed to a legacy prepared-result session that works
+// in an isolated workspace.
+func sessionIsUpdate(session integrationSession) bool {
+	return session.RemoteName != ""
+}
+
+// integrationResolutionRepo is where this session's real conflict index lives:
+// the open project for an update, the isolated workspace for a legacy session.
+func integrationResolutionRepo(session integrationSession) string {
+	if sessionIsUpdate(session) {
+		return session.OpenProjectPath
+	}
+	return session.WorkspacePath
 }
 
 func sessionUsesLegacyWorkspace(session integrationSession) bool {
