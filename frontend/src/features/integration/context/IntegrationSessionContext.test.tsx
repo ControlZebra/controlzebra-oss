@@ -9,8 +9,9 @@ import {
 } from '../../../../bindings/controlzebra/services/models';
 import { IntegrationSessionProvider, useIntegrationSession } from './IntegrationSessionContext';
 
-const { repoStore, layoutStore, bindings, eventBus } = vi.hoisted(() => ({
+const { repoStore, repoRefresh, layoutStore, bindings, eventBus } = vi.hoisted(() => ({
   repoStore: { current: { repoPath: '/repo' } },
+  repoRefresh: vi.fn(),
   layoutStore: { current: { developerModeEnabled: true } },
   bindings: {
     ListSessions: vi.fn(),
@@ -27,7 +28,7 @@ const { repoStore, layoutStore, bindings, eventBus } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../context', () => ({
-  useRepo: () => repoStore.current,
+  useRepo: () => ({ ...repoStore.current, refreshAll: repoRefresh }),
   useLayout: () => layoutStore.current,
 }));
 
@@ -404,6 +405,7 @@ describe('IntegrationSessionProvider', () => {
       screen.getByText('share').click();
     });
     expect(bindings.ShareSession).toHaveBeenCalledWith('abc');
+    expect(repoRefresh).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       screen.getByText('cancel').click();

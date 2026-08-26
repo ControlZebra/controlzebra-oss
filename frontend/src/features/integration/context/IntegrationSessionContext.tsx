@@ -126,7 +126,7 @@ interface IntegrationSessionProviderProps {
 }
 
 export function IntegrationSessionProvider({ children }: IntegrationSessionProviderProps): JSX.Element {
-  const { repoPath } = useRepo();
+  const { repoPath, refreshAll } = useRepo();
   const { developerModeEnabled } = useLayout();
   const enabled = developerModeEnabled && Boolean(repoPath);
 
@@ -315,10 +315,13 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
     }
   }, [enabled, repoPath, applySession, applyConflicts]);
 
-  const shareUpdate = useCallback(
-    () => runSessionAction(ShareSession),
-    [runSessionAction],
-  );
+  const shareUpdate = useCallback(async (): Promise<OperationResult | null> => {
+    const result = await runSessionAction(ShareSession);
+    if (result?.success && latestRepoPathRef.current === repoPath) {
+      await refreshAll();
+    }
+    return result;
+  }, [repoPath, refreshAll, runSessionAction]);
 
   const cancelUpdate = useCallback(
     () => runSessionAction(CancelSession),
