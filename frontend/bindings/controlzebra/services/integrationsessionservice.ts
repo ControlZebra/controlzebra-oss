@@ -149,6 +149,17 @@ export function SetSettings(settings: $models.SettingsService | null): $Cancella
 }
 
 /**
+ * ShareSession pushes the unchanged feature revision produced by an update.
+ * The local merge commit remains intact when sharing fails so the user can
+ * retry without repeating conflict decisions.
+ */
+export function ShareSession(sessionID: string): $CancellablePromise<$models.OperationResult> {
+    return $Call.ByID(219549935, sessionID).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
+/**
  * UpdateFeatureFromDestination starts the update mutation. Session snapshots
  * are published through events and the session query methods.
  */

@@ -276,18 +276,25 @@ updates survive cleanup. Completed 2026-08-25.
 
 ### Phase P3 - Explicit Share And Frontend Pivot
 
-- [ ] Replace readiness and Finish calls with update state and `ShareSession`.
-- [ ] Add the unchecked-by-default **Check for conflicts** checkbox directly
+- [x] Replace readiness and Finish calls with update state and `ShareSession`.
+- [x] Add the unchecked-by-default **Check for conflicts** checkbox directly
       below Save Changes.
-- [ ] Start the workflow only from a successful Save Changes when checked;
+- [x] Start the workflow only from a successful Save Changes when checked;
       remove the repository-event trigger and debounce.
-- [ ] Replace the Finish modal's prepared-result assumptions.
-- [ ] Disable ordinary Save Changes while the open project needs decisions.
-- [ ] Retain text, ladder, and whole-file resolution UI.
-- [ ] Confirm Cancel update with the restoration consequence.
-- [ ] Offer **Share updated work** only after state `updated`.
-- [ ] Leave local update intact after push rejection and allow retry.
-- [ ] Route active sessions correctly across project switching.
+- [x] Replace the Finish modal's prepared-result assumptions.
+- [x] Disable ordinary Save Changes while the open project needs decisions.
+- [x] Retain text, ladder, and whole-file resolution UI.
+- [x] Confirm Cancel update with the restoration consequence.
+- [x] Offer **Share updated work** only after state `updated`.
+- [x] Leave local update intact after push rejection and allow retry.
+- [x] Route active sessions correctly across project switching.
+
+Completed 2026-08-25. The option is feature-branch-only, resets after every
+save attempt, and starts no work when Save Changes fails. Sharing pushes the
+captured completed revision rather than a mutable branch tip. Push rejection
+and interrupted sharing remain retryable, failed merge completion can be
+cancelled and restored, and stale project reads cannot replace the open
+project's active session.
 
 Exit: no UI says Finish or implies that the destination branch will move.
 

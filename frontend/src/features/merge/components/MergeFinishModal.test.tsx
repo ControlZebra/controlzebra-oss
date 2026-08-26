@@ -1,31 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { repoStore, sessionStore } = vi.hoisted(() => ({
-  repoStore: {
-    current: {
-      repoPath: '/tmp/repo',
-      mergeReviewFiles: [] as unknown[],
-      isLoadingMergeReviewFiles: false,
-      loadMergeReviewFiles: vi.fn().mockResolvedValue([]),
-      loadMergeReviewFileDiff: vi.fn().mockResolvedValue(null),
-    },
-  },
+const { sessionStore, toastStore } = vi.hoisted(() => ({
   sessionStore: {
     current: {
       session: null as Record<string, unknown> | null,
       entries: [] as { path: string }[],
       isBusy: false,
-      finish: vi.fn(),
-      cancelReview: vi.fn(),
-      refresh: vi.fn(),
-      prepareReadiness: vi.fn(),
+      shareUpdate: vi.fn(),
+      cancelUpdate: vi.fn(),
     },
   },
-}));
-
-vi.mock('../../../context', () => ({
-  useRepo: () => repoStore.current,
+  toastStore: {
+    success: vi.fn(),
+  },
 }));
 
 vi.mock('../../integration', () => ({
@@ -36,20 +24,17 @@ vi.mock('../../integration/components/SessionConflictResolver', () => ({
   default: () => <div>Embedded session conflict resolver</div>,
 }));
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: toastStore }));
 
 import MergeFinishModal from './MergeFinishModal';
 
-function review(overrides: Record<string, unknown> = {}) {
+function update(overrides: Record<string, unknown> = {}) {
   return {
     sessionId: 'abc',
-    state: 'ready',
-    message: 'Your work is ready to be combined with the shared project.',
+    state: 'updated',
+    message: 'Your work is up to date with the shared project.',
     sourceBranch: 'feature/tank-logic',
     targetBranch: 'main',
-    sourceOid: 'aaa111',
-    destinationOid: 'bbb222',
-    hasResult: true,
     error: '',
     ...overrides,
   };
@@ -58,116 +43,132 @@ function review(overrides: Record<string, unknown> = {}) {
 describe('MergeFinishModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    repoStore.current = {
-      repoPath: '/tmp/repo',
-      mergeReviewFiles: [],
-      isLoadingMergeReviewFiles: false,
-      loadMergeReviewFiles: vi.fn().mockResolvedValue([]),
-      loadMergeReviewFileDiff: vi.fn().mockResolvedValue(null),
-    };
     sessionStore.current = {
-      session: review(),
+      session: update(),
       entries: [],
       isBusy: false,
-      finish: vi.fn().mockResolvedValue({ success: true, message: 'Done' }),
-      cancelReview: vi.fn().mockResolvedValue({ success: true, message: 'Cancelled' }),
-      refresh: vi.fn(),
-      prepareReadiness: vi.fn().mockResolvedValue(null),
+      shareUpdate: vi.fn().mockResolvedValue({ success: true, message: 'Shared' }),
+      cancelUpdate: vi.fn().mockResolvedValue({ success: true, message: 'Restored' }),
     };
   });
 
-  it('starts one readiness check when opened without a review', async () => {
+  it('does not start an update when opened without an active session', () => {
     sessionStore.current = { ...sessionStore.current, session: null };
 
-    const { rerender } = render(<MergeFinishModal open onOpenChange={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(sessionStore.current.prepareReadiness).toHaveBeenCalledTimes(1);
-    });
-
-    rerender(<MergeFinishModal open onOpenChange={vi.fn()} />);
-    expect(sessionStore.current.prepareReadiness).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows checking progress while an on-demand review is being prepared', () => {
-    sessionStore.current = { ...sessionStore.current, session: null, isBusy: true };
-
     render(<MergeFinishModal open onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText('Checking your saved work')).toBeInTheDocument();
-    expect(screen.queryByText('Nothing to review yet.')).not.toBeInTheDocument();
+    expect(screen.getByText('Update status')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share updated work' })).not.toBeInTheDocument();
   });
 
-  it('reviews the exact revisions the result was built from', async () => {
-    render(<MergeFinishModal open onOpenChange={vi.fn()} />);
-
-    await waitFor(() => {
-      expect(repoStore.current.loadMergeReviewFiles).toHaveBeenCalledWith('bbb222', 'aaa111');
-    });
-  });
-
-  it('offers Finish when the review is ready', async () => {
+  it('asks before sharing an updated feature', async () => {
     const onOpenChange = vi.fn();
     render(<MergeFinishModal open onOpenChange={onOpenChange} />);
 
-    const finish = screen.getByRole('button', { name: 'Finish' });
-    expect(finish).toBeEnabled();
+    expect(screen.getByText('Share updated work?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Share updated work' }));
 
-    finish.click();
-    await waitFor(() => {
-      expect(sessionStore.current.finish).toHaveBeenCalled();
-    });
+    await waitFor(() => expect(sessionStore.current.shareUpdate).toHaveBeenCalledTimes(1));
+    expect(toastStore.success).toHaveBeenCalledWith('Shared');
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('refuses to finish while files still need a decision', () => {
+  it('keeps a failed share open and shows the inline recovery message', async () => {
+    const onOpenChange = vi.fn();
     sessionStore.current = {
       ...sessionStore.current,
-      session: review({ state: 'needs-decisions', hasResult: false }),
+      shareUpdate: vi.fn().mockResolvedValue({
+        success: false,
+        error: 'Your updated work is still saved on this computer. Check your connection, then try again.',
+      }),
+    };
+
+    render(<MergeFinishModal open onOpenChange={onOpenChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Share updated work' }));
+
+    await waitFor(() => expect(sessionStore.current.shareUpdate).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/still saved on this computer/)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('embeds Conflict Review and does not offer sharing while files need decisions', () => {
+    sessionStore.current = {
+      ...sessionStore.current,
+      session: update({ state: 'needs-decisions' }),
       entries: [{ path: 'logic/alpha.L5X' }, { path: 'logic/beta.L5X' }],
     };
 
     render(<MergeFinishModal open onOpenChange={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Finish' })).toBeDisabled();
+    expect(screen.getByText('Conflict Review')).toBeInTheDocument();
+    expect(screen.getByText('Embedded session conflict resolver')).toBeInTheDocument();
     expect(screen.getByText('2 files need a decision')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share updated work' })).not.toBeInTheDocument();
   });
 
-  it('embeds the conflict resolver instead of loading the read-only diff review', async () => {
+  it('confirms restoration before cancelling an interrupted update', async () => {
     sessionStore.current = {
       ...sessionStore.current,
-      session: review({ state: 'needs-decisions', hasResult: false }),
+      session: update({ state: 'needs-decisions' }),
       entries: [{ path: 'logic/alpha.L5X' }],
+    };
+    render(<MergeFinishModal open onOpenChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel update' }));
+
+    expect(await screen.findByText('Cancel this update?')).toBeInTheDocument();
+    expect(screen.getByText(/restore the project to exactly how it was/)).toBeInTheDocument();
+    expect(sessionStore.current.cancelUpdate).not.toHaveBeenCalled();
+  });
+
+  it('offers cancellation when automatic completion fails', () => {
+    sessionStore.current = {
+      ...sessionStore.current,
+      session: update({
+        state: 'failed',
+        error: 'The update could not finish. Check your project requirements, then try again.',
+      }),
     };
 
     render(<MergeFinishModal open onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText('Embedded session conflict resolver')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(repoStore.current.loadMergeReviewFiles).not.toHaveBeenCalled();
-    });
+    expect(screen.getByRole('button', { name: 'Cancel update' })).toBeEnabled();
   });
 
-  it('confirms before cancelling and says nothing changes', async () => {
-    render(<MergeFinishModal open onOpenChange={vi.fn()} />);
+  it('keeps the modal open and shows recovery guidance when cancellation fails', async () => {
+    const onOpenChange = vi.fn();
+    sessionStore.current = {
+      ...sessionStore.current,
+      session: update({ state: 'failed' }),
+      cancelUpdate: vi.fn().mockResolvedValue({
+        success: false,
+        error: "The update wasn't cancelled. Close and reopen the project, then try again.",
+      }),
+    };
+    render(<MergeFinishModal open onOpenChange={onOpenChange} />);
 
-    screen.getByRole('button', { name: 'Cancel review' }).click();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel update' }));
+    const cancelButtons = await screen.findAllByRole('button', { name: 'Cancel update' });
+    fireEvent.click(cancelButtons[cancelButtons.length - 1]);
 
-    await waitFor(() => {
-      expect(screen.getByText('Cancel this review?')).toBeInTheDocument();
-    });
-    expect(screen.getByText(/Nothing in your project or the/)).toBeInTheDocument();
-    expect(sessionStore.current.cancelReview).not.toHaveBeenCalled();
+    expect(await screen.findByText(/wasn't cancelled/)).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
-  it('tells the user when a newer save replaced the review', async () => {
-    const { rerender } = render(<MergeFinishModal open onOpenChange={vi.fn()} />);
+  it('closes Conflict Review after the last decision completes the update', async () => {
+    const onOpenChange = vi.fn();
+    sessionStore.current = {
+      ...sessionStore.current,
+      session: update({ state: 'needs-decisions' }),
+      entries: [{ path: 'logic/alpha.L5X' }],
+    };
+    const { rerender } = render(
+      <MergeFinishModal open onOpenChange={(value) => onOpenChange(value)} />,
+    );
 
-    sessionStore.current = { ...sessionStore.current, session: review({ sessionId: 'def' }) };
-    rerender(<MergeFinishModal open onOpenChange={vi.fn()} />);
+    sessionStore.current = { ...sessionStore.current, session: update() };
+    rerender(<MergeFinishModal open onOpenChange={(value) => onOpenChange(value)} />);
 
-    await waitFor(() => {
-      expect(screen.getByText(/earlier choices were cleared/)).toBeInTheDocument();
-    });
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 });

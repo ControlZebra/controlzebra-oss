@@ -89,6 +89,13 @@ function ExplorerView(): JSX.Element {
     findOpenChangeRequestForBranch,
     selectChangeRequest,
   } = useRepo();
+  const {
+    enabled: updateWorkflowEnabled,
+    session: reviewSession,
+    entries: reviewEntries,
+    isBusy: isUpdateBusy,
+    startUpdate,
+  } = useIntegrationSession();
   
   const [isRewinding, setIsRewinding] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -116,6 +123,9 @@ function ExplorerView(): JSX.Element {
     if (changedFiles.length > 0) {
       return { type: 'hasChanges', changedFiles, branchName };
     }
+    if (reviewSession && !isMainBranch) {
+      return { type: 'featureBranch', branchName };
+    }
     if (needsPush) {
       return { type: 'push', ahead, hasUpstream, totalLocalCommits };
     }
@@ -123,7 +133,7 @@ function ExplorerView(): JSX.Element {
       return { type: 'featureBranch', branchName };
     }
     return { type: 'synced' };
-  }, [repoPath, repoInfo?.isRepo, repoStatus]);
+  }, [repoPath, repoInfo?.isRepo, repoStatus, reviewSession]);
 
   const handleRewind = useCallback(async (): Promise<boolean> => {
     setIsRewinding(true);
@@ -194,15 +204,22 @@ function ExplorerView(): JSX.Element {
     openExplorerMergeModal();
   }, [openExplorerMergeModal]);
 
+  const handleRetryUpdate = useCallback(async (): Promise<void> => {
+    const snapshot = await startUpdate();
+    if (snapshot?.state === 'needs-decisions') {
+      openExplorerMergeModal();
+    }
+  }, [openExplorerMergeModal, startUpdate]);
+
   // The synced feature branch is the only state that can open a Change Request.
   const featureBranchName = panelState.type === 'featureBranch' ? panelState.branchName : null;
 
-  const { session: reviewSession, entries: reviewEntries } = useIntegrationSession();
   const reviewStatus = useMemo(() => (
     reviewSession
       ? {
         state: reviewSession.state,
         message: reviewSession.message,
+        error: reviewSession.error,
         conflictCount: reviewEntries.length,
       }
       : undefined
@@ -323,12 +340,15 @@ function ExplorerView(): JSX.Element {
         hasRemote={hasRemote}
         totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
         review={reviewStatus}
+        updateWorkflowEnabled={updateWorkflowEnabled}
+        isUpdateBusy={isUpdateBusy}
         onInitialize={startTracking}
         onInstallRequiredPackages={installRequiredPackages}
         onSync={syncRepo}
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
         onOpenCombineChanges={handleOpenCombineChanges}
+        onRetryUpdate={() => void handleRetryUpdate()}
         onCreateChangeRequest={panelState.type === 'featureBranch' ? () => void handleCreateChangeRequest() : undefined}
         canCreateChangeRequest={changeRequestCreateEligibility?.status === 'eligible'}
         changeRequestDisabledReason={changeRequestCreateEligibility?.status === 'ineligible' ? changeRequestCreateEligibility.message : undefined}

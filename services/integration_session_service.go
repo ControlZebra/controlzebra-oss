@@ -248,6 +248,66 @@ func (s *IntegrationSessionService) FinishSession(sessionID string) OperationRes
 	return result
 }
 
+// ShareSession pushes the unchanged feature revision produced by an update.
+// The local merge commit remains intact when sharing fails so the user can
+// retry without repeating conflict decisions.
+func (s *IntegrationSessionService) ShareSession(sessionID string) OperationResult {
+	done := LogMethod("IntegrationSessionService.ShareSession", map[string]interface{}{"sessionId": sessionID})
+
+	session, err := s.store.load(sessionID)
+	if err != nil {
+		result := failedOp("This update is no longer available. Check for conflicts again before sharing your work.")
+		done(result, err)
+		return result
+	}
+	if !sessionIsUpdate(session) || (session.State != integrationStateUpdated && session.State != integrationStateSharing) {
+		result := failedOp(s.messageFor(session.State))
+		done(result, nil)
+		return result
+	}
+
+	release := sharedRepositoryCoordinator.lockRepo(session.OpenProjectPath)
+	defer release()
+
+	featureOID, ok := s.revision(session.OpenProjectPath, session.SourceRef)
+	if !ok || featureOID != session.FeatureOIDAfterMerge {
+		result := failedOp("Your work changed after the conflict check. Select Check for conflicts the next time you save, then share the new result.")
+		done(result, nil)
+		return result
+	}
+	if err := s.transition(&session, integrationStateSharing, ""); err != nil {
+		result := failedOp("ControlZebra couldn't start sharing your work. Keep this project open, then try again.")
+		done(result, err)
+		return result
+	}
+	s.emit(session)
+
+	refspec := session.FeatureOIDAfterMerge + ":" + session.SourceRef
+	push := s.git.RunGit(session.OpenProjectPath, "push", session.RemoteName, refspec)
+	if !push.Success {
+		message := "Your updated work is still saved on this computer. Check your connection and access, then choose Share updated work again."
+		if err := s.transition(&session, integrationStateUpdated, message); err != nil {
+			result := failedOp("ControlZebra couldn't save the sharing status. Keep this project open, then close and reopen ControlZebra.")
+			done(result, err)
+			return result
+		}
+		s.emit(session)
+		result := failedOp(message)
+		done(result, fmt.Errorf("push updated feature: %s", getErrorMessage(push)))
+		return result
+	}
+
+	if err := s.transition(&session, integrationStateShared, ""); err != nil {
+		result := failedOp("Your work was shared, but ControlZebra couldn't save that status. Refresh the project before sharing again.")
+		done(result, err)
+		return result
+	}
+	s.emit(session)
+	result := successOp(integrationSessionOutcomeMessages[integrationStateShared])
+	done(result, nil)
+	return result
+}
+
 // CancelSession discards a review. It moves neither branch, and cancelling a
 // session that is already gone succeeds.
 func (s *IntegrationSessionService) CancelSession(sessionID string) OperationResult {
@@ -358,7 +418,8 @@ func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string
 
 	target, ok := s.resolveRemoteTarget(repoPath)
 	if !ok {
-		snapshot := s.failedSnapshot(fmt.Errorf("No shared project could be found. Connect this project to its shared destination, then try again."))
+		message := "No shared project could be found. Connect this project to its shared destination, then try again."
+		snapshot := s.persistFailedUpdate(repoPath, message)
 		done(snapshot, nil)
 		return snapshot
 	}
@@ -373,10 +434,41 @@ func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string
 
 	release := sharedRepositoryCoordinator.lockRepo(repoPath)
 	defer release()
-	if existing, found := s.currentSession(identity); found && integrationSessionIsUsable(existing) {
-		snapshot := s.snapshot(existing)
-		done(snapshot, nil)
-		return snapshot
+	if existing, found := s.currentSession(identity); found {
+		if !integrationSessionIsUsable(existing) {
+			if existing.State == integrationStateFailed {
+				if err := s.store.delete(existing.SessionID); err != nil {
+					snapshot := s.failedUpdateSnapshot()
+					done(snapshot, err)
+					return snapshot
+				}
+			}
+		} else {
+			switch existing.State {
+			case integrationStateBlocked:
+				if err := s.store.delete(existing.SessionID); err != nil {
+					snapshot := s.failedUpdateSnapshot()
+					done(snapshot, err)
+					return snapshot
+				}
+			case integrationStateUpdated:
+				featureOID, current := s.revision(repoPath, existing.SourceRef)
+				if current && featureOID == existing.FeatureOIDAfterMerge {
+					snapshot := s.snapshot(existing)
+					done(snapshot, nil)
+					return snapshot
+				}
+				if err := s.store.delete(existing.SessionID); err != nil {
+					snapshot := s.failedUpdateSnapshot()
+					done(snapshot, err)
+					return snapshot
+				}
+			default:
+				snapshot := s.snapshot(existing)
+				done(snapshot, nil)
+				return snapshot
+			}
+		}
 	}
 
 	session, err := s.newUpdateSession(repoPath, identity, target)
@@ -604,6 +696,44 @@ func (s *IntegrationSessionService) failedUpdateSnapshot() IntegrationSessionSna
 	}
 }
 
+func (s *IntegrationSessionService) persistFailedUpdate(repoPath string, userError string) IntegrationSessionSnapshot {
+	identity := repositoryLockKey(s.git, repoPath)
+	if existing, found := s.currentSession(identity); found {
+		if integrationSessionIsUsable(existing) {
+			return s.snapshot(existing)
+		}
+		if err := s.store.delete(existing.SessionID); err != nil {
+			return s.failedUpdateSnapshot()
+		}
+	}
+
+	sessionID, err := newIntegrationSessionID()
+	if err != nil {
+		return s.failedSnapshot(err)
+	}
+	sourceRef := strings.TrimSpace(s.git.RunGit(repoPath, "symbolic-ref", "--quiet", "HEAD").Stdout)
+	sourceOID, _ := s.revision(repoPath, sourceRef)
+	now := time.Now().Unix()
+	session := integrationSession{
+		SessionID:             sessionID,
+		RepositoryCommonDir:   identity,
+		OpenProjectPath:       repoPath,
+		OperationKind:         "merge",
+		SourceRef:             sourceRef,
+		SourceOID:             sourceOID,
+		FeatureOIDBeforeMerge: sourceOID,
+		State:                 integrationStateFailed,
+		Generation:            uint64(now),
+		Error:                 userError,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+	if err := s.store.save(session); err != nil {
+		return s.failedUpdateSnapshot()
+	}
+	return s.emit(session)
+}
+
 // completeUpdate creates the merge commit once every conflicted file has a
 // decision. It re-scans authoritatively rather than trusting the caller, then
 // runs git commit --no-edit in the open project so the real merge finishes.
@@ -641,7 +771,18 @@ func (s *IntegrationSessionService) finalizeUpdated(session *integrationSession)
 	if !ok {
 		return fmt.Errorf("ControlZebra couldn't verify the updated work. Close and reopen the project before continuing.")
 	}
-	if err := s.verifyUpdateTopology(session.OpenProjectPath, *session, afterOID); err != nil {
+	if afterOID == session.FeatureOIDBeforeMerge {
+		containsShared := s.git.RunGit(
+			session.OpenProjectPath,
+			"merge-base",
+			"--is-ancestor",
+			session.RemoteDestinationOID,
+			afterOID,
+		).Success
+		if !containsShared {
+			return fmt.Errorf("The updated work doesn't include the shared updates as expected. Close and reopen the project, then check your files.")
+		}
+	} else if err := s.verifyUpdateTopology(session.OpenProjectPath, *session, afterOID); err != nil {
 		return err
 	}
 	session.FeatureOIDAfterMerge = afterOID
@@ -1082,6 +1223,11 @@ func (s *IntegrationSessionService) publishMutation(repoPath string) {
 // --- snapshots -------------------------------------------------------------
 
 func (s *IntegrationSessionService) snapshot(session integrationSession) IntegrationSessionSnapshot {
+	active := integrationSessionIsUsable(session)
+	if sessionIsUpdate(session) && session.State == integrationStateUpdated {
+		featureOID, ok := s.revision(session.OpenProjectPath, session.SourceRef)
+		active = ok && featureOID == session.FeatureOIDAfterMerge
+	}
 	return IntegrationSessionSnapshot{
 		SessionID:      session.SessionID,
 		State:          session.State,
@@ -1092,7 +1238,7 @@ func (s *IntegrationSessionService) snapshot(session integrationSession) Integra
 		DestinationOID: session.DestinationOID,
 		Generation:     session.Generation,
 		HasResult:      strings.TrimSpace(session.ResultOID) != "",
-		Active:         integrationSessionIsUsable(session),
+		Active:         active,
 		Error:          session.Error,
 		UpdatedAt:      session.UpdatedAt,
 	}

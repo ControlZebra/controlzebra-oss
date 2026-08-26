@@ -18,6 +18,7 @@ import (
 // only until the next startup.
 var integrationSessionTerminalStates = map[string]bool{
 	integrationStateCompleted: true,
+	integrationStateShared:    true,
 	integrationStateCancelled: true,
 }
 
@@ -55,6 +56,14 @@ func reconcileIntegrationSessions(runner gitAdminPathRunner, store *integrationS
 				Discarded: true,
 			})
 			continue
+		}
+		if session.State == integrationStateSharing {
+			session.State = integrationStateUpdated
+			session.Error = "Sharing was interrupted. Choose Share updated work to try again."
+			session.UpdatedAt = time.Now().Unix()
+			if err := store.save(session); err != nil {
+				return nil, err
+			}
 		}
 
 		reason := integrationSessionDamage(runner, session)

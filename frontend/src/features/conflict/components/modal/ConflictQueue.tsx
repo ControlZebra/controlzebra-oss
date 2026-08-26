@@ -30,8 +30,8 @@ const CONFLICT_STATUS_LABELS: Record<ConflictQueueFile['status'], string> = {
   'both-deleted': 'Both deleted',
   'added-by-us': 'Only Current has this file',
   'added-by-them': 'Only Incoming has this file',
-  'deleted-by-us': 'Deleted on your branch',
-  'deleted-by-them': 'Deleted on destination',
+  'deleted-by-us': 'Deleted from your work',
+  'deleted-by-them': 'Deleted from shared work',
 };
 
 interface ConflictQueueProps {
@@ -116,7 +116,7 @@ function ConflictQueue({
         <div className="text-center max-w-md">
           <CheckCircle2 style={iconLg} className="mx-auto mb-4 text-green-400" />
           <p className="text-theme-primary text-lg font-medium mb-2">All decisions are complete</p>
-          <p className="text-theme-secondary text-sm">You can finish the merge from the footer below.</p>
+          <p className="text-theme-secondary text-sm">ControlZebra is updating your work now. Keep this project open.</p>
         </div>
       </div>
     );

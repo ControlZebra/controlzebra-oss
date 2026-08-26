@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -17,7 +17,7 @@ const { repoStore, layoutStore, bindings, eventBus } = vi.hoisted(() => ({
     UpdateFeatureFromDestination: vi.fn(),
     GetSessionConflicts: vi.fn(),
     GetSessionConflictResolutionData: vi.fn(),
-    FinishSession: vi.fn(),
+    ShareSession: vi.fn(),
     CancelSession: vi.fn(),
     ResolveSessionConflictWithContent: vi.fn(),
     ResolveSessionConflictWithDecisions: vi.fn(),
@@ -41,7 +41,7 @@ vi.mock('../../../shared/runtime/events', () => ({
 }));
 
 function session(state: string, sessionId = 'abc'): IntegrationSessionSnapshot {
-  return new IntegrationSessionSnapshot({ sessionId, state, targetBranch: 'main' });
+  return new IntegrationSessionSnapshot({ sessionId, state, targetBranch: 'main', active: true });
 }
 
 function conflicts(
@@ -57,11 +57,12 @@ function conflicts(
 }
 
 function Probe(): JSX.Element {
-  const { session: current, entries } = useIntegrationSession();
+  const { session: current, entries, isSaveBlocked } = useIntegrationSession();
   return (
     <div>
       <span data-testid="state">{current?.state ?? ''}</span>
       <span data-testid="paths">{entries.map((entry) => entry.path).join(',')}</span>
+      <span data-testid="save-blocked">{String(isSaveBlocked)}</span>
     </div>
   );
 }
@@ -95,7 +96,7 @@ describe('IntegrationSessionProvider', () => {
       regions: [],
       hasFinalNewline: true,
     });
-    bindings.FinishSession.mockResolvedValue(new OperationResult({ success: true }));
+    bindings.ShareSession.mockResolvedValue(new OperationResult({ success: true }));
     bindings.CancelSession.mockResolvedValue(new OperationResult({ success: true }));
     bindings.ResolveSessionConflictWithContent.mockResolvedValue(new OperationResult({ success: true }));
     bindings.ResolveSessionConflictWithDecisions.mockResolvedValue(new OperationResult({ success: true }));
@@ -106,8 +107,8 @@ describe('IntegrationSessionProvider', () => {
     layoutStore.current = { developerModeEnabled: false };
 
     function Actions(): JSX.Element {
-      const { prepareReadiness } = useIntegrationSession();
-      return <button type="button" onClick={() => void prepareReadiness()}>prepare</button>;
+      const { startUpdate } = useIntegrationSession();
+      return <button type="button" onClick={() => void startUpdate()}>prepare</button>;
     }
 
     await act(async () => {
@@ -137,14 +138,14 @@ describe('IntegrationSessionProvider', () => {
     expect(screen.getByTestId('paths')).toHaveTextContent('a.txt');
   });
 
-  it('prepares the default finish mode on demand and adopts the result', async () => {
+  it('starts an opted-in update and adopts the result', async () => {
     bindings.ListSessions
       .mockResolvedValueOnce([])
-      .mockResolvedValue([session('ready')]);
+      .mockResolvedValue([session('updated')]);
 
     function Actions(): JSX.Element {
-      const { prepareReadiness } = useIntegrationSession();
-      return <button type="button" onClick={() => void prepareReadiness()}>prepare</button>;
+      const { startUpdate } = useIntegrationSession();
+      return <button type="button" onClick={() => void startUpdate()}>prepare</button>;
     }
 
     await act(async () => {
@@ -161,7 +162,7 @@ describe('IntegrationSessionProvider', () => {
     });
 
     expect(bindings.UpdateFeatureFromDestination).toHaveBeenCalledWith('/repo');
-    expect(screen.getByTestId('state')).toHaveTextContent('ready');
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
   });
 
   it('loads decision files returned by an on-demand check', async () => {
@@ -170,8 +171,8 @@ describe('IntegrationSessionProvider', () => {
       .mockResolvedValue([session('needs-decisions')]);
 
     function Actions(): JSX.Element {
-      const { prepareReadiness } = useIntegrationSession();
-      return <button type="button" onClick={() => void prepareReadiness()}>prepare</button>;
+      const { startUpdate } = useIntegrationSession();
+      return <button type="button" onClick={() => void startUpdate()}>prepare</button>;
     }
 
     await act(async () => {
@@ -192,11 +193,161 @@ describe('IntegrationSessionProvider', () => {
   });
 
   it('ignores a review that is already over', async () => {
-    bindings.ListSessions.mockResolvedValue([session('completed'), session('obsolete', 'def')]);
+    bindings.ListSessions.mockResolvedValue([session('shared'), session('cancelled', 'def')]);
     await renderProvider();
 
     expect(screen.getByTestId('state')).toHaveTextContent('');
     expect(bindings.GetSessionConflicts).not.toHaveBeenCalled();
+  });
+
+  it('hides an updated session whose completed revision is no longer current', async () => {
+    bindings.ListSessions.mockResolvedValue([
+      new IntegrationSessionSnapshot({
+        sessionId: 'abc',
+        state: 'updated',
+        active: false,
+      }),
+    ]);
+
+    await renderProvider();
+
+    expect(screen.getByTestId('state')).toHaveTextContent('');
+  });
+
+  it('keeps Save Changes blocked while a failed interrupted update needs recovery', async () => {
+    bindings.ListSessions.mockResolvedValue([session('failed')]);
+
+    await renderProvider();
+
+    expect(screen.getByTestId('state')).toHaveTextContent('failed');
+    expect(screen.getByTestId('save-blocked')).toHaveTextContent('true');
+  });
+
+  it('routes session state to the newly opened project', async () => {
+    bindings.ListSessions.mockImplementation(async (repoPath: string) => (
+      repoPath === '/other'
+        ? [session('updated', 'def')]
+        : [session('needs-decisions', 'abc')]
+    ));
+
+    let rendered: ReturnType<typeof render>;
+    await act(async () => {
+      rendered = render(
+        <IntegrationSessionProvider>
+          <Probe />
+        </IntegrationSessionProvider>,
+      );
+    });
+    expect(screen.getByTestId('state')).toHaveTextContent('needs-decisions');
+
+    repoStore.current = { repoPath: '/other' };
+    await act(async () => {
+      rendered.rerender(
+        <IntegrationSessionProvider>
+          <Probe />
+        </IntegrationSessionProvider>,
+      );
+    });
+
+    expect(bindings.ListSessions).toHaveBeenLastCalledWith('/other');
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
+
+    await act(async () => {
+      eventBus.handlers.get('integrationSession:conflicts')?.({ data: conflicts(30, ['old.txt'], 'abc') });
+    });
+    expect(screen.getByTestId('paths')).toHaveTextContent('');
+  });
+
+  it('drops an old project response that finishes after project switching', async () => {
+    let resolveOldProject: ((sessions: IntegrationSessionSnapshot[]) => void) | undefined;
+    bindings.ListSessions.mockImplementation((repoPath: string) => {
+      if (repoPath === '/repo') {
+        return new Promise<IntegrationSessionSnapshot[]>((resolve) => {
+          resolveOldProject = resolve;
+        });
+      }
+      return Promise.resolve([session('updated', 'def')]);
+    });
+
+    let rendered: ReturnType<typeof render>;
+    await act(async () => {
+      rendered = render(
+        <IntegrationSessionProvider>
+          <Probe />
+        </IntegrationSessionProvider>,
+      );
+    });
+
+    repoStore.current = { repoPath: '/other' };
+    await act(async () => {
+      rendered.rerender(
+        <IntegrationSessionProvider>
+          <Probe />
+        </IntegrationSessionProvider>,
+      );
+    });
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
+
+    await act(async () => {
+      resolveOldProject?.([session('needs-decisions', 'abc')]);
+    });
+
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
+    expect(screen.getByTestId('paths')).toHaveTextContent('');
+  });
+
+  it('does not let an old project action clear or act on the new project session', async () => {
+    let resolveOldShare: ((result: OperationResult) => void) | undefined;
+    bindings.ListSessions.mockImplementation(async (repoPath: string) => (
+      repoPath === '/other'
+        ? [session('updated', 'def')]
+        : [session('updated', 'abc')]
+    ));
+    bindings.ShareSession.mockImplementation((sessionId: string) => {
+      if (sessionId === 'abc') {
+        return new Promise<OperationResult>((resolve) => {
+          resolveOldShare = resolve;
+        });
+      }
+      return Promise.resolve(new OperationResult({ success: true }));
+    });
+
+    function ShareAction(): JSX.Element {
+      const { shareUpdate } = useIntegrationSession();
+      return <button type="button" onClick={() => void shareUpdate()}>share current</button>;
+    }
+
+    let rendered: ReturnType<typeof render>;
+    await act(async () => {
+      rendered = render(
+        <IntegrationSessionProvider>
+          <Probe />
+          <ShareAction />
+        </IntegrationSessionProvider>,
+      );
+    });
+    fireEvent.click(screen.getByText('share current'));
+
+    repoStore.current = { repoPath: '/other' };
+    await act(async () => {
+      rendered.rerender(
+        <IntegrationSessionProvider>
+          <Probe />
+          <ShareAction />
+        </IntegrationSessionProvider>,
+      );
+    });
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
+
+    await act(async () => {
+      resolveOldShare?.(new OperationResult({ success: true }));
+    });
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
+
+    fireEvent.click(screen.getByText('share current'));
+    await act(async () => {});
+    expect(bindings.ShareSession).toHaveBeenNthCalledWith(1, 'abc');
+    expect(bindings.ShareSession).toHaveBeenNthCalledWith(2, 'def');
   });
 
   it('applies newer scans and drops stale ones and those for another review', async () => {
@@ -220,23 +371,23 @@ describe('IntegrationSessionProvider', () => {
 
   it('re-reads when a state change arrives for a review it does not know', async () => {
     await renderProvider();
-    bindings.ListSessions.mockResolvedValue([session('ready', 'def')]);
+    bindings.ListSessions.mockResolvedValue([session('updated', 'def')]);
 
     await act(async () => {
-      eventBus.handlers.get('integrationSession:changed')?.({ data: session('ready', 'def') });
+      eventBus.handlers.get('integrationSession:changed')?.({ data: session('updated', 'def') });
     });
 
-    expect(screen.getByTestId('state')).toHaveTextContent('ready');
+    expect(screen.getByTestId('state')).toHaveTextContent('updated');
     expect(screen.getByTestId('paths')).toHaveTextContent('');
   });
 
-  it('finishes and cancels the review it is showing', async () => {
+  it('shares and cancels the update it is showing', async () => {
     function Actions(): JSX.Element {
-      const { finish, cancelReview } = useIntegrationSession();
+      const { shareUpdate, cancelUpdate } = useIntegrationSession();
       return (
         <div>
-          <button type="button" onClick={() => void finish()}>finish</button>
-          <button type="button" onClick={() => void cancelReview()}>cancel</button>
+          <button type="button" onClick={() => void shareUpdate()}>share</button>
+          <button type="button" onClick={() => void cancelUpdate()}>cancel</button>
         </div>
       );
     }
@@ -250,9 +401,9 @@ describe('IntegrationSessionProvider', () => {
     });
 
     await act(async () => {
-      screen.getByText('finish').click();
+      screen.getByText('share').click();
     });
-    expect(bindings.FinishSession).toHaveBeenCalledWith('abc');
+    expect(bindings.ShareSession).toHaveBeenCalledWith('abc');
 
     await act(async () => {
       screen.getByText('cancel').click();

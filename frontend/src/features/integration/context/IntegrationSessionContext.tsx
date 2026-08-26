@@ -1,14 +1,4 @@
-/**
- * IntegrationSessionContext - the isolated readiness review for the open project.
- *
- * The backend prepares a real merge in a workspace of its own after each save,
- * so this provider only ever mirrors what the backend reports. It holds a
- * session id and repository-relative paths; the workspace location is a backend
- * detail that never reaches the frontend.
- *
- * Gated on Developer Mode. With the flag off this provider makes no backend
- * calls at all and reads as if no review exists.
- */
+/** IntegrationSessionContext mirrors the opted-in update for the open project. */
 import {
   createContext,
   useCallback,
@@ -22,13 +12,13 @@ import {
 
 import {
   CancelSession,
-  FinishSession,
   GetSessionConflictResolutionData,
   GetSessionConflicts,
   ListSessions,
   ResolveSessionConflictWithContent,
   ResolveSessionConflictWithDecisions,
   ResolveSessionConflictWithSide,
+  ShareSession,
   UpdateFeatureFromDestination,
 } from '../../../../bindings/controlzebra/services/integrationsessionservice';
 import type {
@@ -49,8 +39,23 @@ import {
 /** States a review can still be acted on from. */
 export const SESSION_NEEDS_DECISIONS = 'needs-decisions';
 
-/** States that mean the review is over and a fresh one must be prepared. */
-const FINISHED_STATES = new Set(['completed', 'cancelled', 'obsolete']);
+const FINISHED_STATES = new Set(['shared', 'completed', 'cancelled', 'obsolete']);
+const SAVE_BLOCKING_STATES = new Set([
+  'fetching',
+  'starting',
+  'needs-decisions',
+  'committing',
+  'sharing',
+  'cancelling',
+  'failed',
+]);
+
+function isVisibleSession(snapshot: IntegrationSessionSnapshot): boolean {
+  if (!snapshot.sessionId || FINISHED_STATES.has(snapshot.state)) {
+    return false;
+  }
+  return snapshot.state === 'failed' || snapshot.active;
+}
 
 interface IntegrationSessionContextValue {
   /** True when the session path is the active source of conflict decisions. */
@@ -63,12 +68,14 @@ interface IntegrationSessionContextValue {
   error: string | null;
   /** True while a readiness action is running. */
   isBusy: boolean;
-  /** Run the default readiness check for the open project. */
-  prepareReadiness: () => Promise<IntegrationSessionSnapshot | null>;
-  /** Apply the prepared result to the shared project. */
-  finish: () => Promise<OperationResult | null>;
-  /** Discard the review. Neither branch changes. */
-  cancelReview: () => Promise<OperationResult | null>;
+  /** True while saving would interfere with the active update. */
+  isSaveBlocked: boolean;
+  /** Fetch shared work and update the checked-out feature. */
+  startUpdate: () => Promise<IntegrationSessionSnapshot | null>;
+  /** Push the unchanged completed feature revision after confirmation. */
+  shareUpdate: () => Promise<OperationResult | null>;
+  /** Abort an interrupted update and restore the feature. */
+  cancelUpdate: () => Promise<OperationResult | null>;
   /** Re-read the review and its files from the backend. */
   refresh: () => Promise<void>;
   /** Load one session file for the existing conflict visualizer. */
@@ -101,9 +108,10 @@ const NO_SESSION: IntegrationSessionContextValue = {
   entries: EMPTY_ENTRIES,
   error: null,
   isBusy: false,
-  prepareReadiness: async () => null,
-  finish: async () => null,
-  cancelReview: async () => null,
+  isSaveBlocked: false,
+  startUpdate: async () => null,
+  shareUpdate: async () => null,
+  cancelUpdate: async () => null,
   refresh: async () => {},
   loadConflictResolutionData: async () => null,
   resolveConflictWithDecisions: async () => null,
@@ -130,15 +138,23 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
   // the handler was created.
   const sessionIdRef = useRef('');
   const scannedAtRef = useRef(0);
+  const activeRepoPathRef = useRef('');
+  const latestRepoPathRef = useRef(repoPath);
+  const refreshGenerationRef = useRef(0);
+  latestRepoPathRef.current = repoPath;
 
-  const applySession = useCallback((incoming: IntegrationSessionSnapshot | null): void => {
-    const current = incoming?.sessionId && !FINISHED_STATES.has(incoming.state) ? incoming : null;
+  const applySession = useCallback((
+    incoming: IntegrationSessionSnapshot | null,
+    ownerRepoPath = '',
+  ): void => {
+    const current = incoming && isVisibleSession(incoming) ? incoming : null;
 
     if (current?.sessionId !== sessionIdRef.current) {
       sessionIdRef.current = current?.sessionId ?? '';
       scannedAtRef.current = 0;
       setConflicts(null);
     }
+    activeRepoPathRef.current = current ? ownerRepoPath : '';
     setSession(current);
   }, []);
 
@@ -159,19 +175,33 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
   }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
+    const requestedRepoPath = repoPath;
+    if (latestRepoPathRef.current !== requestedRepoPath) {
+      return;
+    }
+    const generation = ++refreshGenerationRef.current;
     if (!enabled || !repoPath) {
       applySession(null);
       return;
     }
+    if (activeRepoPathRef.current && activeRepoPathRef.current !== requestedRepoPath) {
+      applySession(null);
+    }
 
     try {
       const sessions = await ListSessions(repoPath);
+      if (generation !== refreshGenerationRef.current || latestRepoPathRef.current !== requestedRepoPath) {
+        return;
+      }
       // The store lists oldest first, so the newest live review is the last one.
-      const current = [...sessions].reverse().find((entry) => !FINISHED_STATES.has(entry.state)) ?? null;
-      applySession(current);
+      const current = [...sessions].reverse().find(isVisibleSession) ?? null;
+      applySession(current, requestedRepoPath);
 
       if (current?.state === SESSION_NEEDS_DECISIONS) {
-        applyConflicts(await GetSessionConflicts(current.sessionId));
+        const incoming = await GetSessionConflicts(current.sessionId);
+        if (generation === refreshGenerationRef.current && latestRepoPathRef.current === requestedRepoPath) {
+          applyConflicts(incoming);
+        }
       }
     } catch {
       // The backend holds the authoritative state and any error worth showing
@@ -180,6 +210,7 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
   }, [enabled, repoPath, applySession, applyConflicts]);
 
   useEffect(() => {
+    setIsBusy(false);
     void refresh();
   }, [refresh]);
 
@@ -191,17 +222,24 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
     const unsubscribe = onEvent(
       'integrationSession:changed',
       (event: { data: IntegrationSessionSnapshot }) => {
+        if (latestRepoPathRef.current !== repoPath) {
+          return;
+        }
         // A snapshot for a review we don't know about means a new one was
         // prepared, so re-read rather than guessing it belongs to this project.
-        if (event.data?.sessionId && event.data.sessionId === sessionIdRef.current) {
-          applySession(event.data);
+        if (
+          activeRepoPathRef.current === repoPath
+          && event.data?.sessionId
+          && event.data.sessionId === sessionIdRef.current
+        ) {
+          applySession(event.data, repoPath);
           return;
         }
         void refresh();
       },
     );
     return () => unsubscribe();
-  }, [enabled, applySession, refresh]);
+  }, [enabled, repoPath, applySession, refresh]);
 
   useEffect(() => {
     if (!enabled) {
@@ -210,15 +248,19 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
 
     const unsubscribe = onEvent(
       'integrationSession:conflicts',
-      (event: { data: SessionConflictSnapshot }) => applyConflicts(event.data),
+      (event: { data: SessionConflictSnapshot }) => {
+        if (latestRepoPathRef.current === repoPath) {
+          applyConflicts(event.data);
+        }
+      },
     );
     return () => unsubscribe();
-  }, [enabled, applyConflicts]);
+  }, [enabled, repoPath, applyConflicts]);
 
   const runSessionAction = useCallback(
     async (action: (sessionId: string) => Promise<OperationResult>): Promise<OperationResult | null> => {
       const sessionId = sessionIdRef.current;
-      if (!sessionId) {
+      if (!sessionId || activeRepoPathRef.current !== repoPath) {
         return null;
       }
 
@@ -228,49 +270,57 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
       } catch {
         return null;
       } finally {
-        setIsBusy(false);
+        if (latestRepoPathRef.current === repoPath) {
+          setIsBusy(false);
+        }
         await refresh();
       }
     },
-    [refresh],
+    [repoPath, refresh],
   );
 
-  const prepareReadiness = useCallback(async (): Promise<IntegrationSessionSnapshot | null> => {
+  const startUpdate = useCallback(async (): Promise<IntegrationSessionSnapshot | null> => {
     if (!enabled || !repoPath) {
       return null;
     }
 
+    const generation = ++refreshGenerationRef.current;
+    const requestedRepoPath = repoPath;
     setIsBusy(true);
     try {
-      const result = await UpdateFeatureFromDestination(repoPath);
-      if (!result.success) {
-        return null;
-      }
-
+      await UpdateFeatureFromDestination(repoPath);
       const sessions = await ListSessions(repoPath);
-      const prepared = [...sessions].reverse().find((entry) => !FINISHED_STATES.has(entry.state)) ?? null;
-      if (!prepared) {
+      if (generation !== refreshGenerationRef.current || latestRepoPathRef.current !== requestedRepoPath) {
+        return null;
+      }
+      const updated = [...sessions].reverse().find(isVisibleSession) ?? null;
+      if (!updated) {
         return null;
       }
 
-      applySession(prepared);
-      if (prepared.state === SESSION_NEEDS_DECISIONS) {
-        applyConflicts(await GetSessionConflicts(prepared.sessionId));
+      applySession(updated, requestedRepoPath);
+      if (updated.state === SESSION_NEEDS_DECISIONS) {
+        const incoming = await GetSessionConflicts(updated.sessionId);
+        if (generation === refreshGenerationRef.current && latestRepoPathRef.current === requestedRepoPath) {
+          applyConflicts(incoming);
+        }
       }
-      return prepared;
+      return updated;
     } catch {
       return null;
     } finally {
-      setIsBusy(false);
+      if (latestRepoPathRef.current === requestedRepoPath) {
+        setIsBusy(false);
+      }
     }
   }, [enabled, repoPath, applySession, applyConflicts]);
 
-  const finish = useCallback(
-    () => runSessionAction(FinishSession),
+  const shareUpdate = useCallback(
+    () => runSessionAction(ShareSession),
     [runSessionAction],
   );
 
-  const cancelReview = useCallback(
+  const cancelUpdate = useCallback(
     () => runSessionAction(CancelSession),
     [runSessionAction],
   );
@@ -327,9 +377,10 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
       entries: needsDecisions && conflicts ? conflicts.entries : EMPTY_ENTRIES,
       error: conflicts?.error ? conflicts.error : null,
       isBusy,
-      prepareReadiness,
-      finish,
-      cancelReview,
+      isSaveBlocked: Boolean(session?.state && SAVE_BLOCKING_STATES.has(session.state)),
+      startUpdate,
+      shareUpdate,
+      cancelUpdate,
       refresh,
       loadConflictResolutionData,
       resolveConflictWithDecisions,
@@ -341,9 +392,9 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
     session,
     conflicts,
     isBusy,
-    prepareReadiness,
-    finish,
-    cancelReview,
+    startUpdate,
+    shareUpdate,
+    cancelUpdate,
     refresh,
     loadConflictResolutionData,
     resolveConflictWithDecisions,

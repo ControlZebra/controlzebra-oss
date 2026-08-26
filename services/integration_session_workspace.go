@@ -202,7 +202,10 @@ func cancelUpdateSession(runner gitAdminPathRunner, store *integrationSessionSto
 		return fmt.Errorf("Your work couldn't be fully restored. Close and reopen the project, then check your files.")
 	}
 
-	return store.delete(session.SessionID)
+	if err := store.delete(session.SessionID); err != nil {
+		return fmt.Errorf("ControlZebra couldn't finish cancelling the update. Close and reopen ControlZebra, then try again.")
+	}
+	return nil
 }
 
 // mergeInProgress reports whether the open project is mid-merge, i.e. MERGE_HEAD
