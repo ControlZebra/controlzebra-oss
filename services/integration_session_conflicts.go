@@ -209,7 +209,11 @@ func (s *IntegrationSessionService) scanSessionConflicts(session integrationSess
 // the open project, as opposed to a legacy prepared-result session that works
 // in an isolated workspace.
 func sessionIsUpdate(session integrationSession) bool {
-	return session.RemoteName != ""
+	return session.UpdateKind != "" || session.RemoteName != ""
+}
+
+func sessionIsDefaultSync(session integrationSession) bool {
+	return session.UpdateKind == integrationUpdateKindDefaultSync
 }
 
 // integrationResolutionRepo is where this session's real conflict index lives:

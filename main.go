@@ -55,7 +55,6 @@ func main() {
 
 	// Create services that need app reference
 	fileDialogService := services.NewFileDialogService()
-	progressService := services.NewProgressService()
 	settingsService := services.NewSettingsService()
 	repoSettingsService := services.NewRepositorySettingsService()
 	fileWatcherService := services.NewFileWatcherService()
@@ -70,13 +69,14 @@ func main() {
 	repoEventBus := services.NewRepoEventBus()
 	gitService := services.NewGitService()
 	gitService.SetRepoEventBus(repoEventBus)
-	progressService.SetRepoEventBus(repoEventBus)
 	fileWatcherService.SetRepoEventBus(repoEventBus)
 	conflictQueueService := services.NewConflictQueueService(gitService)
 	conflictQueueService.AttachToBus(repoEventBus)
 	integrationSessionService := services.NewIntegrationSessionService(gitService)
 	integrationSessionService.SetRepoEventBus(repoEventBus)
 	integrationSessionService.SetSettings(settingsService)
+	progressService := services.NewProgressService(integrationSessionService)
+	progressService.SetRepoEventBus(repoEventBus)
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.

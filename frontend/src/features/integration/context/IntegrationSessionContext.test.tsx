@@ -104,7 +104,7 @@ describe('IntegrationSessionProvider', () => {
     bindings.ResolveSessionConflictWithSide.mockResolvedValue(new OperationResult({ success: true }));
   });
 
-  it('stays silent with developer mode off', async () => {
+  it('keeps persisted conflict sessions available with developer mode off', async () => {
     layoutStore.current = { developerModeEnabled: false };
 
     function Actions(): JSX.Element {
@@ -125,10 +125,10 @@ describe('IntegrationSessionProvider', () => {
       screen.getByText('prepare').click();
     });
 
-    expect(bindings.ListSessions).not.toHaveBeenCalled();
-    expect(bindings.UpdateFeatureFromDestination).not.toHaveBeenCalled();
-    expect(screen.getByTestId('state')).toHaveTextContent('');
-    expect(screen.getByTestId('paths')).toHaveTextContent('');
+    expect(bindings.ListSessions).toHaveBeenCalledWith('/repo');
+    expect(bindings.UpdateFeatureFromDestination).toHaveBeenCalledWith('/repo');
+    expect(screen.getByTestId('state')).toHaveTextContent('needs-decisions');
+    expect(screen.getByTestId('paths')).toHaveTextContent('a.txt');
   });
 
   it('adopts the live review and the files it is asking about', async () => {

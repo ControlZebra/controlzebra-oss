@@ -3146,6 +3146,7 @@ export class IntegrationSessionSnapshot {
     "sourceOid": string;
     "targetBranch": string;
     "destinationOid": string;
+    "updateKind"?: string;
     "generation": number;
     "hasResult": boolean;
     "active": boolean;
@@ -4853,6 +4854,41 @@ export class StashEntry {
     static createFrom($$source: any = {}): StashEntry {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new StashEntry($$parsedSource as Partial<StashEntry>);
+    }
+}
+
+/**
+ * SyncResult is a structured Sync completion contract. In particular,
+ * needs-decisions is neither encoded in an error string nor presented as a
+ * generic failure.
+ */
+export class SyncResult {
+    "success": boolean;
+    "outcome": string;
+    "message": string;
+    "error"?: string;
+
+    /** Creates a new SyncResult instance. */
+    constructor($$source: Partial<SyncResult> = {}) {
+        if (!("success" in $$source)) {
+            this["success"] = false;
+        }
+        if (!("outcome" in $$source)) {
+            this["outcome"] = "";
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SyncResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): SyncResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SyncResult($$parsedSource as Partial<SyncResult>);
     }
 }
 

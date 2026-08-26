@@ -24,7 +24,7 @@ Requires `SetApp()` for event emission.
 |--------|-------|----------------|
 | `PushWithProgress(repoPath)` | `git push --progress` | stderr |
 | `PullWithProgress(repoPath)` | `git pull --no-rebase --progress` | stderr |
-| `SyncWithProgress(repoPath)` | Pull + Push with progress | stderr |
+| `SyncWithProgress(repoPath)` | Pull + Push with progress; adopts an owned default-branch pull conflict into an integration session | stderr plus structured `synced`, `needs-decisions`, or `failed` outcome |
 | `CloneWithProgress(url, destPath)` | `git clone --progress` | stderr |
 | `FetchWithProgress(repoPath)` | `git fetch --all --progress` | stderr |
 

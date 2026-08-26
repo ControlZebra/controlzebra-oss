@@ -120,11 +120,11 @@ function ExplorerView(): JSX.Element {
     const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
     const needsPush = ahead > 0 || (!hasUpstream && totalLocalCommits > 0);
 
+    if (reviewSession) {
+      return { type: 'featureBranch', branchName };
+    }
     if (changedFiles.length > 0) {
       return { type: 'hasChanges', changedFiles, branchName };
-    }
-    if (reviewSession && !isMainBranch) {
-      return { type: 'featureBranch', branchName };
     }
     if (needsPush) {
       return { type: 'push', ahead, hasUpstream, totalLocalCommits };

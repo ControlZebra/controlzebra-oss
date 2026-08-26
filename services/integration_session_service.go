@@ -64,6 +64,7 @@ type IntegrationSessionSnapshot struct {
 	SourceOID      string `json:"sourceOid"`
 	TargetBranch   string `json:"targetBranch"`
 	DestinationOID string `json:"destinationOid"`
+	UpdateKind     string `json:"updateKind,omitempty"`
 	Generation     uint64 `json:"generation"`
 	HasResult      bool   `json:"hasResult"`
 	Active         bool   `json:"active"`
@@ -282,7 +283,11 @@ func (s *IntegrationSessionService) ShareSession(sessionID string) OperationResu
 	}
 	s.emit(session)
 
-	refspec := session.FeatureOIDAfterMerge + ":" + session.SourceRef
+	shareRef := strings.TrimSpace(session.ShareRef)
+	if shareRef == "" {
+		shareRef = session.SourceRef
+	}
+	refspec := session.FeatureOIDAfterMerge + ":" + shareRef
 	push := s.git.RunGit(session.OpenProjectPath, "push", session.RemoteName, refspec)
 	if !push.Success {
 		message := "Your updated work is still saved on this computer. Check your connection and access, then choose Share updated work again."
@@ -637,12 +642,14 @@ func (s *IntegrationSessionService) newUpdateSession(repoPath string, identity s
 		RepositoryCommonDir:   identity,
 		OpenProjectPath:       repoPath,
 		OperationKind:         "merge",
+		UpdateKind:            integrationUpdateKindFeature,
 		SourceRef:             target.sourceRef,
 		SourceOID:             target.sourceOID,
 		DestinationRef:        target.destinationRef,
 		RemoteName:            target.remoteName,
 		RemoteDestinationRef:  target.destinationRef,
 		FeatureOIDBeforeMerge: target.sourceOID,
+		ShareRef:              target.sourceRef,
 		State:                 integrationStateFetching,
 		Generation:            uint64(now),
 		CreatedAt:             now,
@@ -782,13 +789,33 @@ func (s *IntegrationSessionService) finalizeUpdated(session *integrationSession)
 		if !containsShared {
 			return fmt.Errorf("The updated work doesn't include the shared updates as expected. Close and reopen the project, then check your files.")
 		}
-	} else if err := s.verifyUpdateTopology(session.OpenProjectPath, *session, afterOID); err != nil {
-		return err
+	} else {
+		if session.UpdateKind == integrationUpdateKindDefaultSync {
+			if err := s.verifyDefaultSyncTopology(session.OpenProjectPath, *session, afterOID); err != nil {
+				return err
+			}
+		} else if err := s.verifyUpdateTopology(session.OpenProjectPath, *session, afterOID); err != nil {
+			return err
+		}
 	}
 	session.FeatureOIDAfterMerge = afterOID
 	session.ResultOID = afterOID
 	session.State = integrationStateUpdated
 	session.UpdatedAt = time.Now().Unix()
+	return nil
+}
+
+// verifyDefaultSyncTopology requires a conflicted pull to finish as the exact
+// two-parent merge Git started: the captured local revision first and the
+// fetched upstream default revision second.
+func (s *IntegrationSessionService) verifyDefaultSyncTopology(repo string, session integrationSession, afterOID string) error {
+	if err := s.verifyUpdateTopology(repo, session, afterOID); err != nil {
+		return err
+	}
+	containsUpstream := s.git.RunGit(repo, "merge-base", "--is-ancestor", session.RemoteDestinationOID, afterOID).Success
+	if !containsUpstream {
+		return fmt.Errorf("The updated default branch doesn't include the fetched shared work. Close and reopen the project, then check your files.")
+	}
 	return nil
 }
 
@@ -1236,6 +1263,7 @@ func (s *IntegrationSessionService) snapshot(session integrationSession) Integra
 		SourceOID:      session.SourceOID,
 		TargetBranch:   integrationDestinationBranch(session),
 		DestinationOID: session.DestinationOID,
+		UpdateKind:     session.UpdateKind,
 		Generation:     session.Generation,
 		HasResult:      strings.TrimSpace(session.ResultOID) != "",
 		Active:         active,
@@ -1245,6 +1273,12 @@ func (s *IntegrationSessionService) snapshot(session integrationSession) Integra
 }
 
 func integrationDestinationBranch(session integrationSession) string {
+	if sessionIsDefaultSync(session) {
+		remoteTracking := strings.TrimPrefix(session.RemoteDestinationRef, "refs/remotes/")
+		if _, branch, found := strings.Cut(remoteTracking, "/"); found {
+			return branch
+		}
+	}
 	if session.RemoteName != "" {
 		return strings.TrimPrefix(session.RemoteDestinationRef, "refs/remotes/"+session.RemoteName+"/")
 	}

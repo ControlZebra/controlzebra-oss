@@ -57,11 +57,12 @@ export function SetRepoEventBus(bus: $models.RepoEventBus | null): $CancellableP
  * prune: if true, adds --prune to remove stale remote-tracking branches
  * tags: if true, adds --tags to fetch all tags
  */
-export function SyncWithProgress(repoPath: string, operationID: string, prune: boolean, tags: boolean): $CancellablePromise<$models.OperationResult> {
+export function SyncWithProgress(repoPath: string, operationID: string, prune: boolean, tags: boolean): $CancellablePromise<$models.SyncResult> {
     return $Call.ByID(2296486007, repoPath, operationID, prune, tags).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
+const $$createType1 = $models.SyncResult.createFrom;

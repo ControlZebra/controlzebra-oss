@@ -79,6 +79,14 @@ export function GetSessionState(sessionID: string): $CancellablePromise<$models.
 }
 
 /**
+ * IsDefaultBranchSyncEligible is a read-only frontend preflight used to show
+ * the protected-default-branch confirmation before Sync mutates Git state.
+ */
+export function IsDefaultBranchSyncEligible(repoPath: string): $CancellablePromise<boolean> {
+    return $Call.ByID(678034365, repoPath);
+}
+
+/**
  * ListSessions returns every session belonging to the repository containing
  * repoPath, including its linked worktrees.
  */

@@ -120,6 +120,7 @@ import {
 import { useStatusPolling } from '../polling/useStatusPolling';
 import { useAuth } from '../../auth/context/AuthContext';
 import { WatchDirectory, StopWatching } from '../../../../bindings/controlzebra/services/filewatcherservice';
+import { IsDefaultBranchSyncEligible } from '../../../../bindings/controlzebra/services/integrationsessionservice';
 import { onEvent } from '../../../shared/runtime/events';
 import { addRecentFolder } from '../../../shared/utils/recentFolders';
 import { clearViewerCache } from '../../../viewers/registry/viewer-cache';
@@ -176,6 +177,7 @@ import type {
   BisectState,
   GitIdentityPromptReason,
   GitIdentityPromptState,
+  DefaultBranchSyncPromptState,
   GitHubAuthStatus,
   GitHubAuthResult,
   GitHubDeviceFlowResult,
@@ -321,6 +323,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   const [nonGitFolderPromptPath, setNonGitFolderPromptPath] = useState<string | null>(null);
   const [gitIdentityPrompt, setGitIdentityPrompt] = useState<GitIdentityPromptState | null>(null);
+  const [defaultBranchSyncPrompt, setDefaultBranchSyncPrompt] = useState<DefaultBranchSyncPromptState | null>(null);
 
   // ===== Global Operation Lock =====
   // Prevents concurrent mutating git operations and provides UI feedback.
@@ -384,6 +387,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   const startupAutoPullDoneRef = useRef(false);
   const startupAutoPullDeadlineRef = useRef<number>(Date.now() + STARTUP_AUTO_PULL_DELAY_MS);
   const gitIdentityPromptResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const defaultBranchSyncPromptResolverRef = useRef<((value: boolean) => void) | null>(null);
   const gitIdentityRef = useRef<CachedGitIdentity>(EMPTY_GIT_IDENTITY);
   const changeRequestLoadIdRef = useRef(0);
   const changeRequestDetailLoadIdRef = useRef(0);
@@ -975,6 +979,29 @@ export function RepoProvider({ children }: RepoProviderProps) {
     resolveGitIdentityPrompt(false);
   }, [gitIdentityPrompt, resolveGitIdentityPrompt, showMessage]);
 
+  const resolveDefaultBranchSyncPrompt = useCallback((value: boolean): void => {
+    const resolver = defaultBranchSyncPromptResolverRef.current;
+    defaultBranchSyncPromptResolverRef.current = null;
+    setDefaultBranchSyncPrompt(null);
+    resolver?.(value);
+  }, []);
+
+  const promptForDefaultBranchSync = useCallback((branch: string): Promise<boolean> => {
+    defaultBranchSyncPromptResolverRef.current?.(false);
+    return new Promise<boolean>((resolve) => {
+      defaultBranchSyncPromptResolverRef.current = resolve;
+      setDefaultBranchSyncPrompt({ isOpen: true, branch });
+    });
+  }, []);
+
+  const confirmDefaultBranchSync = useCallback((): void => {
+    resolveDefaultBranchSyncPrompt(true);
+  }, [resolveDefaultBranchSyncPrompt]);
+
+  const cancelDefaultBranchSync = useCallback((): void => {
+    resolveDefaultBranchSyncPrompt(false);
+  }, [resolveDefaultBranchSyncPrompt]);
+
   /**
    * Start tracking a folder with version control.
    * This is the main entry point for the "Start Tracking" button.
@@ -1309,6 +1336,19 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
     
+    let isDefaultBranchSync = false;
+    try {
+      isDefaultBranchSync = await IsDefaultBranchSyncEligible(repoPath);
+    } catch {
+      // Missing remote-default metadata intentionally keeps the existing Sync path.
+    }
+    if (isDefaultBranchSync) {
+      const confirmed = await promptForDefaultBranchSync(repoInfo?.branch || 'default branch');
+      if (!confirmed) {
+        return false;
+      }
+    }
+
     const result = await withOperationLock('Syncing', async () => {
       const operationId = generateOperationId();
       const currentBranch = repoInfo?.branch || 'unknown';
@@ -1335,6 +1375,14 @@ export function RepoProvider({ children }: RepoProviderProps) {
         const prune = repoSettings?.fetchPrune ?? true;
         const tags = repoSettings?.fetchTags ?? true;
         const syncResult = await SyncWithProgress(repoPath, operationId, prune, tags);
+
+        if (syncResult.outcome === 'needs-decisions') {
+          syncStartTimeRef.current = null;
+          closeProgressModal();
+          setIsSyncing(false);
+          await refreshAll();
+          return false;
+        }
         
         if (!syncResult.success) {
           return false;
@@ -1360,7 +1408,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
     });
     return result ?? false;
-  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal, withOperationLock, refreshAll]);
+  }, [repoPath, repoInfo, repoStatus, repoSettings, showMessage, generateOperationId, closeProgressModal, withOperationLock, refreshAll, promptForDefaultBranchSync]);
 
   // ===== Diff Operations =====
 
@@ -3752,6 +3800,9 @@ export function RepoProvider({ children }: RepoProviderProps) {
     gitIdentityPrompt,
     submitGitIdentityPrompt,
     cancelGitIdentityPrompt,
+    defaultBranchSyncPrompt,
+    confirmDefaultBranchSync,
+    cancelDefaultBranchSync,
     
     // Actions
     openRepo,
@@ -3896,6 +3947,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     showMessage,
     nonGitFolderPromptPath, dismissNonGitFolderPrompt,
     gitIdentityPrompt, submitGitIdentityPrompt, cancelGitIdentityPrompt,
+    defaultBranchSyncPrompt, confirmDefaultBranchSync, cancelDefaultBranchSync,
     openRepo, openFolder, closeRepo, startTracking, installRequiredPackages, commitChanges, syncRepo, refreshStatus, refreshCommits, refreshAll,
     loadWorkingDiff, selectCommit, loadCommitFileDiff, clearSelection,
     refreshBranches, switchBranch, createBranch, renameBranch, deleteBranch, branchAndCommit,

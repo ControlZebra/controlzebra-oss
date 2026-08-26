@@ -1,5 +1,13 @@
 # IntegrationSessionService
 
+> Default-branch Sync extension: before `ProgressService` pulls the configured
+> upstream default branch, this service records a `default-sync` restoration
+> baseline. A compatible conflicted pull is reconciled into the same persisted
+> conflict queue and open-project resolution path used by feature updates.
+> Conflict-free Sync still pushes automatically; an adopted conflict never
+> pushes until the user explicitly chooses **Share updated work**. Sharing uses
+> the persisted `ShareRef`, so the local and remote branch names may differ.
+
 > How ControlZebra checks and resolves integration conflicts in an isolated working copy before the user chooses Finish.
 
 ## Purpose

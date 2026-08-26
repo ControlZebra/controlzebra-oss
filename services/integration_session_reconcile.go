@@ -65,6 +65,31 @@ func reconcileIntegrationSessions(runner gitAdminPathRunner, store *integrationS
 				return nil, err
 			}
 		}
+		if sessionIsDefaultSync(session) && session.State == integrationStateStarting {
+			reconcileRunner, ok := runner.(defaultSyncReconcileGit)
+			if !ok {
+				session.State = integrationStateFailed
+				session.Error = "The interrupted default-branch Sync could not be verified. Use repository recovery to inspect it."
+			} else {
+				updated, needsDecisions, reconcileErr := reconcileDefaultSyncPull(reconcileRunner, session)
+				session = updated
+				if reconcileErr != nil {
+					session.State = integrationStateFailed
+					session.Error = "The interrupted default-branch Sync could not be verified. Use repository recovery to inspect it."
+				} else if !needsDecisions {
+					recovered, recoverErr := recoverCompletedDefaultSync(runner, session)
+					session = recovered
+					if recoverErr != nil {
+						session.State = integrationStateFailed
+						session.Error = "The interrupted default-branch Sync could not be verified. Use repository recovery to inspect it."
+					}
+				}
+			}
+			session.UpdatedAt = time.Now().Unix()
+			if err := store.save(session); err != nil {
+				return nil, err
+			}
+		}
 
 		reason := integrationSessionDamage(runner, session)
 		if reason == "" {

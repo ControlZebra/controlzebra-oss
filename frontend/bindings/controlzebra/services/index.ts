@@ -149,6 +149,7 @@ export {
     SettingsService,
     StartUpdateOptions,
     StashEntry,
+    SyncResult,
     TrackedPattern,
     UntrackedLargeFile,
     UpdateCheckResult,

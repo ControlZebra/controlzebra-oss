@@ -28,6 +28,13 @@ const (
 	integrationSessionFileMode os.FileMode = 0o600
 )
 
+// Update kinds distinguish the two entry paths that share the same persisted
+// conflict, resolution, cancellation, completion, and sharing machinery.
+const (
+	integrationUpdateKindFeature     = "feature-update"
+	integrationUpdateKindDefaultSync = "default-sync"
+)
+
 // Session lifecycle states. These mirror the outcome strings drafted in
 // services/integration_session_messages_test.go.
 const (
@@ -70,6 +77,7 @@ type integrationSession struct {
 	WorkspacePath       string `json:"workspacePath"`
 
 	OperationKind string `json:"operationKind"`
+	UpdateKind    string `json:"updateKind,omitempty"`
 	MergeMode     string `json:"mergeMode"`
 
 	SourceRef             string `json:"sourceRef"`
@@ -82,6 +90,7 @@ type integrationSession struct {
 	RemoteDestinationOID  string `json:"remoteDestinationOid,omitempty"`
 	FeatureOIDBeforeMerge string `json:"featureOidBeforeMerge,omitempty"`
 	FeatureOIDAfterMerge  string `json:"featureOidAfterMerge,omitempty"`
+	ShareRef              string `json:"shareRef,omitempty"`
 
 	State      string `json:"state"`
 	Generation uint64 `json:"generation"`

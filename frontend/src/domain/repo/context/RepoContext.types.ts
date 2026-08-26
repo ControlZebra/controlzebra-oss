@@ -44,6 +44,11 @@ export interface GitIdentityPromptState {
   reason: GitIdentityPromptReason;
 }
 
+export interface DefaultBranchSyncPromptState {
+  isOpen: boolean;
+  branch: string;
+}
+
 // ============================================================================
 // GitHub Types (for Phase 2: GitHub Integration)
 // ============================================================================
@@ -604,6 +609,9 @@ export interface RepoContextValue {
   gitIdentityPrompt: GitIdentityPromptState | null;
   submitGitIdentityPrompt: (name: string, email: string, saveGlobally: boolean) => Promise<boolean>;
   cancelGitIdentityPrompt: () => void;
+  defaultBranchSyncPrompt: DefaultBranchSyncPromptState | null;
+  confirmDefaultBranchSync: () => void;
+  cancelDefaultBranchSync: () => void;
 
   // ===== Actions =====
   openRepo: (path: string) => Promise<boolean>;

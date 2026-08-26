@@ -298,6 +298,38 @@ project's active session.
 
 Exit: no UI says Finish or implies that the destination branch will move.
 
+### Phase P3A - Default-Branch Sync Conflict Adoption
+
+- [x] Capture a persisted `default-sync` intent before the existing
+      `git pull --no-rebase`, including the checked-out ref/revision,
+      configured upstream remote and branch, remote-tracking ref, exact share
+      ref, common-repository identity, and open-project path.
+- [x] Resolve eligibility from the configured upstream and that remote's
+      symbolic default branch; do not reuse feature-target detection.
+- [x] Classify a failed pull from one compatible `MERGE_HEAD` plus real
+      unmerged index entries, without searching Git error text for conflicts.
+- [x] Reuse the persisted session queue, open-project resolvers,
+      `completeUpdate`, merge-abort cancellation, explicit `ShareSession`, and
+      restart reconciliation.
+- [x] Return a structured `synced`, `needs-decisions`, or `failed` Sync outcome.
+- [x] Keep conflict-free Sync's automatic push, but never push automatically
+      after conflict adoption or the final file decision.
+- [x] Confirm before mutating the actual upstream default branch, refresh the
+      persistent Files Needing a Decision status without opening Conflict
+      Review automatically, and suppress generic Recovery for an owned merge.
+- [x] Push the completed revision to `ShareRef`, supporting mappings such as
+      local `local-main` tracking `company/release`.
+- [x] Cover custom upstream names, no automatic conflict push, exact cancel,
+      restart recovery, explicit share, feature-branch non-eligibility, and UI
+      ownership with focused tests.
+
+Externally initiated merges remain in generic Recovery when their exact
+pre-merge working-file baseline cannot be proven. This phase adopts restarts
+of ControlZebra-owned Sync because the intent was persisted before pull.
+
+Exit: a conflicted pull on the actual default branch is a resumable session;
+sharing remains explicit after decisions.
+
 ### Phase P4 - Delete Prepared-Result Infrastructure
 
 - [ ] Delete result creation/application, private result refs, detached
@@ -1133,7 +1165,8 @@ Goal: one path. Delete the old one.
 - Applying a conflict-free result before the user chooses Finish.
 - Supporting multiple active reviews for one common repository.
 - Silently stashing, discarding, or overwriting open project files.
-- Migrating Sync or every pre-existing interrupted-operation workflow.
+- Migrating non-pull interrupted operations or merges whose upstream
+  provenance and restoration baseline cannot be verified.
 - Replacing existing conflict classifiers or file viewers.
 - Using conflict prediction as the resolution foundation.
 - Adding Windows CI.

@@ -56,6 +56,7 @@ import type {
 } from '../../conflict';
 import { ConflictQueue } from '../../conflict';
 import MergeFinishModal from './MergeFinishModal';
+import { useIntegrationSession } from '../../integration';
 import { MergeReviewFileList } from './modal/MergeReviewPane';
 import MergeReviewPreview from './modal/MergeReviewPreview';
 import TargetBranchDrawer, { type TargetBranchOption } from './modal/TargetBranchDrawer';
@@ -1319,8 +1320,9 @@ function LegacyExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProp
 // one: Phase 5 deletes the legacy one whole.
 function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
   const { developerModeEnabled } = useLayout();
+  const { session } = useIntegrationSession();
 
-  return developerModeEnabled
+  return developerModeEnabled || session
     ? <MergeFinishModal open={open} onOpenChange={onOpenChange} />
     : <LegacyExplorerMergeModal open={open} onOpenChange={onOpenChange} />;
 }

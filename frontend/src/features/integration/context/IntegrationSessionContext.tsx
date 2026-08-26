@@ -27,7 +27,7 @@ import type {
   OperationResult,
   SessionConflictSnapshot,
 } from '../../../../bindings/controlzebra/services/models';
-import { useLayout, useRepo } from '../../../context';
+import { useRepo } from '../../../context';
 import { onEvent } from '../../../shared/runtime/events';
 import {
   mapConflictResolutionData,
@@ -127,8 +127,7 @@ interface IntegrationSessionProviderProps {
 
 export function IntegrationSessionProvider({ children }: IntegrationSessionProviderProps): JSX.Element {
   const { repoPath, refreshAll } = useRepo();
-  const { developerModeEnabled } = useLayout();
-  const enabled = developerModeEnabled && Boolean(repoPath);
+  const enabled = Boolean(repoPath);
 
   const [session, setSession] = useState<IntegrationSessionSnapshot | null>(null);
   const [conflicts, setConflicts] = useState<SessionConflictSnapshot | null>(null);
@@ -175,8 +174,7 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
   }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
-    const requestedRepoPath = repoPath;
-    if (latestRepoPathRef.current !== requestedRepoPath) {
+    if (latestRepoPathRef.current !== repoPath) {
       return;
     }
     const generation = ++refreshGenerationRef.current;
@@ -184,6 +182,7 @@ export function IntegrationSessionProvider({ children }: IntegrationSessionProvi
       applySession(null);
       return;
     }
+    const requestedRepoPath = repoPath;
     if (activeRepoPathRef.current && activeRepoPathRef.current !== requestedRepoPath) {
       applySession(null);
     }
