@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense } from 'react';
-import { LayoutProvider, UpdateProvider, useLayout, useRepo } from '../../context';
+import { UpdateProvider, useLayout, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../../shared/ui';
 import RecoveryBanner from '../../shared/ui/RecoveryBanner';
 import TitleBar from './TitleBar';
@@ -11,6 +11,7 @@ import StatusBar from './StatusBar';
 import NonGitFolderPromptModal from './NonGitFolderPromptModal';
 import AdditionalPackagesModal from './AdditionalPackagesModal';
 import GitIdentityPromptModal from './GitIdentityPromptModal';
+import DefaultBranchSyncConfirmModal from './DefaultBranchSyncConfirmModal';
 
 // Mounted only while open so the merge/conflict bundle (including the ladder
 // visualizer) is fetched on demand and unrelated repo updates cannot re-render it.
@@ -41,6 +42,7 @@ function AppLayoutInner(): JSX.Element {
       <NonGitFolderPromptModal />
       <AdditionalPackagesModal />
       <GitIdentityPromptModal />
+      <DefaultBranchSyncConfirmModal />
       {explorerMergeModalOpen && (
         <Suspense fallback={null}>
           <ExplorerMergeModal
@@ -71,9 +73,7 @@ function AppLayoutInner(): JSX.Element {
 function AppLayout(): JSX.Element {
   return (
     <UpdateProvider>
-      <LayoutProvider>
-        <AppLayoutInner />
-      </LayoutProvider>
+      <AppLayoutInner />
     </UpdateProvider>
   );
 }

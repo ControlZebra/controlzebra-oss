@@ -7,7 +7,7 @@
 		<key>CFBundleExecutable</key>
 		<string>control-zebra</string>
 		<key>CFBundleGetInfoString</key>
-		<string>Democratizing git for everyone</string>
+		<string>ControlZebra</string>
 		<key>CFBundleIdentifier</key>
 		<string>com.controlzebra.controlzebra.dev</string>
 		<key>CFBundleName</key>
@@ -15,9 +15,9 @@
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
-		<string>v0.0.2-dev</string>
+		<string>v0.0.1-dev</string>
 		<key>CFBundleVersion</key>
-		<string>v0.0.2</string>
+		<string>v0.0.1</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>MinimumOSVersion</key>

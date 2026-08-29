@@ -55,7 +55,6 @@ func main() {
 
 	// Create services that need app reference
 	fileDialogService := services.NewFileDialogService()
-	progressService := services.NewProgressService()
 	settingsService := services.NewSettingsService()
 	repoSettingsService := services.NewRepositorySettingsService()
 	fileWatcherService := services.NewFileWatcherService()
@@ -64,6 +63,20 @@ func main() {
 	debugService := services.NewDebugService()
 	localBinService := services.NewLocalBinService()
 	updateService := services.NewUpdateService(Version)
+
+	// The repository event bus lets state-holding services react to git
+	// operations without those operations depending on the services.
+	repoEventBus := services.NewRepoEventBus()
+	gitService := services.NewGitService()
+	gitService.SetRepoEventBus(repoEventBus)
+	fileWatcherService.SetRepoEventBus(repoEventBus)
+	conflictQueueService := services.NewConflictQueueService(gitService)
+	conflictQueueService.AttachToBus(repoEventBus)
+	integrationSessionService := services.NewIntegrationSessionService(gitService)
+	integrationSessionService.SetRepoEventBus(repoEventBus)
+	integrationSessionService.SetSettings(settingsService)
+	progressService := services.NewProgressService(integrationSessionService)
+	progressService.SetRepoEventBus(repoEventBus)
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -74,7 +87,7 @@ func main() {
 		Name:        "control-zebra",
 		Description: "ControlZebra",
 		Services: []application.Service{
-			application.NewService(services.NewGitService()),
+			application.NewService(gitService),
 			application.NewService(services.NewLFSService()),
 			application.NewService(services.NewGitHubService()),
 			application.NewService(services.NewImageDiffService()),
@@ -88,6 +101,8 @@ func main() {
 			application.NewService(debugService),
 			application.NewService(localBinService),
 			application.NewService(updateService),
+			application.NewService(conflictQueueService),
+			application.NewService(integrationSessionService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -105,6 +120,12 @@ func main() {
 	fileWatcherService.SetApp(app)
 	localBinService.SetApp(app)
 	updateService.SetApp(app)
+	conflictQueueService.SetApp(app)
+	integrationSessionService.SetApp(app)
+
+	// An unfinished review from a previous run must be reconciled before the
+	// user can act on it. This only reports damage; it never moves a ref.
+	go integrationSessionService.RecoverSessions()
 
 	if runtime.GOOS == "windows" {
 		go func() {

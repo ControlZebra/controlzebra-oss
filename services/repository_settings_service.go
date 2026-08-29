@@ -809,70 +809,84 @@ func (r *RepositorySettingsService) DiagnoseRepository(repoPath string) Recovery
 		}
 	}
 
+	// Ask git where its administrative files are. Names route differently: a
+	// linked worktree keeps MERGE_HEAD and HEAD.lock to itself while config.lock
+	// stays shared, so joining ".git" is wrong for all of them.
+	stuckNames := []string{
+		"MERGE_HEAD", "rebase-merge", "rebase-apply", "rebase-apply/applying",
+		"CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG",
+		"index.lock", "HEAD.lock", "config.lock",
+	}
+	resolved, resolveErr := gitAdminPaths(r.runner, repoPath, stuckNames...)
+	if resolveErr != nil {
+		// Same outcome as the files being absent: report no stuck state.
+		resolved = make([]string, len(stuckNames))
+	}
+	gitPaths := make(map[string]string, len(stuckNames))
+	for i, name := range stuckNames {
+		gitPaths[name] = resolved[i]
+	}
+	statOK := func(name string) bool {
+		path := gitPaths[name]
+		if path == "" {
+			return false
+		}
+		_, err := os.Stat(path)
+		return err == nil
+	}
+
 	// Check for merge in progress
-	mergeHeadPath := filepath.Join(repoPath, ".git", "MERGE_HEAD")
-	if _, err := os.Stat(mergeHeadPath); err == nil {
+	if statOK("MERGE_HEAD") {
 		diag.HasMergeConflict = true
 		diag.Issues = append(diag.Issues, "Merge in progress with conflicts")
 		diag.Suggestions = append(diag.Suggestions, "Resolve conflicts and complete merge, or abort the merge")
 	}
 
 	// Check for rebase in progress
-	rebaseMergePath := filepath.Join(repoPath, ".git", "rebase-merge")
-	rebaseApplyPath := filepath.Join(repoPath, ".git", "rebase-apply")
-	if _, err := os.Stat(rebaseMergePath); err == nil {
+	if statOK("rebase-merge") {
 		diag.HasRebaseInProgress = true
 		diag.Issues = append(diag.Issues, "Interactive rebase in progress")
 		diag.Suggestions = append(diag.Suggestions, "Continue, skip, or abort the rebase")
 	}
-	if _, err := os.Stat(rebaseApplyPath); err == nil {
+	if statOK("rebase-apply") {
 		diag.HasRebaseInProgress = true
 		diag.Issues = append(diag.Issues, "Rebase in progress")
 		diag.Suggestions = append(diag.Suggestions, "Continue, skip, or abort the rebase")
 	}
 
 	// Check for cherry-pick in progress
-	cherryPickPath := filepath.Join(repoPath, ".git", "CHERRY_PICK_HEAD")
-	if _, err := os.Stat(cherryPickPath); err == nil {
+	if statOK("CHERRY_PICK_HEAD") {
 		diag.HasCherryPickInProgress = true
 		diag.Issues = append(diag.Issues, "Cherry-pick in progress")
 		diag.Suggestions = append(diag.Suggestions, "Complete or abort the cherry-pick")
 	}
 
 	// Check for revert in progress
-	revertPath := filepath.Join(repoPath, ".git", "REVERT_HEAD")
-	if _, err := os.Stat(revertPath); err == nil {
+	if statOK("REVERT_HEAD") {
 		diag.HasRevertInProgress = true
 		diag.Issues = append(diag.Issues, "Revert in progress")
 		diag.Suggestions = append(diag.Suggestions, "Complete or abort the revert")
 	}
 
 	// Check for bisect in progress
-	bisectPath := filepath.Join(repoPath, ".git", "BISECT_LOG")
-	if _, err := os.Stat(bisectPath); err == nil {
+	if statOK("BISECT_LOG") {
 		diag.HasBisectInProgress = true
 		diag.Issues = append(diag.Issues, "Bug search (bisect) in progress")
 		diag.Suggestions = append(diag.Suggestions, "Complete or abort the bisect session")
 	}
 
 	// Check for AM (patch application) in progress
-	amPath := filepath.Join(repoPath, ".git", "rebase-apply", "applying")
-	if _, err := os.Stat(amPath); err == nil {
+	if statOK("rebase-apply/applying") {
 		diag.HasAMInProgress = true
 		diag.Issues = append(diag.Issues, "Patch application (git am) in progress")
 		diag.Suggestions = append(diag.Suggestions, "Complete or abort the patch application")
 	}
 
 	// Check for stale lock files
-	lockFiles := []string{
-		filepath.Join(repoPath, ".git", "index.lock"),
-		filepath.Join(repoPath, ".git", "HEAD.lock"),
-		filepath.Join(repoPath, ".git", "config.lock"),
-	}
-	for _, lockFile := range lockFiles {
-		if _, err := os.Stat(lockFile); err == nil {
+	for _, name := range []string{"index.lock", "HEAD.lock", "config.lock"} {
+		if statOK(name) {
 			diag.HasStaleLocks = true
-			diag.StaleLockFiles = append(diag.StaleLockFiles, lockFile)
+			diag.StaleLockFiles = append(diag.StaleLockFiles, gitPaths[name])
 		}
 	}
 	if diag.HasStaleLocks {
@@ -951,12 +965,14 @@ func (r *RepositorySettingsService) AbortCherryPick(repoPath string) OperationRe
 
 // RemoveStaleLocks removes stale lock files that may be blocking Git operations
 func (r *RepositorySettingsService) RemoveStaleLocks(repoPath string) OperationResult {
-	lockFiles := []string{
-		filepath.Join(repoPath, ".git", "index.lock"),
-		filepath.Join(repoPath, ".git", "HEAD.lock"),
-		filepath.Join(repoPath, ".git", "config.lock"),
-		filepath.Join(repoPath, ".git", "refs", "heads", "*.lock"),
+	resolved, err := gitAdminPaths(r.runner, repoPath, "index.lock", "HEAD.lock", "config.lock", "refs/heads")
+	if err != nil {
+		return failedOp("Could not locate this project's internal files. Reopen the project and try again.")
 	}
+
+	// Only top-level branch names are matched, so a lock for a branch such as
+	// "feature/valve-timing" is still missed. Pre-existing gap, tracked separately.
+	lockFiles := []string{resolved[0], resolved[1], resolved[2], filepath.Join(resolved[3], "*.lock")}
 
 	removed := 0
 	var errors []string

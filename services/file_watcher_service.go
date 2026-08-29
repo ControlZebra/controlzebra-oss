@@ -17,6 +17,7 @@ import (
 // FileWatcherService watches directories for file changes and emits events
 type FileWatcherService struct {
 	app     *application.App
+	bus     *RepoEventBus
 	watcher *fsnotify.Watcher
 	mu      sync.Mutex
 
@@ -51,6 +52,13 @@ func NewFileWatcherService() *FileWatcherService {
 // SetApp sets the Wails application reference for event emission
 func (f *FileWatcherService) SetApp(app *application.App) {
 	f.app = app
+}
+
+// SetRepoEventBus wires the watcher to the repository event bus, so changes
+// made outside the app (a terminal merge, an editor saving a resolved file)
+// invalidate the services that cache repository state.
+func (f *FileWatcherService) SetRepoEventBus(bus *RepoEventBus) {
+	f.bus = bus
 }
 
 // WatchDirectory starts watching a directory for changes
@@ -279,7 +287,15 @@ func (f *FileWatcherService) flushBatch() {
 	f.pendingBatch = make(map[string]FileChangeEvent)
 	f.batchMu.Unlock()
 
-	if len(batch) == 0 || f.app == nil {
+	if len(batch) == 0 {
+		return
+	}
+
+	if watchedPath := f.GetWatchedPath(); watchedPath != "" {
+		f.bus.Publish(RepoMutated{RepoPath: watchedPath, Reason: RepoMutationWorkingTree})
+	}
+
+	if f.app == nil {
 		return
 	}
 

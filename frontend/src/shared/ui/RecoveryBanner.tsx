@@ -13,6 +13,7 @@ import { ICON_SIZES, VIEWS } from '../constants';
 import { useRepo, useLayout } from '../../context';
 import { Button } from './button';
 import BranchModal from '../../widgets/layout/BranchModal';
+import { useIntegrationSession } from '../../features/integration';
 
 const iconSm = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
 
@@ -132,6 +133,7 @@ function RecoveryBanner() {
     removeAllStaleLocks,
   } = useRepo();
   const { setActiveView, setSidebarCollapsed, openExplorerMergeModal } = useLayout();
+  const { session: integrationSession } = useIntegrationSession();
   const [isProcessing, setIsProcessing] = useState(false);
   const [branchModalOpen, setBranchModalOpen] = useState(false);
 
@@ -175,6 +177,11 @@ function RecoveryBanner() {
 
   // Don't show if no stuck state or unrecognized state
   if (!stuckType) return null;
+
+  // An owned session is the single resolution and cancellation authority for
+  // its interrupted merge. Showing generic recovery as well would create two
+  // competing destructive paths for the same index.
+  if (stuckType === 'merge' && integrationSession?.state === 'needs-decisions') return null;
 
   const config = STUCK_STATE_CONFIG[stuckType];
   if (!config) return null;

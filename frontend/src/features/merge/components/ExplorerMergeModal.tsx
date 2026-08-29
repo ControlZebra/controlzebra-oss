@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import { ICON_SIZES } from '../../../shared/constants';
+import { useLayout } from '../../../context';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,8 @@ import type {
   TextConflictDraft,
 } from '../../conflict';
 import { ConflictQueue } from '../../conflict';
+import MergeFinishModal from './MergeFinishModal';
+import { useIntegrationSession } from '../../integration';
 import { MergeReviewFileList } from './modal/MergeReviewPane';
 import MergeReviewPreview from './modal/MergeReviewPreview';
 import TargetBranchDrawer, { type TargetBranchOption } from './modal/TargetBranchDrawer';
@@ -222,7 +225,7 @@ function createTextConflictDraft(data: ConflictResolutionData): TextConflictDraf
   };
 }
 
-function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
+function LegacyExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
   const {
     repoPath,
     conflictedFiles,
@@ -1311,6 +1314,17 @@ function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JS
       </AlertDialog>
     </>
   );
+}
+
+// The two flows are kept as separate components rather than branches inside
+// one: Phase 5 deletes the legacy one whole.
+function ExplorerMergeModal({ open, onOpenChange }: ExplorerMergeModalProps): JSX.Element {
+  const { developerModeEnabled } = useLayout();
+  const { session } = useIntegrationSession();
+
+  return developerModeEnabled || session
+    ? <MergeFinishModal open={open} onOpenChange={onOpenChange} />
+    : <LegacyExplorerMergeModal open={open} onOpenChange={onOpenChange} />;
 }
 
 export default memo(ExplorerMergeModal);

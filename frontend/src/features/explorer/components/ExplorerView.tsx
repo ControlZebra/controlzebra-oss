@@ -20,6 +20,8 @@ import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import CreateChangeRequestDialog from '../../reviews/components/CreateChangeRequestDialog';
 import HistoryTimeline from '../../history/components/HistoryTimeline';
+import { ConflictQueueSection } from '../../conflict';
+import { useIntegrationSession } from '../../integration';
 
 // ============================================================================
 // Types
@@ -87,6 +89,13 @@ function ExplorerView(): JSX.Element {
     findOpenChangeRequestForBranch,
     selectChangeRequest,
   } = useRepo();
+  const {
+    enabled: updateWorkflowEnabled,
+    session: reviewSession,
+    entries: reviewEntries,
+    isBusy: isUpdateBusy,
+    startUpdate,
+  } = useIntegrationSession();
   
   const [isRewinding, setIsRewinding] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -111,6 +120,9 @@ function ExplorerView(): JSX.Element {
     const isMainBranch = MAIN_BRANCHES.includes(branchName.toLowerCase());
     const needsPush = ahead > 0 || (!hasUpstream && totalLocalCommits > 0);
 
+    if (reviewSession) {
+      return { type: 'featureBranch', branchName };
+    }
     if (changedFiles.length > 0) {
       return { type: 'hasChanges', changedFiles, branchName };
     }
@@ -121,7 +133,7 @@ function ExplorerView(): JSX.Element {
       return { type: 'featureBranch', branchName };
     }
     return { type: 'synced' };
-  }, [repoPath, repoInfo?.isRepo, repoStatus]);
+  }, [repoPath, repoInfo?.isRepo, repoStatus, reviewSession]);
 
   const handleRewind = useCallback(async (): Promise<boolean> => {
     setIsRewinding(true);
@@ -186,8 +198,32 @@ function ExplorerView(): JSX.Element {
     openExplorerMergeModal();
   }, [openExplorerMergeModal]);
 
+  // Conflicts are resolved in the combine-changes modal today; this is the one
+  // place to change when the standalone resolver replaces it.
+  const handleOpenConflict = useCallback((): void => {
+    openExplorerMergeModal();
+  }, [openExplorerMergeModal]);
+
+  const handleRetryUpdate = useCallback(async (): Promise<void> => {
+    const snapshot = await startUpdate();
+    if (snapshot?.state === 'needs-decisions') {
+      openExplorerMergeModal();
+    }
+  }, [openExplorerMergeModal, startUpdate]);
+
   // The synced feature branch is the only state that can open a Change Request.
   const featureBranchName = panelState.type === 'featureBranch' ? panelState.branchName : null;
+
+  const reviewStatus = useMemo(() => (
+    reviewSession
+      ? {
+        state: reviewSession.state,
+        message: reviewSession.message,
+        error: reviewSession.error,
+        conflictCount: reviewEntries.length,
+      }
+      : undefined
+  ), [reviewSession, reviewEntries.length]);
 
   // Check whether GitHub can accept a Change Request for the current branch so
   // the button can be shown eligible, or disabled with a clear reason.
@@ -303,12 +339,16 @@ function ExplorerView(): JSX.Element {
         hasUpstream={panelState.type === 'push' ? panelState.hasUpstream : undefined}
         hasRemote={hasRemote}
         totalLocalCommits={panelState.type === 'push' ? panelState.totalLocalCommits : undefined}
+        review={reviewStatus}
+        updateWorkflowEnabled={updateWorkflowEnabled}
+        isUpdateBusy={isUpdateBusy}
         onInitialize={startTracking}
         onInstallRequiredPackages={installRequiredPackages}
         onSync={syncRepo}
         onConnectGitHub={handleConnectGitHub}
         onPublishToGitHub={handlePublishToGitHub}
         onOpenCombineChanges={handleOpenCombineChanges}
+        onRetryUpdate={() => void handleRetryUpdate()}
         onCreateChangeRequest={panelState.type === 'featureBranch' ? () => void handleCreateChangeRequest() : undefined}
         canCreateChangeRequest={changeRequestCreateEligibility?.status === 'eligible'}
         changeRequestDisabledReason={changeRequestCreateEligibility?.status === 'ineligible' ? changeRequestCreateEligibility.message : undefined}
@@ -334,6 +374,8 @@ function ExplorerView(): JSX.Element {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {primaryPanel}
         </div>
+
+        <ConflictQueueSection onSelectFile={handleOpenConflict} />
 
         <section className="flex-1 min-h-0 flex flex-col border-t border-theme-default" aria-label="Timeline">
           <header className="px-3 py-2 border-b border-theme-default shrink-0">

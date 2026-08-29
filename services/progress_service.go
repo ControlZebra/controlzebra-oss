@@ -5,6 +5,7 @@ package services
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"os/exec"
 	"regexp"
@@ -18,21 +19,65 @@ import (
 
 // ProgressService handles git operations with progress reporting
 type ProgressService struct {
-	app    *application.App
-	runner *CommandRunner
-	mu     sync.Mutex
+	app          *application.App
+	runner       *CommandRunner
+	bus          *RepoEventBus
+	syncSessions syncSessionLifecycle
+	mu           sync.Mutex
+}
+
+// syncSessionLifecycle lets ProgressService keep ownership of CLI execution
+// while IntegrationSessionService owns crash-safe default-branch Sync state.
+type syncSessionLifecycle interface {
+	BeginDefaultBranchSync(repoPath string) (sessionID string, eligible bool, err error)
+	ReconcileSyncPull(sessionID string) (needsDecisions bool, err error)
+	CompleteSyncShare(sessionID string) error
+	FailSync(sessionID string, cause error)
+}
+
+const (
+	syncOutcomeSynced         = "synced"
+	syncOutcomeNeedsDecisions = "needs-decisions"
+	syncOutcomeFailed         = "failed"
+)
+
+// SyncResult is a structured Sync completion contract. In particular,
+// needs-decisions is neither encoded in an error string nor presented as a
+// generic failure.
+type SyncResult struct {
+	Success bool   `json:"success"`
+	Outcome string `json:"outcome"`
+	Message string `json:"message"`
+	Error   string `json:"error,omitempty"`
 }
 
 // NewProgressService creates a new ProgressService instance
-func NewProgressService() *ProgressService {
-	return &ProgressService{
+func NewProgressService(syncSessions ...syncSessionLifecycle) *ProgressService {
+	service := &ProgressService{
 		runner: NewCommandRunner(),
 	}
+	if len(syncSessions) > 0 {
+		service.syncSessions = syncSessions[0]
+	}
+	return service
 }
 
 // SetApp sets the Wails application reference for event emission
 func (p *ProgressService) SetApp(app *application.App) {
 	p.app = app
+}
+
+// SetRepoEventBus wires the service to the repository event bus so state
+// holding services can react to the operations it runs.
+func (p *ProgressService) SetRepoEventBus(bus *RepoEventBus) {
+	p.bus = bus
+}
+
+// publishRepoMutation announces that an operation may have changed the
+// repository's unmerged state. It runs even when the operation failed, because
+// a failed pull is exactly how conflicts appear.
+func (p *ProgressService) publishRepoMutation(repoPath string, reason RepoMutationReason) {
+	p.bus.Publish(RepoMutated{RepoPath: repoPath, Reason: reason})
 }
 
 // ProgressUpdate represents a progress event sent to the frontend
@@ -125,20 +170,32 @@ func (p *ProgressService) ensureGitHubHTTPSCredentials(repoPath string) {
 // For branches without an upstream, it skips pull and just pushes with --set-upstream
 // prune: if true, adds --prune to remove stale remote-tracking branches
 // tags: if true, adds --tags to fetch all tags
-func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune bool, tags bool) OperationResult {
+func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune bool, tags bool) SyncResult {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	defer p.publishRepoMutation(repoPath, RepoMutationPull)
 
 	if !p.hasAnyRemote(repoPath) {
 		errMsg := "No remote repository configured. Publish to cloud first."
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
-		return failedOp(errMsg)
+		return failedSync(errMsg)
 	}
 
 	p.ensureGitHubHTTPSCredentials(repoPath)
 
 	hasUpstream := p.checkHasUpstream(repoPath)
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Starting sync..."})
+
+	sessionID := ""
+	if hasUpstream && p.syncSessions != nil {
+		var beginErr error
+		sessionID, _, beginErr = p.syncSessions.BeginDefaultBranchSync(repoPath)
+		if beginErr != nil {
+			errMsg := beginErr.Error()
+			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+			return failedSync(errMsg)
+		}
+	}
 
 	if hasUpstream {
 		pullArgs := []string{"pull", "--no-rebase", "--progress"}
@@ -150,16 +207,31 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		}
 
 		pullResult := p.runGitWithProgress(repoPath, operationID, pullArgs)
+		if sessionID != "" {
+			needsDecisions, reconcileErr := p.syncSessions.ReconcileSyncPull(sessionID)
+			if needsDecisions {
+				return SyncResult{
+					Outcome: syncOutcomeNeedsDecisions,
+					Message: integrationSessionOutcomeMessages[integrationStateNeedsDecisions],
+				}
+			}
+			if reconcileErr != nil && pullResult.Success {
+				p.syncSessions.FailSync(sessionID, reconcileErr)
+				errMsg := "Failed to verify the default-branch sync: " + reconcileErr.Error()
+				p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+				return failedSync(errMsg)
+			}
+		}
 		if !pullResult.Success {
 			errMsg := pullResult.Error
+			if sessionID != "" {
+				p.syncSessions.FailSync(sessionID, fmt.Errorf("pull default branch: %s", errMsg))
+			}
 			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
 			if strings.Contains(errMsg, "no tracking information") || strings.Contains(errMsg, "no upstream") {
-				return failedOp("No remote branch configured. Please set up a remote first.")
+				return failedSync("No remote branch configured. Please set up a remote first.")
 			}
-			if strings.Contains(errMsg, "CONFLICT") || strings.Contains(errMsg, "conflict") {
-				return failedOp("Merge conflict detected. Please resolve conflicts manually.")
-			}
-			return failedOp("Failed to sync (pull): " + errMsg)
+			return failedSync("Failed to sync (pull): " + errMsg)
 		}
 	}
 
@@ -176,11 +248,11 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		branchName := p.getCurrentBranch(repoPath)
 		if branchName == "" {
 			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: "Cannot determine current branch", IsComplete: true, Success: false, Error: "Cannot determine current branch"})
-			return failedOp("Cannot determine current branch")
+			return failedSync("Cannot determine current branch")
 		}
 		remoteName, ok := p.getPreferredRemote(repoPath)
 		if !ok {
-			return failedOp("No remote repository configured. Publish to cloud first.")
+			return failedSync("No remote repository configured. Publish to cloud first.")
 		}
 		pushArgs = []string{"push", "--set-upstream", remoteName, branchName, "--progress"}
 	}
@@ -188,17 +260,27 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 	pushResult := p.runGitWithProgress(repoPath, operationID, pushArgs)
 	if !pushResult.Success {
 		errMsg := pushResult.Error
+		if sessionID != "" {
+			p.syncSessions.FailSync(sessionID, fmt.Errorf("push default branch: %s", errMsg))
+		}
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
 		if strings.Contains(errMsg, "does not appear to be a git repository") || strings.Contains(errMsg, "No configured push destination") {
-			return failedOp("No remote repository configured. Publish to cloud first.")
+			return failedSync("No remote repository configured. Publish to cloud first.")
 		}
 		if strings.Contains(errMsg, "no upstream") || strings.Contains(errMsg, "has no upstream") {
-			return failedOp("No remote branch configured. Please set up a remote first.")
+			return failedSync("No remote branch configured. Please set up a remote first.")
 		}
 		if strings.Contains(errMsg, "rejected") {
-			return failedOp("Push rejected. Remote has changes. Please sync again.")
+			return failedSync("Push rejected. Remote has changes. Please sync again.")
 		}
-		return failedOp("Failed to sync (push): " + errMsg)
+		return failedSync("Failed to sync (push): " + errMsg)
+	}
+	if sessionID != "" {
+		if err := p.syncSessions.CompleteSyncShare(sessionID); err != nil {
+			errMsg := "Your work was pushed, but ControlZebra couldn't save the Sync status. Refresh the project before syncing again."
+			p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Percent: 0, Message: errMsg, IsComplete: true, Success: false, Error: errMsg})
+			return failedSync(errMsg)
+		}
 	}
 
 	successMessage := "Synced successfully"
@@ -206,7 +288,11 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		successMessage = "Branch published successfully"
 	}
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "done", Percent: 100, Message: successMessage, IsComplete: true, Success: true})
-	return successOp(successMessage)
+	return SyncResult{Success: true, Outcome: syncOutcomeSynced, Message: successMessage}
+}
+
+func failedSync(message string) SyncResult {
+	return SyncResult{Outcome: syncOutcomeFailed, Message: message, Error: message}
 }
 
 // checkHasUpstream checks if the current branch has an upstream configured.
@@ -272,6 +358,7 @@ func (p *ProgressService) getCurrentBranch(repoPath string) string {
 func (p *ProgressService) PullWithProgress(repoPath, operationID string) OperationResult {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	defer p.publishRepoMutation(repoPath, RepoMutationPull)
 
 	if !p.hasAnyRemote(repoPath) {
 		errMsg := "No remote repository configured. Publish to cloud first."

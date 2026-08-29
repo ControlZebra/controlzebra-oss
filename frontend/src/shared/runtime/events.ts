@@ -32,7 +32,10 @@ export type AppEvent =
   | 'local-bin:progress'
   | 'debug:new-log'
   | 'debug:state-changed'
-  | 'background-task-completed';
+  | 'background-task-completed'
+  | 'conflictQueue:changed'
+  | 'integrationSession:changed'
+  | 'integrationSession:conflicts';
 
 // ---------------------------------------------------------------------------
 // Subscription helper

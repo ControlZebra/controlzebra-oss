@@ -19,6 +19,7 @@ const (
 	repositoriesSubDir    = "repositories"
 	logsSubDirName        = "logs"
 	cacheSubDirName       = "cache"
+	integrationSubDirName = "integration"
 	toolsSubDirName       = "tools"
 	binSubDirName         = "bin"
 	webview2SubDirName    = "webview2"
@@ -34,6 +35,7 @@ type DataLocations struct {
 	LocalDataDir           string `json:"localDataDir"`
 	LogsDir                string `json:"logsDir"`
 	CacheDir               string `json:"cacheDir"`
+	IntegrationDir         string `json:"integrationDir"`
 	ToolsBinDir            string `json:"toolsBinDir"`
 	WebView2Dir            string `json:"webView2Dir"`
 	MigrationMarkerFile    string `json:"migrationMarkerFile"`
@@ -98,6 +100,7 @@ func resolveDataLocationsFor(goos string, getenv func(string) string) DataLocati
 		LocalDataDir:           localDataDir,
 		LogsDir:                filepath.Join(localDataDir, logsSubDirName),
 		CacheDir:               filepath.Join(localDataDir, cacheSubDirName),
+		IntegrationDir:         filepath.Join(localDataDir, integrationSubDirName),
 		ToolsBinDir:            filepath.Join(localDataDir, toolsSubDirName, binSubDirName),
 		WebView2Dir:            filepath.Join(localDataDir, webview2SubDirName),
 		MigrationMarkerFile:    filepath.Join(localDataDir, migrationSubDirName, migrationMarkerNameV1),

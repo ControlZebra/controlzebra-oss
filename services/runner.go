@@ -166,6 +166,12 @@ func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, erro
 	return stdout.Bytes(), nil
 }
 
+// RunGitWithStdin runs a git command with stdin input.
+// Uses the resolved git binary when available, otherwise falls back to PATH.
+func (r *CommandRunner) RunGitWithStdin(repoPath string, stdinInput string, args ...string) CommandResult {
+	return r.RunWithStdin(repoPath, stdinInput, GitPath(), args...)
+}
+
 // RunGh is a convenience method for running gh CLI commands.
 // Uses the resolved gh binary when available, otherwise falls back to PATH.
 func (r *CommandRunner) RunGh(workDir string, args ...string) CommandResult {
