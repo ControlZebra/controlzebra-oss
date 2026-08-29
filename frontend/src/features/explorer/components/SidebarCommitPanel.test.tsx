@@ -57,11 +57,11 @@ function renderPanel({
   onCommit = vi.fn().mockResolvedValue(true),
 }: {
   currentBranch?: string;
-  onCommit?: ReturnType<typeof vi.fn>;
+  onCommit?: (message: string, force?: boolean) => Promise<boolean>;
 } = {}) {
   render(
     <SidebarCommitPanel
-      changedFiles={[{ path: 'logic/valve.L5X', name: 'valve.L5X', status: 'modified', staged: false }]}
+      changedFiles={[{ path: 'logic/valve.L5X', name: 'valve.L5X', status: 'modified' }]}
       onCommit={onCommit}
       onBranchAndCommit={vi.fn().mockResolvedValue(true)}
       onRewind={vi.fn().mockResolvedValue(true)}
