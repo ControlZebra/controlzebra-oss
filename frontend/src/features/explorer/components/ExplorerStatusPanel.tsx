@@ -61,12 +61,18 @@ interface ExplorerStatusPanelProps {
   hasUpstream?: boolean;
   hasRemote?: boolean;
   totalLocalCommits?: number;
+  /** The opted-in update for this feature branch, when one is active. */
+  review?: { state: string; message: string; error?: string; conflictCount: number };
+  /** True when Developer Mode uses the explicit Save Changes update workflow. */
+  updateWorkflowEnabled?: boolean;
+  isUpdateBusy?: boolean;
   onInitialize?: () => void;
   onInstallRequiredPackages?: () => Promise<boolean>;
   onSync?: () => void;
   onConnectGitHub?: () => void;
   onPublishToGitHub?: (name: string, isPrivate: boolean, owner: string) => Promise<void>;
   onOpenCombineChanges?: () => void;
+  onRetryUpdate?: () => void;
   onCreateChangeRequest?: () => void;
   /** True when the current synced feature branch may open a Change Request. */
   canCreateChangeRequest?: boolean;
@@ -152,12 +158,16 @@ function ExplorerStatusPanel({
   hasUpstream = true,
   hasRemote = true,
   totalLocalCommits = 0,
+  review,
+  updateWorkflowEnabled = false,
+  isUpdateBusy = false,
   onInitialize,
   onInstallRequiredPackages,
   onSync,
   onConnectGitHub,
   onPublishToGitHub,
   onOpenCombineChanges,
+  onRetryUpdate,
   onCreateChangeRequest,
   canCreateChangeRequest = false,
   changeRequestDisabledReason,
@@ -246,7 +256,7 @@ function ExplorerStatusPanel({
       }
       
       // Case 2: No remote + feature branch - prioritize merge flow
-      if (canShowMergeAction) {
+      if (canShowMergeAction && !updateWorkflowEnabled) {
         return (
           <PanelLayout
             type="featureBranch"
@@ -320,23 +330,64 @@ function ExplorerStatusPanel({
       );
     }
 
-    case 'featureBranch':
+    case 'featureBranch': {
+      const isChecking = review
+        ? ['scheduled', 'fetching', 'starting', 'committing', 'sharing', 'cancelling'].includes(review.state)
+        : false;
+      const isUpdated = review?.state === 'updated';
+      const needsDecisions = review?.state === 'needs-decisions';
+      const isBlocked = review?.state === 'blocked';
+      const isFailed = review?.state === 'failed';
+
+      const title = isUpdated
+        ? 'Your work is up to date'
+        : needsDecisions
+          ? 'Some files need a decision'
+          : isBlocked || isFailed
+            ? 'Update needs attention'
+            : isChecking
+              ? review?.state === 'sharing' ? 'Sharing updated work' : 'Checking for shared updates'
+              : 'Branch synced';
+
+      const actionLabel = isUpdated
+        ? 'Share updated work'
+        : needsDecisions
+          ? 'Open Conflict Review'
+          : isBlocked
+            ? 'Check again'
+            : isFailed
+              ? 'Review update'
+            : isChecking
+              ? 'Working...'
+              : 'I am ready to merge';
+
+      const showUpdateAction = Boolean(review) || !updateWorkflowEnabled;
+      const handleAction = isBlocked ? onRetryUpdate : handleOpenCombineChanges;
+
       return (
         <PanelLayout
           type="featureBranch"
-          title="Branch synced"
+          title={title}
           subtitle={<><span>{branchName}</span> is up to date</>}
         >
-          <Button 
-            onClick={handleOpenCombineChanges}
-            disabled={operationInProgress}
-            size="sm"
-            variant="secondary"
-            className="w-full"
-          >
-            <Merge style={ICON_STYLES.sm as CSSProperties} />
-            I am ready to merge
-          </Button>
+          {review && (
+            <p className={`text-xs mb-3 text-left ${review.error ? 'text-red-400' : 'text-theme-muted'}`}>
+              {review.error || review.message}
+            </p>
+          )}
+          {showUpdateAction && (
+            <Button
+              onClick={handleAction}
+              disabled={operationInProgress || isChecking || isUpdateBusy}
+              loading={isChecking || isUpdateBusy}
+              size="sm"
+              variant="secondary"
+              className="w-full"
+            >
+              <Merge style={ICON_STYLES.sm as CSSProperties} />
+              {actionLabel}
+            </Button>
+          )}
           {onCreateChangeRequest && (
             <span
               className="mt-2 block"
@@ -356,6 +407,7 @@ function ExplorerStatusPanel({
           )}
         </PanelLayout>
       );
+    }
 
     case 'synced':
     default: {

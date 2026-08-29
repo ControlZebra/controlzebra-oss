@@ -1,6 +1,6 @@
 # Services Index
 
-> All 13 registered backend services. Each service has its own detailed page linked below.
+> Registered backend services and the detailed documentation available for each one.
 
 ## Registered Services
 
@@ -19,6 +19,8 @@
 | 11 | [[AuthService]] | `services/auth_service.go` | ~95 | Supabase session persistence via OS keychain | No |
 | 12 | [[DebugService]] | `services/debug_service.go` | ~67 | Runtime debug logging facade (toggle, export) | Yes (`debug:new-log`) |
 | 13 | [[LocalBinService]] | `services/local_bin_service.go` | ~505 | Windows portable CLI toolchain download | Yes (`local-bin:progress`) |
+| 14 | [[ConflictQueueService]] | `services/conflict_queue_service.go` | ~230 | Authoritative queue of conflicted files for the open repository | Yes (`conflictQueue:changed`) |
+| 15 | [[IntegrationSessionService]] | `services/integration_session_service.go` | ~650 | Isolated integration readiness, conflict decisions, and guarded Finish | Yes (`integrationSession:changed`, `integrationSession:conflicts`) |
 
 ## Infrastructure (Not Registered, But Critical)
 
@@ -28,6 +30,8 @@
 | `services/cli_resolver.go` | [[CLI Resolver]] — Resolves git/gh/lfs binary paths | [[CLI Resolver]] |
 | `services/data_paths.go` | [[Data Paths]] — XDG-compliant storage layout + migration | [[Data Paths]] |
 | `services/debug_logger.go` | [[Debug Logger]] — Thread-safe ring-buffer singleton | [[Debug Logger]] |
+| `services/repo_events.go` | RepoEventBus — In-process repository mutation events | [[ConflictQueueService]] |
+| `services/conflict_queue_classifier.go` | Conflict classification (kind, file kind, eligibility) | [[ConflictQueueService]] |
 | `services/local_bin_paths.go` | Platform-specific portable tool storage paths | — |
 | `services/sysproc_windows.go` | Windows: hides console windows | — |
 | `services/sysproc_unix.go` | Unix: process group attributes | — |
@@ -37,7 +41,7 @@
 
 ```
 main.go
-  └── 13 Services (each instantiated with NewXxxService())
+      └── Registered services (each instantiated with NewXxxService())
         └── CommandRunner (shared CLI executor)
               └── CLI Resolver (cached binary paths)
               └── Debug Logger (optional logging)
@@ -49,6 +53,7 @@ Most services only depend on `CommandRunner`. Special dependencies:
 - `RepositorySettingsService` uses `DataLocations` for per-repo config storage
 - `ProgressService` wraps `GitService` methods with progress streaming
 - `LocalBinService` uses `CLI Resolver` + `DataLocations` for tool management
+- `IntegrationSessionService` uses `GitService` conflict helpers, `RepoEventBus`, and the shared repository coordinator
 
 ## Adding a New Service
 

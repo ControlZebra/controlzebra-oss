@@ -120,10 +120,25 @@ type conflictStageEntry struct {
 	oid   string
 }
 
-func (g *GitService) GetConflictResolutionData(repoPath string, filePath string) ConflictResolutionData {
-	data := ConflictResolutionData{Path: normalizeMergePath(filePath)}
+// conflictOperationActive reports whether repoPath is mid-operation in a way
+// that can leave conflict stages in the index. It is the gate the exported
+// entry points apply; callers that already know the answer pass it instead.
+func (g *GitService) conflictOperationActive(repoPath string, includeRebase bool) bool {
 	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InSquashMerge && !state.InCherryPick && !state.InRevert {
+	return state.InMerge || state.InSquashMerge || state.InCherryPick || state.InRevert ||
+		(includeRebase && state.InRebase)
+}
+
+func (g *GitService) GetConflictResolutionData(repoPath string, filePath string) ConflictResolutionData {
+	return g.conflictResolutionData(repoPath, filePath, g.conflictOperationActive(repoPath, false))
+}
+
+// conflictResolutionData is the gate-free core. inOperation is supplied by the
+// caller so an isolated integration workspace, which is known to be mid-merge,
+// does not have to be inspected again.
+func (g *GitService) conflictResolutionData(repoPath string, filePath string, inOperation bool) ConflictResolutionData {
+	data := ConflictResolutionData{Path: normalizeMergePath(filePath)}
+	if !inOperation {
 		data.Error = "No supported conflict operation is in progress"
 		return data
 	}
@@ -274,13 +289,16 @@ func leadingContextLines(text string, limit int) string {
 }
 
 func (g *GitService) ResolveConflictWithContent(repoPath string, filePath string, resolutionToken string, content string) OperationResult {
+	return g.resolveConflictWithContent(repoPath, filePath, resolutionToken, content, g.conflictOperationActive(repoPath, false))
+}
+
+func (g *GitService) resolveConflictWithContent(repoPath string, filePath string, resolutionToken string, content string, inOperation bool) OperationResult {
 	normalizedPath := normalizeMergePath(filePath)
 	destination, err := safeConflictDestination(repoPath, normalizedPath)
 	if err != nil {
 		return failedOp("Invalid conflict path")
 	}
-	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InSquashMerge && !state.InCherryPick && !state.InRevert {
+	if !inOperation {
 		return failedOp("No supported conflict operation is in progress")
 	}
 	entries, err := g.loadConflictStageEntries(repoPath, normalizedPath)
@@ -301,13 +319,16 @@ func (g *GitService) ResolveConflictWithContent(repoPath string, filePath string
 // Composition happens here rather than in the UI so the frontend never needs the
 // full file text, and the resolved document is never rebuilt on every render.
 func (g *GitService) ResolveConflictWithDecisions(repoPath string, filePath string, resolutionToken string, decisions []ConflictDecision) OperationResult {
+	return g.resolveConflictWithDecisions(repoPath, filePath, resolutionToken, decisions, g.conflictOperationActive(repoPath, false))
+}
+
+func (g *GitService) resolveConflictWithDecisions(repoPath string, filePath string, resolutionToken string, decisions []ConflictDecision, inOperation bool) OperationResult {
 	normalizedPath := normalizeMergePath(filePath)
 	destination, err := safeConflictDestination(repoPath, normalizedPath)
 	if err != nil {
 		return failedOp("Invalid conflict path")
 	}
-	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InSquashMerge && !state.InCherryPick && !state.InRevert {
+	if !inOperation {
 		return failedOp("No supported conflict operation is in progress")
 	}
 	entries, err := g.loadConflictStageEntries(repoPath, normalizedPath)
@@ -510,14 +531,13 @@ func resolveConflictRegion(
 	return content, nil
 }
 
-func (g *GitService) resolveConflictWithStage(repoPath string, filePath string, stage int, sideName string) OperationResult {
+func (g *GitService) resolveConflictWithStage(repoPath string, filePath string, stage int, sideName string, inOperation bool) OperationResult {
 	normalizedPath := normalizeMergePath(filePath)
 	destination, err := safeConflictDestination(repoPath, normalizedPath)
 	if err != nil {
 		return failedOp("Invalid conflict path")
 	}
-	state := g.GetMergeState(repoPath)
-	if !state.InMerge && !state.InSquashMerge && !state.InCherryPick && !state.InRevert && !state.InRebase {
+	if !inOperation {
 		return failedOp("No merge in progress - cannot resolve conflict")
 	}
 	entries, err := g.loadConflictStageEntries(repoPath, normalizedPath)

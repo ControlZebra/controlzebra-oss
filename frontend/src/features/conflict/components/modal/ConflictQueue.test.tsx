@@ -123,6 +123,6 @@ describe('ConflictQueue', () => {
     );
 
     expect(screen.getByText('All decisions are complete')).toBeInTheDocument();
-    expect(screen.getByText('You can finish the merge from the footer below.')).toBeInTheDocument();
+    expect(screen.getByText('ControlZebra is updating your work now. Keep this project open.')).toBeInTheDocument();
   });
 });

@@ -28,6 +28,7 @@ var (
 // GitService provides git operations via CLI
 type GitService struct {
 	runner *CommandRunner
+	bus    *RepoEventBus
 }
 
 // NewGitService creates a new GitService instance
@@ -35,6 +36,19 @@ func NewGitService() *GitService {
 	return &GitService{
 		runner: NewCommandRunner(),
 	}
+}
+
+// SetRepoEventBus wires the service to the repository event bus so state
+// holders such as the conflict queue can react to mutating operations.
+func (g *GitService) SetRepoEventBus(bus *RepoEventBus) {
+	g.bus = bus
+}
+
+// publishRepoMutation announces that an operation may have changed the
+// repository's unmerged state. It is safe to call with no bus attached and is
+// intended to be deferred, so it fires on success and failure alike.
+func (g *GitService) publishRepoMutation(repoPath string, reason RepoMutationReason) {
+	g.bus.Publish(RepoMutated{RepoPath: repoPath, Reason: reason})
 }
 
 // RepoInfo contains basic information about a git repository
@@ -566,6 +580,7 @@ type OperationResult struct {
 // This is a composite operation that combines AddAll + Commit.
 // For finer control, use AddAll() and Commit() separately.
 func (g *GitService) CommitAll(repoPath string, message string) (opResult OperationResult) {
+	defer g.publishRepoMutation(repoPath, RepoMutationCommit)
 	done := LogMethod("GitService.CommitAll", map[string]interface{}{"repoPath": repoPath, "message": message})
 	defer func() { done(opResult, nil) }()
 	if message == "" {
@@ -927,6 +942,7 @@ func (g *GitService) CleanDryRun(repoPath string) ([]string, error) {
 // Does NOT auto-stage anything - use Add/AddAll first.
 // Equivalent to: git commit -m <message>
 func (g *GitService) Commit(repoPath string, message string) (opResult OperationResult) {
+	defer g.publishRepoMutation(repoPath, RepoMutationCommit)
 	done := LogMethod("GitService.Commit", map[string]interface{}{"repoPath": repoPath, "message": message})
 	defer func() { done(opResult, nil) }()
 	if message == "" {
@@ -991,6 +1007,7 @@ func (g *GitService) FetchAll(repoPath string) OperationResult {
 // For safer operations with checks, use CheckoutBranch.
 // Equivalent to: git checkout <ref>
 func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.Checkout", map[string]interface{}{"repoPath": repoPath, "ref": ref})
 	defer func() { done(nil, nil) }()
 	if ref == "" {
@@ -1007,6 +1024,7 @@ func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
 // For safer operations with checks, use CreateBranchAndCheckout.
 // Equivalent to: git checkout -b <branch>
 func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.CheckoutNewBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
 	defer func() { done(nil, nil) }()
 	if branchName == "" {
@@ -1027,6 +1045,7 @@ func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) Opera
 // WARNING: This is destructive - all uncommitted changes are lost.
 // Equivalent to: git reset --hard <ref>
 func (g *GitService) ResetHard(repoPath string, ref string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationOther)
 	if ref == "" {
 		ref = "HEAD"
 	}
@@ -1054,6 +1073,7 @@ func (g *GitService) ResetSoft(repoPath string, ref string) OperationResult {
 // This is the default git reset behavior.
 // Equivalent to: git reset <ref>
 func (g *GitService) ResetMixed(repoPath string, ref string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationOther)
 	if ref == "" {
 		ref = "HEAD"
 	}
@@ -1128,6 +1148,7 @@ func (g *GitService) MoveFile(repoPath string, source string, destination string
 
 // Pull fetches and merges changes from the remote
 func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
+	defer g.publishRepoMutation(repoPath, RepoMutationPull)
 	done := LogMethod("GitService.Pull", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(opResult, nil) }()
 	if !g.hasAnyRemote(repoPath) {
@@ -1241,6 +1262,7 @@ func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 
 // Sync performs a git pull (merge) followed by git push
 func (g *GitService) Sync(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationPull)
 	done := LogMethod("GitService.Sync", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 	if !g.hasAnyRemote(repoPath) {
@@ -2740,6 +2762,7 @@ func (g *GitService) Branches(repoPath string) BranchList {
 // CheckoutBranch switches to an existing branch.
 // Fails if there are uncommitted changes to prevent accidental loss.
 func (g *GitService) CheckoutBranch(repoPath string, branchName string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.CheckoutBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
 	defer func() { done(nil, nil) }()
 	if branchName == "" {
@@ -2765,6 +2788,7 @@ func (g *GitService) CheckoutBranch(repoPath string, branchName string) Operatio
 // CreateBranchAndCheckout creates a new branch and switches to it.
 // Fails if there are uncommitted changes or if the branch name is invalid.
 func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.CreateBranchAndCheckout", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
 	defer func() { done(nil, nil) }()
 	if branchName == "" {
@@ -2933,6 +2957,7 @@ func (g *GitService) DeleteBranch(repoPath string, branchName string, confirm bo
 // This is a composite operation that combines ResetHard("HEAD") + Clean().
 // For finer control, use ResetHard() and Clean() separately.
 func (g *GitService) ResetHardHead(repoPath string, confirm bool) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationOther)
 	done := LogMethod("GitService.ResetHardHead", map[string]interface{}{"repoPath": repoPath, "confirm": confirm})
 	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
@@ -2996,6 +3021,7 @@ func (g *GitService) ResetSoftHead(repoPath string, n int, confirm bool) Operati
 // This is a composite operation that combines UnstageAll() + RestoreAll() + Clean().
 // For finer control, use those methods separately.
 func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationOther)
 	done := LogMethod("GitService.DiscardAll", map[string]interface{}{"repoPath": repoPath, "confirm": confirm})
 	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
@@ -3031,6 +3057,7 @@ func (g *GitService) DiscardAll(repoPath string, confirm bool) OperationResult {
 // This is a composite operation that combines Unstage() + Restore() or file deletion.
 // For finer control, use those methods separately.
 func (g *GitService) DiscardFile(repoPath string, filePath string, confirm bool) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationOther)
 	done := LogMethod("GitService.DiscardFile", map[string]interface{}{"repoPath": repoPath, "filePath": filePath, "confirm": confirm})
 	defer func() { done(nil, nil) }()
 	if err := requireConfirmation(confirm); err != nil {
@@ -3104,6 +3131,7 @@ func (g *GitService) StashPush(repoPath string, message string) OperationResult 
 
 // StashPop applies the most recent stash and removes it from the stash list.
 func (g *GitService) StashPop(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationStash)
 	done := LogMethod("GitService.StashPop", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 	result := g.runner.RunGit(repoPath, "stash", "pop")
@@ -3203,6 +3231,7 @@ func (g *GitService) StashDrop(repoPath string, index int, confirm bool) Operati
 // Flow: stash push → checkout (or checkout -b if createNew) → stash pop
 // If the stash pop fails due to conflicts, the stash is preserved.
 func (g *GitService) StashAndSwitchBranch(repoPath string, targetBranch string, createNew bool) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationStash)
 	done := LogMethod("GitService.StashAndSwitchBranch", map[string]interface{}{"repoPath": repoPath, "targetBranch": targetBranch, "createNew": createNew})
 	defer func() { done(nil, nil) }()
 	if targetBranch == "" {
@@ -3312,24 +3341,42 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 	done := LogMethod("GitService.GetMergeState", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 	state := MergeState{}
-	gitDir := filepath.Join(repoPath, ".git")
 
-	// Check for merge in progress (.git/MERGE_HEAD)
-	mergePath := filepath.Join(gitDir, "MERGE_HEAD")
+	// Ask git where its administrative files are. A linked worktree keeps
+	// per-worktree state outside <repo>/.git, so joining ".git" is wrong there.
+	// One rev-parse call resolves every name, in order.
+	adminNames := []string{
+		"MERGE_HEAD", "MERGE_MSG", "SQUASH_MSG",
+		"rebase-merge", "rebase-apply", "rebase-apply/applying",
+		"CHERRY_PICK_HEAD", "REVERT_HEAD",
+		"BISECT_LOG", "BISECT_START", "HEAD",
+		"index.lock", "HEAD.lock", "config.lock",
+	}
+	resolved, err := gitAdminPaths(g.runner, repoPath, adminNames...)
+	if err != nil {
+		return state
+	}
+	gitPaths := make(map[string]string, len(adminNames))
+	for i, name := range adminNames {
+		gitPaths[name] = resolved[i]
+	}
+
+	// Check for merge in progress (MERGE_HEAD)
+	mergePath := gitPaths["MERGE_HEAD"]
 	if _, err := os.Stat(mergePath); err == nil {
 		state.InMerge = true
 		state.StuckType = "merge"
 		state.UserMessage = "A merge operation was interrupted. Resolve conflicts or abort to continue."
 		// Try to read the merge message
-		msgPath := filepath.Join(gitDir, "MERGE_MSG")
+		msgPath := gitPaths["MERGE_MSG"]
 		if msgData, err := os.ReadFile(msgPath); err == nil {
 			state.Message = strings.TrimSpace(string(msgData))
 		}
 	}
 
-	// Check for squash merge in progress (.git/SQUASH_MSG)
+	// Check for squash merge in progress (SQUASH_MSG)
 	// git merge --squash does NOT create MERGE_HEAD, so we detect it separately.
-	squashMsgPath := filepath.Join(gitDir, "SQUASH_MSG")
+	squashMsgPath := gitPaths["SQUASH_MSG"]
 	if _, err := os.Stat(squashMsgPath); err == nil {
 		state.InSquashMerge = true
 		if state.StuckType == "" {
@@ -3344,10 +3391,10 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for rebase in progress (.git/rebase-merge or .git/rebase-apply)
+	// Check for rebase in progress (rebase-merge or rebase-apply)
 	// Note: Rebase workflow is deprecated - we only detect it to help users abort
-	rebasePath := filepath.Join(gitDir, "rebase-merge")
-	rebaseApplyPath := filepath.Join(gitDir, "rebase-apply")
+	rebasePath := gitPaths["rebase-merge"]
+	rebaseApplyPath := gitPaths["rebase-apply"]
 	if _, err := os.Stat(rebasePath); err == nil {
 		state.InRebase = true
 		if state.StuckType == "" {
@@ -3356,7 +3403,7 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	} else if _, err := os.Stat(rebaseApplyPath); err == nil {
 		// Check if it's actually an AM operation (patch application)
-		applyingPath := filepath.Join(rebaseApplyPath, "applying")
+		applyingPath := gitPaths["rebase-apply/applying"]
 		if _, err := os.Stat(applyingPath); err == nil {
 			state.InAM = true
 			if state.StuckType == "" {
@@ -3372,8 +3419,8 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for cherry-pick in progress (.git/CHERRY_PICK_HEAD)
-	cherryPickPath := filepath.Join(gitDir, "CHERRY_PICK_HEAD")
+	// Check for cherry-pick in progress (CHERRY_PICK_HEAD)
+	cherryPickPath := gitPaths["CHERRY_PICK_HEAD"]
 	if _, err := os.Stat(cherryPickPath); err == nil {
 		state.InCherryPick = true
 		if state.StuckType == "" {
@@ -3382,8 +3429,8 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for revert in progress (.git/REVERT_HEAD)
-	revertPath := filepath.Join(gitDir, "REVERT_HEAD")
+	// Check for revert in progress (REVERT_HEAD)
+	revertPath := gitPaths["REVERT_HEAD"]
 	if _, err := os.Stat(revertPath); err == nil {
 		state.InRevert = true
 		if state.StuckType == "" {
@@ -3392,9 +3439,9 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for bisect in progress (.git/BISECT_LOG or .git/BISECT_START)
-	bisectLogPath := filepath.Join(gitDir, "BISECT_LOG")
-	bisectStartPath := filepath.Join(gitDir, "BISECT_START")
+	// Check for bisect in progress (BISECT_LOG or BISECT_START)
+	bisectLogPath := gitPaths["BISECT_LOG"]
+	bisectStartPath := gitPaths["BISECT_START"]
 	if _, err := os.Stat(bisectLogPath); err == nil {
 		state.InBisect = true
 		if state.StuckType == "" {
@@ -3410,7 +3457,7 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 	}
 
 	// Check for detached HEAD state
-	headPath := filepath.Join(gitDir, "HEAD")
+	headPath := gitPaths["HEAD"]
 	if headData, err := os.ReadFile(headPath); err == nil {
 		headContent := strings.TrimSpace(string(headData))
 		// If HEAD contains a commit hash instead of "ref: refs/heads/..."
@@ -3424,12 +3471,11 @@ func (g *GitService) GetMergeState(repoPath string) MergeState {
 		}
 	}
 
-	// Check for stale lock files (.git/index.lock and others)
+	// Check for stale lock files (index.lock and others)
 	lockFiles := []string{}
 	potentialLocks := []string{"index.lock", "HEAD.lock", "config.lock"}
 	for _, lockFile := range potentialLocks {
-		lockPath := filepath.Join(gitDir, lockFile)
-		if _, err := os.Stat(lockPath); err == nil {
+		if _, err := os.Stat(gitPaths[lockFile]); err == nil {
 			lockFiles = append(lockFiles, lockFile)
 		}
 	}
@@ -3508,7 +3554,7 @@ func (g *GitService) ResolveConflictKeepOurs(repoPath string, filePath string) O
 		return failedOp("File path is required")
 	}
 
-	return g.resolveConflictWithStage(repoPath, filePath, 2, "current")
+	return g.resolveConflictWithStage(repoPath, filePath, 2, "current", g.conflictOperationActive(repoPath, true))
 }
 
 // ResolveConflictKeepTheirs resolves a conflict by keeping their version.
@@ -3520,7 +3566,7 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 		return failedOp("File path is required")
 	}
 
-	return g.resolveConflictWithStage(repoPath, filePath, 3, "incoming")
+	return g.resolveConflictWithStage(repoPath, filePath, 3, "incoming", g.conflictOperationActive(repoPath, true))
 }
 
 // ResolveConflictKeepBoth resolves a conflict by keeping both versions.
@@ -3678,6 +3724,7 @@ func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch st
 //   - targetBranch: The branch to merge INTO (e.g., "main") - required
 //   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
 func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBranch ...string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	done := LogMethod("GitService.StartMerge", map[string]interface{}{"repoPath": repoPath, "targetBranch": targetBranch})
 	defer func() { done(nil, nil) }()
 	if targetBranch == "" {
@@ -3824,6 +3871,7 @@ type MergeOptions struct {
 // - All changes appear as a single commit authored by the user
 // - Results in cleaner, linear history
 func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string, sourceBranch string, options MergeOptions) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	if targetBranch == "" {
 		return failedOp("Target branch is required")
 	}
@@ -4183,6 +4231,7 @@ func safeRepoRelativePath(repoPath string, relativePath string) (string, error) 
 // Prefer using CompleteMerge which auto-detects the merge type and delegates here
 // for squash merges. This method is kept public for backward compatibility.
 func (g *GitService) CompleteSquashMerge(repoPath string, message string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	if message == "" {
 		return failedOp("Commit message is required for squash merge")
 	}
@@ -4206,6 +4255,7 @@ func (g *GitService) CompleteSquashMerge(repoPath string, message string) Operat
 // Returns the repository to the state before the merge started.
 // Handles both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) AbortMerge(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	done := LogMethod("GitService.AbortMerge", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 	state := g.GetMergeState(repoPath)
@@ -4221,8 +4271,9 @@ func (g *GitService) AbortMerge(repoPath string) OperationResult {
 			return failedOp("Failed to abort squash merge: " + getErrorMessage(result))
 		}
 		// Clean up the SQUASH_MSG file that git reset --merge doesn't remove
-		squashMsgPath := filepath.Join(repoPath, ".git", "SQUASH_MSG")
-		os.Remove(squashMsgPath)
+		if squashMsgPath, err := gitAdminPath(g.runner, repoPath, "SQUASH_MSG"); err == nil {
+			os.Remove(squashMsgPath)
+		}
 		return successOp("Squash merge aborted")
 	}
 
@@ -4242,6 +4293,7 @@ func (g *GitService) AbortMerge(repoPath string) OperationResult {
 // AbortCherryPick aborts the current cherry-pick operation.
 // Runs: git cherry-pick --abort
 func (g *GitService) AbortCherryPick(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 	if !state.InCherryPick {
 		return failedOp("No cherry-pick in progress")
@@ -4258,6 +4310,7 @@ func (g *GitService) AbortCherryPick(repoPath string) OperationResult {
 // ContinueCherryPick continues the cherry-pick after conflicts are resolved.
 // Runs: git cherry-pick --continue
 func (g *GitService) ContinueCherryPick(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InCherryPick {
 		return failedOp("No cherry-pick in progress")
@@ -4297,6 +4350,7 @@ func (g *GitService) ContinueCherryPick(repoPath string) OperationResult {
 // SkipCherryPickCommit skips the current commit in a cherry-pick sequence.
 // Runs: git cherry-pick --skip
 func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InCherryPick {
 		return failedOp("No cherry-pick in progress")
@@ -4326,6 +4380,7 @@ func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
 // Use AbortRevert() to cancel or ContinueRevert() after resolving conflicts.
 // Runs: git revert --no-edit <commitHash>
 func (g *GitService) RevertCommit(repoPath string, commitHash string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationRevert)
 	done := LogMethod("GitService.RevertCommit", map[string]interface{}{"repoPath": repoPath, "commitHash": commitHash})
 	defer func() { done(nil, nil) }()
 	if commitHash == "" {
@@ -4409,6 +4464,7 @@ func (g *GitService) RevertCommit(repoPath string, commitHash string) OperationR
 // Requires a clean working tree (no uncommitted changes).
 // Runs: git revert -m <message> <commitHash> (via stdin for message)
 func (g *GitService) RevertCommitWithMessage(repoPath string, commitHash string, message string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationRevert)
 	if commitHash == "" {
 		return failedOp("Commit hash is required")
 	}
@@ -4479,6 +4535,7 @@ func (g *GitService) RevertCommitWithMessage(repoPath string, commitHash string,
 // AbortRevert aborts the current revert operation.
 // Runs: git revert --abort
 func (g *GitService) AbortRevert(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 	if !state.InRevert {
 		return failedOp("No revert in progress")
@@ -4495,6 +4552,7 @@ func (g *GitService) AbortRevert(repoPath string) OperationResult {
 // ContinueRevert continues the revert after conflicts are resolved.
 // Runs: git revert --continue
 func (g *GitService) ContinueRevert(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InRevert {
 		return failedOp("No revert in progress")
@@ -4534,6 +4592,7 @@ func (g *GitService) ContinueRevert(repoPath string) OperationResult {
 // SkipRevertCommit skips the current commit in a revert sequence.
 // Runs: git revert --skip
 func (g *GitService) SkipRevertCommit(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InRevert {
 		return failedOp("No revert in progress")
@@ -4559,6 +4618,7 @@ func (g *GitService) SkipRevertCommit(repoPath string) OperationResult {
 // AbortBisect aborts the current bisect session.
 // Runs: git bisect reset
 func (g *GitService) AbortBisect(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 	if !state.InBisect {
 		return failedOp("No bisect in progress")
@@ -4590,7 +4650,10 @@ func (g *GitService) GetBisectState(repoPath string) map[string]interface{} {
 	info["inBisect"] = true
 
 	// Read bisect log
-	bisectLogPath := filepath.Join(repoPath, ".git", "BISECT_LOG")
+	bisectLogPath, err := gitAdminPath(g.runner, repoPath, "BISECT_LOG")
+	if err != nil {
+		return info
+	}
 	if data, err := os.ReadFile(bisectLogPath); err == nil {
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines {
@@ -4624,6 +4687,7 @@ func (g *GitService) GetBisectState(repoPath string) map[string]interface{} {
 // AbortAM aborts the current AM (patch application) operation.
 // Runs: git am --abort
 func (g *GitService) AbortAM(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 	if !state.InAM {
 		return failedOp("No patch application in progress")
@@ -4640,6 +4704,7 @@ func (g *GitService) AbortAM(repoPath string) OperationResult {
 // SkipAMPatch skips the current patch in an AM sequence.
 // Runs: git am --skip
 func (g *GitService) SkipAMPatch(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InAM {
 		return failedOp("No patch application in progress")
@@ -4721,7 +4786,10 @@ func (g *GitService) RemoveStaleLock(repoPath string, lockFile string, confirm b
 		return failedOp(fmt.Sprintf("Unknown lock file: %s", lockFile))
 	}
 
-	lockPath := filepath.Join(repoPath, ".git", lockFile)
+	lockPath, err := gitAdminPath(g.runner, repoPath, lockFile)
+	if err != nil {
+		return failedOp("Could not locate this project's internal files. Reopen the project and try again.")
+	}
 
 	// Check if lock file exists
 	if _, err := os.Stat(lockPath); os.IsNotExist(err) {
@@ -4751,9 +4819,13 @@ func (g *GitService) RemoveAllStaleLocks(repoPath string, confirm bool) Operatio
 	removed := []string{}
 	failed := []string{}
 
-	for _, lockFile := range state.LockFiles {
-		lockPath := filepath.Join(repoPath, ".git", lockFile)
-		if err := os.Remove(lockPath); err != nil {
+	lockPaths, err := gitAdminPaths(g.runner, repoPath, state.LockFiles...)
+	if err != nil {
+		return failedOp("Could not locate this project's internal files. Reopen the project and try again.")
+	}
+
+	for i, lockFile := range state.LockFiles {
+		if err := os.Remove(lockPaths[i]); err != nil {
 			failed = append(failed, lockFile)
 		} else {
 			removed = append(removed, lockFile)
@@ -4774,6 +4846,7 @@ func (g *GitService) RemoveAllStaleLocks(repoPath string, confirm bool) Operatio
 // AbortCurrentOperation aborts whatever stuck operation is currently in progress.
 // This is a convenience method that detects the state and calls the appropriate abort.
 func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 
 	// Priority order for abort (most critical first)
@@ -4812,6 +4885,7 @@ func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
 // CompleteMerge completes the merge by committing after all conflicts are resolved.
 // Supports both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) CompleteMerge(repoPath string, message string) OperationResult {
+	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	state := g.GetMergeState(repoPath)
 	if !state.InMerge && !state.InSquashMerge {
 		return failedOp("No merge in progress")
@@ -4902,6 +4976,45 @@ type ParentBranchResult struct {
 	Error        string `json:"error,omitempty"`
 }
 
+// defaultBranchNames are the branch names treated as integration branches:
+// candidates to merge into, and never a branch we assume work is merged from.
+var defaultBranchNames = []string{"main", "master", "develop", "development"}
+
+func isDefaultBranchName(branch string) bool {
+	for _, name := range defaultBranchNames {
+		if branch == name {
+			return true
+		}
+	}
+	return false
+}
+
+// mergeTargetRef resolves the branch the checked-out work would merge into and
+// the ref to compare against, using the same rules merge execution uses.
+//
+// It reports false when there is no merge worth talking about: a detached
+// HEAD, no detectable parent, or an integration branch, which nobody merges
+// *from*. That last case matters because GetParentBranch will happily pair a
+// user sitting on main with a stale develop, and callers that run unprompted
+// would then describe a merge that will never happen.
+func (g *GitService) mergeTargetRef(repoPath string) (branch string, ref string, ok bool) {
+	current := g.DetectRepo(repoPath).Branch
+	if current == "" || isDefaultBranchName(current) {
+		return "", "", false
+	}
+
+	parent := g.GetParentBranch(repoPath)
+	if !parent.Success || parent.ParentBranch == "" || parent.ParentBranch == current {
+		return "", "", false
+	}
+
+	targetRef, err := g.resolveBranchRef(repoPath, parent.ParentBranch, true)
+	if err != nil {
+		return "", "", false
+	}
+	return parent.ParentBranch, targetRef, true
+}
+
 // GetParentBranch attempts to detect the parent branch of the current branch.
 // It uses multiple heuristics in order of reliability:
 // 1. Upstream tracking branch (git config branch.<name>.merge)
@@ -4948,7 +5061,7 @@ func (g *GitService) GetParentBranch(repoPath string) ParentBranchResult {
 
 	// Strategy 2: Find merge-base with common default branches
 	// Check which default branches exist and find the one with the most recent common ancestor
-	defaultBranches := []string{"main", "master", "develop", "development"}
+	defaultBranches := defaultBranchNames
 	for _, defaultBranch := range defaultBranches {
 		// Skip if current branch is the default branch
 		if currentBranch == defaultBranch {
@@ -5279,9 +5392,15 @@ type LockFileInfo struct {
 // This lock file is created by Git during operations and can be left behind if
 // a process crashes or is interrupted.
 func (g *GitService) CheckLockFile(repoPath string) LockFileInfo {
-	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+	lockPath, err := gitAdminPath(g.runner, repoPath, "index.lock")
+	if err != nil {
+		return LockFileInfo{
+			IndexLockExists: false,
+			Error:           "Failed to check lock file: " + err.Error(),
+		}
+	}
 
-	_, err := os.Stat(lockPath)
+	_, err = os.Stat(lockPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return LockFileInfo{
@@ -5315,10 +5434,13 @@ func (g *GitService) RemoveLockFile(repoPath string) OperationResult {
 		return failedOp("Not a valid git repository")
 	}
 
-	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+	lockPath, err := gitAdminPath(g.runner, repoPath, "index.lock")
+	if err != nil {
+		return failedOp("Failed to check lock file: " + err.Error())
+	}
 
 	// Check if lock file exists
-	_, err := os.Stat(lockPath)
+	_, err = os.Stat(lockPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return OperationResult{

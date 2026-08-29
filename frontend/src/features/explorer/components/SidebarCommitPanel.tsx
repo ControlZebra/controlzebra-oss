@@ -19,6 +19,7 @@ import { supportsDiff } from '../../../shared/constants/file-utils';
 import type { FileStatus } from '../../../context';
 import { useLfsAutoTrackBeforeSave } from '../hooks/useLfsAutoTrackBeforeSave';
 import MainBranchSaveChoiceModal, { type MainBranchSaveChoice } from './MainBranchSaveChoiceModal';
+import { useIntegrationSession } from '../../integration';
 
 let rememberedMainBranchSaveChoice: MainBranchSaveChoice | null = null;
 
@@ -162,9 +163,17 @@ function SidebarCommitPanel({
   isRewinding,
   operationInProgress = false,
 }: SidebarCommitPanelProps): JSX.Element {
-  const { openExplorerTab } = useLayout();
+  const { openExplorerTab, openExplorerMergeModal } = useLayout();
   const { ghAuthStatus } = useRepo();
+  const {
+    enabled: updateWorkflowEnabled,
+    isBusy: isUpdateBusy,
+    isSaveBlocked,
+    startUpdate,
+    refresh: refreshUpdate,
+  } = useIntegrationSession();
   const [message, setMessage] = useState('');
+  const [checkForConflicts, setCheckForConflicts] = useState(false);
   const [showRewindModal, setShowRewindModal] = useState(false);
   const [showMainBranchChoiceModal, setShowMainBranchChoiceModal] = useState(false);
   const [mainBranchChoice, setMainBranchChoice] = useState<MainBranchSaveChoice>('branch-and-save');
@@ -222,15 +231,34 @@ function SidebarCommitPanel({
     return onCommit(message);
   }, [defaultBranchName, message, onBranchAndCommit, onCommit]);
 
+  const handleSuccessfulFeatureSave = useCallback((shouldCheckForConflicts: boolean): void => {
+    setMessage('');
+    if (!updateWorkflowEnabled) {
+      return;
+    }
+    if (!shouldCheckForConflicts) {
+      void refreshUpdate();
+      return;
+    }
+
+    void startUpdate().then((snapshot) => {
+      if (snapshot?.state === 'needs-decisions') {
+        openExplorerMergeModal();
+      }
+    });
+  }, [openExplorerMergeModal, refreshUpdate, startUpdate, updateWorkflowEnabled]);
+
   const handleSave = useCallback(async (): Promise<void> => {
     if (!message.trim()) return;
 
     const isMainBranch = MAIN_BRANCHES.includes(currentBranch.toLowerCase());
 
     if (!isMainBranch) {
+      const shouldCheckForConflicts = checkForConflicts;
+      setCheckForConflicts(false);
       await runBeforeSave(
         () => onCommit(message),
-        () => setMessage(''),
+        () => handleSuccessfulFeatureSave(shouldCheckForConflicts),
       );
       return;
     }
@@ -247,7 +275,7 @@ function SidebarCommitPanel({
     setMainBranchChoice('branch-and-save');
     setRememberChoiceForSession(false);
     setShowMainBranchChoiceModal(true);
-  }, [currentBranch, executeSaveChoice, message, onCommit, runBeforeSave]);
+  }, [checkForConflicts, currentBranch, handleSuccessfulFeatureSave, message, onCommit, runBeforeSave]);
 
   const handleConfirmMainBranchSaveChoice = useCallback(async (): Promise<void> => {
     await runBeforeSave(
@@ -306,6 +334,9 @@ function SidebarCommitPanel({
     openExplorerTab(tab);
   }, [repoPath, openExplorerTab]);
 
+  const isFeatureBranch = !MAIN_BRANCHES.includes(currentBranch.toLowerCase());
+  const saveControlsDisabled = isCommitting || operationInProgress || isUpdateBusy || isSaveBlocked;
+
   return (
     <div className="flex flex-col h-full">
       {/* Header section */}
@@ -319,7 +350,7 @@ function SidebarCommitPanel({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Describe changes..."
-          disabled={isCommitting || operationInProgress}
+          disabled={saveControlsDisabled}
           rows={3}
           className="text-sm"
         />
@@ -328,15 +359,27 @@ function SidebarCommitPanel({
         <div className="flex gap-2">
           <Button 
             onClick={handleSave} 
-            disabled={!message.trim() || isDiscardingFile || operationInProgress}
+            disabled={!message.trim() || isDiscardingFile || saveControlsDisabled}
             loading={isCommitting}
             size="sm"
             variant="default"
             className="flex-1"
           >
-            Save
+            Save Changes
           </Button>
         </div>
+        {updateWorkflowEnabled && isFeatureBranch && (
+          <label className="flex items-center gap-2 text-xs text-theme-secondary">
+            <input
+              type="checkbox"
+              checked={checkForConflicts}
+              onChange={(event) => setCheckForConflicts(event.target.checked)}
+              disabled={saveControlsDisabled || showAutoTrackModal || isApplyingAutoTrack}
+              className="h-4 w-4 rounded border-theme-default accent-blue-500"
+            />
+            <span>Check for conflicts</span>
+          </label>
+        )}
       </div>
 
       {/* Changed files list */}

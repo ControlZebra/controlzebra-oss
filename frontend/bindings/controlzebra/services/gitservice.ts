@@ -943,6 +943,14 @@ export function RevertCommitWithMessage(repoPath: string, commitHash: string, me
 }
 
 /**
+ * SetRepoEventBus wires the service to the repository event bus so state
+ * holders such as the conflict queue can react to mutating operations.
+ */
+export function SetRepoEventBus(bus: $models.RepoEventBus | null): $CancellablePromise<void> {
+    return $Call.ByID(875315372, bus);
+}
+
+/**
  * ShowCommit returns detailed information about a specific commit
  * Uses concurrent goroutines to fetch metadata, numstat, and name-status in parallel
  */

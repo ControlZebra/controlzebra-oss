@@ -36,6 +36,7 @@ const {
   StartBackgroundTasks,
   StopBackgroundTasks,
   EnsureControlZebraDir,
+  IsDefaultBranchSyncEligible,
 } = vi.hoisted(() => ({
   analyticsMocks: {
     trackRepoOpened: vi.fn(),
@@ -93,6 +94,7 @@ const {
   StartBackgroundTasks: vi.fn(),
   StopBackgroundTasks: vi.fn(),
   EnsureControlZebraDir: vi.fn(),
+  IsDefaultBranchSyncEligible: vi.fn(),
 }));
 
 vi.mock('../../auth/context/AuthContext', () => ({
@@ -184,6 +186,10 @@ vi.mock('../../../../bindings/controlzebra/services/localbinservice', () => ({
 
 vi.mock('../../../../bindings/controlzebra/services/progressservice', () => ({
   SyncWithProgress,
+}));
+
+vi.mock('../../../../bindings/controlzebra/services/integrationsessionservice', () => ({
+  IsDefaultBranchSyncEligible,
 }));
 
 vi.mock('../../../../bindings/controlzebra/services/settingsservice', () => ({
@@ -294,7 +300,8 @@ describe('RepoContext analytics validation', () => {
     GetPresetPatterns.mockResolvedValue([]);
     TrackPattern.mockResolvedValue({ success: true });
 
-    SyncWithProgress.mockResolvedValue({ success: true });
+    SyncWithProgress.mockResolvedValue({ success: true, outcome: 'synced', message: 'Synced successfully' });
+    IsDefaultBranchSyncEligible.mockResolvedValue(false);
     Pull.mockResolvedValue({ success: true, message: 'Already up to date' });
     EnsurePortableToolchainIfNeeded.mockResolvedValue({ success: true });
 
@@ -394,6 +401,64 @@ describe('RepoContext analytics validation', () => {
     const calls = analyticsMocks.trackSyncCompleted.mock.calls;
     const args = calls[calls.length - 1]?.[0] as { durationMs: number };
     expect(args.durationMs).toBeGreaterThan(0);
+  });
+
+  it('requires confirmation before syncing the actual default branch', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      await api!.openRepo('/tmp/default-sync');
+    });
+    IsDefaultBranchSyncEligible.mockResolvedValueOnce(true);
+
+    let syncPromise: Promise<boolean> | null = null;
+    await act(async () => {
+      syncPromise = api!.syncRepo();
+      await Promise.resolve();
+    });
+
+    expect(api!.defaultBranchSyncPrompt).toEqual({ isOpen: true, branch: 'main' });
+    expect(SyncWithProgress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      api!.confirmDefaultBranchSync();
+      await syncPromise;
+    });
+    expect(SyncWithProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes Sync progress without success or failure analytics when decisions are needed', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      await api!.openRepo('/tmp/default-conflict');
+    });
+    IsDefaultBranchSyncEligible.mockResolvedValueOnce(true);
+    SyncWithProgress.mockResolvedValueOnce({
+      success: false,
+      outcome: 'needs-decisions',
+      message: 'Files need decisions',
+    });
+
+    let syncPromise: Promise<boolean> | null = null;
+    await act(async () => {
+      syncPromise = api!.syncRepo();
+      await Promise.resolve();
+      api!.confirmDefaultBranchSync();
+      await syncPromise;
+    });
+
+    expect(api!.progressModal.isOpen).toBe(false);
+    expect(analyticsMocks.trackSyncCompleted).not.toHaveBeenCalled();
+    expect(analyticsMocks.trackSyncFailed).not.toHaveBeenCalled();
   });
 
   it('preserves merge review target and source refs from the backend payload', async () => {

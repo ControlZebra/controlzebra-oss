@@ -1,15 +1,15 @@
 {
 	"fixed": {
-		"file_version": "v0.0.2"
+		"file_version": "v0.0.1"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "v0.0.2",
+			"ProductVersion": "v0.0.1",
 			"CompanyName": "ControlZebra",
 			"FileDescription": "ControlZebra",
 			"LegalCopyright": "(c) 2025, ControlZebra",
 			"ProductName": "ControlZebra",
-			"Comments": "Democratizing git for everyone"
+			"Comments": "ControlZebra"
 		}
 	}
 }

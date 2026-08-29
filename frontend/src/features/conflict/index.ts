@@ -1,4 +1,6 @@
+export { ConflictQueueProvider, useConflictQueue } from './context/ConflictQueueContext';
 export { default as ConflictQueue } from './components/modal/ConflictQueue';
+export { default as ConflictQueueSection } from './components/sidebar/ConflictQueueSection';
 export {
   areConflictDecisionsComplete,
   isDecisionUsable,

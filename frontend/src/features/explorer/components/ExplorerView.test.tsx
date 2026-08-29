@@ -14,6 +14,18 @@ const { layoutStore } = vi.hoisted(() => ({
   },
 }));
 
+const { integrationStore } = vi.hoisted(() => ({
+  integrationStore: {
+    current: {
+      enabled: true,
+      session: null as { state: string; message: string; error?: string } | null,
+      entries: [] as Array<{ path: string }>,
+      isBusy: false,
+      startUpdate: vi.fn(),
+    },
+  },
+}));
+
 vi.mock('../../../context', () => ({
   useRepo: () => {
     const { useSyncExternalStore } = require('react') as typeof import('react');
@@ -28,6 +40,10 @@ vi.mock('../../../context', () => ({
     );
   },
   useLayout: () => layoutStore.current,
+}));
+
+vi.mock('../../integration', () => ({
+  useIntegrationSession: () => integrationStore.current,
 }));
 
 vi.mock('./SidebarCommitPanel', () => ({
@@ -126,6 +142,8 @@ describe('ExplorerView', () => {
     repoStore.listeners.clear();
     repoStore.current = null;
     layoutStore.current = null;
+    integrationStore.current.session = null;
+    integrationStore.current.entries = [];
   });
 
   it('keeps the merge modal mounted when merge start changes the panel to has changes', () => {
@@ -166,6 +184,29 @@ describe('ExplorerView', () => {
     expect(screen.getByRole('button', { name: 'Open merge modal' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Timeline' })).toBeInTheDocument();
     expect(screen.getByTestId('explorer-timeline')).toBeInTheDocument();
+  });
+
+  it('keeps owned default-branch conflicts in persistent review status', () => {
+    integrationStore.current.session = {
+      state: 'needs-decisions',
+      message: 'Some files need a decision.',
+    };
+    integrationStore.current.entries = [{ path: 'shared.txt' }];
+    repoStore.current = createRepoValue({
+      repoStatus: {
+        changedFiles: [{ path: 'shared.txt', status: 'modified' }],
+        ahead: 1,
+        hasUpstream: true,
+        totalLocalCommits: 1,
+        branch: 'main',
+      },
+    });
+    layoutStore.current = createLayoutValue();
+
+    render(<ExplorerView />);
+
+    expect(screen.queryByTestId('sidebar-commit-panel')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open merge modal' })).toBeInTheDocument();
   });
 
   it('opens a commit tab when the explorer timeline selects a commit', () => {

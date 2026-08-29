@@ -44,16 +44,25 @@ export function SetApp(app: application$0.App | null): $CancellablePromise<void>
 }
 
 /**
+ * SetRepoEventBus wires the service to the repository event bus so state
+ * holding services can react to the operations it runs.
+ */
+export function SetRepoEventBus(bus: $models.RepoEventBus | null): $CancellablePromise<void> {
+    return $Call.ByID(3862646179, bus);
+}
+
+/**
  * SyncWithProgress performs git pull + push with progress updates
  * For branches without an upstream, it skips pull and just pushes with --set-upstream
  * prune: if true, adds --prune to remove stale remote-tracking branches
  * tags: if true, adds --tags to fetch all tags
  */
-export function SyncWithProgress(repoPath: string, operationID: string, prune: boolean, tags: boolean): $CancellablePromise<$models.OperationResult> {
+export function SyncWithProgress(repoPath: string, operationID: string, prune: boolean, tags: boolean): $CancellablePromise<$models.SyncResult> {
     return $Call.ByID(2296486007, repoPath, operationID, prune, tags).then(($result: any) => {
-        return $$createType0($result);
+        return $$createType1($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = $models.OperationResult.createFrom;
+const $$createType1 = $models.SyncResult.createFrom;
