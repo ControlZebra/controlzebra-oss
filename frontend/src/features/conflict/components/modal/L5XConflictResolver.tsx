@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { l5xConflictVisualAdapter } from 'ladder-visualizer';
 import type { VisualConflictFallback, VisualConflictRegion } from 'ladder-visualizer';
 
 import {
@@ -16,13 +15,12 @@ import {
 } from '../../../../shared/ui';
 import type { ResolutionStrategy } from '../../../../domain/repo/context/RepoContext.types';
 import type {
-  ConflictRegion,
   ConflictRegionDecision,
   ConflictResolutionData,
   TextConflictDraft,
 } from '../../types';
 import { areConflictDecisionsComplete } from '../../types';
-import { expandRegionToSemanticUnit } from '../../lib/l5x-region-expansion';
+import { classifyL5XRegion } from '../../lib/l5x-region-classification';
 import L5XVisualRegionCard from './L5XVisualRegionCard';
 import TextConflictBlock from './TextConflictBlock';
 
@@ -37,30 +35,6 @@ interface L5XConflictResolverProps {
 }
 
 type PendingBulk = { kind: 'whole-file'; strategy: ResolutionStrategy };
-
-function joinRegionLines(lines: readonly string[], newline: string): string {
-  return lines.join(newline);
-}
-
-function classifyRegion(
-  region: ConflictRegion,
-  newline: string,
-): VisualConflictRegion | VisualConflictFallback {
-  // A hunk rarely covers a whole element, so classify the enclosing unit rebuilt
-  // from context and only fall back to the raw lines when that is not possible.
-  const expanded = expandRegionToSemanticUnit(region, newline);
-  if (expanded) {
-    const result = l5xConflictVisualAdapter.classifyRegion(expanded.current, expanded.incoming);
-    if ('kind' in result) {
-      return result;
-    }
-  }
-
-  return l5xConflictVisualAdapter.classifyRegion(
-    joinRegionLines(region.current, newline),
-    joinRegionLines(region.incoming, newline),
-  );
-}
 
 function isVisualRegion(result: VisualConflictRegion | VisualConflictFallback): result is VisualConflictRegion {
   return 'kind' in result;
@@ -96,7 +70,7 @@ function L5XConflictResolver({
   // Only the visible region is classified; classifying every region up front parsed
   // XML for sections the user may never open.
   const activeClassification = useMemo(
-    () => (activeRegion ? classifyRegion(activeRegion, newline) : undefined),
+    () => (activeRegion ? classifyL5XRegion(activeRegion, newline) : undefined),
     [activeRegion, newline],
   );
   const hasExistingChoices = Object.values(draft.decisions).some((decision) => decision.mode !== 'unresolved');
