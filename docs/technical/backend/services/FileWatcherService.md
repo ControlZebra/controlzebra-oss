@@ -59,7 +59,7 @@ Event name: `"file-changes"` — emits array of `FileChangeEvent`.
 
 ## Frontend Consumption
 
-The frontend's [[Context Providers#RepoContext|RepoContext]] subscribes to `file-changes` events:
+The frontend's [RepoContext](../../frontend/Context%20Providers.md#repocontext) subscribes to `file-changes` events:
 
 ```tsx
 Events.On("file-changes", () => {
@@ -68,7 +68,7 @@ Events.On("file-changes", () => {
 });
 ```
 
-This is the **primary** state sync mechanism. See [[State Management]] for the full sync strategy.
+This is the **primary** state sync mechanism. See [State Management](../../architecture/State%20Management.md) for the full sync strategy.
 
 ## Lifecycle
 
@@ -87,4 +87,4 @@ Repo changed → Unwatch() + Watch(newPath)
 
 ---
 
-**Related:** [[State Management]] | [[Event System]] | [[Context Providers]]
+**Related:** [State Management](../../architecture/State%20Management.md) | [Event System](../../architecture/Event%20System.md) | [Context Providers](../../frontend/Context%20Providers.md)

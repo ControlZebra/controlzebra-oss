@@ -43,7 +43,7 @@
 ## Key Architectural Decisions
 
 ### 1. CLI-First Principle
-All git operations use `os/exec` via [[CommandRunner]] to call the `git`, `gh`, and `git-lfs` CLI tools. We do **not** use go-git or any Go git library directly.
+All git operations use `os/exec` via [CommandRunner](../infrastructure/CommandRunner.md) to call the `git`, `gh`, and `git-lfs` CLI tools. We do **not** use go-git or any Go git library directly.
 
 **Why:** CLI tools are the most tested, most compatible path. Users' existing git configs, credential helpers, SSH keys, and GPG setups all work automatically.
 
@@ -62,21 +62,21 @@ All backend logic lives in `services/*.go`. Each service is a Go struct with:
 - Exported methods (auto-exposed to frontend)
 - An optional `SetApp()` method for event emission
 
-Services are registered in `main.go` via `application.NewService()`. See [[Services Index]] for the complete list.
+Services are registered in `main.go` via `application.NewService()`. See [Services Index](../backend/Services%20Index.md) for the complete list.
 
 ### 4. Context-Based State Management
 The frontend uses three React Contexts to manage all application state:
-- **[[Context Providers#RepoContext|RepoContext]]** — Git state machine (repo, status, commits, diffs, branches, merge, stash)
-- **[[Context Providers#LayoutContext|LayoutContext]]** — UI state (active view, sidebar, theme, explorer tabs)
-- **[[Context Providers#AuthContext|AuthContext]]** — Supabase session (login/logout, keychain persistence)
+- **[RepoContext](../frontend/Context%20Providers.md#repocontext)** — Git state machine (repo, status, commits, diffs, branches, merge, stash)
+- **[LayoutContext](../frontend/Context%20Providers.md#layoutcontext)** — UI state (active view, sidebar, theme, explorer tabs)
+- **[AuthContext](../frontend/Context%20Providers.md#authcontext)** — Supabase session (login/logout, keychain persistence)
 
 ### 5. Event-Driven Sync
-The backend pushes state changes to the frontend via [[Event System|Wails events]]:
+The backend pushes state changes to the frontend via [Wails events](Event%20System.md):
 - `file-changes` — Filesystem watcher detected changes
 - `git-progress` — Streaming progress for long git operations
 - `local-bin:progress` — Portable tool download progress
 
-The frontend combines events with a 30-second polling fallback and immediate refresh after every git operation. See [[State Management]] for details.
+The frontend combines events with a 30-second polling fallback and immediate refresh after every git operation. See [State Management](State%20Management.md) for details.
 
 ## Technology Stack
 
@@ -153,4 +153,4 @@ main.go startup:
 
 ---
 
-**Next:** [[Backend Architecture]] | [[Frontend Architecture]] | [[Event System]]
+**Next:** [Backend Architecture](../backend/Backend%20Architecture.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [Event System](Event%20System.md)

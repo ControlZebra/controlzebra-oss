@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Go development environment set up
-- Understanding of [[Backend Architecture]] and [[Services Index]]
+- Understanding of [Backend Architecture](../backend/Backend%20Architecture.md) and [Services Index](../backend/Services%20Index.md)
 - Wails CLI installed (`wails3`)
 
 ## Steps
@@ -137,4 +137,4 @@ func TestDoSomething(t *testing.T) {
 
 ---
 
-**Related:** [[Backend Architecture]] | [[Services Index]] | [[Testing Guide]]
+**Related:** [Backend Architecture](../backend/Backend%20Architecture.md) | [Services Index](../backend/Services%20Index.md) | [Testing Guide](Testing%20Guide.md)

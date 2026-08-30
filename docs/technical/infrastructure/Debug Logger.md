@@ -98,7 +98,7 @@ When `SetApp()` is called, new log entries are emitted as events:
 s.app.Event.Emit("debug:new-log", entry)
 ```
 
-The frontend [[Debug Feature|DebugPage]] subscribes to these for real-time log display.
+The frontend [DebugPage](Debug%20Logger.md) subscribes to these for real-time log display.
 
 ## Usage in Services
 
@@ -115,4 +115,4 @@ GetDebugLogger().LogCommand("CommandRunner", LogDetails{
 
 ---
 
-**Related:** [[DebugService]] (frontend facade) | [[CommandRunner]] (auto-logs commands)
+**Related:** [DebugService](../backend/services/Other%20Services.md#debugservice) (frontend facade) | [CommandRunner](CommandRunner.md) (auto-logs commands)

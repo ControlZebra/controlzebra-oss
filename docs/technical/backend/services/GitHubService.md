@@ -108,11 +108,11 @@ The primary frontend touchpoints:
 - **PublishToCloudModal** — Creates GitHub repo from local project
 - **WelcomeView** — Shows "Connect to GitHub" CTA if not authenticated
 
-See [[Welcome Feature]] and [[Explorer Feature]] for frontend details.
+See [Welcome Feature](../../frontend/features/Feature%20Docs.md#welcome-feature) and [Explorer Feature](../../frontend/features/Explorer%20Feature.md) for frontend details.
 
 ## Change Requests
 
-GitHubService also owns the Change Requests feature (GitHub pull requests, surfaced to users as "Change Requests"). See the [Change Requests Implementation Plan](../../../plans/Change%20Requests%20Implementation%20Plan.md) for the full contract.
+GitHubService also owns the Change Requests feature (GitHub pull requests, surfaced to users as "Change Requests"). See the [Change Requests](../../../product/Change%20Requests.md) for the full contract.
 
 ### Create Flow Methods
 | Method | `gh` / `git` Command | Purpose |
@@ -145,8 +145,8 @@ Decode `gh --json` output into the internal `changeRequestJSON` struct before ma
 
 Created requests reuse the same snapshot-ref pipeline as browsing: the viewer compares immutable local ref names (merge-base `baseRef`..`headRef`), not raw OIDs, so specialized viewers behave identically to merge review. See `services/change_request_snapshot.go`.
 
-See [[Welcome Feature]] and the Reviews feature (`frontend/src/features/reviews/`) for frontend details.
+See [Welcome Feature](../../frontend/features/Feature%20Docs.md#welcome-feature) and the Reviews feature (`frontend/src/features/reviews/`) for frontend details.
 
 ---
 
-**Related:** [[AuthService]] (Supabase, separate from GitHub) | [[CLI Resolver]] (gh binary resolution)
+**Related:** [AuthService](Other%20Services.md#authservice) (Supabase, separate from GitHub) | [CLI Resolver](../../infrastructure/CLI%20Resolver.md) (gh binary resolution)

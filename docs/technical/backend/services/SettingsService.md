@@ -4,7 +4,7 @@
 
 ## Overview
 
-SettingsService handles app-level preferences (theme, recent folders) and git user identity configuration. Distinct from [[RepositorySettingsService]] which handles per-repo config.
+SettingsService handles app-level preferences (theme, recent folders) and git user identity configuration. Distinct from [RepositorySettingsService](RepositorySettingsService.md) which handles per-repo config.
 
 ## Constructor
 
@@ -102,4 +102,4 @@ wg.Wait()
 
 ---
 
-**Related:** [[RepositorySettingsService]] (per-repo) | [[AuthService]] (Supabase session)
+**Related:** [RepositorySettingsService](RepositorySettingsService.md) (per-repo) | [AuthService](Other%20Services.md#authservice) (Supabase session)

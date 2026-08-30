@@ -275,4 +275,4 @@ The conflict event is separate from `conflictQueue:changed`. This prevents the i
 - Decisions from an obsolete review are not reused.
 - The session workflow remains behind Developer Mode until the legacy path is removed.
 
-**Related:** [[ConflictQueueService]] | [[Git Workflows]] | [[Event Reference]] | [[Isolated Conflict Resolution Plan]]
+**Related:** [ConflictQueueService](ConflictQueueService.md) | [Git Workflows](../../guides/Git%20Workflows.md) | [Event Reference](../../reference/Event%20Reference.md)

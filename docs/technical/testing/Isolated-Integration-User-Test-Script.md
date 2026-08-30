@@ -1,7 +1,7 @@
 # Isolated Integration - User Test Script
 
 Manual acceptance script for the completed portions of the
-[Isolated Pre-Merge Conflict Readiness Action Plan](../../plans/Isolated%20Conflict%20Resolution%20Plan.md).
+[IntegrationSessionService](../backend/services/IntegrationSessionService.md).
 
 This script covers Phases 0, 1, 2, 3, and the completed portions of Phase 4.
 It does not cover Phase 5 cleanup, the uncompleted Windows run log, or the

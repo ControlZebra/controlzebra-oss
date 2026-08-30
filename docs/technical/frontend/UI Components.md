@@ -123,4 +123,4 @@ className="bg-theme-base text-theme-primary border-theme-muted"
 
 ---
 
-**Related:** [[Frontend Architecture]] | [[Layout System]]
+**Related:** [Frontend Architecture](Frontend%20Architecture.md) | [Layout System](Layout%20System.md)

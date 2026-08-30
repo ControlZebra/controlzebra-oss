@@ -4,8 +4,8 @@
 
 ## Prerequisites
 
-- Understanding of [[Layout System]] and [[Frontend Architecture]]
-- Familiarity with [[Context Providers#LayoutContext|LayoutContext]]
+- Understanding of [Layout System](../frontend/Layout%20System.md) and [Frontend Architecture](../frontend/Frontend%20Architecture.md)
+- Familiarity with [LayoutContext](../frontend/Context%20Providers.md#layoutcontext)
 
 ## Steps
 
@@ -134,4 +134,4 @@ features/my-feature/
 
 ---
 
-**Related:** [[Layout System]] | [[Frontend Architecture]] | [[UI Components]]
+**Related:** [Layout System](../frontend/Layout%20System.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [UI Components](../frontend/UI%20Components.md)

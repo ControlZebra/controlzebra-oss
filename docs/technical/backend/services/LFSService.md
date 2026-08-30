@@ -83,7 +83,7 @@ User clicks "Save Changes"
     → Proceed with CommitAll()
 ```
 
-See [[Explorer Feature]] for the frontend integration.
+See [Explorer Feature](../../frontend/features/Explorer%20Feature.md) for the frontend integration.
 
 ## Key Types
 
@@ -118,4 +118,4 @@ type LargeFileInfo struct {
 
 ---
 
-**Related:** [[GitService]] | [[RepositorySettingsService]] (LFS background fetch task) | [[Explorer Feature]]
+**Related:** [GitService](GitService.md) | [RepositorySettingsService](RepositorySettingsService.md) (LFS background fetch task) | [Explorer Feature](../../frontend/features/Explorer%20Feature.md)

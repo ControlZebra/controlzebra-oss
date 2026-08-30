@@ -4,7 +4,7 @@
 
 ## Structure
 
-All documentation lives in `docs/` with this structure:
+Public documentation lives in `docs/` with this structure:
 
 ```
 docs/
@@ -19,9 +19,8 @@ docs/
     infrastructure/                → CLI runner, data paths, logging
     guides/                        → How-to guides
     reference/                     → Constants, events, env vars
-    archive/                       → Old docs (preserved for reference)
   onboarding/                      → New engineer docs
-  processes/                       → Team workflow docs
+  processes/                       → Public contribution workflow
 ```
 
 ## Writing Guidelines
@@ -38,21 +37,13 @@ Every documentation page should include:
 1. **Title** — `# Page Name` (matches the filename)
 2. **Summary** — One-line blockquote below the title: `> What this page covers`
 3. **Body** — Content organized with `##` and `###` headings
-4. **Related links** — At the bottom: `**Related:** [[Page1]] | [[Page2]]`
+4. **Related links** — At the bottom: `**Related:** [Page title](relative-path.md)`
 
 ### Cross-Linking
 
-Use Obsidian `[[wiki-link]]` syntax:
-
-```markdown
-See [[Architecture Overview]] for the full picture.
-The [[CommandRunner]] handles all CLI execution.
-Check [[GitService#Commit Methods]] for details.
-```
-
-- Link to page: `[[Page Name]]`
-- Link to section: `[[Page Name#Section]]`
-- Aliased link: `[[Page Name|display text]]`
+Use relative Markdown links so documentation works on GitHub and in local editors.
+Encode spaces in link targets as `%20`. Link only to public files that exist and
+prefer a page link when a stable section anchor is unavailable.
 
 ### Code Blocks
 
@@ -87,28 +78,29 @@ Use tables for reference data, parameter lists, and comparisons:
 
 | Change | Documentation Action |
 |---|---|
-| New Go service | Add to [[Services Index]], create service page in `backend/services/` |
+| New Go service | Add to [Services Index](../technical/backend/Services%20Index.md), create service page in `backend/services/` |
 | New service method | Update the relevant service doc |
-| New frontend view | Update [[Layout System]], create feature doc if substantial |
-| New viewer | Update [[Viewer System]], follow [[Adding a New Viewer]] |
-| New event | Update [[Event Reference]] and [[Event System]] |
-| New constant | Update [[Constants Reference]] |
-| Changed env var | Update [[Environment Variables]] |
-| New build step | Update [[Build and Release]] and [[Development Setup]] |
+| New frontend view | Update [Layout System](../technical/frontend/Layout%20System.md), create feature doc if substantial |
+| New viewer | Update [Viewer System](../technical/frontend/Viewer%20System.md), follow [Adding a New Viewer](../technical/guides/Adding%20a%20New%20Viewer.md) |
+| New event | Update [Event Reference](../technical/reference/Event%20Reference.md) and [Event System](../technical/architecture/Event%20System.md) |
+| New constant | Update [Constants Reference](../technical/reference/Constants%20Reference.md) |
+| Changed env var | Update [Environment Variables](../technical/reference/Environment%20Variables.md) |
+| New build step | Update [Build and Release](../technical/guides/Build%20and%20Release.md) and [Development Setup](../onboarding/Development%20Setup.md) |
 | Architecture decision | Update relevant architecture doc |
 
 ## File Naming
 
 - Use **Title Case with spaces**: `Adding a New Service.md`, not `adding-a-new-service.md`
-- Obsidian handles spaces in filenames natively
+- Encode spaces in Markdown link targets
 - Keep names concise but descriptive
 
 ## Maintenance
 
 - Review docs quarterly for accuracy
 - After major refactors, audit affected pages
-- Archive outdated docs to `docs/technical/archive/` rather than deleting
+- Keep working plans, internal reviews, incident reports, and release operations in private storage outside this repository.
+- Preserve superseded internal material privately; maintain current public guides here.
 
 ---
 
-**Related:** [[HOME]] | [[Onboarding Guide]] | [[Development Workflow]]
+**Related:** [HOME](../HOME.md) | [Onboarding Guide](../onboarding/Onboarding%20Guide.md) | [Development Workflow](Development%20Workflow.md)

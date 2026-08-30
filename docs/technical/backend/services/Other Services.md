@@ -6,7 +6,7 @@
 
 `services/image_diff_service.go` — ~327 lines
 
-Performs pixel-level image comparison between git revisions. Used by the [[Viewer System|ImageDiffViewer]].
+Performs pixel-level image comparison between git revisions. Used by the [ImageDiffViewer](../../frontend/Viewer%20System.md).
 
 | Method | Purpose |
 |--------|---------|
@@ -29,7 +29,7 @@ Native OS folder picker dialog. Wails v3 provides this API.
 
 `services/auth_service.go` — ~95 lines
 
-Supabase session persistence via OS keychain. **This is separate from GitHub auth** (which uses [[GitHubService]]).
+Supabase session persistence via OS keychain. **This is separate from GitHub auth** (which uses [GitHubService](GitHubService.md)).
 
 ```go
 const (
@@ -53,7 +53,7 @@ const (
 
 `services/debug_service.go` — ~67 lines
 
-Frontend facade for the [[Debug Logger]] singleton.
+Frontend facade for the [Debug Logger](../../infrastructure/Debug%20Logger.md) singleton.
 
 | Method | Purpose |
 |--------|---------|
@@ -107,8 +107,8 @@ Detects BusyBox MinGit (which breaks Windows credential helpers) and replaces it
 - `CZ_PORTABLE_GH_URL`
 - `CZ_PORTABLE_LFS_URL`
 
-After installation, calls `RefreshCLIPaths()` on the [[CLI Resolver]] to pick up new binaries.
+After installation, calls `RefreshCLIPaths()` on the [CLI Resolver](../../infrastructure/CLI%20Resolver.md) to pick up new binaries.
 
 ---
 
-**Related:** [[Services Index]] | [[Backend Architecture]]
+**Related:** [Services Index](../Services%20Index.md) | [Backend Architecture](../Backend%20Architecture.md)

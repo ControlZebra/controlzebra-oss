@@ -2,7 +2,7 @@
  * PostHog Analytics Module for ControlZebra
  *
  * Provides centralized analytics tracking functions with consent-level filtering.
- * See docs/plans/POSTHOG_INTEGRATION_STRATEGY.md for event taxonomy.
+ * Event categories and consent behavior are documented below.
  * 
  * Event Categories:
  * - 'error': Error and crash events (tracked at all levels including minimal)

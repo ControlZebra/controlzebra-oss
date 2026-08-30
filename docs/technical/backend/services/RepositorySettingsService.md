@@ -4,7 +4,7 @@
 
 ## Overview
 
-RepositorySettingsService manages per-repo settings (separate from app-wide [[SettingsService]]), runs background maintenance tasks, provides diagnostic tools, and offers recovery mechanisms for stuck git states.
+RepositorySettingsService manages per-repo settings (separate from app-wide [SettingsService](SettingsService.md)), runs background maintenance tasks, provides diagnostic tools, and offers recovery mechanisms for stuck git states.
 
 ## Constructor
 
@@ -131,4 +131,4 @@ Settings that should be shared with collaborators are stored inside the repo:
 
 ---
 
-**Related:** [[SettingsService]] (app-wide) | [[GitService]] | [[FileWatcherService]]
+**Related:** [SettingsService](SettingsService.md) (app-wide) | [GitService](GitService.md) | [FileWatcherService](FileWatcherService.md)

@@ -36,7 +36,7 @@ HistoryPage mounts
 
 ---
 
-**Related:** [[GitService]] (commit log methods) | [[Layout System]]
+**Related:** [GitService](../../backend/services/GitService.md) (commit log methods) | [Layout System](../Layout%20System.md)
 
 
 ---
@@ -88,7 +88,7 @@ User selects source branch in BranchModal
 
 ---
 
-**Related:** [[GitService]] (merge methods) | [[Explorer Feature]] | [[Git Workflows]]
+**Related:** [GitService](../../backend/services/GitService.md) (merge methods) | [Explorer Feature](Explorer%20Feature.md) | [Git Workflows](../../guides/Git%20Workflows.md)
 
 
 ---
@@ -104,7 +104,7 @@ The Welcome screen is shown when no repository is open. It provides four paths t
 ## Sub-Pages
 
 ### RecentProjectsPage
-- List of recently opened repositories (from [[SettingsService]])
+- List of recently opened repositories (from [SettingsService](../../backend/services/SettingsService.md))
 - Click to reopen
 - Remove from recents
 
@@ -113,17 +113,17 @@ The Welcome screen is shown when no repository is open. It provides four paths t
   1. Choose folder location
   2. Set project name
   3. Initialize git repo
-  4. Optional: create GitHub repo ([[GitHubService]])
+  4. Optional: create GitHub repo ([GitHubService](../../backend/services/GitHubService.md))
   5. Optional: configure LFS patterns
 
 ### CloneProjectPage
 - GitHub authentication check
-- List of user's GitHub repos (from [[GitHubService]])
+- List of user's GitHub repos (from [GitHubService](../../backend/services/GitHubService.md))
 - Choose destination folder
-- Clone with progress ([[ProgressService]])
+- Clone with progress ([ProgressService](../../backend/services/ProgressService.md))
 
 ### OpenFolderPage
-- Native folder picker (from [[FileDialogService]])
+- Native folder picker (from [FileDialogService](../../backend/services/Other%20Services.md#filedialogservice))
 - Opens existing git repo
 - If not a git repo → NonGitFolderPromptModal (offer to initialize)
 
@@ -136,4 +136,4 @@ The Welcome screen is shown when no repository is open. It provides four paths t
 
 ---
 
-**Related:** [[GitHubService]] | [[SettingsService]] | [[FileDialogService]]
+**Related:** [GitHubService](../../backend/services/GitHubService.md) | [SettingsService](../../backend/services/SettingsService.md) | [FileDialogService](../../backend/services/Other%20Services.md#filedialogservice)

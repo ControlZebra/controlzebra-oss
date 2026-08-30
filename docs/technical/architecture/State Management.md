@@ -149,4 +149,4 @@ External editor saves file
 
 ---
 
-**Related:** [[Event System]] | [[Context Providers]] | [[Frontend Architecture]]
+**Related:** [Event System](Event%20System.md) | [Context Providers](../frontend/Context%20Providers.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md)

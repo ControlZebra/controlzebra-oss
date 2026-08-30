@@ -189,4 +189,4 @@ vi.mock('../../bindings/controlzebra/services/gitservice', () => ({
 
 ---
 
-**Related:** [[Adding a New Service]] | [[Build and Release]]
+**Related:** [Adding a New Service](Adding%20a%20New%20Service.md) | [Build and Release](Build%20and%20Release.md)

@@ -89,4 +89,4 @@ Never hardcode paths or construct them manually.
 
 ---
 
-**Related:** [[SettingsService]] | [[RepositorySettingsService]] | [[Backend Architecture]]
+**Related:** [SettingsService](../backend/services/SettingsService.md) | [RepositorySettingsService](../backend/services/RepositorySettingsService.md) | [Backend Architecture](../backend/Backend%20Architecture.md)

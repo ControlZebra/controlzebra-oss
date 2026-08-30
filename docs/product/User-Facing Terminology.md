@@ -61,4 +61,4 @@ When adding any user-facing text:
 
 ---
 
-See also: [[Product Overview]], [[Explorer Feature]]
+See also: [Product Overview](Product%20Overview.md), [Explorer Feature](../technical/frontend/features/Explorer%20Feature.md)

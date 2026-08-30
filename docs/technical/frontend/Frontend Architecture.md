@@ -154,4 +154,4 @@ toast.info("New updates available");
 
 ---
 
-**Next:** [[Layout System]] | [[Context Providers]] | [[UI Components]] | [[Viewer System]]
+**Next:** [Layout System](Layout%20System.md) | [Context Providers](Context%20Providers.md) | [UI Components](UI%20Components.md) | [Viewer System](Viewer%20System.md)

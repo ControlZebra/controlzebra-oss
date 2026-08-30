@@ -22,5 +22,37 @@ test-updates/
 # Local Windows self-signed code-signing artifacts
 build/certs/
 .DS_Store
-docs/.obsidian/workspace.json
-docs/.obsidian/workspace.json
+
+# Personal environment and editor state (templates remain public)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.obsidian/
+*.code-workspace
+__pycache__/
+
+# Executables produced by ad-hoc builds and compiled tests
+/changeme
+/controlzebra
+/services.test.exe
+*.test
+*.test.exe
+
+# Working documentation is maintained privately, outside this repository
+/docs/plans/
+/docs/audit/
+/docs/technical/archive/
+/docs/Product Docs/
+/docs/product/ROADMAP.md
+/docs/processes/Release Process.md
+/docs/processes/Incident Response.md
+/v2-frontend-ux-plan.md
+
+# Private credentials and repository recovery material
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+*.bundle

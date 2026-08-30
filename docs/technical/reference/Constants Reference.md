@@ -4,7 +4,7 @@
 
 ## VIEWS
 
-View IDs used by the [[Layout System|view registry]] and [[Context Providers#LayoutContext|LayoutContext]]:
+View IDs used by the [view registry](../frontend/Layout%20System.md) and [LayoutContext](../frontend/Context%20Providers.md#layoutcontext):
 
 ```tsx
 export const VIEWS = {
@@ -106,4 +106,4 @@ export interface DiffContext {
 
 ---
 
-**Related:** [[Frontend Architecture]] | [[Layout System]] | [[UI Components]]
+**Related:** [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [Layout System](../frontend/Layout%20System.md) | [UI Components](../frontend/UI%20Components.md)

@@ -74,10 +74,10 @@ type FileInfo struct {
 
 ## Usage Notes
 
-- **Text vs Binary:** Use `ReadTextFile` for source code, config files. Use `ReadFileBase64` for images, PDFs, and binary files displayed in [[Viewer System|viewers]].
-- **Path handling:** All paths should be absolute. The frontend gets repo root from [[GitService]] and constructs full paths.
+- **Text vs Binary:** Use `ReadTextFile` for source code, config files. Use `ReadFileBase64` for images, PDFs, and binary files displayed in [viewers](../../frontend/Viewer%20System.md).
+- **Path handling:** All paths should be absolute. The frontend gets repo root from [GitService](GitService.md) and constructs full paths.
 - **Security:** File operations are sandboxed to user-accessible paths only. No symlink following outside the repo.
 
 ---
 
-**Related:** [[FileDialogService]] | [[Viewer System]]
+**Related:** [FileDialogService](Other%20Services.md#filedialogservice) | [Viewer System](../../frontend/Viewer%20System.md)

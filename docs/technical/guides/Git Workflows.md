@@ -173,4 +173,4 @@ The `RecoveryBanner` component shows when a stuck state is detected, with one-cl
 
 ---
 
-**Related:** [[GitService]] | [[ProgressService]] | [[User-Facing Terminology]]
+**Related:** [GitService](../backend/services/GitService.md) | [ProgressService](../backend/services/ProgressService.md) | [User-Facing Terminology](../../product/User-Facing%20Terminology.md)

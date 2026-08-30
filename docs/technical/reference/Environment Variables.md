@@ -8,10 +8,10 @@ Set in `.env` or CI environment:
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `VITE_PUBLIC_POSTHOG_KEY` | PostHog analytics API key | Production |
-| `VITE_PUBLIC_POSTHOG_HOST` | PostHog API host URL | Production |
-| `VITE_SUPABASE_URL` | Supabase project URL | Yes |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key | Yes |
+| `VITE_PUBLIC_POSTHOG_KEY` | PostHog analytics API key | Optional |
+| `VITE_PUBLIC_POSTHOG_HOST` | PostHog API host URL | Optional |
+| `VITE_SUPABASE_URL` | Supabase project URL | For account sign-in |
+| `VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY` | Supabase publishable key | For account sign-in |
 
 ## Runtime Variables (Go Backend)
 
@@ -23,7 +23,7 @@ Set in `.env` or CI environment:
 
 ## Git Environment (Set by CommandRunner)
 
-These are set by [[CommandRunner]] for every git command execution. They are **not user-configurable** — they enforce non-interactive mode:
+These are set by [CommandRunner](../infrastructure/CommandRunner.md) for every git command execution. They are **not user-configurable** — they enforce non-interactive mode:
 
 | Variable | Value | Purpose |
 |----------|-------|---------|
@@ -33,7 +33,7 @@ These are set by [[CommandRunner]] for every git command execution. They are **n
 
 ## Windows-Only: Removed Variables
 
-[[CommandRunner]] removes these to prevent conflicts with IDE credential helpers:
+[CommandRunner](../infrastructure/CommandRunner.md) removes these to prevent conflicts with IDE credential helpers:
 
 - `GIT_ASKPASS`
 - `SSH_ASKPASS`
@@ -44,4 +44,4 @@ These are set by [[CommandRunner]] for every git command execution. They are **n
 
 ---
 
-**Related:** [[CommandRunner]] | [[Build and Release]]
+**Related:** [CommandRunner](../infrastructure/CommandRunner.md) | [Build and Release](../guides/Build%20and%20Release.md)

@@ -91,7 +91,7 @@ type ConflictQueueEntry struct {
 }
 ```
 
-See [[ConflictQueueService]] for the full contract.
+See [ConflictQueueService](../backend/services/ConflictQueueService.md) for the full contract.
 
 ### IntegrationSessionSnapshot
 ```go
@@ -123,7 +123,7 @@ type SessionConflictSnapshot struct {
 }
 ```
 
-See [[IntegrationSessionService]] for the complete workflow and state model.
+See [IntegrationSessionService](../backend/services/IntegrationSessionService.md) for the complete workflow and state model.
 
 ## Subscribing (Frontend)
 
@@ -147,4 +147,4 @@ s.app.Event.Emit("event-name", payload)
 
 ---
 
-**Related:** [[Event System]] | [[State Management]]
+**Related:** [Event System](../architecture/Event%20System.md) | [State Management](../architecture/State%20Management.md)

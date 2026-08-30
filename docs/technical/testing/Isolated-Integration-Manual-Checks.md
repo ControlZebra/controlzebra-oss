@@ -1,6 +1,6 @@
 # Isolated Integration — Manual Windows Checks
 
-Phase 0 deliverable of [Isolated Conflict Resolution Plan](../../plans/Isolated%20Conflict%20Resolution%20Plan.md).
+Manual checks for [IntegrationSessionService](../backend/services/IntegrationSessionService.md).
 
 Windows is verified manually. There is no Windows CI for this feature, so this
 checklist is the only evidence that the isolated integration mechanics hold on

@@ -139,8 +139,8 @@ ReactDOM.createRoot(rootElement).render(<App />);
 
 ## Adding a New Viewer
 
-See [[Adding a New Viewer]] for the step-by-step guide.
+See [Adding a New Viewer](../guides/Adding%20a%20New%20Viewer.md) for the step-by-step guide.
 
 ---
 
-**Related:** [[Frontend Architecture]] | [[Layout System]] | [[Adding a New Viewer]]
+**Related:** [Frontend Architecture](Frontend%20Architecture.md) | [Layout System](Layout%20System.md) | [Adding a New Viewer](../guides/Adding%20a%20New%20Viewer.md)

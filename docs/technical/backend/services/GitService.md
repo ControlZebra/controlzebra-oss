@@ -16,7 +16,7 @@ func NewGitService() *GitService {
 }
 ```
 
-No event emission — all methods are synchronous request/response. For progress-streamed versions, see [[ProgressService]].
+No event emission — all methods are synchronous request/response. For progress-streamed versions, see [ProgressService](ProgressService.md).
 
 ## Method Categories
 
@@ -161,8 +161,8 @@ type StuckState struct {
 | Conflict resolution | Per-file, 3 options | "Keep Mine", "Keep Theirs", "Keep Both" |
 | Protected branches | Warn or require confirmation | Prevent accidental commits to main |
 
-See [[Git Workflows]] for complete workflow decision trees.
+See [Git Workflows](../../guides/Git%20Workflows.md) for complete workflow decision trees.
 
 ---
 
-**Related:** [[ProgressService]] (progress-wrapped versions) | [[LFSService]] | [[Git Workflows]]
+**Related:** [ProgressService](ProgressService.md) (progress-wrapped versions) | [LFSService](LFSService.md) | [Git Workflows](../../guides/Git%20Workflows.md)

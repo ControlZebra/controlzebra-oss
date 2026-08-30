@@ -82,7 +82,7 @@ Variables removed: `GIT_ASKPASS`, `SSH_ASKPASS`, `VSCODE_GIT_ASKPASS_*`, `ELECTR
 
 ## Debug Logging
 
-When debug logging is enabled ([[Debug Logger]]), every command execution is logged:
+When debug logging is enabled ([Debug Logger](Debug%20Logger.md)), every command execution is logged:
 
 ```go
 logger.LogCommand("CommandRunner", LogDetails{
@@ -110,7 +110,7 @@ Some operations need longer timeouts:
 
 ## Binary Path Resolution
 
-`RunGit()` and `RunGh()` use the [[CLI Resolver]] to find the correct binary:
+`RunGit()` and `RunGh()` use the [CLI Resolver](CLI%20Resolver.md) to find the correct binary:
 
 ```go
 func (r *CommandRunner) RunGit(repoPath string, args ...string) CommandResult {
@@ -121,4 +121,4 @@ func (r *CommandRunner) RunGit(repoPath string, args ...string) CommandResult {
 
 ---
 
-**Related:** [[CLI Resolver]] | [[Debug Logger]] | [[Backend Architecture]]
+**Related:** [CLI Resolver](CLI%20Resolver.md) | [Debug Logger](Debug%20Logger.md) | [Backend Architecture](../backend/Backend%20Architecture.md)

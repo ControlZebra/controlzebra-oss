@@ -24,7 +24,7 @@
 ## Install Wails v3
 
 ```bash
-go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.69
 ```
 
 Verify:
@@ -46,14 +46,16 @@ go install github.com/go-task/task/v3/cmd/task@latest
 
 ```bash
 # Clone the repository
-git clone <repo-url> ControlZebra-Desktop
-cd ControlZebra-Desktop
+git clone https://github.com/ControlZebra/controlzebra-oss.git
+cd controlzebra-oss
+
+# Prepare the required sibling ladder-visualizer package as described below.
 
 # Install Go dependencies
-go mod tidy
+go mod download
 
 # Install frontend dependencies
-cd frontend && npm install && cd ..
+cd frontend && npm ci && cd ..
 
 # Generate TypeScript bindings from Go services
 task common:generate:bindings
@@ -97,7 +99,7 @@ build/config.yml         → App identity (name, version)
 Taskfile.yml             → Build orchestration
 ```
 
-See [[Architecture Overview]] for the full architecture diagram.
+See [Architecture Overview](../technical/architecture/Architecture%20Overview.md) for the full architecture diagram.
 
 ## Common Tasks
 
@@ -123,15 +125,28 @@ The `ladder-visualizer` package is linked locally:
 "ladder-visualizer": "file:../../ladder-visualizer"
 ```
 
-If you're working on L5X viewer features, you'll also need the `ladder-visualizer` repo cloned as a sibling directory. Changes there are reflected immediately (no publish needed).
+This dependency is required for all frontend installs and builds, not only L5X
+development. Obtain the package source from the maintainers and prepare its build
+output according to that package's instructions. Arrange the directories as:
+
+```text
+workspace/
+  controlzebra-oss/
+    frontend/
+  ladder-visualizer/
+    package.json
+```
+
+The repository does not currently pin a published version of that package.
+A standalone public install is therefore a separate release prerequisite.
 
 ## IDE Setup
 
 ### VS Code (Recommended)
 
-- Open the workspace file: `control-zebra.code-workspace`
+- Open the repository folder in your editor
 - Install recommended extensions: Go, ESLint, Tailwind CSS IntelliSense, Prettier
-- The workspace includes all related repos (ControlZebra-Desktop, ladder-visualizer, website, controlzebra-releases)
+- Keep personal editor settings and multi-repository workspace files local
 
 ### Go Configuration
 
@@ -175,4 +190,4 @@ cd frontend && rm -rf node_modules && npm install
 
 ---
 
-**Related:** [[Onboarding Guide]] | [[Architecture Overview]] | [[Build and Release]]
+**Related:** [Onboarding Guide](Onboarding%20Guide.md) | [Architecture Overview](../technical/architecture/Architecture%20Overview.md) | [Build and Release](../technical/guides/Build%20and%20Release.md)

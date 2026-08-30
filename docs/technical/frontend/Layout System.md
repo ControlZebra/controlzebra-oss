@@ -32,7 +32,7 @@ The header bar showing:
 
 ### ActivityBar (`widgets/layout/ActivityBar.tsx`)
 
-Vertical icon navigation on the left edge. Each icon maps to a [[#View Registry|view]]:
+Vertical icon navigation on the left edge. Each icon maps to a [view](Layout%20System.md#view-registry):
 
 | Icon | View | Constant |
 |------|------|----------|
@@ -44,7 +44,7 @@ Vertical icon navigation on the left edge. Each icon maps to a [[#View Registry|
 | User | Profile | `VIEWS.PROFILE` |
 | Bug | Debug | `VIEWS.DEBUG` |
 
-Clicking an icon sets `activeView` in [[Context Providers#LayoutContext|LayoutContext]].
+Clicking an icon sets `activeView` in [LayoutContext](Context%20Providers.md#layoutcontext).
 
 ### Sidebar (`widgets/layout/Sidebar.tsx`)
 
@@ -57,8 +57,8 @@ Renders the view component for the current `activeView`:
 
 The primary content area. Renders in two modes:
 
-1. **View page mode:** Dispatches to the page component from the [[#View Registry]]
-2. **Explorer tab mode:** When `activeView` is Explorer, shows file browser tabs with the [[Viewer System]]
+1. **View page mode:** Dispatches to the page component from the [#View Registry](Layout%20System.md#view-registry)
+2. **Explorer tab mode:** When `activeView` is Explorer, shows file browser tabs with the [Viewer System](Viewer%20System.md)
 
 Explorer tabs:
 - Pinned "Files" tab (always visible)
@@ -132,8 +132,8 @@ WelcomePage
 
 ## Adding a New View
 
-See [[Adding a New View]] for the step-by-step guide.
+See [Adding a New View](../guides/Adding%20a%20New%20View.md) for the step-by-step guide.
 
 ---
 
-**Related:** [[Frontend Architecture]] | [[Context Providers]] | [[Viewer System]]
+**Related:** [Frontend Architecture](Frontend%20Architecture.md) | [Context Providers](Context%20Providers.md) | [Viewer System](Viewer%20System.md)

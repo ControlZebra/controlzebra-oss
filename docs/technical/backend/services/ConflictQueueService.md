@@ -20,7 +20,7 @@ GitService operation (merge, pull, cherry-pick, revert, stash, abort, continue, 
               → Wails event `conflictQueue:changed`
 ```
 
-See [[RepoEventBus]] in `services/repo_events.go` for the bus. It is a minimal in-process publish/subscribe type that exists so `GitService` does not need to know the queue exists.
+See [RepoEventBus](../../../../services/repo_events.go) in `services/repo_events.go` for the bus. It is a minimal in-process publish/subscribe type that exists so `GitService` does not need to know the queue exists.
 
 ## Constructor and Wiring
 
@@ -112,4 +112,4 @@ Classification never parses conflict regions. Scan cost is proportional to the n
 - Persisting the queue across restarts. Repository state is authoritative.
 - Watching the filesystem, polling, or holding queues for multiple repositories. The API is shaped so these can be added later without a breaking change.
 
-**Related:** [[GitService]] | [[FileWatcherService]] | [[Event Reference]] | [[Conflict Queue Service Plan]]
+**Related:** [GitService](GitService.md) | [FileWatcherService](FileWatcherService.md) | [Event Reference](../../reference/Event%20Reference.md)

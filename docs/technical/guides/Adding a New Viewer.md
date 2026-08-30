@@ -4,8 +4,8 @@
 
 ## Prerequisites
 
-- Understanding of [[Viewer System]]
-- Familiarity with [[Frontend Architecture]]
+- Understanding of [Viewer System](../frontend/Viewer%20System.md)
+- Familiarity with [Frontend Architecture](../frontend/Frontend%20Architecture.md)
 
 ## Steps for a File Viewer
 
@@ -110,7 +110,7 @@ interface ViewerProps {
 }
 ```
 
-To read file content, use the [[FileSystemService]] bindings:
+To read file content, use the [FileSystemService](../backend/services/FileSystemService.md) bindings:
 ```tsx
 import { ReadTextFile, ReadFileBase64 } from '../../../bindings/controlzebra/services/filesystemservice';
 ```
@@ -127,4 +127,4 @@ import { ReadTextFile, ReadFileBase64 } from '../../../bindings/controlzebra/ser
 
 ---
 
-**Related:** [[Viewer System]] | [[Frontend Architecture]] | [[FileSystemService]]
+**Related:** [Viewer System](../frontend/Viewer%20System.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [FileSystemService](../backend/services/FileSystemService.md)

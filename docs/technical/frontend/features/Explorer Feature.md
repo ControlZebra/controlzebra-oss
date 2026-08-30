@@ -63,10 +63,10 @@ User clicks "Save Changes"
 Files opened from the file browser appear as tabs in the main area:
 
 - **Files tab** (pinned, always visible) — Shows SimpleFileBrowser
-- **File viewer tabs** — One per opened file, uses [[Viewer System]] to render
+- **File viewer tabs** — One per opened file, uses [Viewer System](../Viewer%20System.md) to render
 - Tabs dedup by file path (opening same file focuses existing tab)
 - Close button on each tab
 
 ---
 
-**Related:** [[Layout System]] | [[Context Providers#RepoContext|RepoContext]] | [[Viewer System]] | [[GitService]]
+**Related:** [Layout System](../Layout%20System.md) | [RepoContext](../Context%20Providers.md#repocontext) | [Viewer System](../Viewer%20System.md) | [GitService](../../backend/services/GitService.md)

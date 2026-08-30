@@ -15,7 +15,7 @@
 
 ## settings.json
 
-Managed by [[SettingsService]]:
+Managed by [SettingsService](../backend/services/SettingsService.md):
 
 ```json
 {
@@ -29,7 +29,7 @@ Managed by [[SettingsService]]:
 
 ## Repository Settings
 
-Per-repo configuration managed by [[RepositorySettingsService]], stored in `repositories/<sha256-of-path>.json`:
+Per-repo configuration managed by [RepositorySettingsService](../backend/services/RepositorySettingsService.md), stored in `repositories/<sha256-of-path>.json`:
 
 ```json
 {
@@ -72,7 +72,7 @@ Migration is one-time and logged. The old directories are removed after successf
 
 ## Keychain Storage
 
-The [[Other Services#AuthService|AuthService]] stores the Supabase session token in the OS keychain:
+The [AuthService](../backend/services/Other%20Services.md#authservice) stores the Supabase session token in the OS keychain:
 
 | Platform | Keychain |
 |---|---|
@@ -84,4 +84,4 @@ The [[Other Services#AuthService|AuthService]] stores the Supabase session token
 
 ---
 
-**Related:** [[Data Paths]] | [[SettingsService]] | [[RepositorySettingsService]] | [[Environment Variables]]
+**Related:** [Data Paths](../infrastructure/Data%20Paths.md) | [SettingsService](../backend/services/SettingsService.md) | [RepositorySettingsService](../backend/services/RepositorySettingsService.md) | [Environment Variables](Environment%20Variables.md)

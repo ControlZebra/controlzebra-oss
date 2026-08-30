@@ -79,4 +79,4 @@ The `ProgressModal` component shows:
 
 ---
 
-**Related:** [[GitService]] (non-progress versions) | [[Event System]] | [[Context Providers]]
+**Related:** [GitService](GitService.md) (non-progress versions) | [Event System](../../architecture/Event%20System.md) | [Context Providers](../../frontend/Context%20Providers.md)

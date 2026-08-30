@@ -56,11 +56,11 @@ func GitPath() string {
 }
 ```
 
-Call `RefreshCLIPaths()` to reset the cache — used by [[LocalBinService]] after downloading portable tools.
+Call `RefreshCLIPaths()` to reset the cache — used by [LocalBinService](../backend/services/Other%20Services.md#localbinservice) after downloading portable tools.
 
 ## When to Call RefreshCLIPaths
 
-- After [[LocalBinService]] downloads portable tools (Windows)
+- After [LocalBinService](../backend/services/Other%20Services.md#localbinservice) downloads portable tools (Windows)
 - After user manually installs git/gh and reports it's not detected
 - Never called during normal operation
 
@@ -73,4 +73,4 @@ When a binary isn't found or the wrong version is used, check:
 
 ---
 
-**Related:** [[CommandRunner]] | [[LocalBinService]] | [[Data Paths]]
+**Related:** [CommandRunner](CommandRunner.md) | [LocalBinService](../backend/services/Other%20Services.md#localbinservice) | [Data Paths](Data%20Paths.md)

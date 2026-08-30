@@ -12,13 +12,13 @@ ControlZebra uses Wails' event system for asynchronous communication from the Go
 |------------|-----------|---------|---------|---------|
 | `folder-selected` | Backend → Frontend | `string` (path) | `main.go` (File menu) | User opened a repo via File menu |
 | `folder-closed` | Backend → Frontend | `string` | `main.go` (File menu) | User closed current repo |
-| `file-changes` | Backend → Frontend | `[]FileChangeEvent` | [[FileWatcherService]] | Filesystem changes detected |
-| `git-progress` | Backend → Frontend | `GitProgress` | [[ProgressService]] | Git operation progress update |
-| `local-bin:progress` | Backend → Frontend | `LocalBinProgress` | [[LocalBinService]] | Portable tool download progress |
+| `file-changes` | Backend → Frontend | `[]FileChangeEvent` | [FileWatcherService](../backend/services/FileWatcherService.md) | Filesystem changes detected |
+| `git-progress` | Backend → Frontend | `GitProgress` | [ProgressService](../backend/services/ProgressService.md) | Git operation progress update |
+| `local-bin:progress` | Backend → Frontend | `LocalBinProgress` | [LocalBinService](../backend/services/Other%20Services.md#localbinservice) | Portable tool download progress |
 | `file:reveal-in-finder` | Backend → Frontend | — | `main.go` (File menu) | File menu action |
 | `file:open-in-terminal` | Backend → Frontend | — | `main.go` (File menu) | File menu action |
-| `background-task-completed` | Backend → Frontend | `BackgroundTaskStatus` | [[RepositorySettingsService]] | Background task finished |
-| `debug:new-log` | Backend → Frontend | `LogEntry` | [[Debug Logger]] | New debug log entry |
+| `background-task-completed` | Backend → Frontend | `BackgroundTaskStatus` | [RepositorySettingsService](../backend/services/RepositorySettingsService.md) | Background task finished |
+| `debug:new-log` | Backend → Frontend | `LogEntry` | [Debug Logger](../infrastructure/Debug%20Logger.md) | New debug log entry |
 
 ## Event Registration
 
@@ -103,4 +103,4 @@ App starts on Windows without git
 
 ---
 
-**Related:** [[State Management]] | [[FileWatcherService]] | [[ProgressService]] | [[Context Providers]]
+**Related:** [State Management](State%20Management.md) | [FileWatcherService](../backend/services/FileWatcherService.md) | [ProgressService](../backend/services/ProgressService.md) | [Context Providers](../frontend/Context%20Providers.md)

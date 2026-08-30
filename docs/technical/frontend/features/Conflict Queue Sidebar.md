@@ -9,7 +9,7 @@ Explorer sidebar shows a **Conflicts (N)** section between the primary panel and
 the Timeline. The section is hidden entirely when nothing is conflicted, so the
 sidebar is unchanged during normal work.
 
-The backend [[ConflictQueueService]] is the single source of truth. It pushes a
+The backend [ConflictQueueService](../../backend/services/ConflictQueueService.md) is the single source of truth. It pushes a
 full snapshot on the `conflictQueue:changed` event; the frontend never
 reconciles deltas.
 
@@ -49,7 +49,7 @@ replaced with one that publishes mutations.
 - Files the app can't open (images, binaries, submodules, symlinks, oversized or
   non-UTF-8 files) stay listed and clickable, de-emphasized, and lead to the
   whole-file choice.
-- Wording follows [[User-Facing Terminology]] — no git vocabulary.
+- Wording follows [User-Facing Terminology](../../../product/User-Facing%20Terminology.md) — no git vocabulary.
 - A failed scan shows an inline warning and keeps the last good list.
 
 ## Click behaviour
@@ -60,4 +60,4 @@ resolver that will replace it.
 
 ---
 
-**Related:** [[ConflictQueueService]] | [[Explorer Feature]] | [[Context Providers]]
+**Related:** [ConflictQueueService](../../backend/services/ConflictQueueService.md) | [Explorer Feature](Explorer%20Feature.md) | [Context Providers](../Context%20Providers.md)

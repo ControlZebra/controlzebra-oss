@@ -85,11 +85,11 @@ debugService.SetApp(app)
 localBinService.SetApp(app)
 ```
 
-See [[Services Index]] for the complete list.
+See [Services Index](Services%20Index.md) for the complete list.
 
 ## CommandRunner — CLI Execution Engine
 
-> Full details: [[CommandRunner]]
+> Full details: [CommandRunner](../infrastructure/CommandRunner.md)
 
 All CLI execution goes through `CommandRunner` (`services/runner.go`). This centralizes:
 - Timeout management (30s default)
@@ -122,7 +122,7 @@ type CommandResult struct {
 
 ## CLI Resolver — Binary Path Resolution
 
-> Full details: [[CLI Resolver]]
+> Full details: [CLI Resolver](../infrastructure/CLI%20Resolver.md)
 
 `services/cli_resolver.go` resolves `git`, `gh`, and `git-lfs` binaries in priority order:
 
@@ -136,7 +136,7 @@ Results are **cached via `sync.Once`**. Call `RefreshCLIPaths()` after installin
 
 ## Data Paths — Storage Layout
 
-> Full details: [[Data Paths]]
+> Full details: [Data Paths](../infrastructure/Data%20Paths.md)
 
 All data storage follows XDG conventions via `services/data_paths.go`:
 
@@ -151,7 +151,7 @@ On startup, `RunDataLayoutMigration()` migrates legacy `control-zebra` paths to 
 
 ## Debug Logger — Ring-Buffer Logging
 
-> Full details: [[Debug Logger]]
+> Full details: [Debug Logger](../infrastructure/Debug%20Logger.md)
 
 `services/debug_logger.go` provides a thread-safe, singleton ring-buffer logger:
 
@@ -187,8 +187,8 @@ wg.Wait()
 - **CLI failures:** Check `CommandResult.Success` → return `failedOp(result.Error)`
 - **Parse errors:** Return meaningful message, not raw parse errors
 - **Timeouts:** 30s default; configurable per-call via context
-- **User-facing errors:** Must follow [[User-Facing Terminology]] guidelines
+- **User-facing errors:** Must follow [User-Facing Terminology](../../product/User-Facing%20Terminology.md) guidelines
 
 ---
 
-**Next:** [[Services Index]] | [[CommandRunner]] | [[CLI Resolver]] | [[Data Paths]]
+**Next:** [Services Index](Services%20Index.md) | [CommandRunner](../infrastructure/CommandRunner.md) | [CLI Resolver](../infrastructure/CLI%20Resolver.md) | [Data Paths](../infrastructure/Data%20Paths.md)
