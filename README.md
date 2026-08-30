@@ -30,13 +30,14 @@ This repository contains the source code. You do not need to build it to use the
 
 - [Documentation](docs/HOME.md)
 - [Report a bug or request a feature](https://github.com/ControlZebra/controlzebra-oss/issues) — include your app version, operating system, and steps to reproduce. Remove confidential project data from screenshots and attachments.
+- [Report a security vulnerability privately](SECURITY.md).
 
 ## Build and contribute
 
-Follow the [development setup](docs/onboarding/Development%20Setup.md) for prerequisites and build instructions, and the [contribution workflow](docs/processes/Development%20Workflow.md) for submitting changes.
+Read the [contribution guide](CONTRIBUTING.md) for licensing requirements and how to submit changes. Follow the [development setup](docs/onboarding/Development%20Setup.md) for prerequisites and build instructions.
 
 Source builds require the separate `ladder-visualizer` package alongside this repository. It is not bundled here; see the development setup for how to obtain and prepare it before installing dependencies.
 
 ## License
 
-Licensed under the [GNU Affero General Public License v3.0](License.md).
+The public edition is licensed under the [GNU Affero General Public License v3.0](License.md). For alternative commercial licensing inquiries, contact [support.controlzebra@gmail.com](mailto:support.controlzebra@gmail.com).
