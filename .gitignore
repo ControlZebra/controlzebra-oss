@@ -22,6 +22,7 @@ test-updates/
 # Local Windows self-signed code-signing artifacts
 build/certs/
 .DS_Store
+Thumbs.db
 
 # Personal environment and editor state (templates remain public)
 .env
@@ -48,6 +49,15 @@ __pycache__/
 /docs/processes/Release Process.md
 /docs/processes/Incident Response.md
 /v2-frontend-ux-plan.md
+/GitStuckStates.md
+/.github/frontend.md
+/docs/COLLABORATION_SPEC.md
+/docs/REVISION_PLAN.md
+/docs/ROADMAP.md
+/docs/product/COLLABORATION_SPEC.md
+/docs/product/REVISION_PLAN.md
+/docs/product/FILE_MANAGER_PLAN.md
+/docs/technical/*.md
 
 # Private credentials and repository recovery material
 *.key

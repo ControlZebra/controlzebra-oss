@@ -16,7 +16,9 @@ PRIVATE_PATHS = {
     'changeme', 'controlzebra', 'services.test.exe', 'v2-frontend-ux-plan.md',
     'docs/Untitled.md', 'docs/product/ROADMAP.md',
     'docs/processes/Release Process.md', 'docs/processes/Incident Response.md',
+    'GitStuckStates.md', '.github/frontend.md',
 }
+PRIVATE_DOCUMENT_NAMES = {'COLLABORATION_SPEC.md', 'REVISION_PLAN.md', 'ROADMAP.md', 'FILE_MANAGER_PLAN.md'}
 PRIVATE_SUFFIXES = ('.key', '.pem', '.p12', '.pfx', '.keystore', '.bundle', '.test', '.test.exe', '.code-workspace')
 
 
@@ -25,6 +27,10 @@ def violation(path):
     name = parts[-1] if parts else ''
     if path in PRIVATE_PATHS or path.startswith(PRIVATE_PREFIXES):
         return 'private document or generated artifact'
+    if path.startswith('docs/') and name in PRIVATE_DOCUMENT_NAMES:
+        return 'internal planning document'
+    if path.startswith('docs/technical/') and len(parts) == 3 and name.endswith('.md'):
+        return 'legacy document location; use a current public documentation category'
     if any(part in {'.obsidian', '.secrets', 'node_modules', '__pycache__'} for part in parts):
         return 'local workspace or generated directory'
     if name in {'.DS_Store', 'Thumbs.db'}:

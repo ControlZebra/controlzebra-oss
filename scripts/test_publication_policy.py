@@ -51,7 +51,9 @@ class PublicationPolicyTests(unittest.TestCase):
         for name in ['changeme', 'services.test.exe', 'build/.DS_Store',
                      'docs/.obsidian/workspace.json', 'docs/plans/Working Plan.md',
                      'docs/audit/review.md', 'docs/technical/archive/old.md',
-                     'docs/processes/Release Process.md', 'backup.bundle']:
+                     'docs/processes/Release Process.md', 'backup.bundle',
+                     'GitStuckStates.md', 'docs/COLLABORATION_SPEC.md',
+                     'docs/technical/creating_a_viewer.md']:
             self.stage(name)
         result = self.check()
         self.assertEqual(result.returncode, 1)
