@@ -2,7 +2,7 @@
 
 ControlZebra is a desktop Git client for industrial automation teams. Track PLC and HMI projects, compare revisions, and share changes without using the command line.
 
-![ControlZebra desktop app demo](https://github.com/user-attachments/assets/a7e1b486-c4e5-49ba-a3ed-497e6b91ed05)
+![ControlZebra desktop app demo](docs/assets/controlzebra-demo.gif)
 
 ## What you can do
 
