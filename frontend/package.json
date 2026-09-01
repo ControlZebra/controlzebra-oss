@@ -22,7 +22,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "^2.95.3",
     "@tanstack/react-virtual": "^3.13.18",
-    "@wailsio/runtime": "3.0.0-alpha.79",
+    "@wailsio/runtime": "3.0.0-beta.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "ladder-visualizer": "file:../../ladder-visualizer",

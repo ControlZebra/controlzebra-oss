@@ -28,6 +28,8 @@ Unicode true
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"
 ####
+# Per-user install keeps the uninstall entry in HKCU and lets the app replace its own exe without elevation.
+!define WAILS_INSTALL_SCOPE "user"
 !define REQUEST_EXECUTION_LEVEL "user"                # Per-user install/update path; see also https://nsis.sourceforge.io/Docs/Chapter4.html
 ####
 ## Include the wails tools
