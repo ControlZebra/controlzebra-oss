@@ -5,10 +5,6 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
-import * as time$0 from "../../time/models.js";
-
 /**
  * AppSettings contains application preferences
  */
@@ -159,9 +155,9 @@ export class BackgroundTaskConfig {
 export class BackgroundTaskStatus {
     "taskType": BackgroundTaskType;
     "isRunning": boolean;
-    "lastRun"?: time$0.Time | null;
+    "lastRun"?: string | null;
     "lastResult"?: OperationResult | null;
-    "nextRun"?: time$0.Time | null;
+    "nextRun"?: string | null;
     "runCount": number;
     "errorCount": number;
 
@@ -3590,7 +3586,7 @@ export class LogDetails {
  */
 export class LogEntry {
     "id": number;
-    "timestamp": time$0.Time;
+    "timestamp": string;
     "level": LogLevel;
     "category": LogCategory;
 
@@ -3620,7 +3616,7 @@ export class LogEntry {
             this["id"] = 0;
         }
         if (!("timestamp" in $$source)) {
-            this["timestamp"] = null;
+            this["timestamp"] = "0001-01-01T00:00:00.000Z";
         }
         if (!("level" in $$source)) {
             this["level"] = LogLevel.$zero;
@@ -4650,8 +4646,8 @@ export class RepositorySettings {
     /**
      * Metadata
      */
-    "createdAt": time$0.Time;
-    "updatedAt": time$0.Time;
+    "createdAt": string;
+    "updatedAt": string;
 
     /** Creates a new RepositorySettings instance. */
     constructor($$source: Partial<RepositorySettings> = {}) {
@@ -4680,10 +4676,10 @@ export class RepositorySettings {
             this["maintenanceSettings"] = (new MaintenanceSettings());
         }
         if (!("createdAt" in $$source)) {
-            this["createdAt"] = null;
+            this["createdAt"] = "0001-01-01T00:00:00.000Z";
         }
         if (!("updatedAt" in $$source)) {
-            this["updatedAt"] = null;
+            this["updatedAt"] = "0001-01-01T00:00:00.000Z";
         }
 
         Object.assign(this, $$source);
