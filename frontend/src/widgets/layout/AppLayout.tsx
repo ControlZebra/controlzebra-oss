@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense } from 'react';
-import { UpdateProvider, useLayout, useRepo } from '../../context';
+import { useLayout, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../../shared/ui';
 import RecoveryBanner from '../../shared/ui/RecoveryBanner';
 import TitleBar from './TitleBar';
@@ -71,11 +71,7 @@ function AppLayoutInner(): JSX.Element {
  * AppLayout - Root layout component for the application
  */
 function AppLayout(): JSX.Element {
-  return (
-    <UpdateProvider>
-      <AppLayoutInner />
-    </UpdateProvider>
-  );
+  return <AppLayoutInner />;
 }
 
 export default memo(AppLayout);
