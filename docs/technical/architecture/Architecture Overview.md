@@ -149,7 +149,7 @@ main.go startup:
 | Keychain | Credential Manager | Keychain |
 | Console | Hidden (SysProcAttr) | N/A |
 | Data paths | `%APPDATA%`, `%LOCALAPPDATA%` | `~/.config`, `~/Library/Caches` |
-| Distribution | NSIS installer + auto-updater | DMG |
+| Distribution | NSIS installer + Wails updater | DMG |
 
 ---
 

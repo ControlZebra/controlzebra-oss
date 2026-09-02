@@ -28,7 +28,6 @@ Run from the repository root:
 task dev                 # Start the development application
 task build               # Build for the current platform
 task package             # Package for the current platform
-task build:updater       # Build the update sidecar
 ```
 
 Build outputs belong in `bin/`; they must not be committed. Required files under
@@ -57,14 +56,31 @@ identity and private credential storage. Keep signing material, certificates
 containing private keys, and passwords out of Git. The existing signing scripts
 and platform tasks describe their configuration inputs.
 
-Update verification uses a public key; public verification keys are not secrets.
-See [Auto-Updater](../infrastructure/Auto-Updater.md) for the updater's technical contract. Maintainer release
-operations are managed outside the public source repository.
+The Wails updater verifies release payloads against the `SHA256SUMS` asset on
+the same GitHub Release. See [Auto-Updater](../infrastructure/Auto-Updater.md)
+for the updater's technical contract. Maintainer release operations are managed
+outside the public source repository.
+
+## Stage a release
+
+After building and signing the raw Windows executable and NSIS installer, stage
+the GitHub Release assets with:
+
+```bash
+./scripts/create-release.sh --version 0.3.1 --notes @CHANGELOG.md
+```
+
+The script gives updater payloads platform-qualified names, copies the optional
+first-install packages, and creates the exact `SHA256SUMS` sidecar consumed by
+Wails. Add `--upload` to publish the staged files to
+`ControlZebra/controlzebra-releases`. The raw executable is the updater payload;
+the NSIS installer remains the download for a first installation.
 
 ## Verify the build
 
 ```bash
-go test ./services/... ./cmd/updater/...
+go test ./services/...
+bash scripts/create-release.test.sh
 python3 scripts/check-publication.py
 cd frontend
 npm run ci:guards

@@ -115,7 +115,7 @@ func main() {
 	app.RegisterService(application.NewService(appUpdateService))
 	if services.AppUpdatesEnabled() {
 		githubProvider, err := githubupdater.New(githubupdater.Config{
-			Repository:    "ControlZebra/controlzebra-oss",
+			Repository:    "ControlZebra/controlzebra-releases",
 			Prerelease:    false,
 			ChecksumAsset: "SHA256SUMS",
 		})

@@ -95,14 +95,6 @@ tasks:
             fi
           done | tr '\n' ' '
 
-  build:updater:
-    summary: Builds the updater sidecar for Linux
-    cmds:
-      - task: common:build:updater
-        vars:
-          UPDATER_GOOS: linux
-          UPDATER_GOARCH: '{{.ARCH | default ARCH}}'
-
   package:
     summary: Packages the application for Linux
     deps:

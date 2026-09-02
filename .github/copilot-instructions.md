@@ -11,7 +11,7 @@ supplements those rules; it does not replace them.
 
 - `main.go` registers Wails services and application lifecycle handlers.
 - `services/` contains backend services, Git operations, and their tests.
-- `cmd/updater/` contains the update sidecar and its tests.
+- `services/app_update_service.go` coordinates Wails' built-in updater.
 - `frontend/src/app/` contains startup and application providers.
 - `frontend/src/domain/` contains shared authentication, analytics, and repository state.
 - `frontend/src/features/` contains user-facing workflows.
@@ -38,7 +38,8 @@ supplements those rules; it does not replace them.
 ## Validation
 
 ```bash
-go test ./services/... ./cmd/updater/...
+go test ./services/...
+bash scripts/create-release.test.sh
 cd frontend
 npm run ci:guards
 npm test

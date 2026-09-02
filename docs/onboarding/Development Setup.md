@@ -109,7 +109,6 @@ See [Architecture Overview](../technical/architecture/Architecture%20Overview.md
 | Production build | `task build` |
 | Package for distribution | `task package` |
 | Regenerate bindings | `task common:generate:bindings` |
-| Build updater sidecar | `task build:updater` |
 | Backend tests | `go test ./services/... -v` |
 | Backend test coverage | `go test ./services/... -coverprofile=coverage.out && go tool cover -html=coverage.out` |
 | Frontend tests | `cd frontend && npm test` |
