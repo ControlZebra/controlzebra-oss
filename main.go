@@ -11,6 +11,8 @@ import (
 	"controlzebra/services"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/updater"
+	githubupdater "github.com/wailsapp/wails/v3/pkg/updater/providers/github"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=x.y.z".
@@ -39,7 +41,6 @@ func init() {
 	application.RegisterEvent[string]("file:reveal-in-finder")
 	application.RegisterEvent[string]("file:open-in-terminal")
 	application.RegisterEvent[services.LocalBinProgress]("local-bin:progress")
-	application.RegisterEvent[services.AppUpdateProgress]("app-update:progress")
 
 	// Terminal events - dynamic event names based on session ID
 	// These are registered as patterns, actual events use session-specific suffixes
@@ -62,7 +63,6 @@ func main() {
 	authService := services.NewAuthService()
 	debugService := services.NewDebugService()
 	localBinService := services.NewLocalBinService()
-	updateService := services.NewUpdateService(Version)
 
 	// The repository event bus lets state-holding services react to git
 	// operations without those operations depending on the services.
@@ -100,7 +100,6 @@ func main() {
 			application.NewService(authService),
 			application.NewService(debugService),
 			application.NewService(localBinService),
-			application.NewService(updateService),
 			application.NewService(conflictQueueService),
 			application.NewService(integrationSessionService),
 		},
@@ -112,6 +111,29 @@ func main() {
 		},
 	})
 
+	appUpdateService := services.NewAppUpdateService(Version, app)
+	app.RegisterService(application.NewService(appUpdateService))
+	if services.AppUpdatesEnabled() {
+		githubProvider, err := githubupdater.New(githubupdater.Config{
+			Repository:    "ControlZebra/controlzebra-oss",
+			Prerelease:    false,
+			ChecksumAsset: "SHA256SUMS",
+		})
+		if err != nil {
+			log.Fatalf("[AppUpdateService] configure GitHub provider: %v", err)
+		}
+		if err := app.Updater.Init(updater.Config{
+			CurrentVersion: appUpdateService.GetCurrentVersion(),
+			Providers:      []updater.Provider{githubProvider},
+			Window:         &updater.BuiltinWindow{},
+		}); err != nil {
+			log.Fatalf("[AppUpdateService] initialize updater: %v", err)
+		}
+	}
+	if err := services.SyncWindowsInstallRegistryVersion(Version); err != nil {
+		log.Printf("[AppUpdateService] registry version sync warning: %v", err)
+	}
+
 	// Set app reference for services that need it
 	fileDialogService.SetApp(app)
 	progressService.SetApp(app)
@@ -119,7 +141,6 @@ func main() {
 	repoSettingsService.SetApp(app)
 	fileWatcherService.SetApp(app)
 	localBinService.SetApp(app)
-	updateService.SetApp(app)
 	conflictQueueService.SetApp(app)
 	integrationSessionService.SetApp(app)
 

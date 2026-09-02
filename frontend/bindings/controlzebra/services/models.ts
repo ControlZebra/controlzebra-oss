@@ -25,11 +25,6 @@ export class AppSettings {
     "recentFolders": string[];
 
     /**
-     * Automatically download app updates while ControlZebra is open
-     */
-    "autoDownloadUpdates": boolean;
-
-    /**
      * Show internal developer tools and diagnostics
      */
     "developerModeEnabled": boolean;
@@ -44,9 +39,6 @@ export class AppSettings {
         }
         if (!("recentFolders" in $$source)) {
             this["recentFolders"] = [];
-        }
-        if (!("autoDownloadUpdates" in $$source)) {
-            this["autoDownloadUpdates"] = false;
         }
         if (!("developerModeEnabled" in $$source)) {
             this["developerModeEnabled"] = false;
@@ -65,59 +57,6 @@ export class AppSettings {
             $$parsedSource["recentFolders"] = $$createField2_0($$parsedSource["recentFolders"]);
         }
         return new AppSettings($$parsedSource as Partial<AppSettings>);
-    }
-}
-
-/**
- * AppUpdateProgress is emitted as a Wails event during update operations.
- */
-export class AppUpdateProgress {
-    "operationId": string;
-    "phase": string;
-    "percent": number;
-    "downloaded": number;
-    "total": number;
-    "message": string;
-    "isComplete": boolean;
-    "success": boolean;
-    "error"?: string;
-
-    /** Creates a new AppUpdateProgress instance. */
-    constructor($$source: Partial<AppUpdateProgress> = {}) {
-        if (!("operationId" in $$source)) {
-            this["operationId"] = "";
-        }
-        if (!("phase" in $$source)) {
-            this["phase"] = "";
-        }
-        if (!("percent" in $$source)) {
-            this["percent"] = 0;
-        }
-        if (!("downloaded" in $$source)) {
-            this["downloaded"] = 0;
-        }
-        if (!("total" in $$source)) {
-            this["total"] = 0;
-        }
-        if (!("message" in $$source)) {
-            this["message"] = "";
-        }
-        if (!("isComplete" in $$source)) {
-            this["isComplete"] = false;
-        }
-        if (!("success" in $$source)) {
-            this["success"] = false;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new AppUpdateProgress instance from a string or object.
-     */
-    static createFrom($$source: any = {}): AppUpdateProgress {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new AppUpdateProgress($$parsedSource as Partial<AppUpdateProgress>);
     }
 }
 
@@ -4782,30 +4721,6 @@ export class SettingsService {
 }
 
 /**
- * StartUpdateOptions controls which release channel to use.
- */
-export class StartUpdateOptions {
-    "channel": string;
-
-    /** Creates a new StartUpdateOptions instance. */
-    constructor($$source: Partial<StartUpdateOptions> = {}) {
-        if (!("channel" in $$source)) {
-            this["channel"] = "";
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new StartUpdateOptions instance from a string or object.
-     */
-    static createFrom($$source: any = {}): StartUpdateOptions {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new StartUpdateOptions($$parsedSource as Partial<StartUpdateOptions>);
-    }
-}
-
-/**
  * StashEntry represents a single stash entry
  */
 export class StashEntry {
@@ -4957,39 +4872,6 @@ export class UntrackedLargeFile {
     static createFrom($$source: any = {}): UntrackedLargeFile {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new UntrackedLargeFile($$parsedSource as Partial<UntrackedLargeFile>);
-    }
-}
-
-/**
- * UpdateCheckResult is returned to the frontend after querying the release feed.
- */
-export class UpdateCheckResult {
-    "available": boolean;
-    "readyToInstall"?: boolean;
-    "version"?: string;
-    "releaseNotes"?: string;
-    "downloadURL"?: string;
-    "size"?: number;
-    "checksum"?: string;
-    "releaseDate"?: string;
-    "mandatory"?: boolean;
-    "currentVersion"?: string;
-
-    /** Creates a new UpdateCheckResult instance. */
-    constructor($$source: Partial<UpdateCheckResult> = {}) {
-        if (!("available" in $$source)) {
-            this["available"] = false;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new UpdateCheckResult instance from a string or object.
-     */
-    static createFrom($$source: any = {}): UpdateCheckResult {
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new UpdateCheckResult($$parsedSource as Partial<UpdateCheckResult>);
     }
 }
 

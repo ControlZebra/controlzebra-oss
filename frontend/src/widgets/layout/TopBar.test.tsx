@@ -34,14 +34,6 @@ const authMock = vi.hoisted(() => ({
   logout: vi.fn(),
 }));
 
-const updateMock = vi.hoisted(() => ({
-  isBusy: false,
-  isUpdateAvailable: false,
-  readyToInstall: false,
-  startUpdate: vi.fn(),
-  status: 'idle',
-}));
-
 vi.mock('../../shared/runtime/window', () => runtimeWindowMock);
 
 vi.mock('../../shared/runtime/browser', () => ({
@@ -52,7 +44,6 @@ vi.mock('../../context', () => ({
   useRepo: () => repoMock,
   useLayout: () => layoutMock,
   useAuth: () => authMock,
-  useAppUpdate: () => updateMock,
 }));
 
 vi.mock('../../shared/hooks', () => ({
@@ -93,10 +84,6 @@ describe('TopBar window chrome', () => {
     vi.clearAllMocks();
     runtimeWindowMock.isWindowsDesktop.mockReturnValue(false);
     runtimeWindowMock.isMacDesktop.mockReturnValue(false);
-    updateMock.isBusy = false;
-    updateMock.isUpdateAvailable = false;
-    updateMock.readyToInstall = false;
-    updateMock.status = 'idle';
   });
 
   it('no longer renders window controls inside the top bar', () => {
@@ -112,16 +99,6 @@ describe('TopBar window chrome', () => {
 
     const leftRail = container.querySelector('[style*="width: 328px"]');
     expect(leftRail).not.toBeNull();
-  });
-
-  it('shows the update button when an update is available', () => {
-    updateMock.isUpdateAvailable = true;
-    updateMock.readyToInstall = true;
-    updateMock.status = 'ready';
-
-    render(<TopBar />);
-
-    expect(screen.getByRole('button', { name: 'Install update' })).toBeInTheDocument();
   });
 
   it('does not expose a sign-in action during the initial release', () => {

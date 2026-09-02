@@ -12,13 +12,11 @@ import * as services$0 from "../../../../../controlzebra/services/models.js";
 
 function configure() {
     Object.freeze(Object.assign($Create.Events, {
-        "app-update:progress": $$createType0,
-        "local-bin:progress": $$createType1,
+        "local-bin:progress": $$createType0,
     }));
 }
 
 // Private type creation functions
-const $$createType0 = services$0.AppUpdateProgress.createFrom;
-const $$createType1 = services$0.LocalBinProgress.createFrom;
+const $$createType0 = services$0.LocalBinProgress.createFrom;
 
 configure();

@@ -20,13 +20,11 @@ import {
   Settings,
   PlugZap,
   LogOut,
-  Download,
-  ArrowDownToLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openExternalUrl } from '../../shared/runtime/browser';
 import { ICON_SIZES, VIEWS } from '../../shared/constants';
-import { useAppUpdate, useAuth, useLayout, useRepo } from '../../context';
+import { useAuth, useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
 import { UndoLastSaveDialog } from '../../shared/ui';
 import BranchModal from './BranchModal';
@@ -82,7 +80,6 @@ function TopBar(): JSX.Element {
     setSelectedSettingsCategory,
   } = useLayout();
   const { isAuthenticated, userEmail, userName, logout } = useAuth();
-  const { isBusy: isUpdateBusy, isUpdateAvailable, readyToInstall, startUpdate, status: updateStatus } = useAppUpdate();
 
   // Responsive state
   const { isCompactTopBar } = useWindowSize();
@@ -126,31 +123,11 @@ function TopBar(): JSX.Element {
     await undoLastCommit();
   }, [undoLastCommit]);
 
-  const handleStartUpdate = useCallback((): void => {
-    void startUpdate();
-  }, [startUpdate]);
-
   // Derive display values from repo state
   const branchName = repoInfo?.branch || 'main';
   const hasCommits = (commits?.length ?? 0) > 0;
   const isGitRepo = repoInfo?.isRepo ?? false;
   const leftPanelWidth = BREAKPOINTS.ACTIVITY_BAR_WIDTH + (sidebarCollapsed ? 0 : sidebarWidth);
-  const showUpdateButton = isUpdateAvailable || isUpdateBusy;
-  const updateButtonTitle = readyToInstall
-    ? 'Install downloaded update'
-    : isUpdateBusy
-      ? 'Update in progress'
-      : 'Download and install update';
-  const updateButtonLabel = readyToInstall
-    ? 'Install update'
-    : updateStatus === 'downloading'
-      ? 'Downloading update'
-      : updateStatus === 'installing'
-        ? 'Installing update'
-        : 'Update available';
-  const updateButtonClassName = readyToInstall
-    ? 'border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/15'
-    : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/15';
 
   return (
     <>
@@ -250,24 +227,6 @@ function TopBar(): JSX.Element {
 
         {/* Right: Account menu */}
         <div className="flex items-center gap-2 justify-end shrink-0">
-          {showUpdateButton && (
-            <button
-              {...noDragControlProps}
-              type="button"
-              onClick={handleStartUpdate}
-              disabled={isUpdateBusy}
-              title={updateButtonTitle}
-              className={`flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${updateButtonClassName}`}
-            >
-              {readyToInstall ? (
-                <ArrowDownToLine style={iconSmStyle} />
-              ) : (
-                <Download style={iconSmStyle} />
-              )}
-              <span>{updateButtonLabel}</span>
-            </button>
-          )}
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

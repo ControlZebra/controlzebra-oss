@@ -6,26 +6,8 @@ type AppSettings = {
   theme: string;
   lastRepoPath: string;
   recentFolders: string[];
-  autoDownloadUpdates: boolean;
   developerModeEnabled: boolean;
 };
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason?: unknown) => void;
-};
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-
-  return { promise, resolve, reject };
-}
 
 const settingsServiceMock = vi.hoisted(() => ({
   GetAppSettings: vi.fn(),
@@ -34,7 +16,12 @@ const settingsServiceMock = vi.hoisted(() => ({
 }));
 
 const updateServiceMock = vi.hoisted(() => ({
+  CheckForUpdates: vi.fn(),
   GetCurrentVersion: vi.fn(),
+}));
+
+const runtimeWindowMock = vi.hoisted(() => ({
+  isWindowsDesktop: vi.fn(),
 }));
 
 const debugServiceMock = vi.hoisted(() => ({
@@ -58,19 +45,6 @@ const authMock = vi.hoisted(() => ({
   logout: vi.fn(),
 }));
 
-const updateMock = vi.hoisted(() => ({
-  checkForUpdates: vi.fn(),
-  errorMessage: null,
-  isBusy: false,
-  isUpdateAvailable: false,
-  lastCheckedAt: null,
-  latestResult: null,
-  progress: null,
-  readyToInstall: false,
-  startUpdate: vi.fn(),
-  status: 'idle',
-}));
-
 const toastMock = vi.hoisted(() => ({
   error: vi.fn(),
 }));
@@ -78,8 +52,9 @@ const toastMock = vi.hoisted(() => ({
 vi.mock('../../../context', () => ({
   useLayout: () => layoutMock,
   useAuth: () => authMock,
-  useAppUpdate: () => updateMock,
 }));
+
+vi.mock('../../../shared/runtime/window', () => runtimeWindowMock);
 
 vi.mock('../../../domain/analytics/analytics', () => ({
   getAnalyticsConsent: () => 'minimal',
@@ -87,7 +62,7 @@ vi.mock('../../../domain/analytics/analytics', () => ({
 }));
 
 vi.mock('../../../../bindings/controlzebra/services/settingsservice', () => settingsServiceMock);
-vi.mock('../../../../bindings/controlzebra/services/updateservice', () => updateServiceMock);
+vi.mock('../../../../bindings/controlzebra/services/appupdateservice', () => updateServiceMock);
 vi.mock('../../../../bindings/controlzebra/services/debugservice', () => debugServiceMock);
 
 vi.mock('sonner', () => ({
@@ -95,7 +70,6 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('../../../shared/ui', () => ({
-  Badge: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Button: ({ children, loading: _loading, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => <button type="button" {...props}>{children}</button>,
   AlertDialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => open ? <>{children}</> : null,
   AlertDialogAction: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props}>{children}</button>,
@@ -149,10 +123,13 @@ vi.mock('../../../shared/ui', () => ({
   TableRow: ({ children }: { children: React.ReactNode }) => <tr>{children}</tr>,
 }));
 
-describe('GeneralSettings auto-download toggle', () => {
+describe('GeneralSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     updateServiceMock.GetCurrentVersion.mockResolvedValue('v0.13.0-beta');
+    updateServiceMock.CheckForUpdates.mockResolvedValue(undefined);
+    runtimeWindowMock.isWindowsDesktop.mockReturnValue(false);
+    vi.stubEnv('MODE', 'test');
     settingsServiceMock.GetDataLocations.mockResolvedValue({
       roamingConfigDir: '/tmp/config',
       repositorySettingsDir: '/tmp/repositories',
@@ -168,74 +145,11 @@ describe('GeneralSettings auto-download toggle', () => {
     layoutMock.developerModeEnabled = false;
   });
 
-  it('disables the toggle until app settings finish loading', async () => {
-    const settingsDeferred = createDeferred<AppSettings>();
-    settingsServiceMock.GetAppSettings.mockReturnValue(settingsDeferred.promise);
-
-    render(<GeneralSettings />);
-
-    const toggle = screen.getByRole('switch', { name: 'Download updates automatically' });
-    expect(toggle).toBeDisabled();
-
-    settingsDeferred.resolve({
-      theme: 'dark',
-      lastRepoPath: '/repos/alpha',
-      recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
-      developerModeEnabled: false,
-    });
-
-    await waitFor(() => {
-      expect(toggle).toBeEnabled();
-    });
-  });
-
-  it('re-reads current settings before save and preserves newer persisted fields', async () => {
-    const initialSettings: AppSettings = {
-      theme: 'dark',
-      lastRepoPath: '/repos/alpha',
-      recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
-      developerModeEnabled: false,
-    };
-    const refreshedSettings: AppSettings = {
-      theme: 'dark',
-      lastRepoPath: '/repos/bravo',
-      recentFolders: ['/repos/bravo', '/repos/alpha'],
-      autoDownloadUpdates: true,
-      developerModeEnabled: false,
-    };
-
-    settingsServiceMock.GetAppSettings
-      .mockResolvedValueOnce(initialSettings)
-      .mockResolvedValueOnce(refreshedSettings);
-
-    render(<GeneralSettings />);
-
-    const toggle = await screen.findByRole('switch', { name: 'Download updates automatically' });
-    await waitFor(() => {
-      expect(toggle).toBeEnabled();
-    });
-
-    fireEvent.click(toggle);
-
-    await waitFor(() => {
-      expect(settingsServiceMock.SaveAppSettings).toHaveBeenCalledWith({
-        ...refreshedSettings,
-        autoDownloadUpdates: false,
-      });
-    });
-
-    expect(settingsServiceMock.SaveAppSettings).toHaveBeenCalledTimes(1);
-    expect(toastMock.error).not.toHaveBeenCalled();
-  });
-
   it('shows the backend current version instead of the frontend dev fallback', async () => {
     settingsServiceMock.GetAppSettings.mockResolvedValue({
       theme: 'dark',
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
       developerModeEnabled: false,
     });
 
@@ -245,12 +159,54 @@ describe('GeneralSettings auto-download toggle', () => {
     expect(updateServiceMock.GetCurrentVersion).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the update action only in production Windows builds', async () => {
+    settingsServiceMock.GetAppSettings.mockResolvedValue({
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      developerModeEnabled: false,
+    });
+    runtimeWindowMock.isWindowsDesktop.mockReturnValue(true);
+    vi.stubEnv('MODE', 'production');
+
+    const { unmount } = render(<GeneralSettings />);
+    expect(await screen.findByRole('button', { name: 'Check for updates' })).toBeInTheDocument();
+    await screen.findByText('v0.13.0-beta');
+
+    unmount();
+    vi.stubEnv('MODE', 'development');
+    render(<GeneralSettings />);
+    await screen.findByText('v0.13.0-beta');
+    expect(screen.queryByRole('button', { name: 'Check for updates' })).not.toBeInTheDocument();
+  });
+
+  it('opens the updater and translates failures into recovery guidance', async () => {
+    settingsServiceMock.GetAppSettings.mockResolvedValue({
+      theme: 'dark',
+      lastRepoPath: '/repos/alpha',
+      recentFolders: ['/repos/alpha'],
+      developerModeEnabled: false,
+    });
+    runtimeWindowMock.isWindowsDesktop.mockReturnValue(true);
+    vi.stubEnv('MODE', 'production');
+    updateServiceMock.CheckForUpdates.mockRejectedValue(new Error('github: request failed'));
+
+    render(<GeneralSettings />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Check for updates' }));
+
+    await waitFor(() => {
+      expect(updateServiceMock.CheckForUpdates).toHaveBeenCalledTimes(1);
+      expect(toastMock.error).toHaveBeenCalledWith(
+        "Couldn't check for updates. Check your internet connection and try again.",
+      );
+    });
+  });
+
   it('loads and shows data paths only when Developer Mode is enabled', async () => {
     settingsServiceMock.GetAppSettings.mockResolvedValue({
       theme: 'dark',
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
       developerModeEnabled: false,
     });
 
@@ -261,8 +217,8 @@ describe('GeneralSettings auto-download toggle', () => {
     expect(settingsServiceMock.GetDataLocations).not.toHaveBeenCalled();
 
     layoutMock.developerModeEnabled = true;
-  unmount();
-  render(<GeneralSettings />);
+    unmount();
+    render(<GeneralSettings />);
 
     await screen.findByText('v0.13.0-beta');
     await waitFor(() => {
@@ -276,7 +232,6 @@ describe('GeneralSettings auto-download toggle', () => {
       theme: 'dark',
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
       developerModeEnabled: false,
     };
     const refreshedSettings: AppSettings = {
@@ -310,7 +265,6 @@ describe('GeneralSettings auto-download toggle', () => {
       theme: 'dark',
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
       developerModeEnabled: true,
     };
     layoutMock.developerModeEnabled = true;
@@ -334,7 +288,6 @@ describe('GeneralSettings auto-download toggle', () => {
       theme: 'dark',
       lastRepoPath: '/repos/alpha',
       recentFolders: ['/repos/alpha'],
-      autoDownloadUpdates: true,
       developerModeEnabled: true,
     };
     layoutMock.developerModeEnabled = true;
