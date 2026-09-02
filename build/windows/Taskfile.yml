@@ -22,10 +22,6 @@ vars:
 tasks:
   build:
     summary: Builds the application for Windows
-    deps:
-      - task: build:updater
-        vars:
-          ARCH: '{{.ARCH}}'
     cmds:
       # Auto-detect CGO: if CGO_ENABLED=1, use Docker; otherwise use native Go cross-compile
       - task: '{{if and (ne OS "windows") (eq .CGO_ENABLED "1")}}build:docker{{else}}build:native{{end}}'
@@ -99,14 +95,6 @@ tasks:
               echo "-v $path:$path:ro"
             fi
           done | tr '\n' ' '
-
-  build:updater:
-    summary: Builds the updater sidecar for Windows
-    cmds:
-      - task: common:build:updater
-        vars:
-          UPDATER_GOOS: windows
-          UPDATER_GOARCH: '{{.ARCH | default ARCH}}'
 
   package:
     summary: Packages the application

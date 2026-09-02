@@ -1,89 +1,99 @@
 # Auto-Updater
 
-> `cmd/updater/` — Sidecar binary (`cz-updater`) for self-updating the application.
+> Wails v3 built-in updater, coordinated by `services/app_update_service.go`.
 
 ## Overview
 
-ControlZebra uses a sidecar-based auto-update system. A separate binary (`cz-updater`) handles downloading, verifying, and applying updates — because the main app can't replace itself while running.
+ControlZebra uses Wails' built-in updater with its GitHub Releases provider.
+There is no separately built or packaged updater sidecar. Production
+Windows/amd64 builds check the public
+`ControlZebra/controlzebra-releases` repository; development builds and other
+platforms treat update requests as a no-op.
 
-## Architecture
+## Update flow
 
-```
-Main App (ControlZebra)
-  │
-  ├── Fetches channel manifest from GitHub Pages-backed update feed
-  ├── Downloads installer referenced by the manifest
-  ├── Launches cz-updater sidecar
-  └── Exits
-  
-cz-updater (sidecar)
-  │
-  ├── Waits for main app to exit
-  ├── Verifies update integrity
-  ├── Replaces application files
-  ├── Launches updated main app
-  └── Exits
-```
+1. On application startup, `AppUpdateService` silently checks for an update and
+   schedules another check every six hours.
+2. A user can also start a check from General Settings. Manual checks open the
+   Wails updater window even when the installed version is current.
+3. The GitHub provider reads the latest non-prerelease release and compares its
+   `v<semver>` tag with the version embedded in the running executable.
+4. Wails selects the first release asset whose name contains both `windows` and
+   `amd64`. Installer and checksum assets are ignored during selection.
+5. The provider loads the sibling `SHA256SUMS` asset and finds the line for the
+   selected payload.
+6. Wails downloads the payload, verifies its SHA-256 digest, starts its update
+   helper, exits the app, replaces the executable, and relaunches ControlZebra.
+7. On the next launch, ControlZebra synchronizes the installed-app registry
+   version with the newly embedded version.
 
-## Update Flow
+Manual and background checks are serialized so they cannot run competing
+update state machines. Background network failures are logged and do not
+interrupt the user.
 
-1. **Check:** Main app periodically fetches the update channel manifest (`stable` or `beta`)
-2. **Compare:** Manifest semver is compared against the installed app version
-3. **Download:** The Windows NSIS installer referenced by the manifest is downloaded to a temp directory
-3. **Handoff:** Main app launches `cz-updater` with update metadata, then exits
-4. **Apply:** `cz-updater` waits for main app process to terminate
-5. **Replace:** Sidecar swaps application files
-6. **Restart:** Sidecar launches the updated application
-7. **Cleanup:** Old files and temp downloads removed
+## Build and packaging
 
-## Build
+The updater is compiled into the main Wails application. Build and package the
+application normally:
 
 ```bash
-task build:updater
+APP_VERSION=0.3.1 task windows:build ARCH=amd64 DEV=false
+task windows:package ARCH=amd64
 ```
 
-The sidecar binary is placed alongside the main application.
+The NSIS installer remains the first-install artifact and installs per user. It
+does not contain `cz-updater.exe`.
 
-## Platform Specifics
+## GitHub Release contract
 
-### Windows
-- NSIS installer includes `cz-updater.exe`
-- Update replaces files in `%LOCALAPPDATA%\Programs\ControlZebra\`
-- Release manifests must point to the NSIS installer asset, not the raw app executable
+Each stable release used by the updater must be published to
+`ControlZebra/controlzebra-releases` with all of the following:
 
-### macOS
-- `cz-updater` bundled in `.app/Contents/Resources/`
-- Update replaces the `.app` bundle
-- Codesigning re-applied after update
+- A tag named `v<semver>`, such as `v0.3.1`.
+- The raw, production Windows executable named
+  `control-zebra-<semver>-windows-amd64.exe`.
+- A checksum asset named exactly `SHA256SUMS`.
+- A `SHA256SUMS` line in standard `sha256sum` format for the raw executable:
 
-## Version Metadata
-
-Current version defined in `build/config.yml`:
-```yaml
-version: "v<version>"
+```text
+<64-character SHA-256 digest>  control-zebra-0.3.1-windows-amd64.exe
 ```
 
-Injected at compile time via `-ldflags`:
-```bash
-go build -ldflags "-X main.Version=v0.0.2"
-```
+The NSIS installer may be uploaded as
+`control-zebra-amd64-installer.exe` on the same release. Wails skips installer
+assets and updates with the raw executable, so both artifacts must be signed
+for production distribution.
 
-## Update contract
-
-The updater reads a channel manifest containing a semantic version, supported
-platforms, artifact URLs, sizes, and checksums. Windows updates target the NSIS
-installer rather than the raw application executable. Signature verification
-uses the public key configured at build time.
-
-## Testing
-
-Run the existing sidecar and service tests:
+Stage these assets with:
 
 ```bash
-go test ./cmd/updater/... ./services/...
+./scripts/create-release.sh --version 0.3.1 --notes @CHANGELOG.md
 ```
 
-Use isolated test artifacts when exercising downloads or installation. Never
-replace a live update feed as part of local testing.
+Add `--upload` to create the GitHub Release with the GitHub CLI. Versions with a
+prerelease suffix are published as prereleases and are intentionally ignored by
+the production updater.
+
+## Version metadata
+
+`APP_VERSION` is injected into `main.Version` at build time. Release builds must
+use the same semantic version as the Git tag and payload filename. A leading
+`v` is accepted and normalized by `AppUpdateService`, but the release script
+expects the version without it.
+
+## Verification
+
+Run the updater coordinator tests and validate a staged release with disposable
+files:
+
+```bash
+go test ./services/...
+bash scripts/create-release.test.sh
+```
+
+Before publishing, confirm the raw executable is a production Windows/amd64
+build, both Windows artifacts carry valid Authenticode signatures, the checksum
+matches the raw executable, and the release is in the repository configured in
+`main.go`.
 
 **Related:** [Build and Release](../guides/Build%20and%20Release.md) | [Architecture Overview](../architecture/Architecture%20Overview.md)
