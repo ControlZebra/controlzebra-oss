@@ -1,89 +1,79 @@
 # Auto-Updater
 
-> `cmd/updater/` — Sidecar binary (`cz-updater`) for self-updating the application.
+ControlZebra uses Wails v3's built-in updater in production Windows x64 builds.
+`services/app_update_service.go` exposes `GetCurrentVersion()` and
+`CheckForUpdates()`. Development builds, macOS, Linux, and Windows ARM64 do not
+perform self-updates. Updater-enabled releases use the native Windows build
+tasks; the Docker Windows build is outside this support scope.
 
-## Overview
+## Checking and installing
 
-ControlZebra uses a sidecar-based auto-update system. A separate binary (`cz-updater`) handles downloading, verifying, and applying updates — because the main app can't replace itself while running.
+`main.go` uses `app_update.go` to configure the GitHub provider for `ControlZebra/controlzebra-oss`,
+with `Prerelease: false`, `ChecksumAsset: "SHA256SUMS"`, and the built-in window.
+The current version comes from `main.Version`, with surrounding whitespace and
+one leading `v` removed.
 
-## Architecture
+The application-started hook performs a silent `Check()`. A six-hour timer
+schedules subsequent checks. A mutex serializes manual and background operations.
+Background checks with no release or a provider error do not open a window;
+errors are logged. A discovered release triggers `CheckAndInstall()`, which
+opens Wails' window, downloads, verifies, and stages the executable. The user
+chooses **Restart & Apply** to replace the running version.
 
-```
-Main App (ControlZebra)
-  │
-  ├── Fetches channel manifest from GitHub Pages-backed update feed
-  ├── Downloads installer referenced by the manifest
-  ├── Launches cz-updater sidecar
-  └── Exits
-  
-cz-updater (sidecar)
-  │
-  ├── Waits for main app to exit
-  ├── Verifies update integrity
-  ├── Replaces application files
-  ├── Launches updated main app
-  └── Exits
-```
+General Settings has a current version and **Check for updates** button on
+production Windows builds. Wails' skip-version choice lasts only for the current
+session. No update preference is persisted in `AppSettings`.
 
-## Update Flow
+Wails' `Config.CheckInterval` remains unset because its periodic check opens a
+window even when the application is current. Shutdown cancels the coordinator
+context, stops the timer, and removes the lifecycle subscription.
 
-1. **Check:** Main app periodically fetches the update channel manifest (`stable` or `beta`)
-2. **Compare:** Manifest semver is compared against the installed app version
-3. **Download:** The Windows NSIS installer referenced by the manifest is downloaded to a temp directory
-3. **Handoff:** Main app launches `cz-updater` with update metadata, then exits
-4. **Apply:** `cz-updater` waits for main app process to terminate
-5. **Replace:** Sidecar swaps application files
-6. **Restart:** Sidecar launches the updated application
-7. **Cleanup:** Old files and temp downloads removed
+## Release assets
 
-## Build
+Stable releases use a `vX.Y.Z` tag and these exact assets:
 
-```bash
-task build:updater
-```
+- `control-zebra-windows-amd64.exe`: signed executable for in-place updates.
+- `control-zebra-amd64-installer.exe`: signed NSIS installer for first installation.
+- `SHA256SUMS`: SHA-256 hashes of exactly those two files, with their unversioned names.
 
-The sidecar binary is placed alongside the main application.
+Wails excludes installer assets when selecting the executable. Our provider wrapper
+requires a SHA-256 digest from `SHA256SUMS`: Wails beta.16 otherwise treats a missing
+checksum asset as optional. Wails verifies downloaded bytes before staging an update.
+Authenticode is validated during release preparation; checksum verification is
+the application's update verification mechanism. No Ed25519 manifest or
+`update.json` feed is used.
 
-## Platform Specifics
+Run `scripts/create-release.sh` in Git Bash on Windows. It stages the required
+files, calls `verify-release.ps1` to verify timestamped Authenticode signatures
+before hashing, and validates the staged checksums. `--validate-only` checks
+existing output without rewriting it; `--upload` creates a GitHub release only
+after validation. See [Build and Release](../guides/Build%20and%20Release.md).
 
-### Windows
-- NSIS installer includes `cz-updater.exe`
-- Update replaces files in `%LOCALAPPDATA%\Programs\ControlZebra\`
-- Release manifests must point to the NSIS installer asset, not the raw app executable
+## Windows installation metadata
 
-### macOS
-- `cz-updater` bundled in `.app/Contents/Resources/`
-- Update replaces the `.app` bundle
-- Codesigning re-applied after update
+NSIS installs per user under `%LOCALAPPDATA%\Programs\ControlZebra`. It removes
+any legacy `cz-updater.exe` on installation. The application updates
+`DisplayVersion` in the per-user uninstall entry at startup after an update;
+a missing entry is a no-op. Generated NSIS metadata uses
+`Software\Microsoft\Windows\CurrentVersion\Uninstall\ControlZebraControlZebra`.
+This key was confirmed on a fresh Windows x64 installation during the 0.0.1 test.
 
-## Version Metadata
-
-Current version defined in `build/config.yml`:
-```yaml
-version: "v<version>"
-```
-
-Injected at compile time via `-ldflags`:
-```bash
-go build -ldflags "-X main.Version=v0.0.2"
-```
-
-## Update contract
-
-The updater reads a channel manifest containing a semantic version, supported
-platforms, artifact URLs, sizes, and checksums. Windows updates target the NSIS
-installer rather than the raw application executable. Signature verification
-uses the public key configured at build time.
-
-## Testing
-
-Run the existing sidecar and service tests:
+## Verification
 
 ```bash
-go test ./cmd/updater/... ./services/...
+go build ./...
+go test . ./services/...
+python3 scripts/test-create-release.py
+node --test scripts/generate-windows-version-info.test.mjs
 ```
 
-Use isolated test artifacts when exercising downloads or installation. Never
-replace a live update feed as part of local testing.
+On Windows, run `powershell -NoProfile -File scripts/test-verify-release.ps1`
+for verifier regression tests. These simulate signature results; they do not
+replace verification of real signed release artifacts.
 
-**Related:** [Build and Release](../guides/Build%20and%20Release.md) | [Architecture Overview](../architecture/Architecture%20Overview.md)
+For end-to-end validation on Windows x64: install N with NSIS, publish N+1,
+check for updates, and choose Restart & Apply. Verify Settings and Installed Apps
+show N+1, shortcuts still launch, and uninstall works. A corrupted download must
+fail before replacement and leave N runnable. Confirm prereleases are not offered
+to stable clients and no legacy sidecar remains. Use an isolated release source
+for corruption/prerelease experiments; do not modify the public stable release.

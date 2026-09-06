@@ -28,7 +28,6 @@ type AppSettings struct {
     Theme                string   `json:"theme"`                // "dark", "light", "system"
     LastRepoPath         string   `json:"lastRepoPath"`
     RecentFolders        []string `json:"recentFolders"`        // Max 10, most recent first
-    AutoDownloadUpdates  bool     `json:"autoDownloadUpdates"`
     DeveloperModeEnabled bool     `json:"developerModeEnabled"` // Enables internal developer tools
 }
 ```
@@ -103,3 +102,7 @@ wg.Wait()
 ---
 
 **Related:** [RepositorySettingsService](RepositorySettingsService.md) (per-repo) | [AuthService](Other%20Services.md#authservice) (Supabase session)
+
+Application updates are coordinated by `AppUpdateService`. General Settings shows
+the current version and a single **Check for updates** action on production Windows
+builds. Update download preferences and skipped versions are not persisted in settings.

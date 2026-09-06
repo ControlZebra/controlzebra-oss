@@ -193,6 +193,54 @@ func TestAppUpdateServiceBackgroundReleaseOpensUpdaterFlow(t *testing.T) {
 	}
 }
 
+func TestAppUpdateServiceShutdownStopsScheduledChecks(t *testing.T) {
+	fake := &fakeAppUpdater{}
+	service := newTestAppUpdateService(t, fake, true)
+	timer := &fakeAppUpdateTimer{}
+	var callback func()
+	schedules := 0
+	service.afterFunc = func(_ time.Duration, fn func()) appUpdateTimer {
+		schedules++
+		callback = fn
+		return timer
+	}
+	service.scheduleNextBackgroundCheck()
+	if err := service.ServiceShutdown(); err != nil {
+		t.Fatal(err)
+	}
+	if !timer.stopped.Load() {
+		t.Fatal("shutdown did not stop the timer")
+	}
+	// A timer callback already dispatched before Stop must not restart the loop.
+	callback()
+	service.applicationStarted()
+	if schedules != 1 {
+		t.Fatalf("schedules = %d, want 1", schedules)
+	}
+	if fake.checkCallCount() != 0 || fake.flowCallCount() != 0 {
+		t.Fatal("updater called after shutdown")
+	}
+	if err := service.CheckForUpdates(); !errors.Is(err, context.Canceled) {
+		t.Fatalf("manual check after shutdown = %v, want context.Canceled", err)
+	}
+}
+
+func TestAppUpdateServiceShutdownCancelsQueuedBackgroundCheck(t *testing.T) {
+	fake := &fakeAppUpdater{}
+	service := newTestAppUpdateService(t, fake, true)
+	service.operationMu.Lock()
+	done := make(chan struct{})
+	go func() { service.runBackgroundCheck(); close(done) }()
+	if err := service.ServiceShutdown(); err != nil {
+		t.Fatal(err)
+	}
+	service.operationMu.Unlock()
+	awaitSignal(t, done, "queued background check after shutdown")
+	if fake.checkCallCount() != 0 {
+		t.Fatal("queued check reached updater after shutdown")
+	}
+}
+
 type fakeAppUpdater struct {
 	mu              sync.Mutex
 	checkCalls      int

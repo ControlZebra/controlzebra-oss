@@ -92,14 +92,6 @@ tasks:
             fi
           done | tr '\n' ' '
 
-  build:updater:
-    summary: Builds the updater sidecar for macOS
-    cmds:
-      - task: common:build:updater
-        vars:
-          UPDATER_GOOS: darwin
-          UPDATER_GOARCH: '{{.ARCH | default ARCH}}'
-
   build:universal:
     summary: Builds darwin universal binary (arm64 + amd64)
     deps:

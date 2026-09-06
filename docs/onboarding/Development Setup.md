@@ -9,7 +9,7 @@
 | **Go** | 1.26+ | Backend language |
 | **Node.js** | 20+ (LTS) | Frontend build tooling |
 | **npm** | 10+ | Package manager (comes with Node) |
-| **Wails CLI** | v3.0.0-alpha.69 | Desktop app framework |
+| **Wails CLI** | v3.0.0-beta.16 | Desktop app framework |
 | **Git** | 2.40+ | Version control (also used by the app itself) |
 | **Task** | 3.x | Task runner ([taskfile.dev](https://taskfile.dev)) |
 
@@ -24,7 +24,7 @@
 ## Install Wails v3
 
 ```bash
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.69
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
 ```
 
 Verify:
@@ -66,6 +66,9 @@ task common:generate:bindings
 ```bash
 task dev
 ```
+
+The native development build uses `DEV=true` and omits the `production` Go tag,
+so it does not check for application updates.
 
 This starts:
 1. **Wails dev server** — watches Go files, rebuilds on change
@@ -109,7 +112,6 @@ See [Architecture Overview](../technical/architecture/Architecture%20Overview.md
 | Production build | `task build` |
 | Package for distribution | `task package` |
 | Regenerate bindings | `task common:generate:bindings` |
-| Build updater sidecar | `task build:updater` |
 | Backend tests | `go test ./services/... -v` |
 | Backend test coverage | `go test ./services/... -coverprofile=coverage.out && go tool cover -html=coverage.out` |
 | Frontend tests | `cd frontend && npm test` |
@@ -172,10 +174,10 @@ task common:generate:bindings
 
 ### Wails build fails
 
-Ensure Wails v3 alpha.69 is installed:
+Ensure Wails v3 beta.16 is installed:
 
 ```bash
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.69
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
 ```
 
 ### Port 9245 in use

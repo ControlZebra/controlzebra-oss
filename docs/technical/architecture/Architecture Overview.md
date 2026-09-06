@@ -149,8 +149,13 @@ main.go startup:
 | Keychain | Credential Manager | Keychain |
 | Console | Hidden (SysProcAttr) | N/A |
 | Data paths | `%APPDATA%`, `%LOCALAPPDATA%` | `~/.config`, `~/Library/Caches` |
-| Distribution | NSIS installer + auto-updater | DMG |
+| Distribution | NSIS installer + Wails updater (x64 production) | DMG |
 
 ---
 
 **Next:** [Backend Architecture](../backend/Backend%20Architecture.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [Event System](Event%20System.md)
+
+`AppUpdateService` checks GitHub stable releases on startup and schedules silent
+checks every six hours. It serializes manual and background updater operations.
+Wails verifies the executable against `SHA256SUMS` and handles staging and restart.
+See [Auto-Updater](../infrastructure/Auto-Updater.md) for the release contract.

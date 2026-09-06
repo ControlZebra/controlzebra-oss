@@ -14,11 +14,6 @@ vars:
   APP_VERSION: '{{.APP_VERSION | default (env "APP_VERSION") | default .APP_VERSION_FROM_CONFIG | default "0.0.0-dev"}}'
   BIN_DIR: "bin"
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
-  # Base64-encoded Ed25519 public key for manifest signature verification.
-  # Generated once with: go run scripts/signing/main.go keygen
-  # Set this to your actual public key for production builds.
-  # Leave empty to disable signature verification (dev builds).
-  SIGNING_PUBLIC_KEY: '{{.SIGNING_PUBLIC_KEY | default ""}}'
 
 tasks:
   build:
@@ -40,31 +35,6 @@ tasks:
     summary: Runs the application in development mode
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
-
-  build:updater:
-    summary: Builds the updater sidecar binary (pure Go, no CGO)
-    cmds:
-      - go build -trimpath -ldflags="-w -s -X main.Version={{.APP_VERSION}} -X main.PublicKey={{.SIGNING_PUBLIC_KEY}}" -o {{.BIN_DIR}}/cz-updater{{if eq (.UPDATER_GOOS | default OS) "windows"}}.exe{{else}}{{exeExt}}{{end}} ./cmd/updater
-    env:
-      GOOS: '{{.UPDATER_GOOS | default OS}}'
-      GOARCH: '{{.UPDATER_GOARCH | default ARCH}}'
-      CGO_ENABLED: '0'
-    sources:
-      - cmd/updater/**/*.go
-    generates:
-      - '{{.BIN_DIR}}/cz-updater{{if eq (.UPDATER_GOOS | default OS) "windows"}}.exe{{else}}{{exeExt}}{{end}}'
-
-  build:updater:cross:
-    summary: Cross-compiles the updater sidecar for a specific OS/ARCH
-    cmds:
-      - go build -trimpath -ldflags="-w -s -X main.Version={{.APP_VERSION}} -X main.PublicKey={{.SIGNING_PUBLIC_KEY}}" -o {{.BIN_DIR}}/cz-updater-{{.TARGET_OS}}-{{.TARGET_ARCH}}{{if eq .TARGET_OS "windows"}}.exe{{end}} ./cmd/updater
-    env:
-      GOOS: '{{.TARGET_OS}}'
-      GOARCH: '{{.TARGET_ARCH}}'
-      CGO_ENABLED: '0'
-    vars:
-      TARGET_OS: '{{.TARGET_OS | default OS}}'
-      TARGET_ARCH: '{{.TARGET_ARCH | default ARCH}}'
 
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)

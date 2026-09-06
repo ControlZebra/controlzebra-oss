@@ -28,7 +28,8 @@ Follow the [development setup](docs/onboarding/Development%20Setup.md). Source b
 For code changes, run these checks from the repository root:
 
 ```bash
-go test ./services/... ./cmd/updater/...
+go build ./...
+go test . ./services/...
 npm --prefix frontend run ci:guards
 npm --prefix frontend test
 npm --prefix frontend run build

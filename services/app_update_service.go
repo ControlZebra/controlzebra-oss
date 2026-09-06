@@ -93,6 +93,9 @@ func (s *AppUpdateService) CheckForUpdates() error {
 
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
 	return s.updater.CheckAndInstall(s.ctx)
 }
 
@@ -116,7 +119,7 @@ func (s *AppUpdateService) ServiceShutdown() error {
 }
 
 func (s *AppUpdateService) applicationStarted() {
-	if !s.enabled || s.updater == nil {
+	if !s.enabled || s.updater == nil || s.ctx.Err() != nil {
 		return
 	}
 
@@ -142,12 +145,16 @@ func (s *AppUpdateService) scheduleNextBackgroundCheck() {
 // runBackgroundCheck remains silent when the app is current or the provider
 // fails. A discovered release is the only condition that opens updater UI.
 func (s *AppUpdateService) runBackgroundCheck() {
-	if !s.enabled || s.updater == nil {
+	if !s.enabled || s.updater == nil || s.ctx.Err() != nil {
 		return
 	}
 
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	// Shutdown may have happened while this check waited for a manual flow.
+	if s.ctx.Err() != nil {
+		return
+	}
 
 	release, err := s.updater.Check(s.ctx)
 	if err != nil {
