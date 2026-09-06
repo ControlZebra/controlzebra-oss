@@ -37,9 +37,8 @@ import {
   AOIParameterTable,
   AOILocalTagTable,
   ModuleInfoTable,
-  registerAOIsFromController,
-  clearAOIs,
   DARK_THEME,
+  type InstructionContext,
   type NormalizedController,
   type NormalizedRoutine,
   type NormalizedDataType,
@@ -59,6 +58,11 @@ import { CONTROL_ZEBRA_LADDER_THEME } from './l5x/theme';
 
 interface L5XViewerUIState {
   showNavigator: boolean;
+}
+
+interface ParsedController {
+  controller: NormalizedController;
+  instructionContext?: InstructionContext;
 }
 
 // ============================================================================
@@ -130,7 +134,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   }, [filePath, normalizedFilePath]);
 
   // Loader function for cached content - parses L5X file
-  const loadAndParseFile = useCallback(async (): Promise<NormalizedController> => {
+  const loadAndParseFile = useCallback(async (): Promise<ParsedController> => {
     const result = await ReadTextFile(filePath);
     
     if (!result.success) {
@@ -143,24 +147,20 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       throw new Error(parseResult.errors?.[0]?.message || 'Failed to parse L5X file');
     }
 
-    return parseResult.data;
+    return {
+      controller: parseResult.data,
+      instructionContext: parseResult.context,
+    };
   }, [filePath]);
 
   // Use cached content - persists across tab/view switches
-  const { data: controller, error, isLoading } = useCachedContent<NormalizedController>(
+  const { data: parsedController, error, isLoading } = useCachedContent<ParsedController>(
     filePath,
     loadAndParseFile,
     [refreshCounter]
   );
-
-  // Register AOIs when controller data is available (from cache or fresh load)
-  useEffect(() => {
-    if (controller) {
-      // Re-register AOIs - needed for proper parameter labels
-      clearAOIs();
-      registerAOIsFromController(controller);
-    }
-  }, [controller]);
+  const controller = parsedController?.controller;
+  const instructionContext = parsedController?.instructionContext;
 
   // Toggle navigator visibility
   const toggleNavigator = useCallback(() => {
@@ -380,6 +380,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
                 ) : routine.type === 'RLL' ? (
                   <VirtualizedLadderDiagram
                     routine={routine}
+                    instructionContext={instructionContext}
                     theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
                     className="h-full"
                   />
@@ -408,6 +409,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
                 ) : routine.type === 'RLL' ? (
                   <VirtualizedLadderDiagram
                     routine={routine}
+                    instructionContext={instructionContext}
                     theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
                     className="h-full"
                   />
@@ -446,7 +448,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       default:
         return null;
     }
-  }, [controller, isDarkMode, renderUnsupportedRoutineType]);
+  }, [controller, instructionContext, isDarkMode, renderUnsupportedRoutineType]);
 
   // ============================================================================
   // Main Content Rendering

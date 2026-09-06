@@ -2,9 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildInlineDiffModel,
+  createInstructionRegistry,
   diffControllers,
   measureRoutineDiffRowHeight,
+  registerAOI,
   type Instruction,
+  type InstructionContext,
   type NormalizedController,
   type NormalizedProgram,
   type NormalizedRoutine,
@@ -171,6 +174,40 @@ describe('RoutineDiffInspector', () => {
     expect(container.querySelector('[data-inline-diff-text-change="comment"]')).toBeNull();
     expect(screen.queryByText('Old')).toBeNull();
     expect(screen.queryByText('New')).toBeNull();
+  });
+
+  it('renders AOI operand labels from the parsed controller context', () => {
+    const instructionRegistry = createInstructionRegistry();
+    registerAOI(instructionRegistry, {
+      name: 'ContextAOI',
+      parameters: [{ name: 'Controller-Specific Input', usage: 'Input', visible: true }],
+    });
+    const instructionContext: InstructionContext = { instructionRegistry };
+    const addedRung = makeRung(
+      0,
+      'ContextAOI(InputTag)',
+      [instruction('ContextAOI', 'aoi', ['InputTag'])],
+    );
+    const entity = getRoutineEntity(
+      makeController(),
+      makeController({
+        programs: [makeProgram('Main', {
+          routines: [makeRoutine('Motor', [addedRung])],
+        })],
+      }),
+      'Main',
+      'Motor',
+    );
+
+    render(
+      <RoutineDiffInspector
+        entity={entity}
+        isDarkMode={false}
+        instructionContext={instructionContext}
+      />,
+    );
+
+    expect(screen.getByText('Controller-Specific Input')).toBeInTheDocument();
   });
 
   it('uses library-measured row heights for modified and added routine virtualization', () => {
