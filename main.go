@@ -246,7 +246,7 @@ func main() {
 		fileSystemService.OpenURL("https://controlzebra.com/docs")
 	})
 	helpMenu.Add("Report Issue").OnClick(func(ctx *application.Context) {
-		fileSystemService.OpenURL("https://github.com/ControlZebra/controlzebra-releases/issues")
+		fileSystemService.OpenURL("https://github.com/ControlZebra/controlzebra-oss/issues")
 	})
 
 	// About dialog (Windows/Linux only - macOS uses AppMenu role)
