@@ -132,4 +132,3 @@ tasks:
       - sh: docker info > /dev/null 2>&1
         msg: "Docker is required. Please install Docker first."
 
-
