@@ -77,23 +77,30 @@ npm run build
 Before distributing a package, also smoke-test installation and startup on the
 target operating system. A frontend build alone does not validate installation.
 
-**Related:** [Development Setup](../../onboarding/Development%20Setup.md) | [Architecture Overview](../architecture/Architecture%20Overview.md) | [Testing Guide](Testing%20Guide.md)
-
 ## Windows x64 release preparation
 
 Use the native Windows build tasks for updater-enabled releases. The Docker
 Windows build is outside this updater scope and does not supply its production
 tag or embedded version.
 
-Build the executable and NSIS installer with the same version. After updating
-`build/config.yml`, regenerate metadata and reapply the per-user NSIS execution
-level, taskkill, license, install directory, and optional user-data removal
-customizations. `APP_VERSION` controls the embedded Go version; generated NSIS
-metadata must also match the release.
+Build the executable and NSIS installer with the same stable version. Set
+`APP_VERSION` explicitly for a release build; `build/config.yml` is its fallback.
+The native Windows task uses the value for the embedded Go version, generated
+Windows executable metadata, and NSIS metadata.
 
-Stage and sign `bin/control-zebra-windows-amd64.exe` and
-`bin/control-zebra-amd64-installer.exe`. Build the installer from the signed app
-executable, then sign the installer. Avoid rebuilding the executable after signing.
+From PowerShell on the native Windows x64 build machine:
+
+```powershell
+$env:APP_VERSION = '1.2.3'
+task windows:build ARCH=amd64
+```
+
+Sign `bin/control-zebra.exe`, copy that signed file to
+`bin/control-zebra-windows-amd64.exe`, and build the NSIS installer from the
+signed executable with `build/windows/nsis/project.nsi` and the same version.
+Then sign `bin/control-zebra-amd64-installer.exe`. Do not invoke a build task or
+modify either artifact after this point because that would invalidate its
+signature.
 
 From Git Bash on Windows, with Windows PowerShell available:
 
@@ -119,3 +126,5 @@ numeric file version `0.0.2.0` and product version `0.0.2`.
 
 Run `node --test scripts/generate-windows-version-info.test.mjs` to check this
 metadata generation, including development versions and invalid inputs.
+
+**Related:** [Development Setup](../../onboarding/Development%20Setup.md) | [Architecture Overview](../architecture/Architecture%20Overview.md) | [Auto-Updater](../infrastructure/Auto-Updater.md) | [Testing Guide](Testing%20Guide.md)

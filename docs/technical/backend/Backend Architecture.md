@@ -70,9 +70,12 @@ app := application.New(application.Options{
         application.NewService(services.NewGitService()),
         application.NewService(services.NewLFSService()),
         application.NewService(services.NewGitHubService()),
-        // ... 10 more
+        // ... 12 more in the initial registration
     },
 })
+
+appUpdateService := services.NewAppUpdateService(Version, app)
+app.RegisterService(application.NewService(appUpdateService))
 ```
 
 After app creation, services needing event emission get wired:

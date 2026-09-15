@@ -12,7 +12,7 @@
 │  │   Go Backend (Wails) │     │  React Frontend (WebView)    │  │
 │  │                      │     │                              │  │
 │  │  ┌────────────────┐  │     │  ┌────────────────────────┐  │  │
-│  │  │  13 Services   │◄─┼─IPC─┼─►│  Wails Auto-Bindings   │  │  │
+│  │  │  16 Services   │◄─┼─IPC─┼─►│  Wails Auto-Bindings   │  │  │
 │  │  │  (registered)  │  │     │  │  (TypeScript)           │  │  │
 │  │  └───────┬────────┘  │     │  └────────────┬───────────┘  │  │
 │  │          │           │     │               │              │  │
@@ -48,7 +48,7 @@ All git operations use `os/exec` via [CommandRunner](../infrastructure/CommandRu
 **Why:** CLI tools are the most tested, most compatible path. Users' existing git configs, credential helpers, SSH keys, and GPG setups all work automatically.
 
 ### 2. Wails v3 Bridge
-The app uses [Wails v3](https://v3alpha.wails.io/) to bridge Go backend ↔ React frontend. Go structs with exported methods are registered as services and auto-exposed as TypeScript bindings.
+The app uses [Wails v3](https://v3.wails.io/) to bridge Go backend ↔ React frontend. Go structs with exported methods are registered as services and auto-exposed as TypeScript bindings.
 
 **Data flow:**
 1. Frontend calls auto-generated TypeScript function
@@ -82,7 +82,7 @@ The frontend combines events with a 30-second polling fallback and immediate ref
 
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
-| Desktop Framework | Wails | v3.0.0-alpha.69 | Go ↔ WebView bridge |
+| Desktop Framework | Wails | v3.0.0-beta.16 | Go ↔ WebView bridge and Windows x64 updates |
 | Backend Language | Go | 1.26 | Service logic, CLI execution |
 | Frontend Framework | React | 18 | UI rendering |
 | Frontend Language | TypeScript | 5.x | Type safety |
@@ -108,7 +108,7 @@ The frontend combines events with a 30-second polling fallback and immediate ref
 ```
 main.go                  ← App entry, service registration, menu, events
 services/                ← ALL backend logic lives here
-  ├── *_service.go       ← Registered services (13 total)
+  ├── *_service.go       ← Registered services (16 total)
   ├── runner.go          ← CommandRunner (CLI execution)
   ├── cli_resolver.go    ← Binary path resolution
   ├── data_paths.go      ← XDG data layout
@@ -133,11 +133,13 @@ frontend/bindings/       ← Auto-generated Wails bindings (NEVER EDIT)
 main.go startup:
 1. RunDataLayoutMigration()          ← Move legacy config dirs
 2. Create service instances          ← NewGitService(), etc.
-3. app := application.New(...)       ← Register all 13 services
-4. service.SetApp(app)               ← Wire event emitters
-5. GetDebugLogger().SetApp(app)      ← Wire debug log events
-6. [Windows] EnsurePortableToolchain ← Background goroutine
-7. app.Run()                         ← Start event loop + WebView
+3. app := application.New(...)       ← Register the initial 15 services
+4. Register AppUpdateService         ← Attach lifecycle and updater coordination
+5. [Production Windows x64] Init     ← Configure stable GitHub releases + checksums
+6. service.SetApp(app)               ← Wire event emitters
+7. GetDebugLogger().SetApp(app)      ← Wire debug log events
+8. [Windows] EnsurePortableToolchain ← Background goroutine
+9. app.Run()                         ← Start event loop + WebView
 ```
 
 ## Platform Differences
@@ -153,9 +155,11 @@ main.go startup:
 
 ---
 
-**Next:** [Backend Architecture](../backend/Backend%20Architecture.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [Event System](Event%20System.md)
-
 `AppUpdateService` checks GitHub stable releases on startup and schedules silent
 checks every six hours. It serializes manual and background updater operations.
 Wails verifies the executable against `SHA256SUMS` and handles staging and restart.
 See [Auto-Updater](../infrastructure/Auto-Updater.md) for the release contract.
+
+---
+
+**Next:** [Backend Architecture](../backend/Backend%20Architecture.md) | [Frontend Architecture](../frontend/Frontend%20Architecture.md) | [Event System](Event%20System.md)
