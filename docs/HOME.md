@@ -9,6 +9,7 @@ ControlZebra is a simplified desktop Git client for **non-technical users** in i
 ## Quick Navigation
 
 ### 🏁 Getting Started
+- [Installation](onboarding/Installation.md) — Windows download, setup, and updates
 - [Onboarding Guide](onboarding/Onboarding%20Guide.md) — Start here if you're new to the team
 - [Development Setup](onboarding/Development%20Setup.md) — Get your local environment running
 - [Architecture Overview](technical/architecture/Architecture%20Overview.md) — Understand how the app is built
@@ -47,7 +48,7 @@ ControlZebra is a simplified desktop Git client for **non-technical users** in i
 - [CLI Resolver](technical/infrastructure/CLI%20Resolver.md) — Binary path resolution strategy
 - [Data Paths](technical/infrastructure/Data%20Paths.md) — XDG-compliant storage layout
 - [Debug Logger](technical/infrastructure/Debug%20Logger.md) — Ring-buffer logging system
-- [Auto-Updater](technical/infrastructure/Auto-Updater.md) — Sidecar-based update system
+- [Auto-Updater](technical/infrastructure/Auto-Updater.md) — Wails updater for production Windows x64
 
 ### 🖥 Technical — Frontend
 - [Frontend Architecture](technical/frontend/Frontend%20Architecture.md) — Component organization & patterns

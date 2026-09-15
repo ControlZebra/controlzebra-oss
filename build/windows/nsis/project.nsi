@@ -36,9 +36,13 @@ Unicode true
 ####
 !include "wails_tools.nsh"
 
-# The version information for this two must consist of 4 parts
-VIProductVersion "0.3.0.0"
-VIFileVersion    "0.3.0.0"
+# Keep numeric installer metadata and Installed Apps aligned with the release.
+# The configuration may use a leading v; Windows version resources require numbers.
+!searchreplace NSIS_PRODUCT_VERSION "${INFO_PRODUCTVERSION}" "v" ""
+!undef INFO_PRODUCTVERSION
+!define INFO_PRODUCTVERSION "${NSIS_PRODUCT_VERSION}"
+VIProductVersion "${NSIS_PRODUCT_VERSION}.0"
+VIFileVersion    "${NSIS_PRODUCT_VERSION}.0"
 
 VIAddVersionKey "CompanyName"     "${INFO_COMPANYNAME}"
 VIAddVersionKey "FileDescription" "${INFO_PRODUCTNAME} Installer"
@@ -102,6 +106,8 @@ Section
     SetOutPath $INSTDIR
     
     !insertmacro wails.files
+    # Remove the legacy updater when upgrading an existing installation.
+    Delete "$INSTDIR\cz-updater.exe"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

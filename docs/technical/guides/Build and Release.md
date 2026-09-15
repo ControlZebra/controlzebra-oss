@@ -56,31 +56,17 @@ identity and private credential storage. Keep signing material, certificates
 containing private keys, and passwords out of Git. The existing signing scripts
 and platform tasks describe their configuration inputs.
 
-The Wails updater verifies release payloads against the `SHA256SUMS` asset on
-the same GitHub Release. See [Auto-Updater](../infrastructure/Auto-Updater.md)
-for the updater's technical contract. Maintainer release operations are managed
-outside the public source repository.
-
-## Stage a release
-
-After building and signing the raw Windows executable and NSIS installer, stage
-the GitHub Release assets with:
-
-```bash
-./scripts/create-release.sh --version 0.3.1 --notes @CHANGELOG.md
-```
-
-The script gives updater payloads platform-qualified names, copies the optional
-first-install packages, and creates the exact `SHA256SUMS` sidecar consumed by
-Wails. Add `--upload` to publish the staged files to
-`ControlZebra/controlzebra-releases`. The raw executable is the updater payload;
-the NSIS installer remains the download for a first installation.
+Windows x64 updates use the Wails GitHub provider and a `SHA256SUMS` release asset.
+The application executable and NSIS installer must both have valid, timestamped
+Authenticode signatures before checksums are generated.
+See [Auto-Updater](../infrastructure/Auto-Updater.md) for the updater's technical contract. Maintainer release
+operations are managed outside the public source repository.
 
 ## Verify the build
 
 ```bash
-go test ./services/...
-bash scripts/create-release.test.sh
+go build ./...
+go test . ./services/...
 python3 scripts/check-publication.py
 cd frontend
 npm run ci:guards
@@ -92,3 +78,44 @@ Before distributing a package, also smoke-test installation and startup on the
 target operating system. A frontend build alone does not validate installation.
 
 **Related:** [Development Setup](../../onboarding/Development%20Setup.md) | [Architecture Overview](../architecture/Architecture%20Overview.md) | [Testing Guide](Testing%20Guide.md)
+
+## Windows x64 release preparation
+
+Use the native Windows build tasks for updater-enabled releases. The Docker
+Windows build is outside this updater scope and does not supply its production
+tag or embedded version.
+
+Build the executable and NSIS installer with the same version. After updating
+`build/config.yml`, regenerate metadata and reapply the per-user NSIS execution
+level, taskkill, license, install directory, and optional user-data removal
+customizations. `APP_VERSION` controls the embedded Go version; generated NSIS
+metadata must also match the release.
+
+Stage and sign `bin/control-zebra-windows-amd64.exe` and
+`bin/control-zebra-amd64-installer.exe`. Build the installer from the signed app
+executable, then sign the installer. Avoid rebuilding the executable after signing.
+
+From Git Bash on Windows, with Windows PowerShell available:
+
+```bash
+scripts/create-release.sh --version 1.2.3 --notes @release-notes.md
+scripts/create-release.sh --version 1.2.3 --validate-only
+# Once the release tag exists on GitHub and the artifacts are ready to publish:
+scripts/create-release.sh --version 1.2.3 --validate-only --upload --notes @release-notes.md
+```
+
+The output is `release/1.2.3/` with the two executables and `SHA256SUMS`.
+Preparation refuses existing output to avoid overwriting reviewed artifacts.
+Validation rejects missing files, unexpected names, invalid signatures, missing
+timestamps, and checksum mismatches. Development self-signed bypass settings do
+not apply. Release publication targets `ControlZebra/controlzebra-oss`.
+
+
+The native Windows build generates `bin/windows-info-<arch>.json` from the
+source metadata template using `APP_VERSION`. This keeps the executable's
+Windows file version aligned with the Go version and NSIS metadata without
+editing generated source templates. For example, `APP_VERSION=0.0.2` produces
+numeric file version `0.0.2.0` and product version `0.0.2`.
+
+Run `node --test scripts/generate-windows-version-info.test.mjs` to check this
+metadata generation, including development versions and invalid inputs.

@@ -22,8 +22,7 @@ Managed by [SettingsService](../backend/services/SettingsService.md):
     "theme": "system",          // "light" | "dark" | "system"
     "lastOpenedFolder": "/path/to/repo",
     "recentFolders": ["/path/to/repo1", "/path/to/repo2"],
-    "analyticsEnabled": true,
-    "autoUpdatesEnabled": true
+    "analyticsEnabled": true
 }
 ```
 

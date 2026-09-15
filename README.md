@@ -15,7 +15,7 @@ ControlZebra manages project revisions; keep using your engineering software to 
 
 ## Download
 
-Get the Windows installer from [ControlZebra releases](https://github.com/ControlZebra/controlzebra-releases/releases).
+See the [installation guide](docs/onboarding/Installation.md). Get the Windows installer from [ControlZebra releases](https://github.com/ControlZebra/controlzebra-oss/releases/latest).
 
 This repository contains the source code. You do not need to build it to use the desktop app.
 
