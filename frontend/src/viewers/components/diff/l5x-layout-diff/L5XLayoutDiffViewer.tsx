@@ -9,12 +9,13 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import {
+  clearAOIs,
   ProgramNavigator,
   diffControllers,
   parseString,
+  registerAOIsFromController,
   TagTable,
   type ColumnDefinition,
-  type InstructionContext,
   type L5XDiff,
   type NormalizedController,
   type NormalizedProgram,
@@ -36,7 +37,6 @@ import { useDiffTabs } from './useDiffTabs';
 
 interface CachedController {
   controller: NormalizedController;
-  instructionContext?: InstructionContext;
   timestamp: number;
 }
 
@@ -44,13 +44,7 @@ interface CachedDiffBundle {
   diff: L5XDiff;
   oldController: NormalizedController;
   newController: NormalizedController;
-  instructionContext?: InstructionContext;
   timestamp: number;
-}
-
-interface ParsedController {
-  controller: NormalizedController;
-  instructionContext?: InstructionContext;
 }
 
 interface LoadState {
@@ -96,7 +90,7 @@ function buildDiffCacheKey(repoPath: string, oldSide: DiffSide, newSide: DiffSid
   return `${repoPath}|${serializeDiffSide(oldSide)}|${serializeDiffSide(newSide)}`;
 }
 
-function getCachedController(key: string): ParsedController | undefined {
+function getCachedController(key: string): NormalizedController | undefined {
   const entry = controllerCache.get(key);
   if (!entry) {
     return undefined;
@@ -105,13 +99,10 @@ function getCachedController(key: string): ParsedController | undefined {
     controllerCache.delete(key);
     return undefined;
   }
-  return {
-    controller: entry.controller,
-    instructionContext: entry.instructionContext,
-  };
+  return entry.controller;
 }
 
-function setCachedController(key: string, parsedController: ParsedController): void {
+function setCachedController(key: string, controller: NormalizedController): void {
   if (controllerCache.size >= MAX_CACHE_ENTRIES) {
     let oldestKey: string | undefined;
     let oldestTime = Infinity;
@@ -126,7 +117,7 @@ function setCachedController(key: string, parsedController: ParsedController): v
     }
   }
 
-  controllerCache.set(key, { ...parsedController, timestamp: Date.now() });
+  controllerCache.set(key, { controller, timestamp: Date.now() });
 }
 
 function getCachedDiffBundle(key: string): CachedDiffBundle | undefined {
@@ -164,15 +155,12 @@ export function clearL5XLayoutDiffCache(): void {
   diffCache.clear();
 }
 
-function parseL5X(content: string, label: string): ParsedController {
+function parseL5X(content: string, label: string): NormalizedController {
   const result = parseString(content, 'l5x');
   if (!result.success || !result.data) {
     throw new Error(result.errors?.[0]?.message || `Failed to parse ${label} L5X content`);
   }
-  return {
-    controller: result.data,
-    instructionContext: result.context,
-  };
+  return result.data;
 }
 
 function getChangeTone(kind: L5XDiffAggregateChangeKind): string {
@@ -329,20 +317,14 @@ function buildNavigatorController(viewModel: NonNullable<ReturnType<typeof build
 function RenderEntityDetails({
   entity,
   isDarkMode,
-  instructionContext,
 }: {
   entity: L5XDiffRenderableEntity;
   isDarkMode: boolean;
-  instructionContext?: InstructionContext;
 }): JSX.Element {
   if (entity.kind === 'routine') {
     return (
       <div className="h-full min-h-0">
-        <RoutineDiffInspector
-          entity={entity}
-          isDarkMode={isDarkMode}
-          instructionContext={instructionContext}
-        />
+        <RoutineDiffInspector entity={entity} isDarkMode={isDarkMode} />
       </div>
     );
   }
@@ -467,16 +449,16 @@ function L5XLayoutDiffViewer({
         setLoadState({ phase: 'loading-old' });
         setBundle(null);
 
-        let oldParsedController: ParsedController | undefined;
+        let oldController: NormalizedController | undefined;
         if (fileStatus !== 'added') {
-          oldParsedController = getCachedController(cacheKeys.oldController);
-          if (!oldParsedController) {
+          oldController = getCachedController(cacheKeys.oldController);
+          if (!oldController) {
             const oldContent = await loadTextSide(repoPath, oldSide);
             if (cancelled) return;
             if (oldContent !== null) {
               setLoadState({ phase: 'parsing' });
-              oldParsedController = parseL5X(oldContent, 'old');
-              setCachedController(cacheKeys.oldController, oldParsedController);
+              oldController = parseL5X(oldContent, 'old');
+              setCachedController(cacheKeys.oldController, oldController);
             }
           }
         }
@@ -485,33 +467,38 @@ function L5XLayoutDiffViewer({
 
         setLoadState({ phase: 'loading-new' });
 
-        let newParsedController: ParsedController | undefined;
+        let newController: NormalizedController | undefined;
         if (fileStatus !== 'deleted') {
-          newParsedController = getCachedController(cacheKeys.newController);
-          if (!newParsedController) {
+          newController = getCachedController(cacheKeys.newController);
+          if (!newController) {
             const newContent = await loadTextSide(repoPath, newSide);
             if (cancelled) return;
             if (newContent !== null) {
               setLoadState({ phase: 'parsing' });
-              newParsedController = parseL5X(newContent, 'new');
-              setCachedController(cacheKeys.newController, newParsedController);
+              newController = parseL5X(newContent, 'new');
+              setCachedController(cacheKeys.newController, newController);
             }
           }
         }
 
         if (cancelled) return;
 
+        clearAOIs();
+        if (newController) {
+          registerAOIsFromController(newController);
+        } else if (oldController) {
+          registerAOIsFromController(oldController);
+        }
+
         setLoadState({ phase: 'diffing' });
 
-        const resolvedOldController = oldParsedController?.controller ?? emptyController;
-        const resolvedNewController = newParsedController?.controller ?? emptyController;
+        const resolvedOldController = oldController ?? emptyController;
+        const resolvedNewController = newController ?? emptyController;
         const diff = diffControllers(resolvedOldController, resolvedNewController);
         const nextBundle = {
           diff,
           oldController: resolvedOldController,
           newController: resolvedNewController,
-          instructionContext:
-            newParsedController?.instructionContext ?? oldParsedController?.instructionContext,
         };
 
         if (cancelled) return;
@@ -832,11 +819,7 @@ function L5XLayoutDiffViewer({
 
               <div className="relative flex-1 min-h-0 overflow-hidden">
                 {activeEntity ? (
-                  <RenderEntityDetails
-                    entity={activeEntity}
-                    isDarkMode={isDarkMode}
-                    instructionContext={bundle?.instructionContext}
-                  />
+                  <RenderEntityDetails entity={activeEntity} isDarkMode={isDarkMode} />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-theme-elevated text-theme-secondary">
                     Select a changed routine or tag group.

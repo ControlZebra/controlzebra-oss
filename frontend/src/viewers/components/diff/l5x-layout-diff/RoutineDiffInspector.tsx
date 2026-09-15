@@ -4,7 +4,6 @@ import {
   DARK_THEME,
   InlineDiffRung,
   VirtualizedLadderDiagram,
-  type InstructionContext,
   type LadderDiagramTheme,
   type NormalizedRung,
 } from 'ladder-visualizer';
@@ -77,7 +76,6 @@ function RungDiagram({
   height,
   theme,
   isDarkMode,
-  instructionContext,
 }: {
   rung: NormalizedRung;
   label: string;
@@ -85,7 +83,6 @@ function RungDiagram({
   height: number;
   theme: LadderDiagramTheme;
   isDarkMode: boolean;
-  instructionContext?: InstructionContext;
 }): JSX.Element {
   const rungs = useMemo(() => [rung], [rung]);
   const toneClass = tone === 'added'
@@ -100,7 +97,6 @@ function RungDiagram({
       <div className={isDarkMode ? 'ladder-visualizer-dark' : ''} style={{ height }}>
         <VirtualizedLadderDiagram
           rungs={rungs}
-          instructionContext={instructionContext}
           theme={theme}
           height={height}
           className="h-full"
@@ -113,11 +109,9 @@ function RungDiagram({
 function InlineDiffDiagram({
   row,
   theme,
-  instructionContext,
 }: {
   row: L5XDiffRoutineRow;
   theme: LadderDiagramTheme;
-  instructionContext?: InstructionContext;
 }): JSX.Element {
   const [containerRef, containerWidth] = useMeasuredElementWidth<HTMLDivElement>();
 
@@ -132,12 +126,7 @@ function InlineDiffDiagram({
   return (
     <div ref={containerRef} className="overflow-x-auto border border-theme-modified/40 bg-theme-elevated/30">
       <div className="min-w-fit">
-        <InlineDiffRung
-          model={row.inlineDiffModel}
-          width={containerWidth}
-          theme={theme}
-          instructionContext={instructionContext}
-        />
+        <InlineDiffRung model={row.inlineDiffModel} width={containerWidth} theme={theme} />
       </div>
     </div>
   );
@@ -147,12 +136,10 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
   row,
   theme,
   isDarkMode,
-  instructionContext,
 }: {
   row: L5XDiffRoutineRow;
   theme: LadderDiagramTheme;
   isDarkMode: boolean;
-  instructionContext?: InstructionContext;
 }): JSX.Element {
   const primaryRung = row.newRung ?? row.oldRung;
   const rowToneClass = row.state === 'added'
@@ -192,11 +179,7 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
 
       <div className="space-y-2 px-3 py-2">
         {row.state === 'modified' ? (
-          <InlineDiffDiagram
-            row={row}
-            theme={theme}
-            instructionContext={instructionContext}
-          />
+          <InlineDiffDiagram row={row} theme={theme} />
         ) : primaryRung ? (
           <RungDiagram
             rung={primaryRung}
@@ -205,7 +188,6 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
             height={row.measuredHeight}
             theme={theme}
             isDarkMode={isDarkMode}
-            instructionContext={instructionContext}
           />
         ) : (
           <div className="rounded-md border border-dashed border-theme-default px-3 py-6 text-sm text-theme-secondary">
@@ -220,11 +202,9 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
 export const RoutineDiffInspector = memo(function RoutineDiffInspector({
   entity,
   isDarkMode,
-  instructionContext,
 }: {
   entity: L5XDiffRoutineEntity;
   isDarkMode: boolean;
-  instructionContext?: InstructionContext;
 }): JSX.Element {
   const model = useMemo(() => buildRoutineDiffRenderModel(entity), [entity]);
   const theme = useMemo(() => buildRoutineTheme(isDarkMode), [isDarkMode]);
@@ -278,12 +258,7 @@ export const RoutineDiffInspector = memo(function RoutineDiffInspector({
                     className="absolute left-0 top-0 w-full"
                     style={{ transform: `translateY(${virtualRow.start}px)` }}
                   >
-                    <RoutineDiffRowCard
-                      row={row}
-                      theme={theme}
-                      isDarkMode={isDarkMode}
-                      instructionContext={instructionContext}
-                    />
+                    <RoutineDiffRowCard row={row} theme={theme} isDarkMode={isDarkMode} />
                   </div>
                 );
               })}

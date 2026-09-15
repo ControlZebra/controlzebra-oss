@@ -11,14 +11,12 @@ const {
   onEventMock,
   registerAOIsFromControllerMock,
   clearAOIsMock,
-  virtualizedLadderDiagramMock,
 } = vi.hoisted(() => ({
   readTextFileMock: vi.fn(),
   parseStringMock: vi.fn(),
   onEventMock: vi.fn(),
   registerAOIsFromControllerMock: vi.fn(),
   clearAOIsMock: vi.fn(),
-  virtualizedLadderDiagramMock: vi.fn(),
 }));
 
 let filesChangedHandler: ((event: {
@@ -47,17 +45,9 @@ vi.mock('../shared/ViewerHeader', () => ({
 
 vi.mock('ladder-visualizer', () => ({
   parseString: parseStringMock,
-  VirtualizedLadderDiagram: (props: {
-    routine: { name: string; versionTag?: string };
-    instructionContext?: { marker?: string };
-  }) => {
-    virtualizedLadderDiagramMock(props);
-    return (
-      <div data-instruction-context={props.instructionContext?.marker ?? 'missing'}>
-        {`RLL:${props.routine.name}@${props.routine.versionTag ?? 'unknown'}`}
-      </div>
-    );
-  },
+  VirtualizedLadderDiagram: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
+    <div>{`RLL:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
+  ),
   ProgramNavigator: ({
     programs,
     selectedRoutine,
@@ -164,7 +154,6 @@ describe('L5XViewer refresh behavior', () => {
     parseStringMock.mockImplementation((content: string) => ({
       success: true,
       data: makeController(content),
-      context: { marker: `context-${content}` },
       errors: [],
     }));
   });
@@ -178,23 +167,8 @@ describe('L5XViewer refresh behavior', () => {
     expect(readTextFileMock).toHaveBeenCalledWith('/repo/Programs/Main.L5X');
     expect(parseStringMock).toHaveBeenCalledTimes(1);
     expect(getCachedContent('/repo/Programs/Main.L5X')).toMatchObject({
-      controller: { name: 'Controller v1' },
-      instructionContext: { marker: 'context-v1' },
+      name: 'Controller v1',
     });
-  });
-
-  it('passes the cached parser context to ladder rendering without global registration', async () => {
-    queueSuccessfulRead(['v1']);
-
-    await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
-
-    expect(await screen.findByText('RLL:RoutineA@v1')).toHaveAttribute(
-      'data-instruction-context',
-      'context-v1',
-    );
-    expect(clearAOIsMock).not.toHaveBeenCalled();
-    expect(registerAOIsFromControllerMock).not.toHaveBeenCalled();
   });
 
   it('ignores files-changed events for other files', async () => {
@@ -219,8 +193,7 @@ describe('L5XViewer refresh behavior', () => {
       expect(readTextFileMock).toHaveBeenCalledTimes(2);
       expect(parseStringMock).toHaveBeenCalledTimes(2);
       expect(getCachedContent('/repo/Programs/Main.L5X')).toMatchObject({
-        controller: { name: 'Controller v2' },
-        instructionContext: { marker: 'context-v2' },
+        name: 'Controller v2',
       });
     });
   });
