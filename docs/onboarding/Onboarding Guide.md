@@ -36,7 +36,7 @@ Read these docs in order:
 
 ### Day 3: Core Services
 
-1. [Services Index](../technical/backend/Services%20Index.md) — Skim all 13 services
+1. [Services Index](../technical/backend/Services%20Index.md) — Skim all 16 services
 2. [GitService](../technical/backend/services/GitService.md) — The largest service (115+ methods). Read the method categories
 3. [RepositorySettingsService](../technical/backend/services/RepositorySettingsService.md) — Per-repo config and background tasks
 4. [CommandRunner](../technical/infrastructure/CommandRunner.md) — How every CLI command is executed

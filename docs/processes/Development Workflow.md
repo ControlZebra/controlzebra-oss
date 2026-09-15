@@ -42,7 +42,7 @@ feat: add PDF diff viewer for side-by-side comparison
 fix: resolve stash apply failure when conflicts exist
 refactor: extract CommandRunner timeout logic
 docs: update onboarding guide with new setup steps
-chore: bump Wails to alpha.69
+chore: upgrade Wails
 ```
 
 Format: `<type>: <description>`

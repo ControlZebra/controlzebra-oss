@@ -1,5 +1,7 @@
 # Install ControlZebra on Windows
 
+> Install, update, or remove the supported Windows x64 application.
+
 Download `control-zebra-amd64-installer.exe` from the
 [latest ControlZebra release](https://github.com/ControlZebra/controlzebra-oss/releases/latest).
 The installer is for Windows x64. The separately published
@@ -32,3 +34,5 @@ release feed should be upgraded by running the current installer.
 Remove ControlZebra from Windows **Settings → Apps → Installed apps**.
 The uninstaller offers an optional action to remove user data; select it only
 if you also want to remove application settings and local tool data.
+
+**Related:** [Auto-Updater](../technical/infrastructure/Auto-Updater.md) | [Build and Release](../technical/guides/Build%20and%20Release.md)

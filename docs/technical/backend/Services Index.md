@@ -21,6 +21,7 @@
 | 13 | [LocalBinService](services/Other%20Services.md#localbinservice) | `services/local_bin_service.go` | ~505 | Windows portable CLI toolchain download | Yes (`local-bin:progress`) |
 | 14 | [ConflictQueueService](services/ConflictQueueService.md) | `services/conflict_queue_service.go` | ~230 | Authoritative queue of conflicted files for the open repository | Yes (`conflictQueue:changed`) |
 | 15 | [IntegrationSessionService](services/IntegrationSessionService.md) | `services/integration_session_service.go` | ~650 | Isolated integration readiness, conflict decisions, and guarded Finish | Yes (`integrationSession:changed`, `integrationSession:conflicts`) |
+| 16 | [AppUpdateService](services/AppUpdateService.md) | `services/app_update_service.go` | ~186 | Windows x64 update checks, update UI coordination, and lifecycle scheduling | No |
 
 ## Infrastructure (Not Registered, But Critical)
 
@@ -54,6 +55,7 @@ Most services only depend on `CommandRunner`. Special dependencies:
 - `ProgressService` wraps `GitService` methods with progress streaming
 - `LocalBinService` uses `CLI Resolver` + `DataLocations` for tool management
 - `IntegrationSessionService` uses `GitService` conflict helpers, `RepoEventBus`, and the shared repository coordinator
+- `AppUpdateService` wraps Wails' application updater and owns its cancellable background schedule
 
 ## Adding a New Service
 
