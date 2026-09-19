@@ -1,6 +1,6 @@
 /**
  * TopBar - Application header with repo name and action controls.
- * Shows the current branch, action buttons, and the account menu.
+ * Shows the current branch and action buttons.
  * 
  * v2 additions:
  * - Branch modal trigger
@@ -16,15 +16,9 @@ import {
   PanelLeftOpen,
   Trash2,
   Menu,
-  UserCircle,
-  Settings,
-  PlugZap,
-  LogOut,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { openExternalUrl } from '../../shared/runtime/browser';
 import { ICON_SIZES, VIEWS } from '../../shared/constants';
-import { useAuth, useLayout, useRepo } from '../../context';
+import { useLayout, useRepo } from '../../context';
 import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
 import { UndoLastSaveDialog } from '../../shared/ui';
 import BranchModal from './BranchModal';
@@ -33,34 +27,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../shared/ui/dropdown-menu';
 
 // Shared icon style
 const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
 const iconSmStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const COMMUNITY_DISCORD_URL = 'https://discord.com/channels/1470750950552633466/1470779539696390205';
 const noDragRegionStyle = { '--wails-draggable': 'no-drag' } as CSSProperties;
 const noDragControlProps = {
   style: noDragRegionStyle,
   'data-window-control': 'true',
 } as const;
-
-function DiscordIcon({ style, className = '' }: { style?: CSSProperties; className?: string }): JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      style={style}
-      className={className}
-      fill="currentColor"
-    >
-      <path d="M20.317 4.3698A19.7913 19.7913 0 0015.885 3c-.191.328-.403.775-.553 1.125a18.271 18.271 0 00-5.487 0A12.64 12.64 0 009.292 3a19.736 19.736 0 00-4.433 1.37C2.07 8.587 1.333 12.693 1.697 16.742a19.9 19.9 0 005.42 2.758 14.9 14.9 0 001.163-1.919 12.96 12.96 0 01-1.837-.885c.154-.111.305-.226.45-.345a14.16 14.16 0 0010.214 0c.146.12.297.235.45.345-.58.338-1.196.635-1.84.887.339.66.728 1.301 1.164 1.918a19.88 19.88 0 005.421-2.757c.426-4.696-.728-8.765-2.985-12.972zM8.02 14.323c-.996 0-1.812-.918-1.812-2.045 0-1.127.8-2.045 1.812-2.045 1.02 0 1.828.926 1.813 2.045 0 1.127-.801 2.045-1.813 2.045zm7.974 0c-.996 0-1.812-.918-1.812-2.045 0-1.127.8-2.045 1.812-2.045 1.02 0 1.828.926 1.813 2.045 0 1.127-.793 2.045-1.813 2.045z" />
-    </svg>
-  );
-}
 
 function TopBar(): JSX.Element {
   const { 
@@ -76,10 +53,7 @@ function TopBar(): JSX.Element {
     sidebarWidth,
     toggleSidebar,
     setActiveView,
-    setSidebarCollapsed,
-    setSelectedSettingsCategory,
   } = useLayout();
-  const { isAuthenticated, userEmail, userName, logout } = useAuth();
 
   // Responsive state
   const { isCompactTopBar } = useWindowSize();
@@ -88,36 +62,11 @@ function TopBar(): JSX.Element {
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   const [switchProjectModalOpen, setSwitchProjectModalOpen] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSwitchProject = useCallback(async (): Promise<void> => {
     await closeRepo();
     setActiveView(VIEWS.EXPLORER);
   }, [closeRepo, setActiveView]);
-
-  const handleOpenCommunity = useCallback(async (): Promise<void> => {
-    await openExternalUrl(COMMUNITY_DISCORD_URL);
-  }, []);
-
-  const handleOpenSettings = useCallback((category: string): void => {
-    setSelectedSettingsCategory(category);
-    setActiveView(VIEWS.SETTINGS);
-    setSidebarCollapsed(false);
-  }, [setActiveView, setSelectedSettingsCategory, setSidebarCollapsed]);
-
-  const handleSignOut = useCallback(async (): Promise<void> => {
-    setIsSigningOut(true);
-    try {
-      const result = await logout();
-      if (!result.success) {
-        toast.error(result.error || 'Failed to sign out');
-      }
-    } catch {
-      toast.error('Failed to sign out');
-    } finally {
-      setIsSigningOut(false);
-    }
-  }, [logout]);
 
   const handleUndo = useCallback(async (): Promise<void> => {
     await undoLastCommit();
@@ -223,57 +172,6 @@ function TopBar(): JSX.Element {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </div>
-
-        {/* Right: Account menu */}
-        <div className="flex items-center gap-2 justify-end shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                {...noDragControlProps}
-                title={isAuthenticated ? (userEmail || 'Account menu') : 'Account menu'}
-                className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
-              >
-                <UserCircle style={iconStyle} className="currentColor" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {isAuthenticated && (
-                <>
-                  <DropdownMenuLabel className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-theme-primary">
-                      {userName || userEmail || 'ControlZebra User'}
-                    </span>
-                    {userEmail ? (
-                      <span className="text-xs font-normal text-theme-muted">{userEmail}</span>
-                    ) : null}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem onClick={() => handleOpenSettings('general')}>
-                <Settings style={iconStyle} className="mr-2" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleOpenSettings('integrations')}>
-                <PlugZap style={iconStyle} className="mr-2" />
-                Integrations
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleOpenCommunity}>
-                <DiscordIcon style={iconStyle} className="mr-2" />
-                Discord
-              </DropdownMenuItem>
-              {isAuthenticated ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => void handleSignOut()} disabled={isSigningOut}>
-                  <LogOut style={iconStyle} className="mr-2" />
-                    Sign out
-                  </DropdownMenuItem>
-                </>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </header>
 

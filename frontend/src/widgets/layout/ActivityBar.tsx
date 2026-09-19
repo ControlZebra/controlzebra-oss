@@ -4,7 +4,7 @@
  * Clicking an active view toggles the sidebar collapsed state.
  * Repository-specific views are disabled when no git repo is open.
  */
-import { memo, useMemo, useCallback, type CSSProperties } from 'react';
+import { memo, useMemo, useCallback, useState, type CSSProperties } from 'react';
 import {
   House,
   Sliders,
@@ -16,9 +16,7 @@ import {
 } from 'lucide-react';
 import { ICON_SIZES, VIEWS, type ViewType } from '../../shared/constants';
 import { useLayout, useRepo } from '../../context';
-import { openExternalUrl } from '../../shared/runtime/browser';
-
-const DOCUMENTATION_URL = 'https://controlzebra.com/docs/';
+import ResourcesModal from './ResourcesModal';
 
 // ============================================================================
 // Types
@@ -103,6 +101,7 @@ function NavButton({ item, isActive, onClick, disabled, showNotificationDot = fa
  * ActivityBar - Main vertical navigation component
  */
 function ActivityBar(): JSX.Element {
+  const [resourcesModalOpen, setResourcesModalOpen] = useState(false);
   const {
     activeView,
     setActiveView,
@@ -125,10 +124,6 @@ function ActivityBar(): JSX.Element {
       setSidebarCollapsed(false);
     }
   }, [activeView, sidebarCollapsed, setActiveView, setSidebarCollapsed]);
-
-  const handleOpenDocumentation = useCallback((): void => {
-    void openExternalUrl(DOCUMENTATION_URL);
-  }, []);
 
   // Memoize button lists to prevent unnecessary re-renders
   const topNavButtons = useMemo(() => 
@@ -165,19 +160,22 @@ function ActivityBar(): JSX.Element {
   );
 
   return (
-    <nav className="w-10 bg-theme-elevated border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
-      {topNavButtons}
-      <div className="flex-1" />
-      <button
-        onClick={handleOpenDocumentation}
-        title="Documentation"
-        aria-label="Documentation"
-        className="w-10 h-10 flex items-center justify-center rounded transition-colors text-theme-muted hover:text-theme-secondary hover-bg-theme-interactive"
-      >
-        <BookOpen style={{ width: ICON_SIZES.lg * 0.7, height: ICON_SIZES.lg * 0.7 }} />
-      </button>
-      {bottomNavButtons}
-    </nav>
+    <>
+      <nav className="w-10 bg-theme-elevated border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
+        {topNavButtons}
+        <div className="flex-1" />
+        <button
+          onClick={() => setResourcesModalOpen(true)}
+          title="Resources"
+          aria-label="Resources"
+          className="w-10 h-10 flex items-center justify-center rounded transition-colors text-theme-muted hover:text-theme-secondary hover-bg-theme-interactive"
+        >
+          <BookOpen style={{ width: ICON_SIZES.lg * 0.7, height: ICON_SIZES.lg * 0.7 }} />
+        </button>
+        {bottomNavButtons}
+      </nav>
+      <ResourcesModal open={resourcesModalOpen} onOpenChange={setResourcesModalOpen} />
+    </>
   );
 }
 

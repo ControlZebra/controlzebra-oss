@@ -106,4 +106,10 @@ describe('TopBar window chrome', () => {
 
     expect(screen.queryByRole('button', { name: 'Sign in' })).not.toBeInTheDocument();
   });
+
+  it('does not render the profile account menu', () => {
+    render(<TopBar />);
+
+    expect(screen.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument();
+  });
 });
