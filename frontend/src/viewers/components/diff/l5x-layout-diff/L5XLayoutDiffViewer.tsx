@@ -73,6 +73,9 @@ const emptyController: NormalizedController = {
   dataTypes: [],
   aois: [],
   modules: [],
+  tasks: [],
+  trends: [],
+  quickWatchLists: [],
 };
 
 const PHASE_LABELS: Record<string, string> = {
