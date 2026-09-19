@@ -4,9 +4,11 @@ import { ICON_SIZES } from '../../shared/constants';
 import { openExternalUrl } from '../../shared/runtime/browser';
 import {
   Badge,
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../../shared/ui';
@@ -100,6 +102,12 @@ function ResourcesModal({ open, onOpenChange }: ResourcesModalProps): JSX.Elemen
             comingSoon
           />
         </div>
+
+        <DialogFooter className="border-t border-theme-default px-4 py-3">
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

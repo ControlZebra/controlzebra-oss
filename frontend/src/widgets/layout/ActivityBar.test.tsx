@@ -55,6 +55,15 @@ describe('ActivityBar Developer Mode', () => {
     expect(screen.getByRole('button', { name: /Guided tour.*Coming Soon/ })).toBeDisabled();
   });
 
+  it('closes the resources modal from its Close button', async () => {
+    render(<ActivityBar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resources' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it.each([
     ['Documentation', 'https://controlzebra.com/docs/'],
     ['Community Forum', 'https://github.com/orgs/ControlZebra/discussions'],
