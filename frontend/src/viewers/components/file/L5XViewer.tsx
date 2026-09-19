@@ -29,17 +29,14 @@ import { getPathFileName } from '../shared/path-utils';
 // Import ladder-visualizer components and parsers
 import {
   parseString,
-  VirtualizedLadderDiagram,
   ProgramNavigator,
   ControllerInfo,
   TagTable,
-  StructuredTextViewer,
   AOIParameterTable,
   AOILocalTagTable,
   ModuleInfoTable,
   registerAOIsFromController,
   clearAOIs,
-  DARK_THEME,
   type NormalizedController,
   type NormalizedRoutine,
   type NormalizedDataType,
@@ -49,7 +46,7 @@ import {
 
 // Import local tab components
 import { TabBar, useTabs, DataTypeTable, type TabData } from './l5x';
-import { CONTROL_ZEBRA_LADDER_THEME } from './l5x/theme';
+import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
 
@@ -76,6 +73,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
     showNavigator: true,
   });
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [fbdSheetIndices, setFbdSheetIndices] = useState<Record<string, number>>({});
 
   // Tab management - internal to L5X viewer, cached by filePath
   const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
@@ -258,21 +256,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   // Tab Content Rendering
   // ============================================================================
 
-  // Helper to render unsupported routine type message (avoids duplication)
-  const renderUnsupportedRoutineType = useCallback((routineType: string) => (
-    <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-2">
-      <p className="text-theme-primary font-medium">{routineType} Visualization Not Supported</p>
-      <p className="text-sm">
-        {routineType === 'FBD' 
-          ? 'Function Block Diagram (FBD) visualization is not yet supported'
-          : routineType === 'SFC'
-            ? 'Sequential Function Chart (SFC) visualization is not yet supported'
-            : `${routineType} routine visualization is not yet supported`
-        }
-      </p>
-    </div>
-  ), []);
-
   const renderTabContent = useCallback((tabData: TabData, isActive: boolean) => {
     if (!controller) return null;
 
@@ -371,21 +354,19 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       case 'aoi-routine': {
         const aoi = controller.aois.find(a => a.name === tabData.aoiName);
         const routine = aoi?.routines[tabData.routineIndex];
+        const routineKey = `${normalizedFilePath}:aoi:${tabData.aoiName}:${tabData.routineIndex}`;
         if (aoi && routine) {
           return (
             <div key={`aoi-routine-${tabData.aoiName}-${tabData.routineIndex}`} className={containerClass}>
               <div className={ladderContentClass}>
-                {routine.type === 'ST' ? (
-                  <StructuredTextViewer routine={routine} className="h-full w-full" />
-                ) : routine.type === 'RLL' ? (
-                  <VirtualizedLadderDiagram
-                    routine={routine}
-                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
-                    className="h-full"
-                  />
-                ) : (
-                  renderUnsupportedRoutineType(routine.type)
-                )}
+                <L5XRoutineViewer
+                  routine={routine}
+                  isDarkMode={isDarkMode}
+                  fbdSheetIndex={fbdSheetIndices[routineKey] ?? 0}
+                  onFbdSheetIndexChange={(sheetIndex) => {
+                    setFbdSheetIndices((current) => ({ ...current, [routineKey]: sheetIndex }));
+                  }}
+                />
               </div>
             </div>
           );
@@ -399,21 +380,19 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
       case 'routine': {
         const routine = controller.programs[tabData.programIndex]?.routines[tabData.routineIndex];
+        const routineKey = `${normalizedFilePath}:program:${tabData.programIndex}:${tabData.routineIndex}`;
         if (routine) {
           return (
             <div key={`routine-${tabData.programIndex}-${tabData.routineIndex}`} className={containerClass}>
               <div className={ladderContentClass}>
-                {routine.type === 'ST' ? (
-                  <StructuredTextViewer routine={routine} className="h-full w-full" />
-                ) : routine.type === 'RLL' ? (
-                  <VirtualizedLadderDiagram
-                    routine={routine}
-                    theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
-                    className="h-full"
-                  />
-                ) : (
-                  renderUnsupportedRoutineType(routine.type)
-                )}
+                <L5XRoutineViewer
+                  routine={routine}
+                  isDarkMode={isDarkMode}
+                  fbdSheetIndex={fbdSheetIndices[routineKey] ?? 0}
+                  onFbdSheetIndexChange={(sheetIndex) => {
+                    setFbdSheetIndices((current) => ({ ...current, [routineKey]: sheetIndex }));
+                  }}
+                />
               </div>
             </div>
           );
@@ -446,7 +425,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       default:
         return null;
     }
-  }, [controller, isDarkMode, renderUnsupportedRoutineType]);
+  }, [controller, fbdSheetIndices, isDarkMode, normalizedFilePath]);
 
   // ============================================================================
   // Main Content Rendering

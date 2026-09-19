@@ -37,6 +37,9 @@ function makeController(overrides: Partial<NormalizedController> = {}): Normaliz
     programs: [],
     aois: [],
     modules: [],
+    tasks: [],
+    trends: [],
+    quickWatchLists: [],
     ...overrides,
   };
 }
@@ -46,6 +49,7 @@ function makeProgram(name: string, overrides: Partial<NormalizedProgram> = {}): 
     name,
     tags: [],
     routines: [],
+    parameters: [],
     ...overrides,
   };
 }

@@ -11,12 +11,19 @@ const {
   onEventMock,
   registerAOIsFromControllerMock,
   clearAOIsMock,
+  fbdDiagramMock,
+  testState,
 } = vi.hoisted(() => ({
   readTextFileMock: vi.fn(),
   parseStringMock: vi.fn(),
   onEventMock: vi.fn(),
   registerAOIsFromControllerMock: vi.fn(),
   clearAOIsMock: vi.fn(),
+  fbdDiagramMock: vi.fn(),
+  testState: {
+    theme: 'light' as 'light' | 'dark',
+    themeListeners: new Set<() => void>(),
+  },
 }));
 
 let filesChangedHandler: ((event: {
@@ -31,9 +38,21 @@ vi.mock('../../../../bindings/controlzebra/services/filesystemservice', () => ({
   ReadTextFile: readTextFileMock,
 }));
 
-vi.mock('../../../context/LayoutContext', () => ({
-  useLayout: () => ({ theme: 'light' }),
-}));
+vi.mock('../../../context/LayoutContext', async () => {
+  const React = await import('react');
+  return {
+    useLayout: () => ({
+      theme: React.useSyncExternalStore(
+        (listener) => {
+          testState.themeListeners.add(listener);
+          return () => testState.themeListeners.delete(listener);
+        },
+        () => testState.theme,
+        () => testState.theme,
+      ),
+    }),
+  };
+});
 
 vi.mock('../../../shared/runtime/events', () => ({
   onEvent: onEventMock,
@@ -43,44 +62,145 @@ vi.mock('../shared/ViewerHeader', () => ({
   ViewerHeader: ({ filePath }: { filePath: string }) => <div data-testid="viewer-header">{filePath}</div>,
 }));
 
-vi.mock('ladder-visualizer', () => ({
-  parseString: parseStringMock,
-  VirtualizedLadderDiagram: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
-    <div>{`RLL:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
-  ),
-  ProgramNavigator: ({
-    programs,
-    selectedRoutine,
-    onRoutineSelect,
+vi.mock('ladder-visualizer', () => {
+  fbdDiagramMock.mockImplementation(({
+    body,
+    onDiagnostics,
+    sheetIndex = 0,
+    onSheetIndexChange,
   }: {
-    programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
-    selectedRoutine?: { programIndex: number; routineIndex: number };
-    onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
-  }) => (
-    <div>
-      <div data-testid="selected-routine">
-        {selectedRoutine ? `${selectedRoutine.programIndex}:${selectedRoutine.routineIndex}` : 'none'}
+    body: { versionTag?: string };
+    onDiagnostics?: (diagnostics: Array<{ code: string; message: string; severity: string }>) => void;
+    sheetIndex?: number;
+    onSheetIndexChange?: (sheetIndex: number) => void;
+  }) => {
+    return (
+      <div data-testid="fbd-diagram">
+        <div>{`FBD:${body.versionTag ?? 'unknown'}:sheet-${sheetIndex}`}</div>
+        <button type="button" aria-label="Zoom in">Zoom in</button>
+        <button type="button" aria-label="Zoom out">Zoom out</button>
+        <button type="button" aria-label="Fit view">Fit view</button>
+        <button type="button" onClick={() => onSheetIndexChange?.(sheetIndex + 1)}>
+          Next FBD sheet
+        </button>
+        <button
+          type="button"
+          onClick={() => onDiagnostics?.([{
+            code: 'FBD_PLACEHOLDER_ELEMENT',
+            message: 'Unsupported element rendered as a placeholder.',
+            severity: 'warning',
+          }])}
+        >
+          Report FBD diagnostic
+        </button>
       </div>
-      <button type="button" onClick={() => onRoutineSelect(0, 0, programs[0]?.routines[0])}>
-        Open Routine
-      </button>
-    </div>
-  ),
-  ControllerInfo: () => <div>Controller Info</div>,
-  TagTable: () => <div>Tag Table</div>,
-  StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
-    <div>{`ST:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
-  ),
-  AOIParameterTable: () => <div>AOI Parameters</div>,
-  AOILocalTagTable: () => <div>AOI Local Tags</div>,
-  ModuleInfoTable: () => <div>Module Info</div>,
-  registerAOIsFromController: registerAOIsFromControllerMock,
-  clearAOIs: clearAOIsMock,
-  DARK_THEME: {},
-}));
+    );
+  });
 
-function makeController(versionTag: string, options?: { includeRoutine?: boolean }) {
+  return {
+    parseString: parseStringMock,
+    VirtualizedLadderDiagram: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
+      <div>{`RLL:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
+    ),
+    FBDDiagram: fbdDiagramMock,
+    ProgramNavigator: ({
+      controller,
+      programs,
+      selectedRoutine,
+      onRoutineSelect,
+      onControllerInfoSelect,
+      onAOIRoutineSelect,
+    }: {
+      controller: { aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }> };
+      programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
+      selectedRoutine?: { programIndex: number; routineIndex: number };
+      onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
+      onControllerInfoSelect: () => void;
+      onAOIRoutineSelect: (aoi: { name: string; routines: Array<{ name: string; versionTag?: string }> }, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
+    }) => (
+      <div>
+        <div data-testid="selected-routine">
+          {selectedRoutine ? `${selectedRoutine.programIndex}:${selectedRoutine.routineIndex}` : 'none'}
+        </div>
+        <button type="button" onClick={() => onRoutineSelect(0, 0, programs[0]?.routines[0])}>
+          Open Routine
+        </button>
+        <button type="button" onClick={onControllerInfoSelect}>Open Controller Info</button>
+        {controller.aois[0]?.routines[0] && (
+          <button
+            type="button"
+            onClick={() => onAOIRoutineSelect(
+              controller.aois[0],
+              0,
+              controller.aois[0].routines[0],
+            )}
+          >
+            Open AOI Routine
+          </button>
+        )}
+      </div>
+    ),
+    ControllerInfo: () => <div>Controller Info</div>,
+    TagTable: () => <div>Tag Table</div>,
+    StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
+      <div>{`ST:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
+    ),
+    AOIParameterTable: () => <div>AOI Parameters</div>,
+    AOILocalTagTable: () => <div>AOI Local Tags</div>,
+    ModuleInfoTable: () => <div>Module Info</div>,
+    registerAOIsFromController: registerAOIsFromControllerMock,
+    clearAOIs: clearAOIsMock,
+    DARK_THEME: { name: 'dark-theme' },
+  };
+});
+
+function makeFBDBody(versionTag: string) {
+  return {
+    versionTag,
+    sheetSize: { value: 'D', source: 'declared' },
+    orientation: { value: 'Landscape', source: 'declared' },
+    sheets: [
+      {
+        number: { value: '1', source: 'declared' },
+        name: { value: 'Sheet 1', source: 'declared' },
+        descriptions: [],
+        elements: [],
+        connections: [],
+        attachments: [],
+      },
+      {
+        number: { value: '2', source: 'declared' },
+        name: { value: 'Sheet 2', source: 'declared' },
+        descriptions: [],
+        elements: [],
+        connections: [],
+        attachments: [],
+      },
+    ],
+    diagnostics: [],
+  };
+}
+
+function makeRoutine(name: string, type: 'RLL' | 'FBD' | 'ST' | 'SFC', versionTag: string) {
+  return {
+    name,
+    type,
+    versionTag,
+    rungs: [],
+    ...(type === 'FBD' ? { fbd: makeFBDBody(versionTag) } : {}),
+  };
+}
+
+function makeController(
+  versionTag: string,
+  options?: {
+    includeRoutine?: boolean;
+    routineType?: 'RLL' | 'FBD' | 'ST' | 'SFC';
+    includeAOIFBD?: boolean;
+  },
+) {
   const includeRoutine = options?.includeRoutine ?? true;
+  const routineType = options?.routineType ?? 'RLL';
 
   return {
     name: `Controller ${versionTag}`,
@@ -89,19 +209,20 @@ function makeController(versionTag: string, options?: { includeRoutine?: boolean
         name: 'MainProgram',
         tags: [],
         routines: includeRoutine
-          ? [
-              {
-                name: 'RoutineA',
-                type: 'RLL',
-                versionTag,
-              },
-            ]
+          ? [makeRoutine('RoutineA', routineType, versionTag)]
           : [],
       },
     ],
     tags: [],
     dataTypes: [],
-    aois: [],
+    aois: options?.includeAOIFBD
+      ? [{
+          name: 'MixerAOI',
+          parameters: [],
+          localTags: [],
+          routines: [makeRoutine('Logic', 'FBD', `AOI-${versionTag}`)],
+        }]
+      : [],
     modules: [],
   };
 }
@@ -137,9 +258,16 @@ async function renderLoadedViewer(filePath = '/repo/Programs/Main.L5X') {
   await screen.findByText('No Content Selected');
 }
 
+function latestFBDDiagramProps() {
+  const calls = fbdDiagramMock.mock.calls;
+  return calls[calls.length - 1]?.[0];
+}
+
 describe('L5XViewer refresh behavior', () => {
   beforeEach(() => {
     filesChangedHandler = null;
+    testState.theme = 'light';
+    testState.themeListeners.clear();
     clearViewerCache();
     clearAllTabStates();
     vi.clearAllMocks();
@@ -248,5 +376,176 @@ describe('L5XViewer refresh behavior', () => {
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
 
     expect(await screen.findByText('Routine not found')).toBeInTheDocument();
+  });
+
+  it('renders a program-owned FBD through the normalized routine viewer configuration', async () => {
+    queueSuccessfulRead(['v1']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('v1', { routineType: 'FBD' }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+
+    expect(await screen.findByText('FBD:v1:sheet-0')).toBeInTheDocument();
+    expect(screen.queryByText(/FBD.*not yet supported/i)).not.toBeInTheDocument();
+
+    const props = latestFBDDiagramProps();
+    expect(props).toMatchObject({
+      body: { versionTag: 'v1' },
+      width: '100%',
+      height: '100%',
+      className: 'h-full w-full',
+      showControls: true,
+      showBackground: true,
+      showMiniMap: false,
+      interactive: true,
+      theme: { bgPrimary: 'var(--color-bg-surface)' },
+      sheetIndex: 0,
+    });
+    expect(props.onDiagnostics).toEqual(expect.any(Function));
+    expect(screen.getAllByRole('button', { name: 'Zoom in' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Zoom out' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Fit view' })).toHaveLength(1);
+  });
+
+  it('renders an AOI-owned FBD through the same viewer configuration', async () => {
+    queueSuccessfulRead(['v1']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('v1', { includeAOIFBD: true }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open AOI Routine' }));
+
+    expect(await screen.findByText('FBD:AOI-v1:sheet-0')).toBeInTheDocument();
+    expect(latestFBDDiagramProps()).toMatchObject({
+      body: { versionTag: 'AOI-v1' },
+      width: '100%',
+      height: '100%',
+      className: 'h-full w-full',
+      showControls: true,
+      showBackground: true,
+      showMiniMap: false,
+      interactive: true,
+    });
+  });
+
+  it('maps nonfatal FBD diagnostics into the viewer warning presentation without reparsing', async () => {
+    queueSuccessfulRead(['v1']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('v1', { routineType: 'FBD' }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    await screen.findByText('FBD:v1:sheet-0');
+    fireEvent.click(screen.getByRole('button', { name: 'Report FBD diagnostic' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '1 FBD diagnostic: Unsupported element rendered as a placeholder.',
+    );
+    expect(parseStringMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves FBD sheet state across app-tab switches and file refreshes', async () => {
+    queueSuccessfulRead(['v1', 'v2']);
+    parseStringMock.mockImplementation((content: string) => ({
+      success: true,
+      data: makeController(content, { routineType: 'FBD' }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    await screen.findByText('FBD:v1:sheet-0');
+    fireEvent.click(screen.getByRole('button', { name: 'Next FBD sheet' }));
+    expect(await screen.findByText('FBD:v1:sheet-1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Controller Info' }));
+    expect(screen.getByTitle('Controller Info')).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle('RoutineA'));
+    expect(screen.getByText('FBD:v1:sheet-1')).toBeInTheDocument();
+
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('FBD:v2:sheet-1')).toBeInTheDocument();
+    expect(getCachedContent('/repo/Programs/Main.L5X')).toMatchObject({
+      name: 'Controller v2',
+    });
+  });
+
+  it('updates the FBD theme when the application theme changes', async () => {
+    queueSuccessfulRead(['v1']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('v1', { routineType: 'FBD' }),
+      errors: [],
+    }));
+
+    render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('No Content Selected');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    await screen.findByText('FBD:v1:sheet-0');
+    expect(latestFBDDiagramProps().theme).toMatchObject({
+      bgPrimary: 'var(--color-bg-surface)',
+    });
+
+    act(() => {
+      testState.theme = 'dark';
+      testState.themeListeners.forEach((listener) => listener());
+    });
+
+    await waitFor(() => {
+      expect(latestFBDDiagramProps().theme).toEqual({ name: 'dark-theme' });
+    });
+  });
+
+  it('surfaces fatal FBD online-edit rejection through the existing parse error path', async () => {
+    queueSuccessfulRead(['online-edit']);
+    parseStringMock.mockReturnValue({
+      success: false,
+      errors: [{ message: 'Unsupported FBD online-edit representation.' }],
+    });
+
+    render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+
+    expect(await screen.findByText('Cannot parse L5X file')).toBeInTheDocument();
+    expect(screen.getByText('Unsupported FBD online-edit representation.')).toBeInTheDocument();
+    expect(fbdDiagramMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps ST rendering and unsupported routine messaging unchanged', async () => {
+    queueSuccessfulRead(['st']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('st', { routineType: 'ST' }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    expect(await screen.findByText('ST:RoutineA@st')).toBeInTheDocument();
+
+    clearViewerCache();
+    clearAllTabStates();
+    queueSuccessfulRead(['sfc']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('sfc', { routineType: 'SFC' }),
+      errors: [],
+    }));
+
+    const secondView = render(<L5XViewer filePath="/repo/Programs/Other.L5X" />);
+    await screen.findByText('No Content Selected');
+    const openButtons = screen.getAllByRole('button', { name: 'Open Routine' });
+    fireEvent.click(openButtons[openButtons.length - 1]);
+    expect(await screen.findByText('SFC Visualization Not Supported')).toBeInTheDocument();
+    secondView.unmount();
   });
 });
