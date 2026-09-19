@@ -1,6 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ActivityBar from './ActivityBar';
+
+const openExternalUrlMock = vi.hoisted(() => vi.fn());
 
 const layoutMock = vi.hoisted(() => ({
   activeView: 'explorer',
@@ -21,7 +23,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../shared/runtime/browser', () => ({
-  openExternalUrl: vi.fn(),
+  openExternalUrl: openExternalUrlMock,
 }));
 
 describe('ActivityBar Developer Mode', () => {
@@ -40,5 +42,29 @@ describe('ActivityBar Developer Mode', () => {
     render(<ActivityBar />);
 
     expect(screen.getByRole('button', { name: 'Debug Logs' })).toBeInTheDocument();
+  });
+
+  it('opens the resources modal from the book icon and exposes all resource options', async () => {
+    render(<ActivityBar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resources' }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Documentation/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Community Forum/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Guided tour.*Coming Soon/ })).toBeDisabled();
+  });
+
+  it.each([
+    ['Documentation', 'https://controlzebra.com/docs/'],
+    ['Community Forum', 'https://github.com/orgs/ControlZebra/discussions'],
+  ])('opens %s externally', async (optionName, expectedUrl) => {
+    render(<ActivityBar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resources' }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(optionName) }));
+
+    expect(openExternalUrlMock).toHaveBeenCalledWith(expectedUrl);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
