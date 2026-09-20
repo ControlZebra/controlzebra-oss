@@ -2,6 +2,7 @@
  * L5X Viewer internal components
  */
 export { TabBar } from './TabBar';
+export { DataTypeTable, type DataTypeTableProps } from './DataTypeTable';
 export { 
   useTabs, 
   type Tab, 
@@ -12,4 +13,3 @@ export {
   clearCachedTabState,
   clearAllTabStates,
 } from './useTabs';
-export { DataTypeTable } from './DataTypeTable';

@@ -109,13 +109,19 @@ vi.mock('ladder-visualizer', () => {
       selectedRoutine,
       onRoutineSelect,
       onControllerInfoSelect,
+      onDataTypeSelect,
       onAOIRoutineSelect,
     }: {
-      controller: { aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }> };
+      controller: {
+        aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }>;
+        dataTypeCatalog?: Array<{ name: string }>;
+        dataTypes: Array<{ name: string }>;
+      };
       programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
       selectedRoutine?: { programIndex: number; routineIndex: number };
       onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
       onControllerInfoSelect: () => void;
+      onDataTypeSelect: (dataType: { name: string }) => void;
       onAOIRoutineSelect: (aoi: { name: string; routines: Array<{ name: string; versionTag?: string }> }, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
     }) => (
       <div>
@@ -126,6 +132,14 @@ vi.mock('ladder-visualizer', () => {
           Open Routine
         </button>
         <button type="button" onClick={onControllerInfoSelect}>Open Controller Info</button>
+        {(controller.dataTypeCatalog ?? controller.dataTypes)[0] && (
+          <button
+            type="button"
+            onClick={() => onDataTypeSelect((controller.dataTypeCatalog ?? controller.dataTypes)[0])}
+          >
+            Open Data Type
+          </button>
+        )}
         {controller.aois[0]?.routines[0] && (
           <button
             type="button"
@@ -197,6 +211,7 @@ function makeController(
     includeRoutine?: boolean;
     routineType?: 'RLL' | 'FBD' | 'ST' | 'SFC';
     includeAOIFBD?: boolean;
+    includeDataTypes?: boolean;
   },
 ) {
   const includeRoutine = options?.includeRoutine ?? true;
@@ -215,6 +230,31 @@ function makeController(
     ],
     tags: [],
     dataTypes: [],
+    dataTypeCatalog: options?.includeDataTypes
+      ? [
+          {
+            name: 'PumpState',
+            class: 'User',
+            category: 'UserDefined',
+            resolution: 'Declared',
+            description: 'Current pump operating state.',
+            members: [{
+              name: 'Mode',
+              dataType: 'DINT',
+              dimension: 0,
+              dimensions: [],
+              description: 'State code.',
+            }],
+          },
+          {
+            name: 'DINT',
+            class: 'BuiltIn',
+            category: 'Predefined',
+            resolution: 'Atomic',
+            members: [],
+          },
+        ]
+      : [],
     aois: options?.includeAOIFBD
       ? [{
           name: 'MixerAOI',
@@ -351,6 +391,24 @@ describe('L5XViewer refresh behavior', () => {
 
     expect(await screen.findByText('RLL:RoutineA@v2')).toBeInTheDocument();
     expect(screen.getByTestId('selected-routine')).toHaveTextContent('0:0');
+  });
+
+  it('opens catalog data types and follows nested type selections in tabs', async () => {
+    queueSuccessfulRead(['v1']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('v1', { includeDataTypes: true }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Data Type' }));
+
+    expect(await screen.findByRole('heading', { name: 'PumpState' })).toBeInTheDocument();
+    expect(screen.getByText('Current pump operating state.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open DINT' }));
+    expect(await screen.findByRole('heading', { name: 'DINT' })).toBeInTheDocument();
+    expect(screen.getByText('This is an atomic data type with no member structure.')).toBeInTheDocument();
   });
 
   it('degrades cleanly when the preserved selection no longer exists after reload', async () => {
