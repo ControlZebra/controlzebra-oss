@@ -32,7 +32,6 @@ import {
   ProgramNavigator,
   ControllerInfo,
   TagTable,
-  DataTypeTable,
   AOIParameterTable,
   AOILocalTagTable,
   ModuleInfoTable,
@@ -46,7 +45,7 @@ import {
 } from 'ladder-visualizer';
 
 // Import local tab components
-import { TabBar, useTabs, type TabData } from './l5x';
+import { DataTypeTable, TabBar, useTabs, type TabData } from './l5x';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling

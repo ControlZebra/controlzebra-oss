@@ -156,24 +156,6 @@ vi.mock('ladder-visualizer', () => {
     ),
     ControllerInfo: () => <div>Controller Info</div>,
     TagTable: () => <div>Tag Table</div>,
-    DataTypeTable: ({
-      dataType,
-      allDataTypes,
-      onDataTypeSelect,
-    }: {
-      dataType: { name: string };
-      allDataTypes: Array<{ name: string }>;
-      onDataTypeSelect: (dataType: { name: string }) => void;
-    }) => (
-      <div>
-        <div>{`Data Type:${dataType.name}:${allDataTypes.map((type) => type.name).join(',')}`}</div>
-        {allDataTypes[1] && (
-          <button type="button" onClick={() => onDataTypeSelect(allDataTypes[1])}>
-            Open Nested Data Type
-          </button>
-        )}
-      </div>
-    ),
     StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
       <div>{`ST:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
@@ -250,8 +232,27 @@ function makeController(
     dataTypes: [],
     dataTypeCatalog: options?.includeDataTypes
       ? [
-          { name: 'PumpState', class: 'User', category: 'UserDefined', members: [] },
-          { name: 'DINT', class: 'BuiltIn', category: 'Predefined', members: [] },
+          {
+            name: 'PumpState',
+            class: 'User',
+            category: 'UserDefined',
+            resolution: 'Declared',
+            description: 'Current pump operating state.',
+            members: [{
+              name: 'Mode',
+              dataType: 'DINT',
+              dimension: 0,
+              dimensions: [],
+              description: 'State code.',
+            }],
+          },
+          {
+            name: 'DINT',
+            class: 'BuiltIn',
+            category: 'Predefined',
+            resolution: 'Atomic',
+            members: [],
+          },
         ]
       : [],
     aois: options?.includeAOIFBD
@@ -403,9 +404,11 @@ describe('L5XViewer refresh behavior', () => {
     await renderLoadedViewer();
     fireEvent.click(screen.getByRole('button', { name: 'Open Data Type' }));
 
-    expect(await screen.findByText('Data Type:PumpState:PumpState,DINT')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Nested Data Type' }));
-    expect(await screen.findByText('Data Type:DINT:PumpState,DINT')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'PumpState' })).toBeInTheDocument();
+    expect(screen.getByText('Current pump operating state.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open DINT' }));
+    expect(await screen.findByRole('heading', { name: 'DINT' })).toBeInTheDocument();
+    expect(screen.getByText('This is an atomic data type with no member structure.')).toBeInTheDocument();
   });
 
   it('degrades cleanly when the preserved selection no longer exists after reload', async () => {
