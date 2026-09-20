@@ -14,14 +14,7 @@ import path from "path";
 export default defineConfig({
   plugins: [react(), wails("./bindings"), tailwindcss()],
   resolve: {
-    // Required for npm-linked packages (ladder-visualizer uses `file:` protocol).
-    // Without this, Vite follows the symlink to the real path outside node_modules,
-    // which breaks module resolution for that package's dependencies.
-    preserveSymlinks: true,
     alias: {
-      // Point linked package to its symlink inside node_modules (not the real path)
-      'ladder-visualizer': path.resolve(__dirname, 'node_modules/ladder-visualizer'),
-
       // Force ALL React imports to frontend's single copy (see ReactBundlingFix.md)
       'react': path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
@@ -33,12 +26,8 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
   },
   optimizeDeps: {
-    // Exclude linked packages from Vite's pre-bundling (dep optimizer) —
-    // their source changes during development and must be re-transformed on each edit.
-    exclude: ['ladder-visualizer'],
-    // Explicitly include React in pre-bundling so it gets optimized even though
-    // ladder-visualizer (which depends on it) is excluded. Without this, Vite
-    // might skip pre-bundling React, leading to slow page loads in dev mode.
+    // Keep React pre-bundled and deduplicated across the application and the
+    // packaged ladder-visualizer peer dependency.
     include: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
   },
   build: {

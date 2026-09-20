@@ -23,7 +23,7 @@ Only submit work you have authority to contribute. Obtain employer permission wh
 
 ## Set up and test
 
-Follow the [development setup](docs/onboarding/Development%20Setup.md). Source builds require the separate `ladder-visualizer` package alongside this repository; prepare it before installing frontend dependencies.
+Follow the [development setup](docs/onboarding/Development%20Setup.md). Frontend installs fetch the immutable `ladder-visualizer` revision pinned in the package files; a sibling checkout is optional for library development.
 
 For code changes, run these checks from the repository root:
 

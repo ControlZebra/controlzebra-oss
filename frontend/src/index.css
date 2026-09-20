@@ -1,6 +1,6 @@
 @import "tailwindcss";
 /* Import ladder-visualizer base styles - required for L5X viewer */
-@import "ladder-visualizer/dist/styles/index.css";
+@import "ladder-visualizer/styles";
 
 /* ============================================================================
    THEME CONFIGURATION
@@ -741,4 +741,3 @@ button:disabled,
 [role="menuitemradio"][aria-disabled="true"] {
   cursor: not-allowed;
 }
-

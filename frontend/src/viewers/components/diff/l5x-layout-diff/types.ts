@@ -2,6 +2,7 @@ import type {
   ChangeKind,
   L5XDiff,
   NormalizedController,
+  NormalizedDataType,
   NormalizedProgram,
   NormalizedRoutine,
   NormalizedRoutineType,
@@ -71,6 +72,7 @@ export interface L5XDiffControllerTagsEntity extends L5XDiffEntityBase {
   changeKind: L5XDiffAggregateChangeKind;
   title: string;
   fullContextTags: NormalizedTag[];
+  dataTypes: readonly NormalizedDataType[];
   changedTagDiffs: TagDiff[];
 }
 
@@ -82,6 +84,7 @@ export interface L5XDiffProgramTagsEntity extends L5XDiffEntityBase {
   oldProgram?: NormalizedProgram;
   newProgram?: NormalizedProgram;
   fullContextTags: NormalizedTag[];
+  dataTypes: readonly NormalizedDataType[];
   changedTagDiffs: TagDiff[];
 }
 

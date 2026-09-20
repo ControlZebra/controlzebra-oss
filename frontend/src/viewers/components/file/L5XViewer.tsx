@@ -268,13 +268,14 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
     const containerClass = `flex-1 flex flex-col overflow-hidden h-full ${isActive ? '' : 'hidden'}`;
     const ladderContentClass = `flex-1 overflow-hidden ${isDarkMode ? 'ladder-visualizer-dark' : ''}`;
+    const dataTypes = controller.dataTypeCatalog ?? controller.dataTypes;
 
     switch (tabData.type) {
       case 'controller-tags':
         return (
           <div key="controller-tags" className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
-              <TagTable tags={controller.tags} />
+              <TagTable tags={controller.tags} dataTypes={dataTypes} />
             </div>
           </div>
         );
@@ -286,7 +287,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
           <div key={`program-tags-${tabData.programIndex}`} className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
               {tags.length > 0 ? (
-                <TagTable tags={tags} />
+                <TagTable tags={tags} dataTypes={dataTypes} />
               ) : (
                 <p className="text-center text-theme-secondary py-10">No program-specific tags defined</p>
               )}
@@ -305,7 +306,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         );
 
       case 'data-type': {
-        const dataTypes = controller.dataTypeCatalog ?? controller.dataTypes;
         const dataType = dataTypes.find(dt => dt.name === tabData.dataTypeName);
         if (dataType) {
           return (
