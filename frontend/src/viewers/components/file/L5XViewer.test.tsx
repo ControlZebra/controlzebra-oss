@@ -12,6 +12,7 @@ const {
   registerAOIsFromControllerMock,
   clearAOIsMock,
   fbdDiagramMock,
+  tagTableMock,
   testState,
 } = vi.hoisted(() => ({
   readTextFileMock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   registerAOIsFromControllerMock: vi.fn(),
   clearAOIsMock: vi.fn(),
   fbdDiagramMock: vi.fn(),
+  tagTableMock: vi.fn((_props: unknown) => <div>Tag Table</div>),
   testState: {
     theme: 'light' as 'light' | 'dark',
     themeListeners: new Set<() => void>(),
@@ -108,6 +110,8 @@ vi.mock('ladder-visualizer', () => {
       programs,
       selectedRoutine,
       onRoutineSelect,
+      onControllerTagsSelect,
+      onProgramTagsSelect,
       onControllerInfoSelect,
       onDataTypeSelect,
       onAOIRoutineSelect,
@@ -120,6 +124,8 @@ vi.mock('ladder-visualizer', () => {
       programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
       selectedRoutine?: { programIndex: number; routineIndex: number };
       onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
+      onControllerTagsSelect: () => void;
+      onProgramTagsSelect: (programIndex: number) => void;
       onControllerInfoSelect: () => void;
       onDataTypeSelect: (dataType: { name: string }) => void;
       onAOIRoutineSelect: (aoi: { name: string; routines: Array<{ name: string; versionTag?: string }> }, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
@@ -131,6 +137,8 @@ vi.mock('ladder-visualizer', () => {
         <button type="button" onClick={() => onRoutineSelect(0, 0, programs[0]?.routines[0])}>
           Open Routine
         </button>
+        <button type="button" onClick={onControllerTagsSelect}>Open Controller Tags</button>
+        <button type="button" onClick={() => onProgramTagsSelect(0)}>Open Program Tags</button>
         <button type="button" onClick={onControllerInfoSelect}>Open Controller Info</button>
         {(controller.dataTypeCatalog ?? controller.dataTypes)[0] && (
           <button
@@ -155,7 +163,7 @@ vi.mock('ladder-visualizer', () => {
       </div>
     ),
     ControllerInfo: () => <div>Controller Info</div>,
-    TagTable: () => <div>Tag Table</div>,
+    TagTable: tagTableMock,
     StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
       <div>{`ST:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
@@ -222,13 +230,13 @@ function makeController(
     programs: [
       {
         name: 'MainProgram',
-        tags: [],
+        tags: [] as Array<{ name: string; dataType: string }>,
         routines: includeRoutine
           ? [makeRoutine('RoutineA', routineType, versionTag)]
           : [],
       },
     ],
-    tags: [],
+    tags: [] as Array<{ name: string; dataType: string }>,
     dataTypes: [],
     dataTypeCatalog: options?.includeDataTypes
       ? [
@@ -409,6 +417,28 @@ describe('L5XViewer refresh behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open DINT' }));
     expect(await screen.findByRole('heading', { name: 'DINT' })).toBeInTheDocument();
     expect(screen.getByText('This is an atomic data type with no member structure.')).toBeInTheDocument();
+  });
+
+  it('supplies the complete data type catalog to controller and program tag tables', async () => {
+    queueSuccessfulRead(['v1']);
+    const controller = makeController('v1', { includeDataTypes: true });
+    controller.tags = [{ name: 'ControllerRaw', dataType: 'PumpState' }];
+    controller.programs[0].tags = [{ name: 'ProgramRaw', dataType: 'PumpState' }];
+    parseStringMock.mockReturnValue({ success: true, data: controller, errors: [] });
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Controller Tags' }));
+
+    expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({
+      tags: controller.tags,
+      dataTypes: controller.dataTypeCatalog,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program Tags' }));
+    expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({
+      tags: controller.programs[0].tags,
+      dataTypes: controller.dataTypeCatalog,
+    });
   });
 
   it('degrades cleanly when the preserved selection no longer exists after reload', async () => {

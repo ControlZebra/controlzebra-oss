@@ -26,7 +26,7 @@
     "@wailsio/runtime": "3.0.0-beta.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "ladder-visualizer": "git+https://github.com/ControlZebra/ladder-visualizer.git#f0b377783bed207f74e2e35d0db5f8fe744e23bd",
+    "ladder-visualizer": "git+https://github.com/ControlZebra/ladder-visualizer.git#56f019d1eeddd405c0ce8906404c39d34cabb5d1",
     "lucide-react": "^0.562.0",
     "online-3d-viewer": "^0.18.0",
     "pixelmatch": "^7.1.0",

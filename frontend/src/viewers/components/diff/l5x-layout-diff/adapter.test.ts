@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   diffControllers,
   type NormalizedController,
+  type NormalizedDataType,
   type NormalizedProgram,
   type NormalizedRoutine,
   type NormalizedRung,
@@ -66,6 +67,14 @@ function makeTag(name: string, overrides: Partial<NormalizedTag> = {}): Normaliz
     dataType: 'BOOL',
     scope: 'Controller',
     ...overrides,
+  };
+}
+
+function makeDataType(name: string): NormalizedDataType {
+  return {
+    name,
+    class: 'User',
+    members: [],
   };
 }
 
@@ -139,6 +148,7 @@ describe('buildL5XDiffLayoutViewModel', () => {
     });
 
     const newController = makeController({
+      dataTypeCatalog: [makeDataType('NewCatalogType')],
       tags: [
         makeTag('ControllerChanged', { description: 'Updated' }),
         makeTag('ControllerStable'),
@@ -162,6 +172,7 @@ describe('buildL5XDiffLayoutViewModel', () => {
         'ControllerChanged',
         'ControllerStable',
       ]);
+      expect(controllerTags.dataTypes.map((dataType) => dataType.name)).toEqual(['NewCatalogType']);
     }
 
     const programTags = model.entitiesByTabId[buildTabId(buildProgramTagsSemanticId('Mixing'))];
@@ -172,6 +183,42 @@ describe('buildL5XDiffLayoutViewModel', () => {
         'ProgramChanged',
         'ProgramStable',
       ]);
+      expect(programTags.dataTypes.map((dataType) => dataType.name)).toEqual(['NewCatalogType']);
+    }
+  });
+
+  it('uses the old catalog when deleted tag groups fall back to old-side context', () => {
+    const oldController = makeController({
+      dataTypeCatalog: [makeDataType('OldCatalogType')],
+      tags: [makeTag('DeletedControllerTag', { dataType: 'OldCatalogType' })],
+      programs: [makeProgram('Mixing', {
+        tags: [makeTag('DeletedProgramTag', {
+          dataType: 'OldCatalogType',
+          scope: 'Program',
+          programName: 'Mixing',
+        })],
+      })],
+    });
+    const newController = makeController({
+      dataTypeCatalog: [makeDataType('NewCatalogType')],
+      programs: [makeProgram('Mixing')],
+    });
+
+    const diff = diffControllers(oldController, newController);
+    const model = buildL5XDiffLayoutViewModel({ oldController, newController, diff });
+    const controllerTags = model.entitiesByTabId[buildTabId(buildControllerTagsSemanticId())];
+    const programTags = model.entitiesByTabId[buildTabId(buildProgramTagsSemanticId('Mixing'))];
+
+    expect(controllerTags.kind).toBe('controller-tags');
+    if (controllerTags.kind === 'controller-tags') {
+      expect(controllerTags.fullContextTags.map((tag) => tag.name)).toEqual(['DeletedControllerTag']);
+      expect(controllerTags.dataTypes.map((dataType) => dataType.name)).toEqual(['OldCatalogType']);
+    }
+
+    expect(programTags.kind).toBe('program-tags');
+    if (programTags.kind === 'program-tags') {
+      expect(programTags.fullContextTags.map((tag) => tag.name)).toEqual(['DeletedProgramTag']);
+      expect(programTags.dataTypes.map((dataType) => dataType.name)).toEqual(['OldCatalogType']);
     }
   });
 

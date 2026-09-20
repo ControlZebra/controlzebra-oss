@@ -66,6 +66,10 @@ function getRoutine(program: NormalizedProgram | undefined, routineName: string)
   return program?.routines.find((routine) => routine.name === routineName);
 }
 
+function getDataTypes(controller: NormalizedController) {
+  return controller.dataTypeCatalog ?? controller.dataTypes;
+}
+
 function resolveRoutineType(
   routineDiff: RoutineDiff,
   oldRoutine?: NormalizedRoutine,
@@ -154,6 +158,7 @@ function buildControllerTagsEntity(
   }
 
   const semanticId = buildControllerTagsSemanticId();
+  const sourceController = newController.tags.length > 0 ? newController : oldController;
   const tab: L5XDiffTabDescriptor = {
     id: buildTabId(semanticId),
     semanticId,
@@ -168,7 +173,8 @@ function buildControllerTagsEntity(
     tab,
     changeKind: aggregateChangeKind(tagDiffs),
     title: 'Controller Tags',
-    fullContextTags: (newController.tags.length > 0 ? newController.tags : oldController.tags),
+    fullContextTags: sourceController.tags,
+    dataTypes: getDataTypes(sourceController),
     changedTagDiffs: sortByName(tagDiffs),
   };
 }
@@ -184,6 +190,9 @@ function buildProgramTagsEntity(
 
   const oldProgram = getProgram(oldController, programDiff.name);
   const newProgram = getProgram(newController, programDiff.name);
+  const useNewProgram = Boolean(newProgram?.tags.length);
+  const sourceProgram = useNewProgram ? newProgram : oldProgram;
+  const sourceController = useNewProgram ? newController : oldController;
   const semanticId = buildProgramTagsSemanticId(programDiff.name);
   const tab: L5XDiffTabDescriptor = {
     id: buildTabId(semanticId),
@@ -203,7 +212,8 @@ function buildProgramTagsEntity(
     programName: programDiff.name,
     oldProgram,
     newProgram,
-    fullContextTags: (newProgram?.tags.length ? newProgram.tags : oldProgram?.tags) ?? [],
+    fullContextTags: sourceProgram?.tags ?? [],
+    dataTypes: getDataTypes(sourceController),
     changedTagDiffs: sortByName(programDiff.tagDiffs),
   };
 }

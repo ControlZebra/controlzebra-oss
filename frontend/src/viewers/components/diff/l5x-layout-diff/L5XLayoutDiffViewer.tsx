@@ -340,6 +340,7 @@ function RenderEntityDetails({
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-4">
       <TagTable
         tags={changedTags}
+        dataTypes={entity.dataTypes}
         extraColumns={buildTagDiffColumns(entity)}
         getRowStyle={(tag) => getTagRowStyle(tagDiffsByName.get(tag.name)?.kind)}
         className="min-h-0 flex-1"
