@@ -12,4 +12,3 @@ export {
   clearCachedTabState,
   clearAllTabStates,
 } from './useTabs';
-export { DataTypeTable } from './DataTypeTable';

@@ -32,6 +32,7 @@ import {
   ProgramNavigator,
   ControllerInfo,
   TagTable,
+  DataTypeTable,
   AOIParameterTable,
   AOILocalTagTable,
   ModuleInfoTable,
@@ -45,7 +46,7 @@ import {
 } from 'ladder-visualizer';
 
 // Import local tab components
-import { TabBar, useTabs, DataTypeTable, type TabData } from './l5x';
+import { TabBar, useTabs, type TabData } from './l5x';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
@@ -252,6 +253,13 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
     return undefined;
   }, [activeTabData]);
 
+  const selectedNavigatorItemId = useMemo(() => {
+    if (activeTabData?.type === 'data-type') {
+      return `dt-${activeTabData.dataTypeName}`;
+    }
+    return undefined;
+  }, [activeTabData]);
+
   // ============================================================================
   // Tab Content Rendering
   // ============================================================================
@@ -298,12 +306,17 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         );
 
       case 'data-type': {
-        const dataType = controller.dataTypes.find(dt => dt.name === tabData.dataTypeName);
+        const dataTypes = controller.dataTypeCatalog ?? controller.dataTypes;
+        const dataType = dataTypes.find(dt => dt.name === tabData.dataTypeName);
         if (dataType) {
           return (
             <div key={`data-type-${tabData.dataTypeName}`} className={containerClass}>
-              <div className="flex-1 overflow-auto p-4">
-                <DataTypeTable dataType={dataType} />
+              <div className="flex-1 overflow-hidden p-4">
+                <DataTypeTable
+                  dataType={dataType}
+                  allDataTypes={dataTypes}
+                  onDataTypeSelect={handleDataTypeSelect}
+                />
               </div>
             </div>
           );
@@ -425,7 +438,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       default:
         return null;
     }
-  }, [controller, fbdSheetIndices, isDarkMode, normalizedFilePath]);
+  }, [controller, fbdSheetIndices, handleDataTypeSelect, isDarkMode, normalizedFilePath]);
 
   // ============================================================================
   // Main Content Rendering
@@ -508,6 +521,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
               programs={controller.programs}
               selectedRoutine={selectedRoutine}
               selectedAOIRoutine={selectedAOIRoutine}
+              selectedItemId={selectedNavigatorItemId}
               onRoutineSelect={handleRoutineSelect}
               onControllerTagsSelect={handleControllerTagsSelect}
               onProgramTagsSelect={handleProgramTagsSelect}

@@ -109,13 +109,19 @@ vi.mock('ladder-visualizer', () => {
       selectedRoutine,
       onRoutineSelect,
       onControllerInfoSelect,
+      onDataTypeSelect,
       onAOIRoutineSelect,
     }: {
-      controller: { aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }> };
+      controller: {
+        aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }>;
+        dataTypeCatalog?: Array<{ name: string }>;
+        dataTypes: Array<{ name: string }>;
+      };
       programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
       selectedRoutine?: { programIndex: number; routineIndex: number };
       onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
       onControllerInfoSelect: () => void;
+      onDataTypeSelect: (dataType: { name: string }) => void;
       onAOIRoutineSelect: (aoi: { name: string; routines: Array<{ name: string; versionTag?: string }> }, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
     }) => (
       <div>
@@ -126,6 +132,14 @@ vi.mock('ladder-visualizer', () => {
           Open Routine
         </button>
         <button type="button" onClick={onControllerInfoSelect}>Open Controller Info</button>
+        {(controller.dataTypeCatalog ?? controller.dataTypes)[0] && (
+          <button
+            type="button"
+            onClick={() => onDataTypeSelect((controller.dataTypeCatalog ?? controller.dataTypes)[0])}
+          >
+            Open Data Type
+          </button>
+        )}
         {controller.aois[0]?.routines[0] && (
           <button
             type="button"
@@ -142,6 +156,24 @@ vi.mock('ladder-visualizer', () => {
     ),
     ControllerInfo: () => <div>Controller Info</div>,
     TagTable: () => <div>Tag Table</div>,
+    DataTypeTable: ({
+      dataType,
+      allDataTypes,
+      onDataTypeSelect,
+    }: {
+      dataType: { name: string };
+      allDataTypes: Array<{ name: string }>;
+      onDataTypeSelect: (dataType: { name: string }) => void;
+    }) => (
+      <div>
+        <div>{`Data Type:${dataType.name}:${allDataTypes.map((type) => type.name).join(',')}`}</div>
+        {allDataTypes[1] && (
+          <button type="button" onClick={() => onDataTypeSelect(allDataTypes[1])}>
+            Open Nested Data Type
+          </button>
+        )}
+      </div>
+    ),
     StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
       <div>{`ST:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
@@ -197,6 +229,7 @@ function makeController(
     includeRoutine?: boolean;
     routineType?: 'RLL' | 'FBD' | 'ST' | 'SFC';
     includeAOIFBD?: boolean;
+    includeDataTypes?: boolean;
   },
 ) {
   const includeRoutine = options?.includeRoutine ?? true;
@@ -215,6 +248,12 @@ function makeController(
     ],
     tags: [],
     dataTypes: [],
+    dataTypeCatalog: options?.includeDataTypes
+      ? [
+          { name: 'PumpState', class: 'User', category: 'UserDefined', members: [] },
+          { name: 'DINT', class: 'BuiltIn', category: 'Predefined', members: [] },
+        ]
+      : [],
     aois: options?.includeAOIFBD
       ? [{
           name: 'MixerAOI',
@@ -351,6 +390,22 @@ describe('L5XViewer refresh behavior', () => {
 
     expect(await screen.findByText('RLL:RoutineA@v2')).toBeInTheDocument();
     expect(screen.getByTestId('selected-routine')).toHaveTextContent('0:0');
+  });
+
+  it('opens catalog data types and follows nested type selections in tabs', async () => {
+    queueSuccessfulRead(['v1']);
+    parseStringMock.mockImplementation(() => ({
+      success: true,
+      data: makeController('v1', { includeDataTypes: true }),
+      errors: [],
+    }));
+
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Data Type' }));
+
+    expect(await screen.findByText('Data Type:PumpState:PumpState,DINT')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Nested Data Type' }));
+    expect(await screen.findByText('Data Type:DINT:PumpState,DINT')).toBeInTheDocument();
   });
 
   it('degrades cleanly when the preserved selection no longer exists after reload', async () => {
