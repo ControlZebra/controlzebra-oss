@@ -36,7 +36,7 @@ This repository contains the source code. You do not need to build it to use the
 
 Read the [contribution guide](CONTRIBUTING.md) for licensing requirements and how to submit changes. Follow the [development setup](docs/onboarding/Development%20Setup.md) for prerequisites and build instructions.
 
-Source builds require the separate `ladder-visualizer` package alongside this repository. It is not bundled here; see the development setup for how to obtain and prepare it before installing dependencies.
+Source builds install the `ladder-visualizer` library from the immutable Git commit pinned in the frontend package files. See the development setup for the standard install and the optional local-library workflow.
 
 ## License
 

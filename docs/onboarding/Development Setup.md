@@ -49,8 +49,6 @@ go install github.com/go-task/task/v3/cmd/task@latest
 git clone https://github.com/ControlZebra/controlzebra-oss.git
 cd controlzebra-oss
 
-# Prepare the required sibling ladder-visualizer package as described below.
-
 # Install Go dependencies
 go mod download
 
@@ -118,29 +116,32 @@ See [Architecture Overview](../technical/architecture/Architecture%20Overview.md
 | Frontend type check | `cd frontend && npm run typecheck` |
 | Frontend lint | `cd frontend && npm run lint` |
 
-## Linked Packages
+## Ladder Visualizer Package
 
-The `ladder-visualizer` package is linked locally:
+The `ladder-visualizer` package is pinned to an immutable upstream Git commit:
 
 ```json
 // frontend/package.json
-"ladder-visualizer": "file:../../ladder-visualizer"
+"ladder-visualizer": "git+https://github.com/ControlZebra/ladder-visualizer.git#<full-commit>"
 ```
 
-This dependency is required for all frontend installs and builds, not only L5X
-development. Obtain the package source from the maintainers and prepare its build
-output according to that package's instructions. Arrange the directories as:
+`npm ci` fetches that exact revision and runs the package's build preparation.
+Normal ControlZebra development does not require a sibling checkout.
 
-```text
-workspace/
-  controlzebra-oss/
-    frontend/
-  ladder-visualizer/
-    package.json
+To test uncommitted `ladder-visualizer` work locally, first build a sibling
+checkout, then replace only the installed package without changing the manifest
+or lockfile:
+
+```bash
+cd ../ladder-visualizer
+npm ci
+npm run build
+
+cd ../controlzebra-oss/frontend
+npm install --no-save --package-lock=false ../../ladder-visualizer
 ```
 
-The repository does not currently pin a published version of that package.
-A standalone public install is therefore a separate release prerequisite.
+Run `npm ci` again to restore the pinned package before validation or committing.
 
 ## IDE Setup
 

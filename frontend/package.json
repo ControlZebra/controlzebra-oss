@@ -11,7 +11,8 @@
     "lint": "npm run lint:hygiene",
     "lint:hygiene": "node ./src/scripts/enforce-frontend-hygiene.mjs",
     "typecheck": "tsc --noEmit",
-    "ci:guards": "npm run lint && npm run typecheck",
+    "ci:guards": "npm run lint && npm run check:ladder-visualizer && npm run typecheck",
+    "check:ladder-visualizer": "node ./src/scripts/check-ladder-visualizer-package.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -25,7 +26,7 @@
     "@wailsio/runtime": "3.0.0-beta.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "ladder-visualizer": "file:../../ladder-visualizer",
+    "ladder-visualizer": "git+https://github.com/ControlZebra/ladder-visualizer.git#f0b377783bed207f74e2e35d0db5f8fe744e23bd",
     "lucide-react": "^0.562.0",
     "online-3d-viewer": "^0.18.0",
     "pixelmatch": "^7.1.0",

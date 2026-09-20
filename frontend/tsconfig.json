@@ -6,11 +6,7 @@
     "types": ["node"],
     "module": "ESNext",
     "skipLibCheck": true,
-    "baseUrl": ".",
     "ignoreDeprecations": "6.0",
-    "paths": {
-      "ladder-visualizer": ["node_modules/ladder-visualizer/dist/index.d.ts"]
-    },
 
     /* Bundler mode - let Vite handle builds */
     "moduleResolution": "bundler",

@@ -8,10 +8,11 @@ Use Go 1.26 or newer, Node.js 20 or newer, npm, Git, Task, and the Wails CLI
 version pinned in `go.mod`. Native builds also require the platform tooling
 described by [Wails](https://v3.wails.io/getting-started/installation/).
 
-The frontend currently depends on a sibling `ladder-visualizer` checkout through
-`file:../../ladder-visualizer`. It must be available and built before installing
-the frontend. This repository is not yet a standalone source distribution.
-See [Development Setup](../../onboarding/Development%20Setup.md) for the required directory layout.
+The frontend installs `ladder-visualizer` from the immutable Git commit pinned
+in `frontend/package.json` and `frontend/package-lock.json`. npm builds that
+library during installation, so a sibling checkout is not required. See
+[Development Setup](../../onboarding/Development%20Setup.md) for the standard
+install and optional local-library override.
 
 ## Local configuration
 
