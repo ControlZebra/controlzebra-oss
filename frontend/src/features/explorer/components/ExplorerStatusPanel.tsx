@@ -189,7 +189,7 @@ function ExplorerStatusPanel({
   const canShowMergeAction = Boolean(branchName && !MAIN_BRANCHES.includes(branchName.toLowerCase()));
 
   const trackingButtonLabel = needsTrackingPackages
-    ? (!gitInstalled && !lfsInstalled ? 'Install Git & LFS' : (!gitInstalled ? 'Install Git' : 'Install Git LFS'))
+    ? 'Check supporting tools'
     : 'Start Tracking';
 
   const handleNoRepoAction = useCallback((): void => {
@@ -221,7 +221,7 @@ function ExplorerStatusPanel({
             className="w-full"
           >
             <GitBranch style={ICON_STYLES.sm as CSSProperties} />
-            {isInstallingPackages ? 'Installing Packages...' : trackingButtonLabel}
+            {isInstallingPackages ? 'Checking Tools...' : trackingButtonLabel}
           </Button>
         </PanelLayout>
       );

@@ -497,7 +497,7 @@ function CloneProjectPage(): JSX.Element {
                       <AlertTriangle size={14} />
                       <span>
                         {isInstallingPackages
-                          ? 'Installing GitHub CLI… Please wait.'
+                          ? 'Checking GitHub support… Please wait.'
                           : 'GitHub CLI is required to browse repositories.'}
                       </span>
                     </div>
@@ -510,7 +510,7 @@ function CloneProjectPage(): JSX.Element {
                         disabled={isInstallingPackages}
                       >
                         <Github size={ICON_SIZES.xs} />
-                        {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
+                        {isInstallingPackages ? 'Checking...' : 'Check supporting tools'}
                       </Button>
                     </div>
                   </div>

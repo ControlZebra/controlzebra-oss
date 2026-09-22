@@ -27,14 +27,14 @@ function AdditionalPackagesModal(): JSX.Element {
             Preparing required packages
           </DialogTitle>
           <DialogDescription>
-            Additional packages are being downloaded. Please wait and do not shut down the app.
+            Checking the supporting tools included with ControlZebra.
           </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-3">
           <div className="flex items-center gap-2 text-theme-secondary text-sm">
             <Loader2 size={14} className="animate-spin" />
-            <span>{packagesInstallMessage || 'Downloading additional packages...'}</span>
+            <span>{packagesInstallMessage || 'Checking supporting tools...'}</span>
           </div>
 
           {packagesInstallPercent != null && (

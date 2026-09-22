@@ -163,7 +163,7 @@ function PublishToCloudModal({
                     disabled={!onInstallRequiredPackages || isInstallingPackages}
                   >
                     <Github size={ICON_SIZES.xs} />
-                    {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
+                    {isInstallingPackages ? 'Checking...' : 'Check supporting tools'}
                   </Button>
                 </>
               )}

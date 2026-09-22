@@ -30,7 +30,9 @@ func localManagedGhPathCandidates() []string {
 func localManagedLfsPathCandidates() []string {
 	root := LocalBinRootPath()
 	return []string{
+		filepath.Join(root, "lfs", "git-lfs.exe"),
 		filepath.Join(root, "git-lfs.exe"),
+		filepath.Join(root, "git", "cmd", "git-lfs.exe"),
 		filepath.Join(root, "git", "mingw64", "bin", "git-lfs.exe"),
 		filepath.Join(root, "git", "bin", "git-lfs.exe"),
 	}
@@ -42,6 +44,7 @@ func localManagedPathPrepends() []string {
 	root := LocalBinRootPath()
 	return []string{
 		root,
+		filepath.Join(root, "lfs"),
 		filepath.Join(root, "git", "cmd"),
 		filepath.Join(root, "git", "bin"),
 		filepath.Join(root, "git", "mingw64", "bin"),

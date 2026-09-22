@@ -254,10 +254,10 @@ function StatusBar(): JSX.Element {
                     disabled={isInstallingPackages}
                     className="text-blue-400 hover:text-blue-300 underline underline-offset-2 ml-1 hidden md:inline"
                     title={(!gitInstalled || !lfsInstalled)
-                      ? 'Install required packages to enable version control'
+                      ? 'Check supporting tools; reinstall ControlZebra if any are missing'
                       : 'Enable version control for this folder'}
                   >
-                    {isInstallingPackages ? 'Installing…' : ((!gitInstalled || !lfsInstalled) ? 'Install' : 'Enable')}
+                    {isInstallingPackages ? 'Checking…' : ((!gitInstalled || !lfsInstalled) ? 'Check tools' : 'Enable')}
                   </button>
                 )}
               </div>

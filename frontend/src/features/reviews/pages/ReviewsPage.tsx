@@ -139,7 +139,7 @@ function ReviewsPage(): JSX.Element {
                 disabled={isInstallingPackages}
               >
                 <Github size={ICON_SIZES.sm} />
-                Install GitHub CLI
+                Check supporting tools
               </Button>
             )}
             {changeRequestError.code === 'auth_required' && (

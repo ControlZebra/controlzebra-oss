@@ -1,0 +1,42 @@
+{
+  "amd64": [
+    {
+      "tool": "git",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip",
+      "sha256": "56d7b226b7693196cfc71fef26568f536c4a021ab6c37ff2db4287bed908e96e",
+      "executable": "cmd/git.exe"
+    },
+    {
+      "tool": "gh",
+      "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_windows_amd64.zip",
+      "sha256": "bc6c814367b193cd8e713611d61e36013c0ef843b8f516458fe3eda039192794",
+      "executable": "bin/gh.exe"
+    },
+    {
+      "tool": "lfs",
+      "url": "https://github.com/git-lfs/git-lfs/releases/download/v3.8.0/git-lfs-windows-amd64-v3.8.0.zip",
+      "sha256": "b62e7b8ceddee635f691233d77de8eaa4b213e9209e0173811d8cfa77f7882c1",
+      "executable": "git-lfs.exe"
+    }
+  ],
+  "arm64": [
+    {
+      "tool": "git",
+      "url": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-arm64.zip",
+      "sha256": "05843f9d6e60306c3ab886799e2c67200caab921571f10512df3493049179ddb",
+      "executable": "cmd/git.exe"
+    },
+    {
+      "tool": "gh",
+      "url": "https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_windows_arm64.zip",
+      "sha256": "e6cbb2d4afdad3e70f3d38b8d1ebaa3a0870a897cfc0e4cf569826710b96b4fd",
+      "executable": "bin/gh.exe"
+    },
+    {
+      "tool": "lfs",
+      "url": "https://github.com/git-lfs/git-lfs/releases/download/v3.8.0/git-lfs-windows-arm64-v3.8.0.zip",
+      "sha256": "72403a96eae6689c3a4038c99e5d9e0938ef5552c71a234aef65ef0c314af081",
+      "executable": "git-lfs.exe"
+    }
+  ]
+}

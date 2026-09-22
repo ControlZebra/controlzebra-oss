@@ -22,7 +22,7 @@
 # Options:
 #   --version, -v <semver>   Set app version (default: 0.0.0-dev)
 #   --platforms <list>        Comma-separated: darwin-arm64,darwin-amd64,windows-amd64,windows-arm64
-#   --skip-deps               Skip downloading optional macOS CLI dependencies (git, gh)
+#   --skip-deps               Use cached Windows tool archives; skip optional macOS downloads
 #   --skip-build              Skip building (just package)
 #   --skip-package            Skip packaging (just build binaries)
 #   --universal               Build macOS universal binary (arm64 + amd64)
@@ -195,7 +195,7 @@ if ! $SKIP_DEPS; then
 
     dep_args=()
     for plat in "${PLATFORMS[@]}"; do
-        # Windows no longer embeds git/gh in the installer.
+        # Windows tools are verified and staged during installer packaging.
         if [[ "${plat%-*}" == "darwin" ]]; then
             dep_args+=(--platform "$plat")
         fi
@@ -392,13 +392,10 @@ if ! $SKIP_PACKAGE; then
 
         # Create NSIS installer
         if command -v makensis &>/dev/null; then
-            # Ensure WebView2 bootstrapper is present (NSIS macro requires it)
-            WEBVIEW2_EXE="build/windows/nsis/MicrosoftEdgeWebview2Setup.exe"
-            if [[ ! -f "$WEBVIEW2_EXE" ]]; then
-                info "Downloading WebView2 bootstrapper..."
-                curl -sSL -o "$WEBVIEW2_EXE" "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
-                ok "WebView2 bootstrapper downloaded"
-            fi
+            # Prepare complete, verified tools. --skip-deps requires cached archives.
+            tool_args=(--arch "$arch")
+            if $SKIP_DEPS; then tool_args+=(--offline); fi
+            go run ./scripts/prepare-windows-tools "${tool_args[@]}"
 
             NSIS_ARCH_FLAG="AMD64"
             if [[ "$arch" == "arm64" ]]; then
@@ -407,7 +404,12 @@ if ! $SKIP_PACKAGE; then
 
             # NSIS resolves File paths relative to the .nsi script, not cwd.
             # Use absolute paths so makensis finds the staged files.
+            nsis_version="${VERSION#v}"
+            nsis_version="${nsis_version%%-*}"
+            nsis_version="${nsis_version%%+*}"
             makensis \
+                -DCZ_TOOLS_DIR="${ROOT_DIR}/build/deps/windows-${arch}" \
+                -DINFO_PRODUCTVERSION="$nsis_version" \
                 -DARG_WAILS_${NSIS_ARCH_FLAG}_BINARY="${ROOT_DIR}/${staging_dir}/${APP_NAME}.exe" \
                 build/windows/nsis/project.nsi
 

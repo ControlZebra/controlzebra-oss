@@ -707,7 +707,7 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
                           <AlertTriangle size={14} />
                           <span>
                             {isInstallingPackages
-                              ? 'Installing GitHub CLI… Please wait.'
+                              ? 'Checking GitHub support… Please wait.'
                               : 'GitHub CLI is required to enable cloud backup.'}
                           </span>
                         </div>
@@ -720,7 +720,7 @@ function NewProjectPage({ prefillPath = '', onPrefillApplied }: NewProjectPagePr
                             disabled={isInstallingPackages || isCreating}
                           >
                             <Github size={ICON_SIZES.xs} />
-                            {isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}
+                            {isInstallingPackages ? 'Checking...' : 'Check supporting tools'}
                           </Button>
                         </div>
                       </div>
