@@ -24,10 +24,11 @@ const (
 	binSubDirName         = "bin"
 	webview2SubDirName    = "webview2"
 	migrationSubDirName   = "migrations"
-	migrationMarkerNameV1 = "data-layout-v1.json"
+	migrationMarkerNameV2 = "data-layout-v2.json"
 )
 
 // DataLocations describes where ControlZebra stores app data by class.
+// RoamingConfigDir retains its binding name; on Windows config is now local.
 type DataLocations struct {
 	RoamingConfigDir       string `json:"roamingConfigDir"`
 	SettingsFile           string `json:"settingsFile"`
@@ -87,6 +88,9 @@ func resolveDataLocationsFor(goos string, getenv func(string) string) DataLocati
 
 	roamingConfigDir := filepath.Join(roamingBase, canonicalAppDirName, configSubDirName)
 	localDataDir := filepath.Join(localBase, canonicalAppDirName)
+	if goos == "windows" {
+		roamingConfigDir = filepath.Join(localDataDir, configSubDirName)
+	}
 
 	legacyLogsDir := ""
 	if home != "" {
@@ -103,7 +107,7 @@ func resolveDataLocationsFor(goos string, getenv func(string) string) DataLocati
 		IntegrationDir:         filepath.Join(localDataDir, integrationSubDirName),
 		ToolsBinDir:            filepath.Join(localDataDir, toolsSubDirName, binSubDirName),
 		WebView2Dir:            filepath.Join(localDataDir, webview2SubDirName),
-		MigrationMarkerFile:    filepath.Join(localDataDir, migrationSubDirName, migrationMarkerNameV1),
+		MigrationMarkerFile:    filepath.Join(localDataDir, migrationSubDirName, migrationMarkerNameV2),
 		LegacyRoamingConfigDir: filepath.Join(roamingBase, legacyAppDirName),
 		LegacySettingsFile:     filepath.Join(roamingBase, legacyAppDirName, "settings.json"),
 		LegacyRepoSettingsDir:  filepath.Join(roamingBase, legacyAppDirName, repositoriesSubDir),
@@ -128,8 +132,10 @@ func GetDataLocationsSnapshot() DataLocations {
 
 // RunDataLayoutMigration migrates legacy path layouts to the canonical policy paths.
 func RunDataLayoutMigration() error {
-	locations := resolveDataLocations()
+	return runDataLayoutMigration(resolveDataLocations())
+}
 
+func runDataLayoutMigration(locations DataLocations) error {
 	if _, err := os.Stat(locations.MigrationMarkerFile); err == nil {
 		return nil
 	}
@@ -144,6 +150,13 @@ func RunDataLayoutMigration() error {
 		return fmt.Errorf("failed to ensure migration marker directory: %w", err)
 	}
 
+	// Prefer the previous canonical settings over the older control-zebra layout.
+	previousConfig := filepath.Join(filepath.Dir(locations.LegacyRoamingConfigDir), canonicalAppDirName, configSubDirName)
+	if previousConfig != locations.RoamingConfigDir {
+		if err := mergeDirectoryContents(previousConfig, locations.RoamingConfigDir); err != nil {
+			return fmt.Errorf("failed to migrate previous config: %w", err)
+		}
+	}
 	if err := mergeDirectoryContents(locations.LegacyRoamingConfigDir, locations.RoamingConfigDir); err != nil {
 		return fmt.Errorf("failed to migrate roaming config: %w", err)
 	}
@@ -154,14 +167,20 @@ func RunDataLayoutMigration() error {
 		}
 	}
 
-	if locations.LegacyToolsBinDir != locations.ToolsBinDir {
+	// Wails previously used AppData/<executable name> for the browser profile.
+	legacyWebview := filepath.Join(filepath.Dir(locations.LegacyRoamingConfigDir), "control-zebra.exe")
+	if err := mergeDirectoryContents(legacyWebview, locations.WebView2Dir); err != nil {
+		return fmt.Errorf("failed to migrate browser profile: %w", err)
+	}
+
+	if locations.LegacyToolsBinDir != locations.ToolsBinDir && !fileExists(filepath.Join(locations.ToolsBinDir, "manifest.json")) {
 		if err := mergeDirectoryContents(locations.LegacyToolsBinDir, locations.ToolsBinDir); err != nil {
 			return fmt.Errorf("failed to migrate portable tools: %w", err)
 		}
 	}
 
 	marker := map[string]interface{}{
-		"version":    1,
+		"version":    2,
 		"migratedAt": time.Now().UTC().Format(time.RFC3339),
 	}
 	payload, err := json.MarshalIndent(marker, "", "  ")
@@ -254,16 +273,27 @@ func copyFile(src, dst string) error {
 		return err
 	}
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileModeOrDefault(info.Mode(), 0644))
+	// A failed cross-volume copy must not leave a partial destination that a
+	// subsequent migration would treat as authoritative.
+	out, err := os.CreateTemp(filepath.Dir(dst), ".migration-")
 	if err != nil {
 		return err
 	}
+	defer os.Remove(out.Name())
 	defer out.Close()
-
+	if err := out.Chmod(fileModeOrDefault(info.Mode(), 0644)); err != nil {
+		return err
+	}
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}
-	return out.Sync()
+	if err := out.Sync(); err != nil {
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	return os.Rename(out.Name(), dst)
 }
 
 func fileModeOrDefault(mode fs.FileMode, fallback fs.FileMode) fs.FileMode {

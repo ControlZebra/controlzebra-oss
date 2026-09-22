@@ -82,6 +82,7 @@ func main() {
 	// 'Bind' is a list of Go struct instances. The frontend has access to the methods of these instances.
 	// 'Mac' options tailor the application when running an macOS.
 	app := application.New(application.Options{
+		Windows:     application.WindowsOptions{WebviewUserDataPath: services.GetDataLocationsSnapshot().WebView2Dir},
 		Name:        "control-zebra",
 		Description: "ControlZebra",
 		Services: []application.Service{
