@@ -14,8 +14,7 @@ Unicode true
 ## > makensis -DARG_WAILS_AMD64_BINARY=..\..\bin\app.exe
 ## For a ARM64 only installer:
 ## > makensis -DARG_WAILS_ARM64_BINARY=..\..\bin\app.exe
-## For a installer with both architectures:
-## > makensis -DARG_WAILS_AMD64_BINARY=..\..\bin\app-amd64.exe -DARG_WAILS_ARM64_BINARY=..\..\bin\app-arm64.exe
+## Build one architecture per installer, with its matching CZ_TOOLS_DIR bundle.
 ####
 ## The following information is taken from the wails_tools.nsh file, but they can be overwritten here.
 ####
@@ -35,6 +34,29 @@ Unicode true
 ## Include the wails tools
 ####
 !include "wails_tools.nsh"
+
+!ifndef CZ_TOOLS_DIR
+    !error "CZ_TOOLS_DIR must point to the verified prepare-windows-tools output"
+!endif
+!include "${CZ_TOOLS_DIR}\bundle.nsh"
+!if "${CZ_TOOLS_ARCH}" != "${ARCH}"
+    !error "Tool bundle architecture must match the single installer architecture"
+!endif
+!if ! /FileExists "${CZ_TOOLS_DIR}\git\cmd\git.exe"
+    !error "Missing bundled Git"
+!endif
+!if ! /FileExists "${CZ_TOOLS_DIR}\git\usr\bin\sh.exe"
+    !error "Regular MinGit shell is required"
+!endif
+!if ! /FileExists "${CZ_TOOLS_DIR}\gh\bin\gh.exe"
+    !error "Missing bundled GitHub CLI"
+!endif
+!if ! /FileExists "${CZ_TOOLS_DIR}\lfs\git-lfs.exe"
+    !error "Missing bundled Git LFS"
+!endif
+!if ! /FileExists "${CZ_TOOLS_DIR}\manifest.json"
+    !error "Missing tool provenance manifest"
+!endif
 
 # Keep numeric installer metadata and Installed Apps aligned with the release.
 # The configuration may use a leading v; Windows version resources require numbers.
@@ -85,7 +107,7 @@ ManifestDPIAware true
 
 Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
-InstallDir "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}" # Default per-user install folder under LocalAppData\Programs.
+InstallDir "$LOCALAPPDATA\ControlZebra\app" # App-owned files share one discoverable root.
 ShowInstDetails show # This will always show the installation details.
 
 Function .onInit
@@ -101,11 +123,18 @@ Section
     Pop $0
     Sleep 800
 
-    !insertmacro wails.webview2runtime
+    # WebView2 is supplied by Windows; no runtime or bootstrapper is redistributed.
 
     SetOutPath $INSTDIR
     
     !insertmacro wails.files
+
+    # Replace managed tools as a complete distribution, removing obsolete helpers.
+    # Never touch system Git/gh installations or their shared user configuration.
+    RMDir /r "$LOCALAPPDATA\ControlZebra\tools\bin"
+    SetOutPath "$LOCALAPPDATA\ControlZebra\tools\bin"
+    File /r "${CZ_TOOLS_DIR}\*"
+    SetOutPath $INSTDIR
     # Remove the legacy updater when upgrading an existing installation.
     Delete "$INSTDIR\cz-updater.exe"
 
@@ -116,9 +145,18 @@ Section
     !insertmacro wails.associateCustomProtocols
     
     !insertmacro wails.writeUninstaller
+
+    # Retire only known application files in the former default install folder.
+    # User-selected install locations are not recursively removed.
+    ${If} $INSTDIR != "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
+        Delete "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}\${PRODUCT_EXECUTABLE}"
+        Delete "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}\cz-updater.exe"
+        Delete "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}\uninstall.exe"
+        RMDir "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
+    ${EndIf}
 SectionEnd
 
-Section /o "un.Remove user data (settings, logs, cache, tools)" un.RemoveUserData
+Section /o "un.Remove user data (settings, logs, cache)" un.RemoveUserData
     !insertmacro wails.setShellContext
 
     # Roaming config (canonical + legacy)
@@ -126,7 +164,12 @@ Section /o "un.Remove user data (settings, logs, cache, tools)" un.RemoveUserDat
     RMDir /r "$AppData\control-zebra"
 
     # Local machine data (logs, cache, webview2, tools)
-    RMDir /r "$LocalAppData\ControlZebra"
+    RMDir /r "$LocalAppData\ControlZebra\config"
+    RMDir /r "$LocalAppData\ControlZebra\logs"
+    RMDir /r "$LocalAppData\ControlZebra\cache"
+    RMDir /r "$LocalAppData\ControlZebra\integration"
+    RMDir /r "$LocalAppData\ControlZebra\webview2"
+    RMDir /r "$LocalAppData\ControlZebra\migrations"
 SectionEnd
 
 Section "uninstall" 
@@ -135,6 +178,9 @@ Section "uninstall"
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
     RMDir /r $INSTDIR
+    RMDir /r "$LOCALAPPDATA\ControlZebra\tools"
+    RMDir /r "$LOCALAPPDATA\ControlZebra\bin"
+    RMDir "$LOCALAPPDATA\ControlZebra"
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"

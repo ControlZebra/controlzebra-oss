@@ -103,7 +103,7 @@ Every error shown to the user must follow this pattern:
 
 1. **Hide console windows.** All CLI processes use `SysProcAttr` from `sysproc_windows.go` to prevent command prompt flashes.
 2. **Sanitize environment.** `CommandRunner.buildCommandEnv()` removes `GIT_ASKPASS`, `SSH_ASKPASS`, `VSCODE_GIT_ASKPASS_*` and sets `GIT_TERMINAL_PROMPT=0` to prevent interactive prompts that would hang the app.
-3. **Portable toolchain.** On Windows, `LocalBinService` downloads MinGit + gh + git-lfs automatically. The managed tool directories are prepended to PATH in every command execution. 
+3. **Portable toolchain.** On Windows, NSIS installs checksum-verified MinGit + gh + git-lfs under `%LOCALAPPDATA%\ControlZebra\tools\bin`. `LocalBinService` validates and initializes these tools without downloading. The managed tool directories are prepended to PATH in every command execution.
 4. **Path separators.** Use `filepath.Join()` in Go and normalize paths when passing between backend and frontend.
 
 ### Error Handling Patterns

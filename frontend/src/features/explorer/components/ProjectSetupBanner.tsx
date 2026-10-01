@@ -196,11 +196,11 @@ function ProjectSetupBanner({
   let untrackedActionLabel = config.actionLabel;
   if (needsTrackingPackages) {
     if (!gitInstalled && !lfsInstalled) {
-      untrackedActionLabel = 'Install Git & LFS';
+      untrackedActionLabel = 'Check supporting tools';
     } else if (!gitInstalled) {
-      untrackedActionLabel = 'Install Git';
+      untrackedActionLabel = 'Check supporting tools';
     } else {
-      untrackedActionLabel = 'Install Git LFS';
+      untrackedActionLabel = 'Check supporting tools';
     }
   }
 
@@ -225,7 +225,7 @@ function ProjectSetupBanner({
         {isUntrackedState && (
           <Button size="sm" onClick={handleEnableVC} loading={isLoading || isInstallingPackages}>
             <GitBranch size={ICON_SIZES.xs} />
-            {isInstallingPackages ? 'Installing Packages...' : untrackedActionLabel}
+            {isInstallingPackages ? 'Checking Tools...' : untrackedActionLabel}
           </Button>
         )}
 

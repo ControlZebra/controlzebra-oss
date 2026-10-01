@@ -1,7 +1,7 @@
 // Package services provides backend functionality for the ControlZebra application.
 // This file contains the CLI resolver which locates managed/local git, gh,
 // and git-lfs binaries. On Windows, user-level managed binaries in
-// %LOCALAPPDATA%\ControlZebra\bin are preferred.
+// %LOCALAPPDATA%\ControlZebra\tools\bin are preferred.
 package services
 
 import (

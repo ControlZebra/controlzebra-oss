@@ -129,3 +129,68 @@ Run `node --test scripts/generate-windows-version-info.test.mjs` to check this
 metadata generation, including development versions and invalid inputs.
 
 **Related:** [Development Setup](../../onboarding/Development%20Setup.md) | [Architecture Overview](../architecture/Architecture%20Overview.md) | [Auto-Updater](../infrastructure/Auto-Updater.md) | [Testing Guide](Testing%20Guide.md)
+
+## Offline Windows tools and storage
+
+Windows NSIS installers include regular MinGit, GitHub CLI, and Git LFS, with
+support files and licenses. WebView2 is **not** included or downloaded: the target
+machine must already have the WebView2 Runtime (normally supplied by Windows 11).
+The standalone application executable is an update/development artifact, not a
+complete offline installation package.
+
+Prepare the tools on the build machine before invoking NSIS directly:
+
+```powershell
+go run ./scripts/prepare-windows-tools --arch amd64
+# Rebuild using only previously verified archives, with no tool downloads:
+go run ./scripts/prepare-windows-tools --arch amd64 --offline
+```
+
+Use `arm64` for native Windows ARM64 packages. Versions, upstream release URLs,
+and SHA-256 hashes are pinned in `scripts/prepare-windows-tools/manifest.json`.
+Update that manifest when updating tools. Preparation verifies archive hashes,
+executable architecture, Git's shell, and required executable paths; it retains
+complete tool distributions rather than copying only executables. Build archives
+are cached under `build/deps/.cache`; none are committed.
+
+`task windows:package ARCH=amd64` prepares these tools automatically.
+`OFFLINE=true` restricts tool preparation to cached archives. This does not make
+Go/npm dependency installation offline; those build dependencies must also be
+available. `scripts/build-all.sh --skip-deps` likewise requires verified cached
+Windows archives. The compatibility `download-cli-deps.sh --platform windows-amd64`
+command uses the same manifest.
+
+When building NSIS directly from an already signed executable, pass
+`-DCZ_TOOLS_DIR="<absolute repository path>/build/deps/windows-amd64"` alongside
+the existing binary and version arguments. NSIS rejects missing tool payloads.
+A package includes one architecture; use the matching tools and application.
+The application never downloads missing tools; users repair an incomplete
+installation by rerunning the full installer.
+
+The default Windows footprint is `%LOCALAPPDATA%\ControlZebra`:
+
+- `app`: application and uninstaller (the installer still permits a custom path).
+- `tools\bin\git`, `tools\bin\gh`, `tools\bin\lfs`: installer-managed tools.
+- `config`: app settings and `repositories` settings.
+- `logs`, `cache`, `integration`: diagnostics and working data.
+- `webview2`: browser profile data, not the WebView2 runtime itself.
+- `migrations`: completed migration records.
+
+Startup migrates earlier roaming settings, repository settings, logs, browser
+profile, and legacy tools when appropriate. Existing destination files win;
+conflicting historical files are retained. The v2 marker runs even if v1 already
+completed. New settings no longer roam between Windows machines. macOS and Linux
+retain their existing OS-specific config/cache locations. Shared Git identity,
+GitHub CLI authentication/configuration, OS keychain entries, and project folders
+remain in their existing locations; ControlZebra does not take ownership of them.
+
+Reinstalling replaces the managed tool bundle. Moving from the former default app
+folder removes only its known app executables/uninstaller and then the empty
+folder; custom installation folders are not recursively removed. Uninstall removes
+application files and bundled tools. Settings, logs, cache, integration state, and
+browser data are retained unless the user selects **Remove user data**.
+
+Before distribution, use a clean Windows VM with networking disabled: install,
+launch, create a local project, save a change, and verify Git LFS initialization.
+Repeat with prior-version settings and with the optional data-removal uninstall
+choice. NSIS compilation and cross-compilation alone do not replace this test.

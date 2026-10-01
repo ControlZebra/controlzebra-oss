@@ -112,6 +112,15 @@ tasks:
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
 
+  prepare:tools:
+    summary: Prepare checksum-verified Git, GitHub CLI and Git LFS for offline installation
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - go run ./scripts/prepare-windows-tools --arch {{.ARCH}} {{if eq .OFFLINE "true"}}--offline{{end}}
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
+      OFFLINE: '{{.OFFLINE | default "false"}}'
+
   create:nsis:installer:
     summary: Creates an NSIS installer
     dir: build/windows/nsis
@@ -121,13 +130,12 @@ tasks:
       - sh: '[ -f "{{.ROOT_DIR}}/build/windows/nsis/resources/license.txt" ]'
         msg: "Missing installer license file at build/windows/nsis/resources/license.txt"
     cmds:
-      # Create the Microsoft WebView2 bootstrapper if it doesn't exist
-      - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
+      - task: prepare:tools
       - | 
         {{if eq OS "windows"}}
-        makensis -DINFO_PRODUCTVERSION="{{.APP_VERSION}}" -DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" project.nsi
+        makensis -DCZ_TOOLS_DIR="{{.ROOT_DIR}}/build/deps/windows-{{.ARCH}}" -DINFO_PRODUCTVERSION="{{.APP_VERSION}}" -DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" project.nsi
         {{else}}
-        makensis -DINFO_PRODUCTVERSION="{{.APP_VERSION}}" -DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" project.nsi
+        makensis -DCZ_TOOLS_DIR="{{.ROOT_DIR}}/build/deps/windows-{{.ARCH}}" -DINFO_PRODUCTVERSION="{{.APP_VERSION}}" -DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" project.nsi
         {{end}}
     vars:
       ARCH: '{{.ARCH | default ARCH}}'

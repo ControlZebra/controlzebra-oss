@@ -23,7 +23,7 @@ describe('PublishToCloudModal', () => {
     expect(screen.queryByRole('button', { name: 'Publish to Cloud' })).not.toBeInTheDocument();
   });
 
-  it('shows the install action instead of a disabled connect button when GitHub CLI is missing', () => {
+  it('shows the tool check action instead of a disabled connect button when GitHub CLI is missing', () => {
     render(
       <PublishToCloudModal
         open
@@ -34,7 +34,7 @@ describe('PublishToCloudModal', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Install GitHub CLI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check supporting tools' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Connect GitHub' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
   });

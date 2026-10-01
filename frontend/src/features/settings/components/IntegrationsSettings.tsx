@@ -130,7 +130,7 @@ function IntegrationsSettings(): JSX.Element {
           disabled={isInstallingPackages}
         >
           <Github style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
-          <span>{isInstallingPackages ? 'Installing...' : 'Install GitHub CLI'}</span>
+          <span>{isInstallingPackages ? 'Checking...' : 'Check supporting tools'}</span>
         </Button>
       );
     }

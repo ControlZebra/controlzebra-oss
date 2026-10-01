@@ -636,21 +636,20 @@ export function RepoProvider({ children }: RepoProviderProps) {
     }
 
     setIsInstallingPackages(true);
-    setPackagesInstallMessage('Additional packages are being downloaded...');
+    setPackagesInstallMessage('Checking supporting tools...');
     setPackagesInstallPercent(null);
 
     try {
       const result = await EnsurePortableToolchainIfNeeded();
       if (!result.success) {
-        showMessage('error', result.error || result.message || 'Failed to install required packages');
+        showMessage('error', result.error || result.message || 'Supporting tools could not be prepared. Reinstall ControlZebra using the full installer.');
         return false;
       }
 
       await refreshToolchainStatus();
       return true;
-    } catch (err) {
-      const error = err as Error;
-      showMessage('error', `Failed to install required packages: ${error.message || err}`);
+    } catch {
+      showMessage('error', 'Supporting tools could not be checked. Restart ControlZebra and try again.');
       return false;
     } finally {
       setIsInstallingPackages(false);
@@ -3540,7 +3539,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = 'Additional packages are being downloaded. Please wait.';
+      event.returnValue = 'Supporting tools are being checked. Please wait.';
       return event.returnValue;
     };
 
