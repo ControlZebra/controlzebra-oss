@@ -23,7 +23,6 @@ import { useLayout } from '../../../context/LayoutContext';
 import { onEvent } from '../../../shared/runtime/events';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
-import { ViewerHeader } from '../shared/ViewerHeader';
 import { getPathFileName } from '../shared/path-utils';
 
 // Import ladder-visualizer components and parsers
@@ -115,6 +114,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       if (!samePath) return;
 
       invalidateCachedContent(filePath);
+      invalidateCachedContent(`l5x:${filePath}`);
       setRefreshCounter((current) => current + 1);
     };
 
@@ -146,7 +146,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
   // Use cached content - persists across tab/view switches
   const { data: controller, error, isLoading } = useCachedContent<NormalizedController>(
-    filePath,
+    `l5x:${filePath}`,
     loadAndParseFile,
     [refreshCounter]
   );
@@ -507,9 +507,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header toolbar with file path and Open in Default App */}
-      <ViewerHeader filePath={filePath} icon={Cpu} />
-
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Navigator sidebar */}

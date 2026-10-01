@@ -5,7 +5,14 @@ export type DiffSide =
   | { kind: 'working'; absolutePath: string; path: string }
   | { kind: 'missing'; path: string };
 
+// Retain the comparison even when one file side is missing (add/delete).
+export type TextDiffSource =
+  | { kind: 'working' }
+  | { kind: 'commit'; commit: string }
+  | { kind: 'refs'; oldRef: string; newRef: string };
+
 export interface DiffRenderRequest {
+  textDiffSource?: TextDiffSource;
   repoPath?: string | null;
   filePath: string;
   oldSide?: DiffSide;

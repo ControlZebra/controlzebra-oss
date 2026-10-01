@@ -137,6 +137,76 @@ import '../viewers/registry/diff-builtins'; // Diff viewers
 ReactDOM.createRoot(rootElement).render(<App />);
 ```
 
+## L5X Pretty and Raw modes
+
+The L5X registry entries load `L5XFileViewer` and `L5XDiffViewer`. Both use
+`L5XModeViewer` to own the shared header and Pretty / Raw selection. The mode is
+local to the open tab and starts at Pretty on each mount. The structured viewer
+stays mounted while Raw is shown so its routine, navigator, and sheet selections
+survive switching modes. Raw content is loaded only when selected.
+
+File Raw mode uses `TextViewer`. Parsed L5X controllers use a `l5x:` cache key
+prefix to keep them separate from raw text cached by file path. Both views refresh
+when the working file changes.
+
+Diff Raw mode uses the existing `TextDiffViewer` unified display and Git text
+conversion behavior. Request adapters retain `textDiffSource` separately from
+the file sides so additions and deletions still identify the intended working,
+commit, or ref comparison. Before displaying a raw L5X diff, the shared text-side
+loaders check that both present sides can be read within the text viewer limit.
+Working and revision text reads share the 10 MB backend limit, including resolved
+LFS content. The wrapper owns diff reload actions and working-file subscriptions.
+
+The mode controls sit outside the content error boundaries, making Raw accessible
+even when structured parsing or rendering fails.
+
+## Read-only text surface
+
+`TextViewer` owns backend reads, the existing 10 MB size limit, caching and the
+working-file subscription. It lazily loads `CodeMirrorTextViewer` when text is
+needed, including L5X Raw. The adapter in `components/text/read-only-editor.ts`
+owns editor creation, plain-text configuration, updates and disposal. Text diffs
+continue to use their existing renderer.
+
+The editor renders a viewport plus a buffer, shows line numbers, and leaves
+wrapping off. It uses app theme variables and observes its container through
+CodeMirror's normal layout lifecycle. Read-only state, a non-editable focusable
+content surface and a transaction filter prevent document edits. Selection and
+copy use the complete editor document, including offscreen text and original
+line endings. No formatting, syntax language, replacement or save commands are
+configured.
+
+Find uses CodeMirror's full-document query and next/previous commands. Ctrl+F
+(Cmd+F on macOS) opens Find; Ctrl+G / Shift+Ctrl+G (Cmd on macOS) and F3 / Shift+F3
+navigate matches. Enter / Shift+Enter also navigate from the Find field. Go to
+Line uses Ctrl+Alt+G (Cmd+Option+G on macOS), accepts a one-based integer within
+the document, and scrolls that line into view. Escape closes the active control
+and returns focus to the text. Shortcuts stay inside the viewer.
+
+Watcher refreshes retain the editor during loading, update the changed text in
+place, retain selection offsets and the scroll anchor, and clamp positions when
+the document shrinks. Closing or switching away from Raw disposes the editor;
+reopening uses the existing content cache and a fresh editor. L5X mode selection
+continues to reset to Pretty when its tab is reopened.
+
+### Desktop validation
+
+Automated tests cover reads, empty/error states, refresh without remounting,
+selection clamping, read-only commands and input events, complete-document copy,
+Find, Go to Line, shortcut scope and disposal. jsdom geometry shims are only for
+behavioral tests; they do not establish desktop layout or performance.
+
+For desktop acceptance, compare the preceding table renderer and CodeMirror in
+the actual Wails WebView using a representative L5X file, a many-line file just
+under 10 MB and a long-line file. Record file bytes/lines/longest line, machine,
+OS, WebView and build versions. Measure cold open, cached reopen, Pretty/Raw
+switching, scrolling and external refresh. Record rendered line counts and long
+tasks; if the runtime lacks Long Tasks API support, state that limitation rather
+than treating animation-frame gaps as equivalent measurements. Verify horizontal
+scrolling, resize, light/dark themes, focus, selection/copy across offscreen lines,
+refresh position preservation and size-limit errors. Repeat keyboard and clipboard
+checks on Windows/WebView2 before treating platform acceptance as complete.
+
 ## Adding a New Viewer
 
 See [Adding a New Viewer](../guides/Adding%20a%20New%20Viewer.md) for the step-by-step guide.

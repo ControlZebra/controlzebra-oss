@@ -5,7 +5,7 @@ import { isImageFile } from '../../shared/constants/file-utils';
 import TextDiffViewer from '../components/diff/TextDiffViewer';
 import { registerDiffViewer, type DiffRenderRequest } from './diff-registry';
 
-const L5XLayoutDiffViewer = lazy(() => import('../components/diff/l5x-layout-diff/L5XLayoutDiffViewer'));
+const L5XDiffViewer = lazy(() => import('../components/diff/L5XDiffViewer'));
 const ImageDiffViewer = lazy(() => import('../components/diff/ImageDiffViewer'));
 const PDFDiffViewer = lazy(() => import('../components/diff/PDFDiffViewer'));
 const Model3DDiffViewer = lazy(() => import('../components/diff/Model3DDiffViewer'));
@@ -13,6 +13,7 @@ const Model3DDiffViewer = lazy(() => import('../components/diff/Model3DDiffViewe
 function TextDiffEntry(request: DiffRenderRequest): JSX.Element {
   return (
     <TextDiffViewer
+      textDiffSource={request.textDiffSource}
       repoPath={request.repoPath ?? ''}
       filePath={request.filePath}
       oldSide={request.oldSide}
@@ -26,19 +27,7 @@ function TextDiffEntry(request: DiffRenderRequest): JSX.Element {
 }
 
 function L5XDiffEntry(request: DiffRenderRequest): JSX.Element {
-  if (!request.oldSide || !request.newSide) {
-    return <TextDiffEntry {...request} />;
-  }
-
-  return (
-    <L5XLayoutDiffViewer
-      repoPath={request.repoPath ?? ''}
-      filePath={request.filePath}
-      oldSide={request.oldSide}
-      newSide={request.newSide}
-      fileStatus={request.fileStatus ?? 'modified'}
-    />
-  );
+  return <L5XDiffViewer {...request} />;
 }
 
 function ImageDiffEntry(request: DiffRenderRequest): JSX.Element {

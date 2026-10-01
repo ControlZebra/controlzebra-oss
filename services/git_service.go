@@ -2306,11 +2306,14 @@ func (g *GitService) ReadFileAtRevision(repoPath string, filePath string, revisi
 	return g.readFileAtRevisionWithTimeout(repoPath, filePath, revision, 0)
 }
 
-// ReadFileAtRevisionLarge is the same as ReadFileAtRevision but with a longer
-// timeout for large files (e.g. L5X files that can be several megabytes).
-// Uses a 2-minute timeout instead of the default 30 seconds.
+// ReadFileAtRevisionLarge reads viewer text with a 2-minute timeout and the
+// same size limit as working-tree text reads (including resolved LFS content).
 func (g *GitService) ReadFileAtRevisionLarge(repoPath string, filePath string, revision string) FileContentResult {
-	return g.readFileAtRevisionWithTimeout(repoPath, filePath, revision, 2*time.Minute)
+	result := g.readFileAtRevisionWithTimeout(repoPath, filePath, revision, 2*time.Minute)
+	if !result.HasError && len(result.Content) > maxTextViewerSize {
+		return FileContentResult{HasError: true, Error: "File is too large to display (max 10MB)"}
+	}
+	return result
 }
 
 // FileBase64Result contains the result of reading a binary file from a git revision as base64.

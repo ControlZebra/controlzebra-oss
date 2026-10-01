@@ -20,7 +20,7 @@ import {
   DiffWorkingRaw,
 } from '../../../../bindings/controlzebra/services/gitservice';
 import type { RawDiffResult } from '../../../../bindings/controlzebra/services/models';
-import type { DiffSide } from '../../registry/diff-registry';
+import type { DiffSide, TextDiffSource } from '../../registry/diff-registry';
 
 // ============================================================================
 // Types
@@ -29,6 +29,8 @@ import type { DiffSide } from '../../registry/diff-registry';
 export type TextDiffStatus = 'added' | 'modified' | 'deleted' | 'renamed';
 
 export interface TextDiffViewerProps {
+  textDiffSource?: TextDiffSource;
+  reloadToken?: number;
   /** Absolute path to the git repository root. */
   repoPath: string;
   /** Repository-relative file path (preferred). */
@@ -98,16 +100,17 @@ function isWorkingSide(side?: DiffSide): side is Extract<DiffSide, { kind: 'work
   return side?.kind === 'working';
 }
 
-function looksLikeCommitRef(ref: string): boolean {
-  return /^[0-9a-f]{6,40}$/i.test(ref);
-}
-
 function resolveRawDiffFetcher(
   repoPath: string,
   filePath: string,
   oldSide?: DiffSide,
   newSide?: DiffSide,
+  source?: TextDiffSource,
 ): RawDiffFetcher | null {
+  if (source?.kind === 'working') return { description: 'working tree diff', load: () => DiffWorkingRaw(repoPath, filePath) };
+  if (source?.kind === 'commit') return { description: 'commit diff', load: () => DiffCommitFileRaw(repoPath, source.commit, filePath) };
+  if (source?.kind === 'refs') return { description: 'ref diff', load: () => DiffMergeReviewFileRaw(repoPath, source.oldRef, source.newRef, filePath) };
+
   if (isRefSide(oldSide) && isWorkingSide(newSide) && oldSide.ref === 'HEAD' && newSide.path === filePath) {
     return {
       description: 'working tree diff',
@@ -119,8 +122,7 @@ function resolveRawDiffFetcher(
     const expectedParentRef = `${newSide.ref}^`;
     const isCommitHistoryDiff =
       newSide.path === filePath
-      && (oldSide.ref === expectedParentRef
-        || (looksLikeCommitRef(oldSide.ref) && looksLikeCommitRef(newSide.ref)));
+      && oldSide.ref === expectedParentRef;
 
     if (isCommitHistoryDiff) {
       return {
@@ -151,6 +153,8 @@ function TextDiffViewer({
   oldPath,
   fileDiff,
   showHeader = true,
+  textDiffSource,
+  reloadToken = 0,
 }: TextDiffViewerProps): JSX.Element {
   const repoRelativePath = useMemo((): string => {
     if (!filePath) return '';
@@ -173,8 +177,8 @@ function TextDiffViewer({
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const fetcher = useMemo(
-    () => resolveRawDiffFetcher(repoPath, repoRelativePath, oldSide, newSide),
-    [repoPath, repoRelativePath, oldSide, newSide],
+    () => resolveRawDiffFetcher(repoPath, repoRelativePath, oldSide, newSide, textDiffSource),
+    [repoPath, repoRelativePath, oldSide, newSide, textDiffSource],
   );
 
   const applyOverrides = useCallback((incoming: RawDiffResult): RawDiffResult => {
@@ -193,7 +197,7 @@ function TextDiffViewer({
 
   useEffect(() => {
     // If caller provides diff, just render it.
-    if (fileDiff) {
+    if (fileDiff && (reloadToken === 0 || !fetcher)) {
       setDiff(applyOverrides(fileDiff));
       setIsLoading(false);
       setError(null);
@@ -222,7 +226,7 @@ function TextDiffViewer({
     }
 
     let cancelled = false;
-    const key = cacheKey(repoPath, repoRelativePath, oldSide, newSide);
+    const key = `${cacheKey(repoPath, repoRelativePath, oldSide, newSide)}::${JSON.stringify(textDiffSource)}`;
     const cached = textDiffCache.get(key);
 
     if (cached) {
@@ -230,7 +234,7 @@ function TextDiffViewer({
       setIsLoading(false);
       setError(cached.hasError ? (cached.error || 'Failed to load diff') : null);
       // Still allow explicit reload to re-fetch.
-      if (reloadNonce === 0) return;
+      if (reloadNonce === 0 && reloadToken === 0) return;
     }
 
     setIsLoading(true);
@@ -277,6 +281,8 @@ function TextDiffViewer({
     applyOverrides,
     fetcher,
     reloadNonce,
+    reloadToken,
+    textDiffSource,
   ]);
 
   // Loading state (only when we don't already have something to show)
@@ -308,6 +314,11 @@ function TextDiffViewer({
         </div>
       </div>
     );
+  }
+
+  // A text selection must not route binary results back to a specialized viewer.
+  if (diff.binary) {
+    return <div className="p-4 text-sm text-theme-muted">This file cannot be displayed as a text diff.</div>;
   }
 
   // Delegate rendering to shared DiffViewer.
