@@ -145,6 +145,8 @@ type ReadTextFileResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
+const maxTextViewerSize = 10 * 1024 * 1024
+
 // ReadTextFile reads the content of a text file
 func (f *FileSystemService) ReadTextFile(path string) ReadTextFileResult {
 	done := LogMethod("FileSystemService.ReadTextFile", map[string]interface{}{"path": path})
@@ -175,8 +177,7 @@ func (f *FileSystemService) ReadTextFile(path string) ReadTextFileResult {
 	}
 
 	// Limit file size to 10MB to prevent memory issues
-	const maxSize = 10 * 1024 * 1024
-	if info.Size() > maxSize {
+	if info.Size() > maxTextViewerSize {
 		return ReadTextFileResult{
 			Success: false,
 			Error:   "File is too large to display (max 10MB)",

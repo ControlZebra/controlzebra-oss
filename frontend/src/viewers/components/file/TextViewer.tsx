@@ -1,27 +1,14 @@
-/**
- * TextViewer - Displays text file content in a read-only view.
- * 
- * Features:
- * - Line numbers
- * - Scroll support for large files
- * - Loading and error states
- * - Monospace font for code readability
- * - Content caching for tab persistence
- * 
- * Note: The file header bar with "Open in Default App" is provided by ViewerRenderer.
- * 
- * Future enhancements:
- * - Syntax highlighting based on file extension
- * - Line wrapping toggle
- * - Search within file
- */
-import { memo, useMemo, useCallback } from 'react';
-import { FileText, AlertCircle } from 'lucide-react';
+import { lazy, memo, Suspense, useCallback, useEffect } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { onEvent } from '../../../shared/runtime/events';
 import { ICON_SIZES } from '../../../shared/constants';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { useCachedContent } from '../../registry/viewer-cache';
 import { getPathFileName } from '../shared/path-utils';
+import LoadingState from '../../../shared/ui/LoadingState';
+
+const CodeMirrorTextViewer = lazy(() => import('../text/CodeMirrorTextViewer'));
 
 /**
  * TextViewer component for displaying text-based files.
@@ -39,27 +26,25 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
   }, [filePath]);
 
   // Use cached content - persists across tab/view switches
-  const { data: content, error, isLoading } = useCachedContent<string>(
+  const { data: content, error, isLoading, refresh } = useCachedContent<string>(
     filePath,
     loadFile
   );
 
+  useEffect(() => onEvent('files-changed', (event: {
+    data?: { path?: string; eventType?: string; isDir?: boolean };
+  }) => {
+    const changed = event.data;
+    if (changed?.isDir || !changed?.path || !['write', 'rename', 'remove'].includes(changed.eventType ?? '')) return;
+    if (changed.path.replace(/\\/g, '/').toLowerCase() === filePath.replace(/\\/g, '/').toLowerCase()) refresh();
+  }), [filePath, refresh]);
+
   // Extract filename from path
   const fileName = getPathFileName(filePath);
 
-  // Memoize line splitting to avoid re-computation on re-renders
-  // IMPORTANT: Must be called before any conditional returns to follow Rules of Hooks
-  const lines = useMemo(() => content?.split('\n') || [], [content]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full text-theme-secondary">
-        <div className="animate-pulse flex items-center gap-2">
-          <FileText size={ICON_SIZES.md} />
-          <span>Loading {fileName}...</span>
-        </div>
-      </div>
-    );
+  // Keep an already loaded editor mounted during watcher refreshes.
+  if (isLoading && content === null) {
+    return <LoadingState message={`Loading ${fileName}...`} />;
   }
 
   if (error) {
@@ -75,24 +60,11 @@ function TextViewer({ filePath }: ViewerProps): JSX.Element {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Content area with line numbers */}
-      <div className="flex-1 overflow-auto font-mono text-sm bg-theme-surface">
-        <table className="w-full border-collapse">
-          <tbody>
-            {lines.map((line, index) => (
-              <tr key={index} className="hover:bg-theme-subtle">
-                <td className="px-3 py-0 text-right text-theme-muted select-none border-r border-theme-default sticky left-0 bg-theme-elevated w-12">
-                  {index + 1}
-                </td>
-                <td className="px-4 py-0 whitespace-pre text-theme-primary">
-                  {line || '\u00A0'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" aria-busy={isLoading}>
+      {isLoading && <div role="status" className="shrink-0 text-xs text-theme-muted">Refreshing file...</div>}
+      <Suspense fallback={<LoadingState message="Loading text viewer..." />}>
+        <CodeMirrorTextViewer key={filePath} content={content ?? ''} />
+      </Suspense>
     </div>
   );
 }

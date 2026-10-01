@@ -115,6 +115,7 @@ export function buildWorkingTreeDiffRequest({
   );
 
   return {
+    textDiffSource: { kind: 'working' },
     repoPath,
     filePath: viewerFilePath,
     oldSide,
@@ -148,6 +149,7 @@ export function buildCommitDiffRequest({
   );
 
   return {
+    textDiffSource: { kind: 'commit', commit: commitHash },
     repoPath,
     filePath: viewerFilePath,
     oldSide,
@@ -180,6 +182,7 @@ export function buildMergeReviewDiffRequest({
   );
 
   return {
+    textDiffSource: { kind: 'refs', oldRef: targetRef, newRef: sourceRef },
     repoPath,
     filePath: viewerFilePath,
     oldSide,
@@ -218,6 +221,7 @@ export function buildChangeRequestDiffRequest({
   );
 
   return {
+    textDiffSource: { kind: 'refs', oldRef: baseRef, newRef: headRef },
     repoPath,
     filePath: viewerFilePath,
     oldSide,

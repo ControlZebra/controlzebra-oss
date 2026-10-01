@@ -91,9 +91,9 @@ registerViewer({
   icon: Cpu,
   priority: 10, // Higher priority than text for .l5x files
   builtIn: true,
-  managesOwnHeader: true, // L5X viewer has its own header with navigator toggle
+  managesOwnHeader: true, // L5X mode wrapper owns the common header
   canHandle: extMatch([...L5X_EXTENSIONS]),
-  component: lazy(() => import('../components/file/L5XViewer')),
+  component: lazy(() => import('../components/file/L5XFileViewer')),
 });
 
 // ============================================================================

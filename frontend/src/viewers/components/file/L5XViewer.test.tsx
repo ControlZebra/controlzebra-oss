@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAllTabStates } from './l5x/useTabs';
 import { clearViewerCache, getCachedContent } from '../../registry/viewer-cache';
 import L5XViewer from './L5XViewer';
+import L5XFileViewer from './L5XFileViewer';
 
 const {
   readTextFileMock,
@@ -61,7 +62,7 @@ vi.mock('../../../shared/runtime/events', () => ({
 }));
 
 vi.mock('../shared/ViewerHeader', () => ({
-  ViewerHeader: ({ filePath }: { filePath: string }) => <div data-testid="viewer-header">{filePath}</div>,
+  ViewerHeader: ({ filePath, extraContent }: { filePath: string; extraContent?: React.ReactNode }) => <div data-testid="viewer-header">{filePath}{extraContent}</div>,
 }));
 
 vi.mock('ladder-visualizer', () => {
@@ -334,6 +335,39 @@ describe('L5XViewer refresh behavior', () => {
     }));
   });
 
+  it('switches to raw text without mixing parsed caches and preserves structured selection', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: '<Controller />' });
+    const view = render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Routine' }));
+    expect(await screen.findByText('RLL:RoutineA@<Controller />')).toBeVisible();
+    expect(screen.getAllByTestId('viewer-header')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(await screen.findByText('<Controller />')).toBeVisible();
+    expect(screen.getByText('RLL:RoutineA@<Controller />')).not.toBeVisible();
+    expect(getCachedContent('/repo/Programs/Main.L5X')).toBe('<Controller />');
+    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({ name: 'Controller <Controller />' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pretty' }));
+    expect(screen.getByText('RLL:RoutineA@<Controller />')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    view.unmount();
+    render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
+    expect(screen.getByRole('button', { name: 'Pretty' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('offers source inspection after parsing fails and refreshes raw text', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: '<broken>' });
+    parseStringMock.mockReturnValue({ success: false, errors: [{ message: 'Invalid XML' }] });
+    render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('Cannot parse L5X file');
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(await screen.findByText('<broken>')).toBeVisible();
+    readTextFileMock.mockResolvedValue({ success: true, content: '<updated>' });
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('<updated>')).toBeVisible();
+  });
+
   it('reads and parses the file once on initial render', async () => {
     queueSuccessfulRead(['v1']);
 
@@ -342,7 +376,7 @@ describe('L5XViewer refresh behavior', () => {
     expect(readTextFileMock).toHaveBeenCalledTimes(1);
     expect(readTextFileMock).toHaveBeenCalledWith('/repo/Programs/Main.L5X');
     expect(parseStringMock).toHaveBeenCalledTimes(1);
-    expect(getCachedContent('/repo/Programs/Main.L5X')).toMatchObject({
+    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
       name: 'Controller v1',
     });
   });
@@ -368,7 +402,7 @@ describe('L5XViewer refresh behavior', () => {
     await waitFor(() => {
       expect(readTextFileMock).toHaveBeenCalledTimes(2);
       expect(parseStringMock).toHaveBeenCalledTimes(2);
-      expect(getCachedContent('/repo/Programs/Main.L5X')).toMatchObject({
+      expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
         name: 'Controller v2',
       });
     });
@@ -563,7 +597,7 @@ describe('L5XViewer refresh behavior', () => {
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
     expect(await screen.findByText('FBD:v2:sheet-1')).toBeInTheDocument();
-    expect(getCachedContent('/repo/Programs/Main.L5X')).toMatchObject({
+    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
       name: 'Controller v2',
     });
   });

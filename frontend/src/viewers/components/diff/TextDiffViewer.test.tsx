@@ -91,6 +91,7 @@ describe('TextDiffViewer', () => {
 
     render(
       <TextDiffViewer
+        textDiffSource={{ kind: 'commit', commit: 'abc123' }}
         repoPath="/repo"
         filePath="Docs/notes.txt"
         oldSide={{ kind: 'ref', ref: 'deadbeef', path: 'Docs/notes.txt' }}
@@ -131,5 +132,18 @@ describe('TextDiffViewer', () => {
     expect(DiffWorkingRaw).not.toHaveBeenCalled();
     expect(DiffCommitFileRaw).not.toHaveBeenCalled();
     expect(DiffMergeReviewFileRaw).not.toHaveBeenCalled();
+  });
+
+  it('does not mistake two arbitrary revision hashes for a commit and its parent', async () => {
+    vi.mocked(DiffMergeReviewFileRaw).mockResolvedValue({
+      path: 'Revisions/Main.L5X', status: 'modified', binary: false,
+      rawDiff: '@@ -1 +1 @@', hasError: false,
+    });
+    render(<TextDiffViewer repoPath="/repo" filePath="Revisions/Main.L5X"
+      oldSide={{ kind: 'ref', ref: '1111111', path: 'Revisions/Main.L5X' }}
+      newSide={{ kind: 'ref', ref: '2222222', path: 'Revisions/Main.L5X' }}
+    />);
+    await waitFor(() => expect(DiffMergeReviewFileRaw).toHaveBeenCalledWith('/repo', '1111111', '2222222', 'Revisions/Main.L5X'));
+    expect(DiffCommitFileRaw).not.toHaveBeenCalled();
   });
 });

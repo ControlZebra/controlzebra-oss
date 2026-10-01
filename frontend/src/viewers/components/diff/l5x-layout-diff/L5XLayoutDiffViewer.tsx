@@ -1,7 +1,6 @@
 import { memo, useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react';
 import {
   AlertCircle,
-  Cpu,
   ChevronLeft,
   ChevronRight,
   FileWarning,
@@ -24,9 +23,7 @@ import {
 
 import { useLayout } from '../../../../context/LayoutContext';
 import { ICON_SIZES } from '../../../../shared/constants';
-import { onEvent } from '../../../../shared/runtime/events';
 import { TabBar } from '../../file/l5x';
-import { ViewerHeader } from '../../shared/ViewerHeader';
 import { getPathFileName } from '../../shared/path-utils';
 import type { DiffSide } from '../../../registry/diff-registry';
 import { loadTextSide, serializeDiffSide } from '../diff-side-loaders';
@@ -57,6 +54,7 @@ export interface L5XLayoutDiffViewerProps {
   filePath: string;
   oldSide: DiffSide;
   newSide: DiffSide;
+  reloadToken?: number;
   fileStatus: 'added' | 'modified' | 'deleted' | 'renamed' | string;
 }
 
@@ -355,6 +353,7 @@ function L5XLayoutDiffViewer({
   oldSide,
   newSide,
   fileStatus,
+  reloadToken = 0,
 }: L5XLayoutDiffViewerProps): JSX.Element {
   const { theme } = useLayout();
   const [loadState, setLoadState] = useState<LoadState>({ phase: 'idle' });
@@ -390,13 +389,6 @@ function L5XLayoutDiffViewer({
     pruneTabs,
   } = useDiffTabs(diffTabCacheKey);
 
-  const normalizedWorkingPaths = useMemo(
-    () => [oldSide, newSide]
-      .filter((side): side is Extract<DiffSide, { kind: 'working' }> => side.kind === 'working')
-      .map((side) => side.absolutePath.replace(/\\/g, '/').toLowerCase()),
-    [oldSide, newSide],
-  );
-
   const handleRetry = useCallback(() => {
     setRetryCount((prev) => prev + 1);
   }, []);
@@ -408,35 +400,13 @@ function L5XLayoutDiffViewer({
     setRetryCount((prev) => prev + 1);
   }, [cacheKeys]);
 
+  useEffect(() => {
+    if (reloadToken > 0) handleReload();
+  }, [reloadToken, handleReload]);
+
   const toggleNavigator = useCallback(() => {
     setShowNavigator((previousState) => !previousState);
   }, []);
-
-  useEffect(() => {
-    if (normalizedWorkingPaths.length === 0) {
-      return undefined;
-    }
-
-    const unsubscribe = onEvent('files-changed', (event: {
-      data?: { path?: string; eventType?: string; isDir?: boolean };
-    }) => {
-      const changedPath = event.data?.path?.replace(/\\/g, '/').toLowerCase();
-      const eventType = event.data?.eventType;
-      const isDir = event.data?.isDir;
-
-      if (!changedPath || isDir) return;
-      if (eventType !== 'write' && eventType !== 'rename' && eventType !== 'remove') return;
-      if (!normalizedWorkingPaths.includes(changedPath)) return;
-
-      handleReload();
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, [handleReload, normalizedWorkingPaths]);
 
   useEffect(() => {
     let cancelled = false;
@@ -716,21 +686,6 @@ function L5XLayoutDiffViewer({
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-theme-bg">
-      <ViewerHeader
-        filePath={filePath}
-        icon={Cpu}
-        extraContent={(
-          <button
-            type="button"
-            onClick={handleReload}
-            title="Reload diff"
-            className="rounded border border-theme-default bg-theme-elevated p-1.5 text-theme-muted transition-colors hover:bg-theme-muted hover:text-theme-primary"
-          >
-            <RefreshCw size={ICON_SIZES.sm} />
-          </button>
-        )}
-      />
-
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewModel.navigatorSections.length === 0 ? (
           <div className="flex h-full items-center justify-center text-theme-secondary">
