@@ -108,9 +108,9 @@ function TopBar(): JSX.Element {
       >
         <Wordmark />
         <div {...windowControlProps} className="flex min-w-0 items-center gap-1">
-          <span className="shrink-0 text-xs text-theme-muted">Repository:</span>
+          <span className="shrink-0 text-sm leading-5 font-normal text-theme-secondary">Repository:</span>
           <RepoSwitcher onSwitchProjects={handleOpenSwitchProject} />
-          <span className="ml-1 shrink-0 text-xs text-theme-muted">Branch:</span>
+          <span className="ml-1 shrink-0 text-sm leading-5 font-normal text-theme-secondary">Branch:</span>
           <Combobox
             value={isGitRepo ? repoInfo?.branch || '' : ''}
             options={branchOptions}

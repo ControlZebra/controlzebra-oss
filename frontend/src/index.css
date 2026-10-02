@@ -12,7 +12,9 @@
 
 /* Top-bar controls inherit the bar's typography; the wordmark keeps its own style. */
 .app-top-bar button {
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 /* The pinned viewer library has a fixed heading. Use the app's shared heading above its tree. */
