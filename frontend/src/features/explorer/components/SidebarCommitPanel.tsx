@@ -226,8 +226,8 @@ function SidebarCommitPanel({
     <div className="flex min-h-0 flex-col h-full">
       {/* Header section */}
       <div className="shrink-0 p-3 space-y-2">
-        <p className="text-theme-primary text-lg font-semibold">
-          Careful - You have unsaved changes!
+        <p className="text-theme-secondary text-sm leading-5">
+          Careful! You have unsaved changes.
         </p>
 
         {/* Commit message */}

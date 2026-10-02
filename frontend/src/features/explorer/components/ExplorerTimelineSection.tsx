@@ -1,6 +1,8 @@
 import { memo, useCallback, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../../../shared/ui/button';
+import { useLayout } from '../../../context';
+import { TIMELINE_HEIGHT } from '../../../shared/constants';
 import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
 import HistoryTimeline from '../../history/components/HistoryTimeline';
 
@@ -11,12 +13,12 @@ interface Props {
 
 function ExplorerTimelineSection({ selectedHash, onSelectCommit }: Props): JSX.Element {
   const [expanded, setExpanded] = useState(true);
-  const [height, setHeight] = useState(160);
+  const { timelineHeight: height, setTimelineHeight } = useLayout();
   const section = useRef<HTMLElement>(null);
   const drag = useRef<{ y: number; height: number } | null>(null);
   const clamp = useCallback((next: number) => {
     const available = section.current?.parentElement?.clientHeight || 800;
-    return Math.max(80, Math.min(next, 320, available * 0.4));
+    return Math.max(TIMELINE_HEIGHT.MIN, Math.min(next, TIMELINE_HEIGHT.MAX, available * 0.4));
   }, []);
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -28,27 +30,31 @@ function ExplorerTimelineSection({ selectedHash, onSelectCommit }: Props): JSX.E
   );
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      if (drag.current) setHeight(clamp(drag.current.height + drag.current.y - event.clientY));
+      if (drag.current)
+        setTimelineHeight(clamp(drag.current.height + drag.current.y - event.clientY), false);
     },
-    [clamp]
+    [clamp, setTimelineHeight]
   );
   const endDrag = useCallback(() => {
-    drag.current = null;
-  }, []);
+    if (drag.current) {
+      drag.current = null;
+      setTimelineHeight(height);
+    }
+  }, [height, setTimelineHeight]);
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
-        setHeight((value) => clamp(value + (event.key === 'ArrowUp' ? 16 : -16)));
+        setTimelineHeight(clamp(height + (event.key === 'ArrowUp' ? 16 : -16)));
       }
     },
-    [clamp]
+    [clamp, height, setTimelineHeight]
   );
   const toggle = useCallback(() => setExpanded((value) => !value), []);
   return (
     <section
       ref={section}
-      className="relative flex shrink-0 flex-col overflow-hidden bg-theme-surface"
+      className="relative flex shrink-0 flex-col overflow-hidden border-t border-shell-divider bg-theme-surface"
       aria-label="Timeline"
       style={{ height: expanded ? height : 32, maxHeight: expanded ? '40%' : undefined }}
     >
@@ -57,8 +63,8 @@ function ExplorerTimelineSection({ selectedHash, onSelectCommit }: Props): JSX.E
           role="separator"
           aria-label="Resize Timeline"
           aria-orientation="horizontal"
-          aria-valuemin={80}
-          aria-valuemax={320}
+          aria-valuemin={TIMELINE_HEIGHT.MIN}
+          aria-valuemax={TIMELINE_HEIGHT.MAX}
           aria-valuenow={height}
           tabIndex={0}
           className="absolute inset-x-0 top-0 z-10 h-1.5 cursor-row-resize touch-none hover:bg-theme-hover focus-visible:bg-theme-hover focus-visible:outline-none"

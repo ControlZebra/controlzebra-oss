@@ -89,8 +89,8 @@ function Sidebar(): JSX.Element | null {
       style={{ width: sidebarWidth }}
     >
       {/* View header */}
-      <header className="h-9 px-3 flex items-center shrink-0 mt-2">
-        <h2 className="text-theme-muted text-xs font-sans font-medium tracking-wide">
+      <header className="px-4 py-3 flex items-center shrink-0">
+        <h2 className="text-theme-primary text-lg font-sans font-semibold leading-6">
           {title}
         </h2>
       </header>

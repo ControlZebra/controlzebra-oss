@@ -30,6 +30,9 @@ func TestGetAppSettings_Default(t *testing.T) {
 	if settings.DeveloperModeEnabled {
 		t.Error("Expected DeveloperModeEnabled to default to false")
 	}
+	if settings.TimelineHeight != 160 {
+		t.Errorf("Expected default Timeline height 160, got %d", settings.TimelineHeight)
+	}
 }
 
 func TestSaveAndGetAppSettings(t *testing.T) {
@@ -48,6 +51,7 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 		Theme:                "light",
 		LastRepoPath:         "/path/to/repo",
 		DeveloperModeEnabled: true,
+		TimelineHeight:       224,
 	}
 	err = svc.SaveAppSettings(settings)
 	if err != nil {
@@ -70,6 +74,25 @@ func TestSaveAndGetAppSettings(t *testing.T) {
 	}
 	if !loadedSettings.DeveloperModeEnabled {
 		t.Error("Expected DeveloperModeEnabled to round-trip as true")
+	}
+	if loadedSettings.TimelineHeight != 224 {
+		t.Errorf("Expected Timeline height to round-trip as 224, got %d", loadedSettings.TimelineHeight)
+	}
+}
+
+func TestGetAppSettings_TimelineHeightFallback(t *testing.T) {
+	for _, data := range []string{`{}`, `{"timelineHeight":0}`, `{"timelineHeight":-80}`, `{"timelineHeight":900}`} {
+		t.Run(data, func(t *testing.T) {
+			svc := NewSettingsService()
+			svc.settingsDir = t.TempDir()
+			svc.legacyDir = svc.settingsDir
+			if err := os.WriteFile(filepath.Join(svc.settingsDir, "settings.json"), []byte(data), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if height := svc.GetAppSettings().TimelineHeight; height != 160 {
+				t.Fatalf("Expected Timeline height 160, got %d", height)
+			}
+		})
 	}
 }
 

@@ -5,14 +5,12 @@ vi.mock('../../context', () => ({
   useRepo: () => ({ progressModal: { isOpen: false }, handleProgressComplete: vi.fn() }),
   useLayout: () => ({ explorerMergeModalOpen: false, setExplorerMergeModalOpen: vi.fn() }),
 }));
-vi.mock('../../shared/runtime/window', () => ({ isWindowsDesktop: () => true }));
 vi.mock('../../shared/ui', () => ({ Toaster: () => null, ProgressModal: () => null }));
 vi.mock('../../shared/ui/RecoveryBanner', () => ({ default: () => null }));
-vi.mock('./TitleBar', () => ({ default: () => <div data-testid="separate-title-bar" /> }));
 vi.mock('./TopBar', () => ({ default: () => <header data-testid="unified-top-bar" /> }));
 vi.mock('./ActivityBar', () => ({ default: () => null }));
 vi.mock('./Sidebar', () => ({ default: () => <aside data-testid="sidebar" /> }));
-vi.mock('./MainArea', () => ({ default: () => null }));
+vi.mock('./MainArea', () => ({ default: () => <main data-testid="main-area" /> }));
 vi.mock('./StatusBar', () => ({ default: () => null }));
 vi.mock('./NonGitFolderPromptModal', () => ({ default: () => null }));
 vi.mock('./AdditionalPackagesModal', () => ({ default: () => null }));
@@ -22,11 +20,13 @@ vi.mock('./DefaultBranchSyncConfirmModal', () => ({ default: () => null }));
 import AppLayout from './AppLayout';
 
 describe('Windows app shell', () => {
-  it('mounts one top/title bar above the sidebar', () => {
+  it('keeps the sidebar and main area in one workspace beneath the top bar', () => {
     render(<AppLayout />);
     const bar = screen.getByTestId('unified-top-bar');
     expect(screen.queryByTestId('separate-title-bar')).not.toBeInTheDocument();
-    expect(bar.parentElement).toBe(screen.getByTestId('sidebar').parentElement?.parentElement);
+    const workspace = screen.getByTestId('workspace-container');
+    expect(screen.getByTestId('sidebar').parentElement).toBe(workspace);
+    expect(screen.getByTestId('main-area').parentElement?.parentElement).toBe(workspace);
     expect(
       bar.compareDocumentPosition(screen.getByTestId('sidebar')) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();

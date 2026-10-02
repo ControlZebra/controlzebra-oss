@@ -8,7 +8,7 @@ function Wordmark(): JSX.Element {
     <span
       role="img"
       aria-label="ControlZebra"
-      className="inline-flex shrink-0 items-baseline whitespace-nowrap font-sans text-sm font-semibold text-theme-primary"
+      className="inline-flex shrink-0 items-baseline whitespace-nowrap font-sans text-[21px] font-semibold text-theme-primary"
     >
       <span aria-hidden="true">Control</span>
       <span

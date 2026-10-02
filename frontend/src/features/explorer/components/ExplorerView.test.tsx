@@ -11,6 +11,7 @@ const { repoStore } = vi.hoisted(() => ({
 const { layoutStore } = vi.hoisted(() => ({
   layoutStore: {
     current: null as Record<string, unknown> | null,
+    listeners: new Set<() => void>(),
   },
 }));
 
@@ -39,7 +40,17 @@ vi.mock('../../../context', () => ({
       () => repoStore.current,
     );
   },
-  useLayout: () => layoutStore.current,
+  useLayout: () => {
+    const { useSyncExternalStore } = require('react') as typeof import('react');
+    return useSyncExternalStore(
+      (listener) => {
+        layoutStore.listeners.add(listener);
+        return () => layoutStore.listeners.delete(listener);
+      },
+      () => layoutStore.current,
+      () => layoutStore.current,
+    );
+  },
 }));
 
 vi.mock('../../integration', () => ({
@@ -132,6 +143,11 @@ function createLayoutValue(overrides: Record<string, unknown> = {}) {
     setActiveExplorerTab: vi.fn(),
     openExplorerMergeModal: vi.fn(),
     setActiveView: vi.fn(),
+    timelineHeight: 160,
+    setTimelineHeight: vi.fn((height: number) => {
+      layoutStore.current = { ...layoutStore.current, timelineHeight: height };
+      layoutStore.listeners.forEach((listener) => listener());
+    }),
     ...overrides,
   };
 }
@@ -140,6 +156,7 @@ describe('ExplorerView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     repoStore.listeners.clear();
+    layoutStore.listeners.clear();
     repoStore.current = null;
     layoutStore.current = null;
     integrationStore.current.session = null;
@@ -186,7 +203,7 @@ describe('ExplorerView', () => {
     expect(screen.getByTestId('explorer-timeline')).toBeInTheDocument();
   });
 
-  it('starts Timeline expanded at 160px and resets its layout when the repository changes', () => {
+  it('starts Timeline expanded and preserves its user-defined height when the repository changes', () => {
     repoStore.current = createRepoValue();
     layoutStore.current = createLayoutValue();
     render(<ExplorerView />);
@@ -201,7 +218,7 @@ describe('ExplorerView', () => {
       repoStore.listeners.forEach((listener) => listener());
     });
     expect(screen.getByRole('button', { name: 'Timeline' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('region', { name: 'Timeline' })).toHaveStyle({ height: '160px' });
+    expect(screen.getByRole('region', { name: 'Timeline' })).toHaveStyle({ height: '176px' });
     expect(screen.getByTestId('explorer-timeline')).toBeVisible();
   });
 

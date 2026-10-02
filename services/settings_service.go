@@ -40,12 +40,14 @@ type AppSettings struct {
 	LastRepoPath         string   `json:"lastRepoPath"`         // Last opened repository path
 	RecentFolders        []string `json:"recentFolders"`        // Recently opened folders (max 10)
 	DeveloperModeEnabled bool     `json:"developerModeEnabled"` // Show internal developer tools and diagnostics
+	TimelineHeight       int      `json:"timelineHeight"`       // Preferred Explorer Timeline height in pixels
 }
 
 func defaultAppSettings() AppSettings {
 	return AppSettings{
 		Theme:                "dark",
 		DeveloperModeEnabled: false,
+		TimelineHeight:       160,
 	}
 }
 
@@ -92,10 +94,14 @@ func decodeAppSettings(data []byte, settings *AppSettings) {
 	defaults := defaultAppSettings()
 	settings.Theme = defaults.Theme
 	settings.DeveloperModeEnabled = defaults.DeveloperModeEnabled
+	settings.TimelineHeight = defaults.TimelineHeight
 	_ = json.Unmarshal(data, settings)
 
 	if strings.TrimSpace(settings.Theme) == "" {
 		settings.Theme = defaults.Theme
+	}
+	if settings.TimelineHeight < 80 || settings.TimelineHeight > 320 {
+		settings.TimelineHeight = defaults.TimelineHeight
 	}
 }
 

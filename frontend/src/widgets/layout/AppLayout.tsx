@@ -2,7 +2,6 @@ import { lazy, memo, Suspense } from 'react';
 import { useLayout, useRepo } from '../../context';
 import { Toaster, ProgressModal } from '../../shared/ui';
 import RecoveryBanner from '../../shared/ui/RecoveryBanner';
-import TitleBar from './TitleBar';
 import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
@@ -12,7 +11,6 @@ import NonGitFolderPromptModal from './NonGitFolderPromptModal';
 import AdditionalPackagesModal from './AdditionalPackagesModal';
 import GitIdentityPromptModal from './GitIdentityPromptModal';
 import DefaultBranchSyncConfirmModal from './DefaultBranchSyncConfirmModal';
-import { isWindowsDesktop } from '../../shared/runtime/window';
 
 // Mounted only while open so the merge/conflict bundle (including the ladder
 // visualizer) is fetched on demand and unrelated repo updates cannot re-render it.
@@ -26,8 +24,7 @@ function AppLayoutInner(): JSX.Element {
   const { explorerMergeModalOpen, setExplorerMergeModalOpen } = useLayout();
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-theme-base text-theme-primary overflow-hidden">
-      {!isWindowsDesktop() && <TitleBar />}
+    <div className="h-screen w-screen flex flex-col bg-theme-elevated text-theme-primary overflow-hidden">
       <TopBar />
       <RecoveryBanner />
       <Toaster />
@@ -53,15 +50,14 @@ function AppLayoutInner(): JSX.Element {
         </Suspense>
       )}
       
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left side: Activity bar + Sidebar (full height) */}
+      <div className="flex-1 flex overflow-hidden min-h-0 pb-2 pr-2 pt-1">
         <ActivityBar />
-        <Sidebar />
-        
-        {/* Right side: Main area + Status bar */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <MainArea />
-          <StatusBar />
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl bg-theme-surface" data-testid="workspace-container">
+          <Sidebar />
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <MainArea />
+            <StatusBar />
+          </div>
         </div>
       </div>
     </div>

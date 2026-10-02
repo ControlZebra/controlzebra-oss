@@ -29,6 +29,11 @@ export class AppSettings {
      */
     "developerModeEnabled": boolean;
 
+    /**
+     * Preferred Explorer Timeline height in pixels
+     */
+    "timelineHeight": number;
+
     /** Creates a new AppSettings instance. */
     constructor($$source: Partial<AppSettings> = {}) {
         if (!("theme" in $$source)) {
@@ -42,6 +47,9 @@ export class AppSettings {
         }
         if (!("developerModeEnabled" in $$source)) {
             this["developerModeEnabled"] = false;
+        }
+        if (!("timelineHeight" in $$source)) {
+            this["timelineHeight"] = 0;
         }
 
         Object.assign(this, $$source);
