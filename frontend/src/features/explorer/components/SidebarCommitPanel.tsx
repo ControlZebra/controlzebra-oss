@@ -3,19 +3,15 @@
  * Shows commit message input, action buttons, and changed files list.
  * Clicking on changed files opens a diff tab.
  */
-import { memo, useState, useCallback, useEffect, type CSSProperties } from 'react';
-import {
-  FileText,
-  Undo2,
-} from 'lucide-react';
-import { FILE_STATUS, MAIN_BRANCHES, type FileStatusType, type ExplorerTab } from '../../../shared/constants';
-import { ICON_STYLES, STATUS_CONFIG } from '../../../shared/utils/gitHelpers';
+import { memo, useState, useCallback, useEffect } from 'react';
+import { MAIN_BRANCHES, type ExplorerTab } from '../../../shared/constants';
 import { useLayout, useRepo } from '../../../context';
-import { Button, Textarea } from '../../../shared/ui';
+import { Button } from '../../../shared/ui';
+import AutoGrowTextarea from '../../../shared/ui/AutoGrowTextarea';
+import ChangedFilesTable from './ChangedFilesTable';
 import LFSAutoTrackModal from './LFSAutoTrackModal';
-import { RewindConfirmModal } from '../../../widgets/layout';
+import RewindConfirmModal from '../../../widgets/layout/RewindConfirmModal';
 import { GetUserProfile } from '../../../../bindings/controlzebra/services/settingsservice';
-import { supportsDiff } from '../../../shared/constants/file-utils';
 import type { FileStatus } from '../../../context';
 import { useLfsAutoTrackBeforeSave } from '../hooks/useLfsAutoTrackBeforeSave';
 import MainBranchSaveChoiceModal, { type MainBranchSaveChoice } from './MainBranchSaveChoiceModal';
@@ -40,119 +36,8 @@ interface SidebarCommitPanelProps {
   operationInProgress?: boolean;
 }
 
-interface ChangedFileItemProps {
-  file: FileStatus;
-  onOpenDiff?: (file: FileStatus) => void;
-  onDiscardFile?: (file: FileStatus) => Promise<void>;
-  isDiscarding?: boolean;
-}
-
-interface ChangedFilesListProps {
-  files: FileStatus[];
-  onOpenDiff?: (file: FileStatus) => void;
-  onDiscardFile?: (file: FileStatus) => Promise<void>;
-  onRewind?: () => void;
-  isRewinding?: boolean;
-  isDiscardingFile?: boolean;
-}
-
-// ============================================================================
-// Components
-// ============================================================================
-
-/**
- * ChangedFileItem - Single file in the changed files list.
- * Uses shortLabel for compact display.
- * Clicking opens a diff tab (text diff or specialized visual diff).
- */
-const ChangedFileItem = memo(function ChangedFileItem({ file, onOpenDiff, onDiscardFile, isDiscarding = false }: ChangedFileItemProps): JSX.Element {
-  const statusConfig = STATUS_CONFIG[file.status as FileStatusType] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
-  const StatusIcon = statusConfig.Icon;
-  const canOpenDiff = supportsDiff(file.path);
-  
-  const handleClick = useCallback(() => {
-    if (canOpenDiff && onOpenDiff) {
-      onOpenDiff(file);
-    }
-  }, [file, canOpenDiff, onOpenDiff]);
-  
-  const handleDiscardClick = useCallback(async (): Promise<void> => {
-    if (!onDiscardFile || isDiscarding) return;
-    await onDiscardFile(file);
-  }, [file, isDiscarding, onDiscardFile]);
-
-  return (
-    <div className="group w-full flex items-center gap-1 px-1">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={!canOpenDiff}
-        className={`flex-1 flex items-center gap-2 px-2 py-1 rounded text-sm text-left transition-colors
-          ${canOpenDiff
-            ? 'hover-bg-theme-interactive cursor-pointer'
-            : 'cursor-default opacity-70'
-          }`}
-        title={canOpenDiff ? `View changes: ${file.path}` : file.path}
-      >
-        <StatusIcon style={ICON_STYLES.xs as CSSProperties} className={statusConfig.className} />
-        <FileText style={ICON_STYLES.xs as CSSProperties} className="text-theme-primary shrink-0" />
-        <span className="text-theme-primary truncate flex-1">
-          {file.name}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={handleDiscardClick}
-        disabled={isDiscarding}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded text-theme-primary hover:bg-red-500/10 hover:text-red-400 transition-all disabled:opacity-40"
-        title={`Discard changes: ${file.path}`}
-      >
-        <Undo2 style={ICON_STYLES.xs as CSSProperties} />
-      </button>
-    </div>
-  );
-});
-
-/**
- * ChangedFilesList - Vertical list of changed files.
- */
-const ChangedFilesList = memo(function ChangedFilesList({ files, onOpenDiff, onDiscardFile, onRewind, isRewinding = false, isDiscardingFile = false }: ChangedFilesListProps): JSX.Element | null {
-  if (!files || files.length === 0) return null;
-
-  return (
-    <div className="border-t border-theme-default">
-      <div className="px-3 py-2 flex items-center justify-between gap-2">
-        <div className="text-xs text-theme-muted font-sans tracking-wide">
-          Changed files ({files.length})
-        </div>
-        <button
-          type="button"
-          onClick={onRewind}
-          disabled={isRewinding || isDiscardingFile}
-          className="p-1 rounded text--500 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
-          title="Discard all changes"
-        >
-          <Undo2 style={ICON_STYLES.xs as CSSProperties} />
-        </button>
-      </div>
-      <div className="max-h-48 overflow-y-auto px-1">
-        {files.map((file, index) => (
-          <ChangedFileItem 
-            key={`${file.path}-${index}`} 
-            file={file} 
-            onOpenDiff={onOpenDiff}
-            onDiscardFile={onDiscardFile}
-            isDiscarding={isDiscardingFile}
-          />
-        ))}
-      </div>
-    </div>
-  );
-});
-
-function SidebarCommitPanel({ 
-  changedFiles, 
+function SidebarCommitPanel({
+  changedFiles,
   onCommit,
   onBranchAndCommit,
   onRewind,
@@ -314,10 +199,10 @@ function SidebarCommitPanel({
    */
   const handleOpenDiff = useCallback((file: FileStatus): void => {
     if (!repoPath) return;
-    
+
     const absolutePath = repoPath + '/' + file.path;
     const fileName = file.path.split('/').pop() || file.path;
-    
+
     const tab: ExplorerTab = {
       id: `diff-working-${file.path}`,
       title: `${fileName} (Working Changes)`,
@@ -330,7 +215,7 @@ function SidebarCommitPanel({
         status: file.status,
       },
     };
-    
+
     openExplorerTab(tab);
   }, [repoPath, openExplorerTab]);
 
@@ -338,27 +223,27 @@ function SidebarCommitPanel({
   const saveControlsDisabled = isCommitting || operationInProgress || isUpdateBusy || isSaveBlocked;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex min-h-0 flex-col h-full">
       {/* Header section */}
-      <div className="p-3 space-y-3">
+      <div className="shrink-0 p-3 space-y-2">
         <p className="text-theme-primary text-lg font-semibold">
           Careful - You have unsaved changes!
         </p>
 
         {/* Commit message */}
-        <Textarea
+        <AutoGrowTextarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Describe changes..."
+          aria-label="Describe changes"
           disabled={saveControlsDisabled}
-          rows={3}
           className="text-sm"
         />
 
         {/* Action buttons */}
         <div className="flex gap-2">
-          <Button 
-            onClick={handleSave} 
+          <Button
+            onClick={handleSave}
             disabled={!message.trim() || isDiscardingFile || saveControlsDisabled}
             loading={isCommitting}
             size="sm"
@@ -383,13 +268,13 @@ function SidebarCommitPanel({
       </div>
 
       {/* Changed files list */}
-      <ChangedFilesList 
-        files={changedFiles} 
+      <ChangedFilesTable
+        files={changedFiles}
+        repoPath={repoPath}
         onOpenDiff={handleOpenDiff}
         onDiscardFile={handleDiscardSingleFile}
-        onRewind={() => setShowRewindModal(true)}
-        isRewinding={isRewinding}
-        isDiscardingFile={isDiscardingFile}
+        onDiscardAll={() => setShowRewindModal(true)}
+        disabled={isDiscardingFile || isRewinding || saveControlsDisabled}
       />
 
       {/* Modals */}

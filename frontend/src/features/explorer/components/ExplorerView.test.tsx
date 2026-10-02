@@ -186,6 +186,25 @@ describe('ExplorerView', () => {
     expect(screen.getByTestId('explorer-timeline')).toBeInTheDocument();
   });
 
+  it('starts Timeline expanded at 160px and resets its layout when the repository changes', () => {
+    repoStore.current = createRepoValue();
+    layoutStore.current = createLayoutValue();
+    render(<ExplorerView />);
+    expect(screen.getByRole('region', { name: 'Timeline' })).toHaveStyle({ height: '160px' });
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize Timeline' }), { key: 'ArrowUp' });
+    expect(screen.getByRole('region', { name: 'Timeline' })).toHaveStyle({ height: '176px' });
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline' }));
+    expect(screen.getByRole('button', { name: 'Timeline' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByTestId('explorer-timeline')).not.toBeVisible();
+    act(() => {
+      repoStore.current = createRepoValue({ repoPath: '/tmp/other-project' });
+      repoStore.listeners.forEach((listener) => listener());
+    });
+    expect(screen.getByRole('button', { name: 'Timeline' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: 'Timeline' })).toHaveStyle({ height: '160px' });
+    expect(screen.getByTestId('explorer-timeline')).toBeVisible();
+  });
+
   it('keeps owned default-branch conflicts in persistent review status', () => {
     integrationStore.current.session = {
       state: 'needs-decisions',
