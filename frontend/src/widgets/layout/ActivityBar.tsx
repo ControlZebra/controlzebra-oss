@@ -44,7 +44,7 @@ interface NavButtonProps {
 // Top navigation items (main workspace views)
 // requiresGit: true means the view requires an active git repository
 const TOP_NAV_ITEMS: NavItem[] = [
-  { id: VIEWS.EXPLORER, Icon: House, label: 'Next Step Advisor', requiresGit: false },
+  { id: VIEWS.EXPLORER, Icon: House, label: 'Home', requiresGit: false },
   { id: VIEWS.REVIEWS, Icon: GitPullRequest, label: 'Reviews', requiresGit: true },
   { id: VIEWS.REPO_SETTINGS, Icon: Sliders, label: 'Repository Settings', requiresGit: true },
 ];

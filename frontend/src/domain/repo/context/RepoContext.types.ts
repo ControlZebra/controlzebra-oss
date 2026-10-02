@@ -181,7 +181,7 @@ export type GitHubCreateChangeRequestOptions = GitHubCreateChangeRequestOptionsM
 export type GitHubCreateChangeRequestResult = GitHubCreateChangeRequestResultModel;
 
 /**
- * ChangeRequestCreateEligibility describes whether the Next Step Advisor may
+ * ChangeRequestCreateEligibility describes whether Home may
  * offer Create Change Request for the current synced feature branch. When the
  * status is `ineligible`, `code` and `message` explain why so the button can be
  * shown disabled with guidance.

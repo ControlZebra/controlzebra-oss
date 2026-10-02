@@ -22,7 +22,7 @@ This repository contains the source code. You do not need to build it to use the
 ## First steps
 
 1. Open your project folder in ControlZebra.
-2. Follow the Next Step Advisor to start tracking the project.
+2. Follow the guidance in Home to start tracking the project.
 3. Make edits in your engineering software, then return to ControlZebra to review and **Save Changes**.
 4. Connect to GitHub when you want to share and sync your work.
 

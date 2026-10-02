@@ -23,7 +23,7 @@ interface ViewConfig {
 // ============================================================================
 
 const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
-  [VIEWS.EXPLORER]: { title: 'Next step advisor', Component: ExplorerView },
+  [VIEWS.EXPLORER]: { title: 'Home', Component: ExplorerView },
   [VIEWS.REVIEWS]: { title: 'Reviews', Component: ReviewsView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
