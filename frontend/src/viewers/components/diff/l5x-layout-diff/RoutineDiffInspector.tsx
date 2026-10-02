@@ -1,7 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
-  DARK_THEME,
   InlineDiffRung,
   VirtualizedLadderDiagram,
   type LadderDiagramTheme,
@@ -57,15 +56,14 @@ function getChangeTone(kind: L5XDiffRoutineEntity['changeKind'] | L5XDiffRoutine
   }
 }
 
-function buildRoutineTheme(isDarkMode: boolean): LadderDiagramTheme {
-  const baseTheme = isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME;
+function buildRoutineTheme(): LadderDiagramTheme {
   return {
-    ...baseTheme,
-    bgPrimary: 'transparent',
-    rowEvenBg: 'transparent',
-    rowOddBg: 'transparent',
-    cellEvenBg: 'transparent',
-    cellOddBg: 'transparent',
+    ...CONTROL_ZEBRA_LADDER_THEME,
+    bgPrimary: 'var(--color-ladder-diff-canvas)',
+    rowEvenBg: 'var(--color-ladder-diff-canvas)',
+    rowOddBg: 'var(--color-ladder-diff-canvas)',
+    cellEvenBg: 'var(--color-ladder-diff-canvas)',
+    cellOddBg: 'var(--color-ladder-diff-canvas)',
   };
 }
 
@@ -207,7 +205,7 @@ export const RoutineDiffInspector = memo(function RoutineDiffInspector({
   isDarkMode: boolean;
 }): JSX.Element {
   const model = useMemo(() => buildRoutineDiffRenderModel(entity), [entity]);
-  const theme = useMemo(() => buildRoutineTheme(isDarkMode), [isDarkMode]);
+  const theme = useMemo(() => buildRoutineTheme(), []);
   const parentRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({

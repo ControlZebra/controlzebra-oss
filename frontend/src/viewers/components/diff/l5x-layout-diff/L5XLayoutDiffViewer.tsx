@@ -685,7 +685,7 @@ function L5XLayoutDiffViewer({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-theme-bg">
+    <div className="flex flex-col h-full min-h-0 bg-theme-surface">
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewModel.navigatorSections.length === 0 ? (
           <div className="flex h-full items-center justify-center text-theme-secondary">
@@ -768,7 +768,7 @@ function L5XLayoutDiffViewer({
               )}
             </button>
 
-            <main className="flex h-full flex-1 min-h-0 flex-col overflow-hidden bg-theme-bg">
+            <main className="flex h-full flex-1 min-h-0 flex-col overflow-hidden bg-theme-surface">
               <TabBar
                 tabs={tabs.map((tab) => ({ id: tab.id, title: tab.title }))}
                 activeTabId={activeTabId}
@@ -780,7 +780,7 @@ function L5XLayoutDiffViewer({
                 {activeEntity ? (
                   <RenderEntityDetails entity={activeEntity} isDarkMode={isDarkMode} />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-theme-elevated text-theme-secondary">
+                  <div className="flex h-full items-center justify-center bg-theme-surface text-theme-secondary">
                     Select a changed routine or tag group.
                   </div>
                 )}

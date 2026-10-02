@@ -287,7 +287,7 @@ function PDFViewer({ filePath }: ViewerProps): JSX.Element {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-theme-surface border-b border-theme-default text-xs text-theme-muted shrink-0">
+      <div className="flex items-center justify-between px-4 py-1.5 bg-viewer-header border-b border-theme-default text-xs text-theme-muted shrink-0">
         {/* Page navigation */}
         <div className="flex items-center gap-2">
           <button

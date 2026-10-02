@@ -238,7 +238,7 @@ function ImageViewer({ filePath }: ViewerProps): JSX.Element {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Metadata bar */}
       {metaParts.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-1.5 bg-theme-surface border-b border-theme-default text-xs text-theme-muted shrink-0">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-viewer-header border-b border-theme-default text-xs text-theme-muted shrink-0">
           <span>{metaParts.join('  •  ')}</span>
           <span className="text-theme-muted/60">Click image to preview</span>
         </div>

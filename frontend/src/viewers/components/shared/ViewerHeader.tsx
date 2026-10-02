@@ -15,6 +15,7 @@ import { FileText, ExternalLink, type LucideIcon } from 'lucide-react';
 import { OpenFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { toast } from 'sonner';
 import { ICON_SIZES } from '../../../shared/constants';
+import { Button } from '../../../shared/ui/button';
 
 // ============================================================================
 // Types
@@ -54,18 +55,20 @@ function ViewerHeaderInner({
   }, [filePath]);
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-theme-surface border-b border-theme-default text-sm text-theme-secondary">
+    <div className="flex items-center gap-2 px-4 py-2 bg-viewer-header border-b border-theme-default text-sm text-theme-secondary">
       <Icon size={ICON_SIZES.sm} className="flex-shrink-0" />
       <span className="truncate flex-1">{filePath}</span>
       {extraContent}
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={handleOpenInDefaultApp}
-        className="flex items-center gap-1.5 px-2.5 py-1 bg-accent-primary hover:bg-accent-primary/80 text-white rounded text-xs font-medium transition-colors flex-shrink-0"
+        className="shrink-0 text-xs"
         title="Open in default application"
       >
-        <ExternalLink size={14} />
+        <ExternalLink size={ICON_SIZES.xs} />
         Open in Default App
-      </button>
+      </Button>
     </div>
   );
 }

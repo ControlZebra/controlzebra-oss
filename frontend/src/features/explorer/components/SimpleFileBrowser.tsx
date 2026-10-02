@@ -403,7 +403,7 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }: BreadcrumbsProps) {
   if (parts.length === 0) return null;
 
   return (
-    <nav className="flex items-center gap-1 px-4 py-3 bg-theme-surface overflow-x-auto">
+    <nav className="flex items-center gap-1 px-4 py-3 bg-viewer-header overflow-x-auto">
       <button
         onClick={() => rootPath && onNavigate(rootPath)}
         className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors shrink-0"
@@ -1957,7 +1957,7 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   return (
     <>
     <div className="flex flex-col h-full bg-fb-base">
-      <div className="shrink-0 bg-theme-surface pb-3">
+      <div className="shrink-0 bg-viewer-header pb-3">
         <Breadcrumbs
           currentPath={currentPath}
           rootPath={repoPath}

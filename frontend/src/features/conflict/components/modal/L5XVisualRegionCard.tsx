@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { useMemo } from 'react';
 import type { NormalizedRung, NormalizedTag, STLine, VisualConflictKind, VisualConflictRegion } from 'ladder-visualizer';
-import { DARK_THEME, VirtualizedLadderDiagram, measureRoutineDiffRowHeight } from 'ladder-visualizer';
+import { VirtualizedLadderDiagram, measureRoutineDiffRowHeight } from 'ladder-visualizer';
 
 import { useLayout } from '../../../../context/LayoutContext';
 import { CONTROL_ZEBRA_LADDER_THEME } from '../../../../viewers/components/file/l5x/theme';
@@ -157,7 +157,7 @@ function RungPreview({ rung, isDarkMode }: { rung: NormalizedRung; isDarkMode: b
     >
       <VirtualizedLadderDiagram
         rungs={[rung]}
-        theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
+        theme={CONTROL_ZEBRA_LADDER_THEME}
         height={height}
         className="h-full w-full"
       />

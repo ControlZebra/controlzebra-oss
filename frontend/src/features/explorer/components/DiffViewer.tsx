@@ -38,7 +38,7 @@ function DiffHeader({ fileDiff }: DiffHeaderProps) {
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-theme-surface border-b border-theme-default">
+    <div className="flex items-center justify-between px-4 py-2 bg-viewer-header border-b border-theme-default">
       <div className="flex items-center gap-3">
         <span className={cn('text-xs font-medium uppercase', statusColors[fileDiff.status] || 'text-theme-muted')}>
           {fileDiff.status}

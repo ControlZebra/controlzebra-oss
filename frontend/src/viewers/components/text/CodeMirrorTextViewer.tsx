@@ -102,13 +102,13 @@ function CodeMirrorTextViewer({ content }: { content: string }): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-theme-surface" onKeyDown={handleKeyDown}>
-      <div className="flex shrink-0 items-center gap-1 border-b border-theme-default px-2 py-1">
+      <div className="flex shrink-0 items-center gap-1 bg-viewer-header border-b border-theme-default px-2 py-1">
         <Button variant="ghost" size="sm" onClick={openFind} title="Find (Ctrl+F / ⌘F)">Find</Button>
         <Button variant="ghost" size="sm" onClick={openLine} title="Go to Line (Ctrl+Alt+G / ⌘⌥G)">Go to Line</Button>
         {content.length === 0 && <span className="ml-2 text-xs text-theme-muted">This file is empty.</span>}
       </div>
       {panel && (
-        <form onSubmit={submit} className="flex shrink-0 flex-wrap items-center gap-2 border-b border-theme-default p-2">
+        <form onSubmit={submit} className="flex shrink-0 flex-wrap items-center gap-2 bg-viewer-header border-b border-theme-default p-2">
           <label htmlFor={inputId} className="text-xs text-theme-secondary">{panel === 'find' ? 'Find in file' : 'Line number'}</label>
           <Input id={inputId} ref={field} className="h-7 w-48" value={panel === 'find' ? query : line}
             onChange={panel === 'find' ? changeQuery : changeLine} inputMode={panel === 'line' ? 'numeric' : 'text'}
