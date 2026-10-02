@@ -39,7 +39,7 @@ const ChangedFileRow = memo(function ChangedFileRow({
   const config = STATUS_CONFIG[file.status] || STATUS_CONFIG[FILE_STATUS.MODIFIED];
   const relativePath = relativeFilePath(file.path, repoPath);
   const slash = relativePath.lastIndexOf('/');
-  const folder = slash < 0 ? '' : relativePath.slice(0, slash);
+  const folder = slash < 0 ? '.\\' : `.\\${relativePath.slice(0, slash).replace(/\//g, '\\')}\\`;
   const name = relativePath.slice(slash + 1) || file.name;
   const open = useCallback(() => onOpenDiff(file), [file, onOpenDiff]);
   const discard = useCallback(() => {
@@ -58,7 +58,9 @@ const ChangedFileRow = memo(function ChangedFileRow({
         >
           <span className="min-w-0">
             <span className="block truncate text-sm text-theme-primary">{name}</span>
-            {folder && <span className="block truncate text-xs text-theme-muted">{folder}</span>}
+            <span className="block truncate text-xs text-theme-muted" title={folder}>
+              {folder}
+            </span>
           </span>
         </Button>
       </TableCell>

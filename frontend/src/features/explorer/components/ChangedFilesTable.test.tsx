@@ -30,7 +30,7 @@ describe('changed files table', () => {
   it('shows repository-relative folders and retains review/discard actions', () => {
     const callbacks = setup();
     expect(screen.getByRole('table', { name: 'Changed files' })).toBeInTheDocument();
-    expect(screen.getByText('logic')).toBeInTheDocument();
+    expect(screen.getByText('.\\logic\\')).toBeInTheDocument();
     expect(screen.queryByText(/C:\\projects/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'View changes: logic/valve.L5X' }));
     expect(callbacks.onOpenDiff).toHaveBeenCalledWith(file);

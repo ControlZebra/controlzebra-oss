@@ -101,7 +101,7 @@ function TopBar(): JSX.Element {
   return (
     <>
       <header
-        className="flex h-11 shrink-0 items-center gap-2 bg-theme-elevated px-2 select-none"
+        className="app-top-bar flex h-11 shrink-0 items-center gap-2 bg-theme-elevated px-2 select-none"
         style={isWindows ? windowDragStyle : undefined}
         onDoubleClick={handleDoubleClick}
         data-testid="top-bar"

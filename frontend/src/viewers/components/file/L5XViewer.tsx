@@ -23,11 +23,11 @@ import { onEvent } from '../../../shared/runtime/events';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
 import { getPathFileName } from '../shared/path-utils';
+import L5XProjectOrganizer from '../shared/L5XProjectOrganizer';
 
 // Import ladder-visualizer components and parsers
 import {
   parseString,
-  ProgramNavigator,
   ControllerInfo,
   TagTable,
   AOIParameterTable,
@@ -495,8 +495,8 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       <div className="flex-1 flex overflow-hidden">
         {/* Navigator sidebar */}
         {uiState.showNavigator && (
-          <div className="w-64 border-r border-theme-default bg-theme-surface overflow-hidden flex flex-col">
-            <ProgramNavigator
+          <div className="w-64 bg-theme-surface overflow-hidden flex flex-col">
+            <L5XProjectOrganizer
               controller={controller}
               programs={controller.programs}
               selectedRoutine={selectedRoutine}
@@ -519,7 +519,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         {/* Toggle button for navigator */}
         <button
           onClick={toggleNavigator}
-          className="flex items-center justify-center w-5 bg-theme-surface border-r border-theme-default hover:bg-theme-muted transition-colors"
+          className="flex items-center justify-center w-5 bg-theme-surface border-r border-shell-divider hover:bg-theme-muted transition-colors"
           title={uiState.showNavigator ? 'Hide navigator' : 'Show navigator'}
         >
           {uiState.showNavigator ? (

@@ -11,7 +11,6 @@ vi.mock('./TopBar', () => ({ default: () => <header data-testid="unified-top-bar
 vi.mock('./ActivityBar', () => ({ default: () => null }));
 vi.mock('./Sidebar', () => ({ default: () => <aside data-testid="sidebar" /> }));
 vi.mock('./MainArea', () => ({ default: () => <main data-testid="main-area" /> }));
-vi.mock('./StatusBar', () => ({ default: () => null }));
 vi.mock('./NonGitFolderPromptModal', () => ({ default: () => null }));
 vi.mock('./AdditionalPackagesModal', () => ({ default: () => null }));
 vi.mock('./GitIdentityPromptModal', () => ({ default: () => null }));

@@ -6,7 +6,6 @@ import TopBar from './TopBar';
 import ActivityBar from './ActivityBar';
 import Sidebar from './Sidebar';
 import MainArea from './MainArea';
-import StatusBar from './StatusBar';
 import NonGitFolderPromptModal from './NonGitFolderPromptModal';
 import AdditionalPackagesModal from './AdditionalPackagesModal';
 import GitIdentityPromptModal from './GitIdentityPromptModal';
@@ -56,7 +55,6 @@ function AppLayoutInner(): JSX.Element {
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             <MainArea />
-            <StatusBar />
           </div>
         </div>
       </div>

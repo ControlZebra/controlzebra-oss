@@ -7,7 +7,6 @@ export { default as ActivityBar } from './ActivityBar';
 export { default as ResourcesModal } from './ResourcesModal';
 export { default as Sidebar } from './Sidebar';
 export { default as MainArea } from './MainArea';
-export { default as StatusBar } from './StatusBar';
 export { default as BranchModal } from './BranchModal';
 export { default as BranchNameModal } from './BranchNameModal';
 export { default as GitIdentityPromptModal } from './GitIdentityPromptModal';

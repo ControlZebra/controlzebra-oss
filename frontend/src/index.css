@@ -10,6 +10,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Top-bar controls use the document's default typography; the wordmark keeps its own style. */
+.app-top-bar button {
+  font: inherit;
+}
+
+/* The pinned viewer library has a fixed heading. Use the app's shared heading above its tree. */
+.l5x-project-organizer-tree > :first-child {
+  display: none !important;
+}
+
 /* Light theme (default) */
 :root {
   /* Backgrounds */
