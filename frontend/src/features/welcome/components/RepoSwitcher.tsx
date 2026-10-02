@@ -173,7 +173,7 @@ function RepoSwitcher({ onSwitchProjects }: { onSwitchProjects: () => void }): J
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant="secondary"
           disabled={busy}
           aria-label="Switch project"
           className="w-44 max-w-[22vw] min-w-0 justify-start"
