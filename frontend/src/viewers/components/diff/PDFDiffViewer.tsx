@@ -833,7 +833,7 @@ function PDFDiffViewer({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-theme-default bg-theme-surface shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-theme-default bg-viewer-header shrink-0">
         <div className="flex items-center gap-3">
           <FileText size={ICON_SIZES.sm} className="text-theme-secondary" />
           <span className="text-sm text-theme-primary font-medium truncate max-w-[300px]">{fileName}</span>

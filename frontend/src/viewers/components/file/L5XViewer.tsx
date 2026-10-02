@@ -19,16 +19,15 @@ import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../../shared/constants';
-import { useLayout } from '../../../context/LayoutContext';
 import { onEvent } from '../../../shared/runtime/events';
 import type { ViewerProps } from '../../registry/viewer-registry';
 import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
 import { getPathFileName } from '../shared/path-utils';
+import L5XProjectOrganizer from '../shared/L5XProjectOrganizer';
 
 // Import ladder-visualizer components and parsers
 import {
   parseString,
-  ProgramNavigator,
   ControllerInfo,
   TagTable,
   AOIParameterTable,
@@ -76,19 +75,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
   // Tab management - internal to L5X viewer, cached by filePath
   const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
-
-  // Get theme from LayoutContext for reactive updates
-  const { theme } = useLayout();
-  
-  // Compute isDarkMode based on theme setting
-  const isDarkMode = useMemo(() => {
-    if (theme === 'dark') return true;
-    if (theme === 'light') return false;
-    if (typeof document !== 'undefined') {
-      return document.documentElement.classList.contains('dark');
-    }
-    return false;
-  }, [theme]);
 
   const normalizedFilePath = useMemo(() => filePath.replace(/\\/g, '/'), [filePath]);
 
@@ -267,7 +253,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
     if (!controller) return null;
 
     const containerClass = `flex-1 flex flex-col overflow-hidden h-full ${isActive ? '' : 'hidden'}`;
-    const ladderContentClass = `flex-1 overflow-hidden ${isDarkMode ? 'ladder-visualizer-dark' : ''}`;
+    const ladderContentClass = 'flex-1 overflow-hidden';
     const dataTypes = controller.dataTypeCatalog ?? controller.dataTypes;
 
     switch (tabData.type) {
@@ -373,7 +359,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
-                  isDarkMode={isDarkMode}
                   fbdSheetIndex={fbdSheetIndices[routineKey] ?? 0}
                   onFbdSheetIndexChange={(sheetIndex) => {
                     setFbdSheetIndices((current) => ({ ...current, [routineKey]: sheetIndex }));
@@ -399,7 +384,6 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
-                  isDarkMode={isDarkMode}
                   fbdSheetIndex={fbdSheetIndices[routineKey] ?? 0}
                   onFbdSheetIndexChange={(sheetIndex) => {
                     setFbdSheetIndices((current) => ({ ...current, [routineKey]: sheetIndex }));
@@ -437,7 +421,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
       default:
         return null;
     }
-  }, [controller, fbdSheetIndices, handleDataTypeSelect, isDarkMode, normalizedFilePath]);
+  }, [controller, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath]);
 
   // ============================================================================
   // Main Content Rendering
@@ -448,7 +432,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
     if (tabs.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-2 bg-theme-elevated">
+        <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-2 bg-theme-surface">
           <p className="text-theme-primary font-medium">No Content Selected</p>
           <p className="text-sm">Select an item from the navigation panel to view its contents</p>
         </div>
@@ -506,13 +490,13 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   // ============================================================================
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden bg-theme-surface">
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Navigator sidebar */}
         {uiState.showNavigator && (
-          <div className="w-64 border-r border-theme-default bg-theme-surface overflow-hidden flex flex-col">
-            <ProgramNavigator
+          <div className="w-64 bg-theme-surface overflow-hidden flex flex-col">
+            <L5XProjectOrganizer
               controller={controller}
               programs={controller.programs}
               selectedRoutine={selectedRoutine}
@@ -535,7 +519,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
         {/* Toggle button for navigator */}
         <button
           onClick={toggleNavigator}
-          className="flex items-center justify-center w-5 bg-theme-elevated border-r border-theme-default hover:bg-theme-muted transition-colors"
+          className="flex items-center justify-center w-5 bg-theme-surface border-r border-shell-divider hover:bg-theme-muted transition-colors"
           title={uiState.showNavigator ? 'Hide navigator' : 'Show navigator'}
         >
           {uiState.showNavigator ? (

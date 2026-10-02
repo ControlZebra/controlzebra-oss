@@ -1,6 +1,6 @@
 /**
  * SwitchProjectModal - Confirmation modal for switching to a different project.
- * Triggered from the Building icon in the TopBar.
+ * Triggered from Open another project in the repository dropdown.
  * When confirmed, closes the current repo and returns to the welcome screen.
  */
 import { memo, useCallback, useRef, type KeyboardEvent, type CSSProperties } from 'react';

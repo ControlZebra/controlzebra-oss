@@ -1,200 +1,225 @@
-/**
- * TopBar - Application header with repo name and action controls.
- * Shows the current branch and action buttons.
- * 
- * v2 additions:
- * - Branch modal trigger
- * - Undo Last Save button
- * - Responsive burger menu for narrow windows
- */
-import { memo, useCallback, useState, type CSSProperties } from 'react';
-import {
-  FolderOpen,
-  CodeSquare,
-  ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Trash2,
-  Menu,
-} from 'lucide-react';
-import { ICON_SIZES, VIEWS } from '../../shared/constants';
+/** Windows application/title bar, independent of sidebar visibility and width. */
+import { memo, useCallback, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, GitBranch, Menu, RefreshCw, Undo2 } from 'lucide-react';
 import { useLayout, useRepo } from '../../context';
-import { useWindowSize, BREAKPOINTS } from '../../shared/hooks';
-import { UndoLastSaveDialog } from '../../shared/ui';
-import BranchModal from './BranchModal';
-import SwitchProjectModal from './SwitchProjectModal';
+import { VIEWS } from '../../shared/constants';
+import { useWindowSize } from '../../shared/hooks';
+import {
+  Button,
+  UndoLastSaveDialog,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../shared/ui';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../shared/ui/dropdown-menu';
-
-// Shared icon style
-const iconStyle: CSSProperties = { width: ICON_SIZES.md, height: ICON_SIZES.md };
-const iconSmStyle: CSSProperties = { width: ICON_SIZES.sm, height: ICON_SIZES.sm };
-const noDragRegionStyle = { '--wails-draggable': 'no-drag' } as CSSProperties;
-const noDragControlProps = {
-  style: noDragRegionStyle,
-  'data-window-control': 'true',
-} as const;
+import Combobox from '../../shared/ui/combobox';
+import Wordmark from '../../shared/brand/Wordmark';
+import { ICON_STYLES } from '../../shared/utils/gitHelpers';
+import { isWindowsDesktop } from '../../shared/runtime/window';
+import RepoSwitcher from '../../features/welcome/components/RepoSwitcher';
+import BranchModal from './BranchModal';
+import SwitchProjectModal from './SwitchProjectModal';
+import WindowControls, {
+  handleWindowTitleDoubleClick,
+  windowControlProps,
+  windowDragStyle,
+} from './WindowControls';
 
 function TopBar(): JSX.Element {
-  const { 
-    repoPath, 
-    repoInfo, 
+  const {
+    repoPath,
+    repoInfo,
+    repoStatus,
+    branches,
     closeRepo,
     commits,
     undoLastCommit,
     operationInProgress,
+    isLoading,
+    isSyncing,
+    hasRemote,
+    syncRepo,
+    switchBranch,
+    refreshBranches,
   } = useRepo();
-  const {
-    sidebarCollapsed,
-    sidebarWidth,
-    toggleSidebar,
-    setActiveView,
-  } = useLayout();
-
-  // Responsive state
+  const { setActiveView, setSidebarCollapsed } = useLayout();
   const { isCompactTopBar } = useWindowSize();
+  const [createBranchOpen, setCreateBranchOpen] = useState(false);
+  const [undoOpen, setUndoOpen] = useState(false);
+  const [switchProjectOpen, setSwitchProjectOpen] = useState(false);
+  const isWindows = isWindowsDesktop();
+  const isGitRepo = Boolean(repoPath && repoInfo?.isRepo);
+  const busy = operationInProgress || isLoading || isSyncing;
+  const branchOptions = useMemo(
+    () => (branches?.local || []).map((branch) => ({ value: branch.name, label: branch.name })),
+    [branches?.local]
+  );
+  const tracking = repoStatus?.hasUpstream ?? false;
+  const incoming = tracking ? (repoStatus?.behind ?? 0) : null;
+  const outgoing = tracking ? (repoStatus?.ahead ?? 0) : (repoStatus?.totalLocalCommits ?? 0);
+  const syncDisabled = !isGitRepo || !hasRemote || busy;
+  const undoDisabled = !isGitRepo || !commits?.length || busy;
+  const syncDescription = !isGitRepo
+    ? 'Open a tracked project to sync changes.'
+    : !hasRemote
+      ? 'Connect this project to a remote repository to sync changes.'
+      : `Sync pulls shared updates and pushes saved work as needed. ${incoming === null ? 'Incoming count is unavailable until this branch tracks a remote branch.' : `${incoming} incoming saved changes, based on the last check.`} ${outgoing} outgoing saved changes. Counts describe saved snapshots, not uncommitted files.`;
 
-  // Modal states
-  const [branchModalOpen, setBranchModalOpen] = useState(false);
-  const [undoDialogOpen, setUndoDialogOpen] = useState(false);
-  const [switchProjectModalOpen, setSwitchProjectModalOpen] = useState(false);
-
-  const handleSwitchProject = useCallback(async (): Promise<void> => {
+  const handleSwitchProject = useCallback(async () => {
     await closeRepo();
     setActiveView(VIEWS.EXPLORER);
-  }, [closeRepo, setActiveView]);
-
-  const handleUndo = useCallback(async (): Promise<void> => {
+    setSidebarCollapsed(false);
+  }, [closeRepo, setActiveView, setSidebarCollapsed]);
+  const handleUndo = useCallback(async () => {
     await undoLastCommit();
   }, [undoLastCommit]);
-
-  // Derive display values from repo state
-  const branchName = repoInfo?.branch || 'main';
-  const hasCommits = (commits?.length ?? 0) > 0;
-  const isGitRepo = repoInfo?.isRepo ?? false;
-  const leftPanelWidth = BREAKPOINTS.ACTIVITY_BAR_WIDTH + (sidebarCollapsed ? 0 : sidebarWidth);
+  const handleSync = useCallback(() => {
+    void syncRepo();
+  }, [syncRepo]);
+  const handleRefreshBranches = useCallback(() => {
+    void refreshBranches();
+  }, [refreshBranches]);
+  const handleCreateBranch = useCallback(() => {
+    setCreateBranchOpen(true);
+  }, []);
+  const handleOpenSwitchProject = useCallback(() => {
+    setSwitchProjectOpen(true);
+  }, []);
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (isWindows) handleWindowTitleDoubleClick(event);
+    },
+    [isWindows]
+  );
 
   return (
     <>
       <header
-        className="h-[52px] bg-theme-elevated border-b border-theme-default flex items-center justify-between px-3 shrink-0 gap-2"
+        className="app-top-bar flex h-11 shrink-0 items-center gap-2 bg-theme-elevated px-2 text-sm leading-5 select-none"
+        style={isWindows ? windowDragStyle : undefined}
+        onDoubleClick={handleDoubleClick}
         data-testid="top-bar"
       >
-        {/* Left: Undo and Discard buttons aligned with sidebar (hidden when sidebar collapsed or compact) */}
-        <div
-          className="flex items-center shrink-0 transition-[width,opacity] duration-150"
-          style={{ width: leftPanelWidth }}
-        >
-          <div
-            className="flex items-center justify-between gap-2 w-full"
-            style={{ paddingLeft: sidebarCollapsed ? 0 : BREAKPOINTS.ACTIVITY_BAR_WIDTH, paddingRight: 8 }}
-          >
-            <div className={`flex items-center gap-2 transition-opacity ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-              {repoPath && isGitRepo && !isCompactTopBar && !sidebarCollapsed && (
-                <>
-                  {/* Switch Project */}
-                  <button 
-                    {...noDragControlProps}
-                    onClick={() => setSwitchProjectModalOpen(true)}
-                    title="Switch Project"
-                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
-                  >
-                    <FolderOpen style={iconStyle} className="currentColor" />
-                  </button>
-
-                  {/* Undo Last Save */}
-                  <button 
-                    {...noDragControlProps}
-                    onClick={() => setUndoDialogOpen(true)}
-                    disabled={!hasCommits || operationInProgress}
-                    title="Undo Last Save"
-                    className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
-                  >
-                    <Trash2 style={iconStyle} className="currentColor" />
-                  </button>
-                </>
-              )}
-            </div>
-            <button
-              {...noDragControlProps}
-              onClick={toggleSidebar}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 text-theme-muted hover:text-theme-primary"
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen style={iconStyle} className="currentColor" />
-              ) : (
-                <PanelLeftClose style={iconStyle} className="currentColor" />
-              )}
-            </button>
-          </div>
+        <Wordmark />
+        <div {...windowControlProps} className="flex min-w-0 items-center gap-1">
+          <RepoSwitcher onSwitchProjects={handleOpenSwitchProject} />
+          <Combobox
+            value={isGitRepo ? repoInfo?.branch || '' : ''}
+            options={branchOptions}
+            label="Switch branch"
+            placeholder="Search branches..."
+            disabled={!isGitRepo || busy}
+            icon={<GitBranch style={ICON_STYLES.sm} className="shrink-0" />}
+            onSelect={switchBranch}
+            onOpen={handleRefreshBranches}
+            action={{ label: 'Create branch', onSelect: handleCreateBranch }}
+            className="w-44 max-w-[24vw]"
+          />
         </div>
-
-        {/* Center: Branch selector + burger menu (on compact) */}
-        <div className="flex-1 flex justify-center items-center gap-2 min-w-0 px-2">
-          <button 
-            {...noDragControlProps}
-            onClick={() => repoPath && isGitRepo && setBranchModalOpen(true)}
-            disabled={!repoPath || !isGitRepo}
-            className="group flex items-center justify-center gap-2 px-3 py-1.5 h-9 flex-1 max-w-[500px] bg-theme-elevated hover:bg-theme-hover border border-theme-default rounded-md transition-colors duration-75 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-theme-elevated text-theme-muted hover:text-theme-primary"
-          >
-            <CodeSquare style={{ width: ICON_SIZES.md, height: ICON_SIZES.md }} className="transition-colors shrink-0" />
-            <span className="font-medium text-sm truncate text-center transition-colors">
-              {repoPath && isGitRepo ? branchName : 'No branch'}
-            </span>
-            <ChevronDown style={iconSmStyle} className="transition-colors shrink-0" />
-          </button>
-          
-          {/* Burger menu - right of branch selector on compact view */}
-          {repoPath && isGitRepo && isCompactTopBar && (
+        <span
+          role="separator"
+          aria-orientation="vertical"
+          className="mx-1 h-4 w-px shrink-0 bg-theme-muted"
+        />
+        <div {...windowControlProps} className="flex shrink-0 items-center gap-1">
+          <TooltipProvider delayDuration={250}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="inline-flex"
+                  tabIndex={syncDisabled ? 0 : undefined}
+                  aria-label={syncDisabled ? syncDescription : undefined}
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={handleSync}
+                    disabled={syncDisabled}
+                    loading={isSyncing}
+                    aria-label={isSyncing ? 'Syncing changes' : 'Sync Changes'}
+                    title={syncDescription}
+                  >
+                    {!isSyncing && <RefreshCw style={ICON_STYLES.sm} />}
+                    <span>{isSyncing ? 'Syncing...' : 'Sync Changes'}</span>
+                    <span
+                      className="ml-1 inline-flex items-center gap-0.5 text-theme-muted"
+                      aria-label={
+                        incoming === null
+                          ? 'Incoming count unavailable'
+                          : `${incoming} incoming saved changes`
+                      }
+                    >
+                      <ArrowDown style={ICON_STYLES.xs} />
+                      {incoming ?? '—'}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-0.5 text-theme-muted"
+                      aria-label={`${outgoing} outgoing saved changes`}
+                    >
+                      <ArrowUp style={ICON_STYLES.xs} />
+                      {outgoing}
+                    </span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">{syncDescription}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {isCompactTopBar ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  {...noDragControlProps}
-                  title="Actions Menu"
-                  className="flex items-center justify-center h-8 w-8 p-0 bg-theme-elevated hover:bg-theme-hover border border-transparent rounded-md transition-colors duration-75 shrink-0 text-theme-muted hover:text-theme-primary"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Application actions"
+                  title="Application actions"
                 >
-                  <Menu style={iconStyle} className="currentColor" />
-                </button>
+                  <Menu style={ICON_STYLES.sm} />
+                </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => setUndoDialogOpen(true)}
-                  disabled={!hasCommits || operationInProgress}
-                >
-                  <Trash2 style={iconStyle} className="mr-2" />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={undoDisabled} onSelect={() => setUndoOpen(true)}>
+                  <Undo2 style={ICON_STYLES.sm} />
                   Undo Last Save
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Undo Last Save"
+              title="Undo Last Save"
+              disabled={undoDisabled}
+              onClick={() => setUndoOpen(true)}
+            >
+              <Undo2 style={ICON_STYLES.sm} />
+            </Button>
           )}
         </div>
+        <div className="min-w-2 flex-1 self-stretch" data-testid="window-drag-space" />
+        {isWindows ? (
+          <div className="-mr-2 h-full">
+            <WindowControls />
+          </div>
+        ) : null}
       </header>
-
-      {/* Branch Modal */}
-      <BranchModal 
-        open={branchModalOpen} 
-        onOpenChange={setBranchModalOpen} 
+      <BranchModal
+        open={createBranchOpen}
+        onOpenChange={setCreateBranchOpen}
+        initialMode="create"
       />
-
-      {/* Undo Last Save Confirmation */}
-      <UndoLastSaveDialog
-        open={undoDialogOpen}
-        onOpenChange={setUndoDialogOpen}
-        onConfirm={handleUndo}
-      />
-
-      {/* Switch Project Confirmation */}
+      <UndoLastSaveDialog open={undoOpen} onOpenChange={setUndoOpen} onConfirm={handleUndo} />
       <SwitchProjectModal
-        open={switchProjectModalOpen}
-        onOpenChange={setSwitchProjectModalOpen}
+        open={switchProjectOpen}
+        onOpenChange={setSwitchProjectOpen}
         onConfirm={handleSwitchProject}
       />
-
     </>
   );
 }

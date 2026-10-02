@@ -19,7 +19,7 @@ import SidebarCommitPanel from './SidebarCommitPanel';
 import ExplorerStatusPanel from './ExplorerStatusPanel';
 import GitHubDeviceFlowModal from '../../auth/components/GitHubDeviceFlowModal';
 import CreateChangeRequestDialog from '../../reviews/components/CreateChangeRequestDialog';
-import HistoryTimeline from '../../history/components/HistoryTimeline';
+import ExplorerTimelineSection from './ExplorerTimelineSection';
 import { ConflictQueueSection } from '../../conflict';
 import { useIntegrationSession } from '../../integration';
 
@@ -371,26 +371,13 @@ function ExplorerView(): JSX.Element {
   return (
     <>
       <div className="h-full flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className={`flex-1 min-h-0 ${panelState.type === 'hasChanges' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {primaryPanel}
         </div>
 
         <ConflictQueueSection onSelectFile={handleOpenConflict} />
 
-        <section className="flex-1 min-h-0 flex flex-col border-t border-theme-default" aria-label="Timeline">
-          <header className="px-3 py-2 border-b border-theme-default shrink-0">
-            <h3 className="text-theme-muted text-xs font-sans font-medium tracking-wide">
-              Timeline
-            </h3>
-          </header>
-
-          <div className="flex-1 min-h-0">
-            <HistoryTimeline
-              selectedHash={selectedTimelineCommitHash}
-              onSelectCommit={handleTimelineSelectCommit}
-            />
-          </div>
-        </section>
+        <ExplorerTimelineSection key={repoPath} selectedHash={selectedTimelineCommitHash} onSelectCommit={handleTimelineSelectCommit} />
       </div>
 
       {sharedModals}

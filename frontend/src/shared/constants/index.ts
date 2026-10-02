@@ -46,6 +46,8 @@ export const VIEWS = {
 
 export type ViewType = typeof VIEWS[keyof typeof VIEWS];
 
+export const TIMELINE_HEIGHT = { DEFAULT: 160, MIN: 80, MAX: 320 } as const;
+
 // ============================================================================
 // FILE STATUS
 // Git file status types mapped from GitService.

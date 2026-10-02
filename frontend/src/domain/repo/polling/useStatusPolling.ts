@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 
 interface UseStatusPollingOptions {
   enabled: boolean;
+  repositoryKey?: string | null;
   intervalMs: number;
   onRefreshStatus: () => Promise<void> | void;
   onInitialRefresh?: () => Promise<void> | void;
@@ -9,11 +10,11 @@ interface UseStatusPollingOptions {
 
 export function useStatusPolling({
   enabled,
+  repositoryKey,
   intervalMs,
   onRefreshStatus,
   onInitialRefresh,
 }: UseStatusPollingOptions): void {
-  const inFlightRef = useRef(false);
   const refreshStatusRef = useRef(onRefreshStatus);
   const initialRefreshRef = useRef(onInitialRefresh);
 
@@ -31,18 +32,19 @@ export function useStatusPolling({
     }
 
     let isUnmounted = false;
+    let inFlight = false;
 
     const runRefreshStatus = async () => {
-      if (inFlightRef.current || isUnmounted) {
+      if (inFlight || isUnmounted) {
         return;
       }
 
-      inFlightRef.current = true;
+      inFlight = true;
 
       try {
         await refreshStatusRef.current();
       } finally {
-        inFlightRef.current = false;
+        inFlight = false;
       }
     };
 
@@ -55,7 +57,6 @@ export function useStatusPolling({
     return () => {
       isUnmounted = true;
       clearInterval(intervalId);
-      inFlightRef.current = false;
     };
-  }, [enabled, intervalMs]);
+  }, [enabled, intervalMs, repositoryKey]);
 }

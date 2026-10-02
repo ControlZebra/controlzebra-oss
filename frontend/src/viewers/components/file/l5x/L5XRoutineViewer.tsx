@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { AlertCircle, TriangleAlert } from "lucide-react";
 import {
-  DARK_THEME,
   FBDDiagram,
   StructuredTextViewer,
   VirtualizedLadderDiagram,
@@ -15,7 +14,6 @@ import { CONTROL_ZEBRA_LADDER_THEME } from "./theme";
 
 interface L5XRoutineViewerProps {
   routine: NormalizedRoutine;
-  isDarkMode: boolean;
   fbdSheetIndex?: number;
   onFbdSheetIndexChange?: (sheetIndex: number) => void;
 }
@@ -61,12 +59,10 @@ function MissingFBDContent() {
 
 function FBDRoutineViewer({
   body,
-  isDarkMode,
   sheetIndex,
   onSheetIndexChange,
 }: {
   body: NormalizedFBDBody;
-  isDarkMode: boolean;
   sheetIndex?: number;
   onSheetIndexChange?: (sheetIndex: number) => void;
 }) {
@@ -114,7 +110,7 @@ function FBDRoutineViewer({
           width="100%"
           height="100%"
           className="h-full w-full"
-          theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
+          theme={CONTROL_ZEBRA_LADDER_THEME}
           showControls
           showBackground
           showMiniMap={false}
@@ -129,7 +125,6 @@ function FBDRoutineViewer({
 /** Shared routine renderer used by program-owned and AOI-owned tabs. */
 export function L5XRoutineViewer({
   routine,
-  isDarkMode,
   fbdSheetIndex,
   onFbdSheetIndexChange,
 }: L5XRoutineViewerProps) {
@@ -141,7 +136,7 @@ export function L5XRoutineViewer({
     return (
       <VirtualizedLadderDiagram
         routine={routine}
-        theme={isDarkMode ? DARK_THEME : CONTROL_ZEBRA_LADDER_THEME}
+        theme={CONTROL_ZEBRA_LADDER_THEME}
         className="h-full"
       />
     );
@@ -151,7 +146,6 @@ export function L5XRoutineViewer({
     return routine.fbd ? (
       <FBDRoutineViewer
         body={routine.fbd}
-        isDarkMode={isDarkMode}
         sheetIndex={fbdSheetIndex}
         onSheetIndexChange={onFbdSheetIndexChange}
       />

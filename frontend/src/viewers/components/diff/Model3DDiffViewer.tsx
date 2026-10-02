@@ -818,7 +818,7 @@ function Model3DDiffViewer({
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-theme-default bg-theme-surface shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-theme-default bg-viewer-header shrink-0">
         <div className="flex items-center gap-3">
           <Box size={ICON_SIZES.sm} className="text-theme-secondary" />
           <span className="text-sm text-theme-primary font-medium truncate max-w-[300px]">{fileName}</span>
@@ -865,7 +865,7 @@ function Model3DDiffViewer({
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 py-1 bg-theme-surface border-b border-theme-default text-xs text-theme-muted shrink-0">
+      <div className="flex items-center gap-3 px-4 py-1 bg-viewer-header border-b border-theme-default text-xs text-theme-muted shrink-0">
         {modelPair.status === 'added' && (
           <span className="flex items-center gap-1 text-green-400 font-medium">
             <Plus size={ICON_SIZES.xs} /> Added

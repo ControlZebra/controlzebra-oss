@@ -22,12 +22,14 @@ import {
 import { 
   VIEWS, 
   FILE_BROWSER_TAB,
+  TIMELINE_HEIGHT,
   type ViewType, 
   type ExplorerTab 
 } from '../shared/constants';
 import { trackViewChanged, trackSettingsOpened } from '../domain/analytics/analytics';
 import { useWindowSize } from '../shared/hooks/useWindowSize';
-import { GetAppSettings } from '../../bindings/controlzebra/services/settingsservice';
+import { GetAppSettings, SaveAppSettings } from '../../bindings/controlzebra/services/settingsservice';
+import { toast } from 'sonner';
 
 // ============================================================================
 // Types
@@ -44,6 +46,8 @@ interface LayoutContextValue {
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
   toggleSidebar: () => void;
+  timelineHeight: number;
+  setTimelineHeight: (height: number, persist?: boolean) => void;
   
   // Settings
   selectedSettingsCategory: string;
@@ -114,6 +118,25 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
   const [sidebarCollapsed, _setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [developerModeEnabled, setDeveloperModeEnabledState] = useState(false);
+  const [timelineHeight, setTimelineHeightState] = useState<number>(TIMELINE_HEIGHT.DEFAULT);
+  const timelineResized = useRef(false);
+  const timelineSaves = useRef<Promise<void>>(Promise.resolve());
+
+  const setTimelineHeight = useCallback((height: number, persist = true) => {
+    if (!Number.isFinite(height)) return;
+    const next = Math.round(Math.max(TIMELINE_HEIGHT.MIN, Math.min(height, TIMELINE_HEIGHT.MAX)));
+    timelineResized.current = true;
+    setTimelineHeightState(next);
+    if (!persist) return;
+    // Save only after a drag ends or a keyboard resize. Serialize writes so
+    // rapid adjustments cannot persist an older height after the newest one.
+    timelineSaves.current = timelineSaves.current.then(async () => {
+      const settings = await GetAppSettings();
+      await SaveAppSettings({ ...settings, timelineHeight: next });
+    }).catch(() => {
+      toast.error('Could not save Timeline height. Resize it again to retry.');
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +145,11 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
       .then((settings) => {
         if (!cancelled) {
           setDeveloperModeEnabledState(settings.developerModeEnabled);
+          const savedHeight = settings.timelineHeight;
+          if (!timelineResized.current && Number.isFinite(savedHeight)
+              && savedHeight >= TIMELINE_HEIGHT.MIN && savedHeight <= TIMELINE_HEIGHT.MAX) {
+            setTimelineHeightState(savedHeight);
+          }
         }
       })
       .catch(() => {
@@ -348,6 +376,8 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     sidebarWidth,
     setSidebarWidth,
     toggleSidebar,
+    timelineHeight,
+    setTimelineHeight,
     
     // Settings
     selectedSettingsCategory,
@@ -387,6 +417,8 @@ export function LayoutProvider({ children }: LayoutProviderProps): JSX.Element {
     activeView, 
     sidebarCollapsed, 
     sidebarWidth, 
+    timelineHeight,
+    setTimelineHeight,
     selectedSettingsCategory,
     developerModeEnabled,
     accountDialogOpen,

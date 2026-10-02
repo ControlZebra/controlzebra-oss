@@ -524,7 +524,7 @@ describe('L5XViewer refresh behavior', () => {
       showBackground: true,
       showMiniMap: false,
       interactive: true,
-      theme: { bgPrimary: 'var(--color-bg-surface)' },
+      theme: { bgPrimary: 'var(--lv-bg-primary)' },
       sheetIndex: 0,
     });
     expect(props.onDiagnostics).toEqual(expect.any(Function));
@@ -602,7 +602,7 @@ describe('L5XViewer refresh behavior', () => {
     });
   });
 
-  it('updates the FBD theme when the application theme changes', async () => {
+  it('preserves FBD navigation while the CSS palette changes with the app theme', async () => {
     queueSuccessfulRead(['v1']);
     parseStringMock.mockImplementation(() => ({
       success: true,
@@ -615,8 +615,11 @@ describe('L5XViewer refresh behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
     await screen.findByText('FBD:v1:sheet-0');
     expect(latestFBDDiagramProps().theme).toMatchObject({
-      bgPrimary: 'var(--color-bg-surface)',
+      bgPrimary: 'var(--lv-bg-primary)',
     });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next FBD sheet' }));
+    expect(screen.getByText('FBD:v1:sheet-1')).toBeInTheDocument();
 
     act(() => {
       testState.theme = 'dark';
@@ -624,7 +627,10 @@ describe('L5XViewer refresh behavior', () => {
     });
 
     await waitFor(() => {
-      expect(latestFBDDiagramProps().theme).toEqual({ name: 'dark-theme' });
+      expect(latestFBDDiagramProps().theme).toMatchObject({
+        bgPrimary: 'var(--lv-bg-primary)',
+      });
+      expect(screen.getByText('FBD:v1:sheet-1')).toBeInTheDocument();
     });
   });
 

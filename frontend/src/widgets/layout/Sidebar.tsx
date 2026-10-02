@@ -7,7 +7,7 @@ import SettingsView from '../../features/settings/components/SettingsView';
 import WelcomeView from '../../features/welcome/components/WelcomeView';
 import DebugView from '../../features/debug/components/DebugView';
 import ReviewsView from '../../features/reviews/components/ReviewsView';
-import RepoSwitcher from '../../features/welcome/components/RepoSwitcher';
+import { BREAKPOINTS } from '../../shared/hooks/useWindowSize';
 
 // ============================================================================
 // Types
@@ -23,7 +23,7 @@ interface ViewConfig {
 // ============================================================================
 
 const VIEW_CONFIG: Record<ViewType, ViewConfig> = {
-  [VIEWS.EXPLORER]: { title: 'Next step advisor', Component: ExplorerView },
+  [VIEWS.EXPLORER]: { title: 'Home', Component: ExplorerView },
   [VIEWS.REVIEWS]: { title: 'Reviews', Component: ReviewsView },
   [VIEWS.REPO_SETTINGS]: { title: 'Repository Settings', Component: RepoSettingsView },
   [VIEWS.SETTINGS]: { title: 'Settings', Component: SettingsView },
@@ -63,8 +63,7 @@ function Sidebar(): JSX.Element | null {
 
     const handleMouseMove = (e: globalThis.MouseEvent): void => {
       if (!isResizing.current) return;
-      const activityBarWidth = 56; // w-14 = 56px
-      const newWidth = e.clientX - activityBarWidth;
+      const newWidth = e.clientX - BREAKPOINTS.ACTIVITY_BAR_WIDTH;
       setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
     };
 
@@ -86,19 +85,16 @@ function Sidebar(): JSX.Element | null {
 
   return (
     <aside 
-      className="bg-theme-elevated border-r border-theme-default flex flex-col shrink-0 relative"
+      className="bg-theme-surface border-r border-shell-divider flex flex-col shrink-0 relative"
       style={{ width: sidebarWidth }}
     >
-      {/* Repository selector - uses RepoSwitcher popover */}
-      <RepoSwitcher />
-
       {/* View header */}
-      <header className="h-9 px-3 flex items-center border-b border-theme-default shrink-0 mt-2">
-        <h2 className="text-theme-muted text-xs font-sans font-medium tracking-wide">
+      <header className="px-4 py-3 flex items-center shrink-0">
+        <h2 className="text-theme-primary text-lg font-sans font-semibold leading-6">
           {title}
         </h2>
       </header>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className={`flex-1 min-h-0 ${activeView === VIEWS.EXPLORER && repoPath ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
         <Component />
       </div>
       {/* Resize handle - wider hit area with visible indicator */}
@@ -107,7 +103,7 @@ function Sidebar(): JSX.Element | null {
         className="absolute top-0 right-0 w-2 h-full cursor-col-resize group z-10"
       >
         {/* Visible resize bar */}
-        <div className="absolute top-0 right-0 w-[3px] h-full bg-theme-default group-hover:bg-blue-500 group-active:bg-blue-400 transition-colors" />
+        <div className="absolute top-0 right-0 w-px h-full group-hover:bg-blue-500 group-active:bg-blue-400 transition-colors" />
         {/* Resize grip dots - visible on hover */}
         <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[3px] h-8 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="w-1 h-1 rounded-full bg-blue-400" />

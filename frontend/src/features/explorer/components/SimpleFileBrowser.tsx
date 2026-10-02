@@ -403,7 +403,7 @@ function Breadcrumbs({ currentPath, rootPath, onNavigate }: BreadcrumbsProps) {
   if (parts.length === 0) return null;
 
   return (
-    <nav className="flex items-center gap-1 px-4 py-3 bg-fb-breadcrumb overflow-x-auto">
+    <nav className="flex items-center gap-1 px-4 py-3 bg-viewer-header overflow-x-auto">
       <button
         onClick={() => rootPath && onNavigate(rootPath)}
         className="p-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors shrink-0"
@@ -549,7 +549,7 @@ function Toolbar({
   }, [repoPath]);
 
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 bg-fb-toolbar border-b border-theme-default">
+    <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-fb-toolbar">
       <div className="flex items-center gap-1 min-w-0">
         <button
           onClick={handleOpenInFileManager}
@@ -1957,23 +1957,26 @@ function SimpleFileBrowser({ repoPath }: SimpleFileBrowserProps) {
   return (
     <>
     <div className="flex flex-col h-full bg-fb-base">
-      <Breadcrumbs 
-        currentPath={currentPath} 
-        rootPath={repoPath} 
-        onNavigate={handleNavigate} 
-      />
-      
-      <Toolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        showHidden={showHidden}
-        onShowHiddenChange={handleToggleHidden}
-        onRefresh={handleRefresh}
-        onSync={handleSync}
-        isSyncing={isSyncing}
-        currentPath={currentPath}
-        repoPath={repoPath}
-      />
+      <div className="shrink-0 bg-viewer-header pb-3">
+        <Breadcrumbs
+          currentPath={currentPath}
+          rootPath={repoPath}
+          onNavigate={handleNavigate}
+        />
+        <div className="px-3">
+          <Toolbar
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            showHidden={showHidden}
+            onShowHiddenChange={handleToggleHidden}
+            onRefresh={handleRefresh}
+            onSync={handleSync}
+            isSyncing={isSyncing}
+            currentPath={currentPath}
+            repoPath={repoPath}
+          />
+        </div>
+      </div>
       
       {error && (
         <div className="px-3 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm">

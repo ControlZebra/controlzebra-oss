@@ -5,6 +5,8 @@
  * Stored as a simple array of path strings, most recent first.
  */
 
+import { GetRecentFolders } from '../../../bindings/controlzebra/services/settingsservice';
+
 const STORAGE_KEY = 'control-zebra-recent-folders';
 const MAX_RECENT = 5;
 
@@ -24,6 +26,19 @@ export function getRecentFolders(): string[] {
   } catch {
     return [];
   }
+}
+
+/** Use the same recent-project list in the welcome page and top bar. */
+export async function loadMergedRecentFolders(): Promise<string[]> {
+  let backendFolders: string[] = [];
+  try {
+    backendFolders = (await GetRecentFolders()) || [];
+  } catch {
+    // Desktop bridge may be unavailable.
+  }
+  const folders = [...backendFolders, ...getRecentFolders()]
+    .filter((folder) => typeof folder === 'string' && folder.length > 0);
+  return [...new Set(folders)];
 }
 
 /**

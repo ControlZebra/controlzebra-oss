@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import {
   clearAOIs,
-  ProgramNavigator,
   diffControllers,
   parseString,
   registerAOIsFromController,
@@ -25,6 +24,7 @@ import { useLayout } from '../../../../context/LayoutContext';
 import { ICON_SIZES } from '../../../../shared/constants';
 import { TabBar } from '../../file/l5x';
 import { getPathFileName } from '../../shared/path-utils';
+import L5XProjectOrganizer from '../../shared/L5XProjectOrganizer';
 import type { DiffSide } from '../../../registry/diff-registry';
 import { loadTextSide, serializeDiffSide } from '../diff-side-loaders';
 import { buildL5XDiffLayoutViewModel } from './adapter';
@@ -685,7 +685,7 @@ function L5XLayoutDiffViewer({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-theme-bg">
+    <div className="flex flex-col h-full min-h-0 bg-theme-surface">
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewModel.navigatorSections.length === 0 ? (
           <div className="flex h-full items-center justify-center text-theme-secondary">
@@ -697,8 +697,8 @@ function L5XLayoutDiffViewer({
         ) : (
           <div className="flex h-full min-h-0 overflow-hidden">
             {showNavigator ? (
-              <aside className="w-72 min-h-0 overflow-hidden border-r border-theme-default bg-theme-surface shrink-0">
-                <ProgramNavigator
+              <aside className="w-72 min-h-0 overflow-hidden bg-theme-surface shrink-0">
+                <L5XProjectOrganizer
                   controller={navigatorController ?? emptyController}
                   programs={navigatorController?.programs ?? []}
                   selectedItemId={selectedNavigatorItemId}
@@ -758,7 +758,7 @@ function L5XLayoutDiffViewer({
             <button
               type="button"
               onClick={toggleNavigator}
-              className="w-6 border-r border-theme-default bg-theme-surface hover:bg-theme-elevated transition-colors flex items-center justify-center shrink-0"
+              className="w-6 border-r border-shell-divider bg-theme-surface hover:bg-theme-elevated transition-colors flex items-center justify-center shrink-0"
               title={showNavigator ? 'Hide navigator' : 'Show navigator'}
             >
               {showNavigator ? (
@@ -768,7 +768,7 @@ function L5XLayoutDiffViewer({
               )}
             </button>
 
-            <main className="flex h-full flex-1 min-h-0 flex-col overflow-hidden bg-theme-bg">
+            <main className="flex h-full flex-1 min-h-0 flex-col overflow-hidden bg-theme-surface">
               <TabBar
                 tabs={tabs.map((tab) => ({ id: tab.id, title: tab.title }))}
                 activeTabId={activeTabId}
@@ -780,7 +780,7 @@ function L5XLayoutDiffViewer({
                 {activeEntity ? (
                   <RenderEntityDetails entity={activeEntity} isDarkMode={isDarkMode} />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-theme-elevated text-theme-secondary">
+                  <div className="flex h-full items-center justify-center bg-theme-surface text-theme-secondary">
                     Select a changed routine or tag group.
                   </div>
                 )}

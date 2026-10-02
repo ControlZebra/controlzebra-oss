@@ -285,7 +285,7 @@ function Model3DViewer({ filePath }: ViewerProps): JSX.Element {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Metadata bar */}
       {metaParts.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-1.5 bg-theme-surface border-b border-theme-default text-xs text-theme-muted shrink-0">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-viewer-header border-b border-theme-default text-xs text-theme-muted shrink-0">
           <span className="flex items-center gap-1.5">
             <Box size={ICON_SIZES.xs} />
             <span>{metaParts.join('  •  ')}</span>
