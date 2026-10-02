@@ -553,7 +553,7 @@ function Toolbar({
       <div className="flex items-center gap-1 min-w-0">
         <button
           onClick={handleOpenInFileManager}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-sm leading-5 shrink-0"
           title={`Open in ${FILE_MANAGER_NAME}`}
           disabled={!currentPath}
         >
@@ -562,7 +562,7 @@ function Toolbar({
         </button>
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
+          className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-sm leading-5 shrink-0"
           title="Reload"
         >
           <RefreshCw className="w-4 h-4" />
@@ -570,7 +570,7 @@ function Toolbar({
         </button>
         <button
           onClick={onShowHiddenChange}
-          className={`flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded transition-colors text-xs shrink-0 ${
+          className={`flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded transition-colors text-sm leading-5 shrink-0 ${
             showHidden ? 'text-theme-primary' : 'text-theme-muted hover:text-theme-secondary'
           }`}
           title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
@@ -584,7 +584,7 @@ function Toolbar({
             <div className="w-px h-4 bg-theme-muted mx-1 shrink-0" />
             <button
               onClick={handleCopyLink}
-              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
+              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-sm leading-5 shrink-0"
               title="Copy remote repository link"
               disabled={!currentPath || !repoPath}
             >
@@ -593,7 +593,7 @@ function Toolbar({
             </button>
             <button
               onClick={handleViewInCloud}
-              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs shrink-0"
+              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-sm leading-5 shrink-0"
               title="View in Cloud"
               disabled={!repoPath}
             >
@@ -602,7 +602,7 @@ function Toolbar({
             </button>
             <button
               onClick={() => void onSync()}
-              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent shrink-0"
+              className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-fb-hover rounded text-theme-muted hover:text-theme-primary transition-colors text-sm leading-5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent shrink-0"
               title="Sync with Cloud"
               disabled={!repoPath || isSyncing}
             >
