@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -547,5 +549,103 @@ func TestRepositorySettingsService_RepairRepository(t *testing.T) {
 	repairResult := service.RepairRepository(tempDir)
 	if !repairResult.Success {
 		t.Logf("Repair result: %s", repairResult.Message)
+	}
+}
+
+func TestRepositorySettingsService_ApplyGitignoreTemplate_Rockwell(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		existing string
+	}{
+		{name: "new file"},
+		{
+			name:     "existing rules with no final newline",
+			existing: "# Project rules\r\ncustom-cache/\r\n*.sem\r\n*.BAK[0-9][0-9][0-9].ACD",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoPath := createTestRepo(t)
+			t.Cleanup(func() { cleanupTestRepo(t, repoPath) })
+			gitignorePath := filepath.Join(repoPath, ".gitignore")
+			if tc.existing != "" {
+				if err := os.WriteFile(gitignorePath, []byte(tc.existing), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			service := &RepositorySettingsService{}
+			result := service.ApplyGitignoreTemplate(repoPath, "automation-rockwell-studio5000")
+			if !result.Success {
+				t.Fatalf("apply Rockwell template: %s", result.Error)
+			}
+			content, err := os.ReadFile(gitignorePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(string(content), tc.existing) {
+				t.Fatal("existing rules were changed")
+			}
+			for _, pattern := range []string{"*.sem", "*.wrk", "*.BAK[0-9][0-9][0-9].ACD"} {
+				count := 0
+				for _, line := range strings.Split(string(content), "\n") {
+					if strings.TrimSpace(line) == pattern {
+						count++
+					}
+				}
+				if count != 1 {
+					t.Errorf("expected one %q rule, got %d", pattern, count)
+				}
+			}
+
+			result = service.ApplyGitignoreTemplate(repoPath, "automation-rockwell-studio5000")
+			if !result.Success {
+				t.Fatalf("reapply Rockwell template: %s", result.Error)
+			}
+			reapplied, err := os.ReadFile(gitignorePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(reapplied) != string(content) {
+				t.Fatal("reapplying the template changed the file")
+			}
+
+			runner := NewCommandRunner()
+			for _, file := range []struct {
+				path    string
+				ignored bool
+			}{
+				{"Controller.sem", true},
+				{"Controller.wrk", true},
+				{"Controller.BAK000.ACD", true},
+				{"Controller.BAK123.ACD", true},
+				{"Controller.BAK999.ACD", true},
+				{"Projects/Controller.sem", true},
+				{"Projects/Controller.wrk", true},
+				{"Projects/Controller.BAK042.ACD", true},
+				{"Controller.BAK", true},
+				{"Controller.ACD.bak", true},
+				{"Controller.L5X.bak", true},
+				{"Controller.ACD", false},
+				{"Controller.L5X", false},
+				{"Controller.L5K", false},
+				{"Controller.BAK12.ACD", false},
+				{"Controller.BAK1234.ACD", false},
+				{"Controller.BAKabc.ACD", false},
+			} {
+				t.Run(file.path, func(t *testing.T) {
+					check := runner.RunGit(repoPath,
+						"-c", "core.ignoreCase=false",
+						"-c", "core.excludesFile="+filepath.Join(repoPath, "no-global-excludes"),
+						"check-ignore", "--quiet", "--no-index", "--", file.path)
+					wantExit := 1
+					if file.ignored {
+						wantExit = 0
+					}
+					if check.ExitCode != wantExit {
+						t.Errorf("ignore check exit = %d, want %d: %s", check.ExitCode, wantExit, check.Stderr)
+					}
+				})
+			}
+		})
 	}
 }
