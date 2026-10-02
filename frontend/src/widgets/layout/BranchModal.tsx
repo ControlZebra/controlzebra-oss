@@ -16,6 +16,7 @@ import { cn } from '../../shared/utils/misc';
 interface BranchModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialMode?: 'switch' | 'create';
 }
 
 interface BranchItemProps {
@@ -60,7 +61,7 @@ const BranchItem = memo(function BranchItem({ branch, isCurrent, onSelect, disab
   );
 });
 
-function BranchModal({ open, onOpenChange }: BranchModalProps): JSX.Element {
+function BranchModal({ open, onOpenChange, initialMode = 'switch' }: BranchModalProps): JSX.Element {
   const { branches, repoInfo, switchBranch, createBranch, refreshBranches, operationInProgress } = useRepo();
   const [mode, setMode] = useState<'switch' | 'create'>('switch');
   const [newBranchName, setNewBranchName] = useState('');
@@ -74,12 +75,12 @@ function BranchModal({ open, onOpenChange }: BranchModalProps): JSX.Element {
   useEffect(() => {
     if (open) {
       refreshBranches();
-      setMode('switch');
+      setMode(initialMode);
       setNewBranchName('');
       setSearchQuery('');
       setError(null);
     }
-  }, [open, refreshBranches]);
+  }, [open, refreshBranches, initialMode]);
 
   // Filter branches by search query
   const filteredBranches = (branches?.local || []).filter(branch =>

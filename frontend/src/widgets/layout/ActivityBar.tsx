@@ -161,7 +161,7 @@ function ActivityBar(): JSX.Element {
 
   return (
     <>
-      <nav className="w-10 bg-theme-elevated border-r border-theme-default flex flex-col items-center py-3 gap-2 shrink-0">
+      <nav className={`w-10 bg-theme-elevated flex flex-col items-center py-3 gap-2 shrink-0 ${sidebarCollapsed ? 'border-r border-shell-divider' : ''}`}>
         {topNavButtons}
         <div className="flex-1" />
         <button

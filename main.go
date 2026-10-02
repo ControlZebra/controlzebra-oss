@@ -321,6 +321,8 @@ h1 { font-size: 24px; margin: 0 0 8px 0; color: #fff; }
 
 	if runtime.GOOS == "windows" {
 		mainWindowOptions.Frameless = true
+		mainWindowOptions.MinWidth = 1024
+		mainWindowOptions.MinHeight = 600
 		mainWindowOptions.Windows = application.WindowsWindow{
 			DisableFramelessWindowDecorations: false,
 		}

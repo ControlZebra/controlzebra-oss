@@ -8,8 +8,8 @@
 import { memo, useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent } from 'react';
 import { Clock, GitBranch, HardDrive, Folder, X, Trash2, RotateCcw } from 'lucide-react';
 import { ICON_STYLES } from '../../../shared/utils/gitHelpers';
-import { getRecentFolders, removeRecentFolder, clearRecentFolders, getFolderName } from '../../../shared/utils/recentFolders';
-import { GetRecentFolders, ClearRecentFolders } from '../../../../bindings/controlzebra/services/settingsservice';
+import { loadMergedRecentFolders, removeRecentFolder, clearRecentFolders, getFolderName } from '../../../shared/utils/recentFolders';
+import { ClearRecentFolders } from '../../../../bindings/controlzebra/services/settingsservice';
 import { DetectRepo, GetRemoteURL } from '../../../../bindings/controlzebra/services/gitservice';
 
 // ============================================================================
@@ -62,41 +62,6 @@ function StatusIcon({ status }: { status: RepoStatus }): JSX.Element {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-/**
- * Merge and deduplicate recent folders from localStorage (frontend) and
- * backend settings. Backend list is preferred for ordering since it holds
- * more entries.
- */
-async function loadMergedRecentFolders(): Promise<string[]> {
-  const frontendFolders = getRecentFolders();
-
-  let backendFolders: string[] = [];
-  try {
-    backendFolders = await GetRecentFolders();
-  } catch {
-    // Backend may not be available
-  }
-
-  // Deduplicate: backend first (more entries), then frontend-only entries
-  const seen = new Set<string>();
-  const merged: string[] = [];
-
-  for (const path of backendFolders) {
-    if (!seen.has(path)) {
-      seen.add(path);
-      merged.push(path);
-    }
-  }
-  for (const path of frontendFolders) {
-    if (!seen.has(path)) {
-      seen.add(path);
-      merged.push(path);
-    }
-  }
-
-  return merged;
-}
 
 /**
  * Detect whether a folder is a git repo (with/without remote) or a plain folder.
