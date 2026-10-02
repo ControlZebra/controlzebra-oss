@@ -108,7 +108,9 @@ function TopBar(): JSX.Element {
       >
         <Wordmark />
         <div {...windowControlProps} className="flex min-w-0 items-center gap-1">
+          <span className="shrink-0 text-xs text-theme-muted">Repository:</span>
           <RepoSwitcher onSwitchProjects={handleOpenSwitchProject} />
+          <span className="ml-1 shrink-0 text-xs text-theme-muted">Branch:</span>
           <Combobox
             value={isGitRepo ? repoInfo?.branch || '' : ''}
             options={branchOptions}
@@ -137,7 +139,7 @@ function TopBar(): JSX.Element {
                   aria-label={syncDisabled ? syncDescription : undefined}
                 >
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     onClick={handleSync}
                     disabled={syncDisabled}
                     loading={isSyncing}
@@ -145,25 +147,25 @@ function TopBar(): JSX.Element {
                     title={syncDescription}
                   >
                     {!isSyncing && <RefreshCw style={ICON_STYLES.sm} />}
-                    <span>{isSyncing ? 'Syncing...' : 'Sync Changes'}</span>
-                    <span
-                      className="ml-1 inline-flex items-center gap-0.5 text-theme-muted"
-                      aria-label={
-                        incoming === null
-                          ? 'Incoming count unavailable'
-                          : `${incoming} incoming saved changes`
-                      }
-                    >
-                      <ArrowDown style={ICON_STYLES.xs} />
-                      {incoming ?? '—'}
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-0.5 text-theme-muted"
-                      aria-label={`${outgoing} outgoing saved changes`}
-                    >
-                      <ArrowUp style={ICON_STYLES.xs} />
-                      {outgoing}
-                    </span>
+                    <span>{isSyncing ? 'syncing...' : 'sync'}</span>
+                    {incoming !== null && incoming > 0 ? (
+                      <span
+                        className="ml-1 inline-flex items-center gap-0.5 text-theme-muted"
+                        aria-label={`${incoming} incoming saved changes`}
+                      >
+                        <ArrowDown style={ICON_STYLES.xs} />
+                        {incoming}
+                      </span>
+                    ) : null}
+                    {outgoing > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-theme-muted"
+                        aria-label={`${outgoing} outgoing saved changes`}
+                      >
+                        <ArrowUp style={ICON_STYLES.xs} />
+                        {outgoing}
+                      </span>
+                    ) : null}
                   </Button>
                 </span>
               </TooltipTrigger>
@@ -174,7 +176,7 @@ function TopBar(): JSX.Element {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="icon"
                   aria-label="Application actions"
                   title="Application actions"
@@ -185,20 +187,20 @@ function TopBar(): JSX.Element {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem disabled={undoDisabled} onSelect={() => setUndoOpen(true)}>
                   <Undo2 style={ICON_STYLES.sm} />
-                  Undo Last Save
+                  undo
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Button
-              variant="ghost"
-              size="icon"
+              variant="secondary"
               aria-label="Undo Last Save"
               title="Undo Last Save"
               disabled={undoDisabled}
               onClick={() => setUndoOpen(true)}
             >
               <Undo2 style={ICON_STYLES.sm} />
+              <span>undo</span>
             </Button>
           )}
         </div>

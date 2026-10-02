@@ -64,7 +64,7 @@ function Combobox({
     <Popover open={open && !disabled} onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant="secondary"
           role="combobox"
           aria-label={label}
           aria-expanded={open && !disabled}

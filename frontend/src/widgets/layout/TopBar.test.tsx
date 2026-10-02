@@ -126,6 +126,25 @@ describe('unified Windows top bar', () => {
     expect(screen.queryByRole('button', { name: /^Pull|^Push/ })).not.toBeInTheDocument();
   });
 
+  it.each([
+    { behind: 0, ahead: 0 },
+    { behind: 3, ahead: 0 },
+    { behind: 0, ahead: 2 },
+  ])('hides zero sync counts independently (pull $behind, push $ahead)', ({ behind, ahead }) => {
+    mocks.repo.repoStatus.behind = behind;
+    mocks.repo.repoStatus.ahead = ahead;
+    render(<TopBar />);
+    const sync = screen.getByRole('button', { name: 'Sync Changes' });
+    expect(within(sync).queryByLabelText('0 incoming saved changes')).not.toBeInTheDocument();
+    expect(within(sync).queryByLabelText('0 outgoing saved changes')).not.toBeInTheDocument();
+    if (behind > 0) {
+      expect(within(sync).getByLabelText(`${behind} incoming saved changes`)).toBeInTheDocument();
+    }
+    if (ahead > 0) {
+      expect(within(sync).getByLabelText(`${ahead} outgoing saved changes`)).toBeInTheDocument();
+    }
+  });
+
   it('disables mutation controls while busy and Sync for a local-only project', () => {
     mocks.repo.operationInProgress = true;
     const { rerender } = render(<TopBar />);
@@ -138,10 +157,13 @@ describe('unified Windows top bar', () => {
     expect(screen.getByRole('button', { name: 'Sync Changes' })).toBeDisabled();
   });
 
-  it('marks incoming counts unavailable when there is no upstream branch', () => {
+  it('keeps unavailable incoming counts in the tooltip when there is no upstream branch', () => {
     mocks.repo.repoStatus.hasUpstream = false;
     render(<TopBar />);
-    expect(screen.getByLabelText('Incoming count unavailable')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/incoming saved changes/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync Changes' }).title).toContain(
+      'Incoming count is unavailable'
+    );
     expect(screen.getByLabelText('8 outgoing saved changes')).toBeInTheDocument();
   });
 
@@ -209,7 +231,7 @@ describe('unified Windows top bar', () => {
       ctrlKey: false,
       pointerType: 'mouse',
     });
-    const undo = await screen.findByRole('menuitem', { name: 'Undo Last Save' });
+    const undo = await screen.findByRole('menuitem', { name: 'undo' });
     fireEvent.click(undo);
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm undo' }));
     expect(mocks.repo.undoLastCommit).toHaveBeenCalledTimes(1);
