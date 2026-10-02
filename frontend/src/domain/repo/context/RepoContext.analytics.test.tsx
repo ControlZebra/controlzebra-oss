@@ -358,6 +358,118 @@ describe('RepoContext analytics validation', () => {
     );
   });
 
+  it('cleans up the previous project and immediately loads the newly opened project', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    const closedPreviews = vi.fn();
+    window.addEventListener('cz:explorer-close-all-previews', closedPreviews);
+    DetectRepo.mockImplementation(async (path: string) => ({
+      path,
+      isRepo: true,
+      branch: path,
+      hasError: false,
+    }));
+    Status.mockImplementation(async (path: string) => ({
+      hasError: false,
+      branch: path,
+      hasChanges: true,
+      changedFiles: [{ path: `${path.slice(5)}.txt`, status: 'modified' }],
+    }));
+    GetCommitGraph.mockImplementation(async (path: string) => ({
+      hasError: false,
+      commits: [{ hash: path, message: path, author: 'Engineer', date: '2026-10-02' }],
+    }));
+    renderHarness((value) => {
+      api = value;
+    });
+    try {
+      await act(async () => {
+        await api!.openFolder('/tmp/project-a');
+      });
+      await waitFor(() => expect(api?.repoStatus?.branch).toBe('/tmp/project-a'));
+      await act(async () => {
+        await api!.openFolder('/tmp/project-b');
+      });
+      await waitFor(() => expect(api?.repoStatus?.branch).toBe('/tmp/project-b'));
+      expect(api!.graphCommits[0].hash).toBe('/tmp/project-b');
+      expect(StopBackgroundTasks).toHaveBeenCalledWith('/tmp/project-a');
+      expect(StopWatching).toHaveBeenCalledTimes(1);
+      expect(closedPreviews).toHaveBeenCalledTimes(1);
+      expect(StopBackgroundTasks.mock.invocationCallOrder[0]).toBeLessThan(
+        StartBackgroundTasks.mock.invocationCallOrder[1]
+      );
+    } finally {
+      window.removeEventListener('cz:explorer-close-all-previews', closedPreviews);
+    }
+  });
+
+  it('ignores previous-project status and history responses that finish after switching', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => {
+      api = value;
+    });
+    await act(async () => {
+      await api!.openFolder('/tmp/project-a');
+    });
+    let resolveStatus!: (value: unknown) => void;
+    let resolveHistory!: (value: unknown) => void;
+    Status.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStatus = resolve;
+        })
+    );
+    GetCommitGraph.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveHistory = resolve;
+        })
+    );
+    const oldRefresh = api!.refreshAll();
+    await act(async () => {
+      await api!.openFolder('/tmp/project-b');
+    });
+    await act(async () => {
+      resolveStatus({
+        branch: 'old-branch',
+        hasError: false,
+        changedFiles: [{ path: 'old.txt', status: 'modified' }],
+      });
+      resolveHistory({
+        hasError: false,
+        commits: [{ hash: 'old-history', message: 'Old project', date: '2026-10-02' }],
+      });
+      await oldRefresh;
+    });
+    expect(api!.repoStatus?.branch).toBe('main');
+    expect(api!.repoStatus?.changedFiles).toEqual([]);
+    expect(api!.graphCommits).toEqual([]);
+  });
+
+  it('ignores old-project refresh callbacks started after the new project opens', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    Status.mockImplementation(async (path: string) => ({
+      hasError: false,
+      branch: path,
+      hasChanges: false,
+      changedFiles: [],
+    }));
+    renderHarness((value) => {
+      api = value;
+    });
+    await act(async () => {
+      await api!.openFolder('/tmp/project-a');
+    });
+    const refreshPreviousProject = api!.refreshAll;
+    await act(async () => {
+      await api!.openFolder('/tmp/project-b');
+    });
+    await waitFor(() => expect(api?.repoStatus?.branch).toBe('/tmp/project-b'));
+    await act(async () => {
+      await refreshPreviousProject();
+    });
+    expect(api!.repoStatus?.branch).toBe('/tmp/project-b');
+  });
+
   it('emits repo_opened with has_remote=null when remote detection fails', async () => {
     let api: ReturnType<typeof useRepo> | null = null;
     renderHarness((value) => {

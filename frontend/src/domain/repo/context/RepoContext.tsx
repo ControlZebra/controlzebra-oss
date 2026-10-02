@@ -382,6 +382,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // ===== Refs =====
   const operationIdCounter = useRef(0);
   const repoOpenTimeRef = useRef<number>(0);
+  const repoRefreshSession = useRef<{ path: string | null }>({ path: null });
   const syncStartTimeRef = useRef<number | null>(null);
   const startupAutoPullDueRef = useRef(false);
   const startupAutoPullDoneRef = useRef(false);
@@ -659,9 +660,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // Fetch repo status from Git
   const refreshStatus = useCallback(async (): Promise<void> => {
     if (!repoPath) return;
+    const session = repoRefreshSession.current;
+    if (session.path !== repoPath) return;
     
     try {
       const status = await Status(repoPath);
+      if (session !== repoRefreshSession.current) return;
       if (status.hasError) {
         console.error('Status error:', status.error);
         return;
@@ -680,9 +684,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // Fetch commits with graph data
   const refreshCommits = useCallback(async (): Promise<void> => {
     if (!repoPath) return;
+    const session = repoRefreshSession.current;
+    if (session.path !== repoPath) return;
     
     try {
       const result = await GetCommitGraph(repoPath, 50);
+      if (session !== repoRefreshSession.current) return;
       if (result.hasError) {
         console.error('Failed to fetch graph commits:', result.error);
         return;
@@ -751,6 +758,73 @@ export function RepoProvider({ children }: RepoProviderProps) {
 
   // ===== Repo Operations =====
 
+  // Clear repository-specific conflict state.
+  const clearConflicts = useCallback(() => {
+    setConflictedFiles([]);
+    setSelectedConflictFile(null);
+    setConflictCheckResult(null);
+    setMergeReviewFiles([]);
+    setIsLoadingMergeReviewFiles(false);
+    setDetectedParentBranch(null);
+    setFileResolutions({});
+    setMergeState(null);
+    setConflictSidesInfo(null);
+  }, []);
+
+  // Close the current repository
+  const closeRepo = useCallback(async (): Promise<void> => {
+    // Previous-project responses must not repopulate state after closing.
+    repoRefreshSession.current = { path: null };
+    // Track repo closed event
+    if (repoOpenTimeRef.current > 0) {
+      const sessionDuration = Math.round((Date.now() - repoOpenTimeRef.current) / 1000);
+      trackRepoClosed({ sessionDurationSeconds: sessionDuration });
+      repoOpenTimeRef.current = 0;
+    }
+
+    // Stop background tasks for the current repo before clearing state
+    if (repoPath) {
+      try {
+        await StopBackgroundTasks(repoPath);
+      } catch (err) {
+        console.warn('Failed to stop background tasks:', err);
+      }
+    }
+
+    setRepoPath(null);
+    setRepoInfo(null);
+    setRepoStatus(null);
+    setGraphCommits([]);
+    setBranches(null);
+    setSelectedFileIndex(null);
+    setSelectedCommit(null);
+    setSelectedCommitFile(null);
+    setCurrentDiff(null);
+    setRepoSettings(null);
+    setHasRemote(false);
+    clearConflicts();
+    closeAllExplorerPreviews();
+    clearChangeRequestState();
+    clearCachedGitIdentity();
+
+    // Clear viewer cache and L5X tab states when closing repo to free memory
+    clearViewerCache();
+    clearAllTabStates();
+
+    try {
+      await StopWatching();
+    } catch (err) {
+      console.error('Failed to stop file watcher:', err);
+    }
+
+    try {
+      const currentSettings = await GetAppSettings();
+      await SaveAppSettings({ ...currentSettings, lastRepoPath: '' });
+    } catch (err) {
+      console.error('Failed to clear settings:', err);
+    }
+  }, [clearCachedGitIdentity, clearChangeRequestState, clearConflicts, closeAllExplorerPreviews, repoPath]);
+
   // Open a folder by path
   const openRepo = useCallback(async (path: string): Promise<boolean> => {
     if (isLoading) return false;
@@ -762,6 +836,13 @@ export function RepoProvider({ children }: RepoProviderProps) {
     
     try {
       const info = await DetectRepo(path);
+      if (info.hasError) {
+        showMessage('error', 'This project could not be opened. Check its folder and try again.');
+        setIsLoading(false);
+        return false;
+      }
+      if (repoPath) await closeRepo();
+      repoRefreshSession.current = { path };
       let hasRemoteConfigured: boolean | null = info.isRepo ? null : false;
       
       setRepoPath(path);
@@ -865,7 +946,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
       setIsLoading(false);
       return false;
     }
-  }, [cacheGitIdentity, clearCachedGitIdentity, isLoading, repoPath, userName, userEmail, showMessage, refreshRepoSettings]);
+  }, [cacheGitIdentity, clearCachedGitIdentity, closeRepo, isLoading, repoPath, userName, userEmail, showMessage, refreshRepoSettings]);
 
   /**
    * Open folder entrypoint for user-driven folder selection.
@@ -873,20 +954,23 @@ export function RepoProvider({ children }: RepoProviderProps) {
    * a modal prompt instead of opening it directly.
    */
   const openFolder = useCallback(async (path: string): Promise<boolean> => {
-    try {
-      const info = await DetectRepo(path);
+    const result = await withOperationLock('Opening project', async () => {
+      try {
+        const info = await DetectRepo(path);
 
-      if (!info.hasError && !info.isRepo) {
-        setNonGitFolderPromptPath(path);
-        return false;
+        if (!info.hasError && !info.isRepo) {
+          setNonGitFolderPromptPath(path);
+          return false;
+        }
+      } catch (err) {
+        console.warn('Failed preflight repo detection, falling back to openRepo:', err);
       }
-    } catch (err) {
-      console.warn('Failed preflight repo detection, falling back to openRepo:', err);
-    }
 
-    setNonGitFolderPromptPath(null);
-    return openRepo(path);
-  }, [openRepo]);
+      setNonGitFolderPromptPath(null);
+      return openRepo(path);
+    });
+    return result ?? false;
+  }, [openRepo, withOperationLock]);
 
   const dismissNonGitFolderPrompt = useCallback((): void => {
     setNonGitFolderPromptPath(null);
@@ -1140,55 +1224,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return false;
     }
   }, [cacheGitIdentity, clearCachedGitIdentity, clearChangeRequestState, repoPath, repoInfo?.isRepo, repoStatus?.changedFiles?.length, userName, userEmail, showMessage, gitInstalled, lfsInstalled, installRequiredPackages, promptForGitIdentityIfMissing]);
-
-  // Close the current repository
-  const closeRepo = useCallback(async (): Promise<void> => {
-    // Track repo closed event
-    if (repoOpenTimeRef.current > 0) {
-      const sessionDuration = Math.round((Date.now() - repoOpenTimeRef.current) / 1000);
-      trackRepoClosed({ sessionDurationSeconds: sessionDuration });
-      repoOpenTimeRef.current = 0;
-    }
-    
-    // Stop background tasks for the current repo before clearing state
-    if (repoPath) {
-      try {
-        await StopBackgroundTasks(repoPath);
-      } catch (err) {
-        console.warn('Failed to stop background tasks:', err);
-      }
-    }
-
-    setRepoPath(null);
-    setRepoInfo(null);
-    setRepoStatus(null);
-    setGraphCommits([]);
-    setBranches(null);
-    setSelectedFileIndex(null);
-    setSelectedCommit(null);
-    setSelectedCommitFile(null);
-    setCurrentDiff(null);
-    setRepoSettings(null);
-    clearChangeRequestState();
-    clearCachedGitIdentity();
-    
-    // Clear viewer cache and L5X tab states when closing repo to free memory
-    clearViewerCache();
-    clearAllTabStates();
-    
-    try {
-      await StopWatching();
-    } catch (err) {
-      console.error('Failed to stop file watcher:', err);
-    }
-    
-    try {
-      const currentSettings = await GetAppSettings();
-      await SaveAppSettings({ ...currentSettings, lastRepoPath: '' });
-    } catch (err) {
-      console.error('Failed to clear settings:', err);
-    }
-  }, [clearCachedGitIdentity, clearChangeRequestState, repoPath]);
 
   // ===== Commit & Sync Operations =====
 
@@ -1499,9 +1534,12 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // Fetch branches
   const refreshBranches = useCallback(async (): Promise<void> => {
     if (!repoPath) return;
+    const session = repoRefreshSession.current;
+    if (session.path !== repoPath) return;
     
     try {
       const branchList = await Branches(repoPath);
+      if (session !== repoRefreshSession.current) return;
       if (!branchList.hasError) {
         setBranches(branchList as BranchList);
       }
@@ -2123,19 +2161,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       return null;
     }
   }, [repoPath]);
-
-  // Clear conflict check results
-  const clearConflicts = useCallback(() => {
-    setConflictedFiles([]);
-    setSelectedConflictFile(null);
-    setConflictCheckResult(null);
-    setMergeReviewFiles([]);
-    setIsLoadingMergeReviewFiles(false);
-    setDetectedParentBranch(null);
-    setFileResolutions({});
-    setMergeState(null);
-    setConflictSidesInfo(null);
-  }, []);
 
   useEffect(() => {
     setMergeReviewFiles([]);
@@ -3053,7 +3078,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
     setChangeRequestSnapshotError(null);
   }, []);
 
-  // Determine whether the Next Step Advisor may offer Create Change Request for
+  // Determine whether Home may offer Create Change Request for
   // the current synced feature branch. Ineligible outcomes carry a code and
   // message so the button can be shown disabled with guidance rather than hidden.
   const checkChangeRequestCreateEligibility = useCallback(async (
@@ -3604,6 +3629,7 @@ export function RepoProvider({ children }: RepoProviderProps) {
   // Start polling when git repo is open
   useStatusPolling({
     enabled: Boolean(repoPath && repoInfo?.isRepo),
+    repositoryKey: repoPath,
     intervalMs: STATUS_POLL_INTERVAL,
     onInitialRefresh: refreshAll,
     onRefreshStatus: refreshStatus,
