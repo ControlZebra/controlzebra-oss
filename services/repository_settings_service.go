@@ -1302,6 +1302,7 @@ var gitignoreTemplates = []gitignoreTemplate{
 		},
 		lines: []string{
 			"*.BAK", "*.ACD.bak", "*.L5X.bak", "*.tmp", "*.log", "*.err", "*.rpt",
+			"*.sem", "*.wrk", "*.BAK[0-9][0-9][0-9].ACD",
 			"_Archive/", "_Backup/", "_Temp/", "RSLogix5000 Cache/",
 		},
 	},
