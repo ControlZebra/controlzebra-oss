@@ -13,10 +13,10 @@
 /* Light theme (default) */
 :root {
   /* Backgrounds */
-  --color-bg-base: theme(colors.neutral.50);
+  --color-bg-base: #F5F6F6;
   --color-bg-surface: theme(colors.white);
-  --color-bg-elevated: theme(colors.neutral.100);
-  --color-bg-muted: theme(colors.neutral.200);
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-muted: theme(colors.neutral.100);
   --color-bg-subtle: theme(colors.neutral.100);
   
   /* Text */
@@ -26,8 +26,9 @@
   --color-text-inverted: theme(colors.white);
   
   /* Borders */
-  --color-border-default: theme(colors.neutral.300);
-  --color-border-muted: theme(colors.neutral.200);
+  --color-border-default: transparent;
+  --color-border-muted: transparent;
+  --color-shell-divider: #E1E3E3;
   --color-ladder-box-border: theme(colors.neutral.600);
   
   /* Interactive */
@@ -90,24 +91,24 @@
   --color-success-border: theme(colors.green.500/30);
 
   /* File Browser - (light mode) */
-  --color-fb-base: theme(colors.white);
-  --color-fb-surface: theme(colors.neutral.50);
+  --color-fb-base: var(--color-bg-base);
+  --color-fb-surface: var(--color-bg-surface);
   --color-fb-hover: theme(colors.neutral.100);
   --color-fb-selected: theme(colors.blue.50);
   --color-fb-selected-border: theme(colors.blue.200);
-  --color-fb-sidebar: theme(colors.neutral.50);
-  --color-fb-toolbar: theme(colors.white);
-  --color-fb-breadcrumb: theme(colors.white);
+  --color-fb-sidebar: var(--color-bg-surface);
+  --color-fb-toolbar: var(--color-bg-elevated);
+  --color-fb-breadcrumb: var(--color-bg-elevated);
 }
 
 /* Dark theme */
 .dark {
   /* Backgrounds */
-  --color-bg-base: theme(colors.neutral.950);
-  --color-bg-surface: theme(colors.neutral.900);
-  --color-bg-elevated: theme(colors.neutral.800);
-  --color-bg-muted: theme(colors.neutral.700);
-  --color-bg-subtle: theme(colors.neutral.800/50);
+  --color-bg-base: #181818;
+  --color-bg-surface: #1D1D1E;
+  --color-bg-elevated: #262629;
+  --color-bg-muted: #303034;
+  --color-bg-subtle: #262629;
   
   /* Text */
   --color-text-primary: theme(colors.neutral.300);
@@ -116,8 +117,9 @@
   --color-text-inverted: theme(colors.neutral.900);
   
   /* Borders */
-  --color-border-default: theme(colors.neutral.700);
-  --color-border-muted: theme(colors.neutral.700);
+  --color-border-default: transparent;
+  --color-border-muted: transparent;
+  --color-shell-divider: #353538;
   --color-ladder-box-border: theme(colors.neutral.400);
   
   /* Interactive */
@@ -180,14 +182,14 @@
   --color-success-border: theme(colors.green.500/30);
 
   /* File Browser - (dark mode) */
-  --color-fb-base: theme(colors.neutral.900);
-  --color-fb-surface: theme(colors.neutral.800);
+  --color-fb-base: var(--color-bg-base);
+  --color-fb-surface: var(--color-bg-surface);
   --color-fb-hover: theme(colors.neutral.700);
   --color-fb-selected: theme(colors.blue.950);
   --color-fb-selected-border: theme(colors.blue.700);
-  --color-fb-sidebar: theme(colors.neutral.800);
-  --color-fb-toolbar: theme(colors.neutral.900);
-  --color-fb-breadcrumb: theme(colors.neutral.900);
+  --color-fb-sidebar: var(--color-bg-surface);
+  --color-fb-toolbar: var(--color-bg-elevated);
+  --color-fb-breadcrumb: var(--color-bg-elevated);
 }
 
 /* ============================================================================
@@ -292,6 +294,10 @@
 /* Theme utility classes using CSS variables */
 @utility bg-theme-base {
   background-color: var(--color-bg-base);
+}
+
+@utility border-shell-divider {
+  border-color: var(--color-shell-divider);
 }
 
 @utility bg-theme-base-50 {

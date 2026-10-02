@@ -353,8 +353,8 @@ export const BaseDialogContent = React.forwardRef<HTMLDivElement, BaseDialogCont
           <div
             ref={setRefs}
             className={cn(
-              'relative w-full border border-theme-default bg-theme-surface shadow-xl',
-              'rounded-lg animate-in fade-in-0 zoom-in-95 duration-200',
+              'relative w-full bg-theme-surface shadow-xl',
+              'rounded-xl animate-in fade-in-0 zoom-in-95 duration-200',
               DIALOG_SIZE_CLASSES[size],
               className,
             )}
