@@ -188,18 +188,18 @@ function getTagRowStyle(tagDiffKind: L5XDiffAggregateChangeKind | undefined): CS
 
   if (tagDiffKind === 'added') {
     return {
-      '--table-cell-bg': 'rgba(42, 123, 77, 0.12)',
+      '--table-cell-bg': 'var(--color-added-bg)',
     } as CSSProperties;
   }
 
   if (tagDiffKind === 'removed') {
     return {
-      '--table-cell-bg': 'rgba(167, 50, 63, 0.12)',
+      '--table-cell-bg': 'var(--color-removed-bg)',
     } as CSSProperties;
   }
 
   return {
-    '--table-cell-bg': 'rgba(186, 127, 38, 0.12)',
+    '--table-cell-bg': 'var(--color-modified-bg)',
   } as CSSProperties;
 }
 
