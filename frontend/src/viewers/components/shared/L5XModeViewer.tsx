@@ -7,7 +7,7 @@ import ViewerErrorBoundary from './ViewerErrorBoundary';
 
 interface L5XModeViewerProps {
   filePath: string;
-  pretty: ReactNode;
+  pretty: ReactNode | ((onShowRaw: () => void) => ReactNode);
   raw: ReactNode;
   actions?: ReactNode;
 }
@@ -32,7 +32,7 @@ function L5XModeViewer({ filePath, pretty, raw, actions }: L5XModeViewerProps): 
       {/* Keep structured navigation and sheet selections while inspecting source. */}
       <div className="min-h-0 flex-1 overflow-hidden" hidden={mode !== 'pretty'}>
         <ViewerErrorBoundary filePath={filePath}>
-          <Suspense fallback={<LoadingState message="Loading viewer…" />}>{pretty}</Suspense>
+          <Suspense fallback={<LoadingState message="Loading viewer…" />}>{typeof pretty === 'function' ? pretty(selectRaw) : pretty}</Suspense>
         </ViewerErrorBoundary>
       </div>
       {mode === 'raw' && (

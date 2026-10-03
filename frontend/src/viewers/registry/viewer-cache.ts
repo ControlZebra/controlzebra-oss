@@ -205,12 +205,15 @@ export function useCachedContent<T>(
   
   // Track current file path to handle rapid switches
   const currentFileRef = useRef(filePath);
+  const loadGeneration = useRef(0);
 
   /**
    * Load content from source and cache it.
    */
   const loadContent = useCallback(async (forceRefresh = false) => {
     const targetPath = filePath;
+    const generation = ++loadGeneration.current;
+    const previousPath = currentFileRef.current;
     currentFileRef.current = targetPath;
     
     // Check cache first (unless force refreshing)
@@ -226,21 +229,22 @@ export function useCachedContent<T>(
 
     // Start loading
     if (mountedRef.current && currentFileRef.current === targetPath) {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      setState(prev => ({ data: previousPath === targetPath ? prev.data : null, isLoading: true, error: null }));
     }
 
     try {
       const data = await loader();
+      if (!mountedRef.current || generation !== loadGeneration.current) return;
       
       // Cache the result
       setCachedContent(targetPath, data);
       
       // Update state if still mounted and file hasn't changed
-      if (mountedRef.current && currentFileRef.current === targetPath) {
+      if (mountedRef.current && generation === loadGeneration.current && currentFileRef.current === targetPath) {
         setState({ data, error: null, isLoading: false });
       }
     } catch (err) {
-      if (mountedRef.current && currentFileRef.current === targetPath) {
+      if (mountedRef.current && generation === loadGeneration.current && currentFileRef.current === targetPath) {
         setState({
           data: null,
           error: err instanceof Error ? err.message : 'Failed to load content',
@@ -263,16 +267,11 @@ export function useCachedContent<T>(
   useEffect(() => {
     mountedRef.current = true;
     
-    // Check if we already have cached data for this file
-    const cached = getCachedContent<T>(filePath);
-    if (cached !== undefined) {
-      setState({ data: cached, error: null, isLoading: false });
-    } else {
-      loadContent();
-    }
+    loadContent();
 
     return () => {
       mountedRef.current = false;
+      loadGeneration.current++;
     };
   }, [filePath, loadContent]);
 

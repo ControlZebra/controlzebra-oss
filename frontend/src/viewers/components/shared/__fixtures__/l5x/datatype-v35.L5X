@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="FixtureType" TargetType="DataType" ContainsContext="true" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies">
+  <Controller Use="Context" Name="FixtureController">
+    <DataTypes>
+      <DataType Use="Target" Name="FixtureType" Family="NoFamily" Class="User">
+        <Description><![CDATA[Sanitized conformance data type]]></Description>
+        <Members>
+          <Member Name="Enabled" DataType="BOOL" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write" />
+          <Member Name="Setpoint" DataType="REAL" Dimension="0" Radix="Float" Hidden="false" ExternalAccess="Read/Write" />
+        </Members>
+      </DataType>
+    </DataTypes>
+  </Controller>
+</RSLogix5000Content>

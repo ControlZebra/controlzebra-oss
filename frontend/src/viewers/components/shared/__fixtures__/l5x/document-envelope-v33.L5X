@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.00" TargetName="Main" TargetType="Routine" TargetCount="1" ContainsContext="true" Owner="FixtureOwner">
+  <Controller Use="Context" Name="DocumentFixture" TimeSlice="20">
+    <DataTypes>
+      <DataType Use="Context" Name="Dependency" Family="NoFamily" Class="User" />
+      <DataType Use="Reference" Name="ReferencedType" Family="NoFamily" Class="User" />
+    </DataTypes>
+    <Tags><Tag Name="Shared" TagType="Base" DataType="DINT" Constant="true"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="0007" /></Data></Tag></Tags>
+    <Programs>
+      <Program Name="First">
+        <Tags><Tag Name="Shared" TagType="Alias" DataType="BOOL" AliasFor="Shared.0" /></Tags>
+        <Routines>
+          <Routine Name="Main" Type="RLL">
+            <RLLContent><Rung Number="4" Type="N"><Comment><![CDATA[A & B]]></Comment><Text><![CDATA[XIC(A)OTE(B);]]></Text></Rung></RLLContent>
+            <RLLContent><Rung Number="9" Type="N"><Text><![CDATA[OTE(C);]]></Text></Rung></RLLContent>
+          </Routine>
+          <Routine Name="Empty" Type="RLL" />
+        </Routines>
+      </Program>
+      <Program Name="Second"><Routines><Routine Name="Other" Type="ST"><STContent><Line Number="0">A := 1;</Line></STContent><STContent><Line Number="1">B := 2;</Line></STContent></Routine></Routines></Program>
+    </Programs>
+    <Tasks><Task Name="Periodic" Type="PERIODIC" Rate="10000" Priority="10"><ScheduledPrograms><ScheduledProgram Name="First" /></ScheduledPrograms></Task></Tasks>
+  </Controller>
+</RSLogix5000Content>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="FixtureProgramV35" TargetType="Program" ContainsContext="true">
+  <Controller Use="Context" Name="FixtureController"><Programs><Program Name="FixtureProgramV35" UId="3501" ParentUId="3500" UseAsFolder="false" MainRoutineName="Main"><Tags><Tag Name="Run" TagType="Base" DataType="BOOL" /></Tags><Routines><Routine Name="Main" Type="RLL"><RLLContent><Rung Number="0" Type="N"><Text><![CDATA[XIC(Run)OTE(Output);]]></Text></Rung></RLLContent></Routine></Routines></Program></Programs></Controller>
+</RSLogix5000Content>

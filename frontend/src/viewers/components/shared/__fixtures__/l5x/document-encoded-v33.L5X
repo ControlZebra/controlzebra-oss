@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.00" TargetName="Secret" TargetType="Routine" ContainsContext="true">
+  <Controller Use="Context" Name="DocumentFixture">
+    <Programs><Program Name="Main"><Routines>
+      <EncodedData Name="Secret" Type="RLL" EncodedType="Routine"><![CDATA[synthetic-encoded-marker]]></EncodedData>
+    </Routines></Program></Programs>
+  </Controller>
+</RSLogix5000Content>

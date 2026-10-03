@@ -8,7 +8,7 @@ import L5XFileViewer from './L5XFileViewer';
 
 const {
   readTextFileMock,
-  parseStringMock,
+  controllerResultMock,
   onEventMock,
   registerAOIsFromControllerMock,
   clearAOIsMock,
@@ -17,7 +17,7 @@ const {
   testState,
 } = vi.hoisted(() => ({
   readTextFileMock: vi.fn(),
-  parseStringMock: vi.fn(),
+  controllerResultMock: vi.fn(),
   onEventMock: vi.fn(),
   registerAOIsFromControllerMock: vi.fn(),
   clearAOIsMock: vi.fn(),
@@ -101,7 +101,17 @@ vi.mock('ladder-visualizer', () => {
   });
 
   return {
-    parseString: parseStringMock,
+    parseDocumentString: (content: string, format: string) => {
+      const result = controllerResultMock(content, format);
+      return {
+        ...result,
+        data: result.data && {
+          source: { format: 'l5x', targetType: 'Controller', targetName: result.data.name },
+          resources: [{ kind: 'controller', id: '/Controller[1]', sourcePath: '/Controller[1]', role: 'target', data: result.data }],
+          targetIds: ['/Controller[1]'], encodedData: [], fragments: [], mappings: [],
+        },
+      };
+    },
     VirtualizedLadderDiagram: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
       <div>{`RLL:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
@@ -328,7 +338,7 @@ describe('L5XViewer refresh behavior', () => {
       return vi.fn();
     });
 
-    parseStringMock.mockImplementation((content: string) => ({
+    controllerResultMock.mockImplementation((content: string) => ({
       success: true,
       data: makeController(content),
       errors: [],
@@ -346,7 +356,7 @@ describe('L5XViewer refresh behavior', () => {
     expect(await screen.findByText('<Controller />')).toBeVisible();
     expect(screen.getByText('RLL:RoutineA@<Controller />')).not.toBeVisible();
     expect(getCachedContent('/repo/Programs/Main.L5X')).toBe('<Controller />');
-    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({ name: 'Controller <Controller />' });
+    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({ controller: { name: 'Controller <Controller />' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Pretty' }));
     expect(screen.getByText('RLL:RoutineA@<Controller />')).toBeVisible();
@@ -358,7 +368,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('offers source inspection after parsing fails and refreshes raw text', async () => {
     readTextFileMock.mockResolvedValue({ success: true, content: '<broken>' });
-    parseStringMock.mockReturnValue({ success: false, errors: [{ message: 'Invalid XML' }] });
+    controllerResultMock.mockReturnValue({ success: false, errors: [{ message: 'Invalid XML' }] });
     render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
     await screen.findByText('Cannot parse L5X file');
     fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
@@ -375,10 +385,46 @@ describe('L5XViewer refresh behavior', () => {
 
     expect(readTextFileMock).toHaveBeenCalledTimes(1);
     expect(readTextFileMock).toHaveBeenCalledWith('/repo/Programs/Main.L5X');
-    expect(parseStringMock).toHaveBeenCalledTimes(1);
+    expect(controllerResultMock).toHaveBeenCalledTimes(1);
     expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
-      name: 'Controller v1',
+      controller: { name: 'Controller v1' },
     });
+  });
+
+  it('keeps partial content usable and shows source locations with a working Raw action', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'partial source' });
+    controllerResultMock.mockReturnValue({ success: true, status: 'partial', data: makeController('partial'),
+      warnings: [{ message: 'Unsupported declaration dimensions.', location: { line: 12, column: 4, path: '/Controller[1]/Tags[1]' } }] });
+    render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('Some content is available only in Raw');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    expect(await screen.findByText('RLL:RoutineA@partial')).toBeVisible();
+    fireEvent.click(screen.getByText('1 parser notice'));
+    expect(screen.getByText('Line 12, column 4, /Controller[1]/Tags[1]')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'View Raw' }));
+    expect(await screen.findByText('partial source')).toBeVisible();
+    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({ status: 'partial', warnings: [{ location: { line: 12 } }] });
+  });
+
+  it.each(['success', 'error'])('ignores a stale %s from an earlier reload of the same file', async outcome => {
+    queueSuccessfulRead(['v1']);
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    let resolveRead!: (result: { success: boolean; content: string }) => void;
+    let rejectRead!: (error: Error) => void;
+    readTextFileMock.mockImplementationOnce(() => new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; }))
+      .mockResolvedValueOnce({ success: true, content: 'v3' });
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await waitFor(() => expect(readTextFileMock).toHaveBeenCalledTimes(2));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('RLL:RoutineA@v3')).toBeVisible();
+    await act(async () => {
+      if (outcome === 'success') resolveRead({ success: true, content: 'v2' });
+      else rejectRead(new Error('stale read failure'));
+    });
+    expect(screen.getByText('RLL:RoutineA@v3')).toBeVisible();
+    expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({ controller: { name: 'Controller v3' } });
+    expect(screen.queryByText('stale read failure')).not.toBeInTheDocument();
   });
 
   it('ignores files-changed events for other files', async () => {
@@ -389,7 +435,7 @@ describe('L5XViewer refresh behavior', () => {
 
     await waitFor(() => {
       expect(readTextFileMock).toHaveBeenCalledTimes(1);
-      expect(parseStringMock).toHaveBeenCalledTimes(1);
+      expect(controllerResultMock).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -401,9 +447,9 @@ describe('L5XViewer refresh behavior', () => {
 
     await waitFor(() => {
       expect(readTextFileMock).toHaveBeenCalledTimes(2);
-      expect(parseStringMock).toHaveBeenCalledTimes(2);
+      expect(controllerResultMock).toHaveBeenCalledTimes(2);
       expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
-        name: 'Controller v2',
+        controller: { name: 'Controller v2' },
       });
     });
   });
@@ -416,7 +462,7 @@ describe('L5XViewer refresh behavior', () => {
 
     await waitFor(() => {
       expect(readTextFileMock).toHaveBeenCalledTimes(2);
-      expect(parseStringMock).toHaveBeenCalledTimes(2);
+      expect(controllerResultMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -437,7 +483,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('opens catalog data types and follows nested type selections in tabs', async () => {
     queueSuccessfulRead(['v1']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('v1', { includeDataTypes: true }),
       errors: [],
@@ -458,7 +504,7 @@ describe('L5XViewer refresh behavior', () => {
     const controller = makeController('v1', { includeDataTypes: true });
     controller.tags = [{ name: 'ControllerRaw', dataType: 'PumpState' }];
     controller.programs[0].tags = [{ name: 'ProgramRaw', dataType: 'PumpState' }];
-    parseStringMock.mockReturnValue({ success: true, data: controller, errors: [] });
+    controllerResultMock.mockReturnValue({ success: true, data: controller, errors: [] });
 
     await renderLoadedViewer();
     fireEvent.click(screen.getByRole('button', { name: 'Open Controller Tags' }));
@@ -477,7 +523,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('degrades cleanly when the preserved selection no longer exists after reload', async () => {
     queueSuccessfulRead(['v1', 'missing']);
-    parseStringMock
+    controllerResultMock
       .mockReset()
       .mockImplementationOnce(() => ({
         success: true,
@@ -502,7 +548,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('renders a program-owned FBD through the normalized routine viewer configuration', async () => {
     queueSuccessfulRead(['v1']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('v1', { routineType: 'FBD' }),
       errors: [],
@@ -535,7 +581,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('renders an AOI-owned FBD through the same viewer configuration', async () => {
     queueSuccessfulRead(['v1']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('v1', { includeAOIFBD: true }),
       errors: [],
@@ -559,7 +605,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('maps nonfatal FBD diagnostics into the viewer warning presentation without reparsing', async () => {
     queueSuccessfulRead(['v1']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('v1', { routineType: 'FBD' }),
       errors: [],
@@ -573,12 +619,12 @@ describe('L5XViewer refresh behavior', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       '1 FBD diagnostic: Unsupported element rendered as a placeholder.',
     );
-    expect(parseStringMock).toHaveBeenCalledTimes(1);
+    expect(controllerResultMock).toHaveBeenCalledTimes(1);
   });
 
   it('preserves FBD sheet state across app-tab switches and file refreshes', async () => {
     queueSuccessfulRead(['v1', 'v2']);
-    parseStringMock.mockImplementation((content: string) => ({
+    controllerResultMock.mockImplementation((content: string) => ({
       success: true,
       data: makeController(content, { routineType: 'FBD' }),
       errors: [],
@@ -598,13 +644,13 @@ describe('L5XViewer refresh behavior', () => {
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
     expect(await screen.findByText('FBD:v2:sheet-1')).toBeInTheDocument();
     expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
-      name: 'Controller v2',
+      controller: { name: 'Controller v2' },
     });
   });
 
   it('preserves FBD navigation while the CSS palette changes with the app theme', async () => {
     queueSuccessfulRead(['v1']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('v1', { routineType: 'FBD' }),
       errors: [],
@@ -636,7 +682,7 @@ describe('L5XViewer refresh behavior', () => {
 
   it('surfaces fatal FBD online-edit rejection through the existing parse error path', async () => {
     queueSuccessfulRead(['online-edit']);
-    parseStringMock.mockReturnValue({
+    controllerResultMock.mockReturnValue({
       success: false,
       errors: [{ message: 'Unsupported FBD online-edit representation.' }],
     });
@@ -644,13 +690,13 @@ describe('L5XViewer refresh behavior', () => {
     render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
 
     expect(await screen.findByText('Cannot parse L5X file')).toBeInTheDocument();
-    expect(screen.getByText('Unsupported FBD online-edit representation.')).toBeInTheDocument();
+    expect(screen.getByText(/Unsupported FBD online-edit representation\./)).toBeInTheDocument();
     expect(fbdDiagramMock).not.toHaveBeenCalled();
   });
 
   it('keeps ST rendering and unsupported routine messaging unchanged', async () => {
     queueSuccessfulRead(['st']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('st', { routineType: 'ST' }),
       errors: [],
@@ -663,7 +709,7 @@ describe('L5XViewer refresh behavior', () => {
     clearViewerCache();
     clearAllTabStates();
     queueSuccessfulRead(['sfc']);
-    parseStringMock.mockImplementation(() => ({
+    controllerResultMock.mockImplementation(() => ({
       success: true,
       data: makeController('sfc', { routineType: 'SFC' }),
       errors: [],
