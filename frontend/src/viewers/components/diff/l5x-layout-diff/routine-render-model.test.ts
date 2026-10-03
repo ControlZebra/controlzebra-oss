@@ -33,6 +33,7 @@ function makeProgram(name: string, overrides: Partial<NormalizedProgram> = {}): 
   return {
     name,
     tags: [],
+    localTags: [],
     routines: [],
     parameters: [],
     ...overrides,

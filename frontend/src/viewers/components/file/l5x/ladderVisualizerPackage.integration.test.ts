@@ -1,7 +1,17 @@
 import { createElement } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { parseString, TagTable } from 'ladder-visualizer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  diffEncodedData,
+  diffFBD,
+  FBDDiffDiagram,
+  parseDocumentString,
+  parseString,
+  RawRoutineViewer,
+  TagTable,
+  type PlcDocument,
+} from 'ladder-visualizer';
+import { CONTROL_ZEBRA_LADDER_THEME } from './theme';
 
 const FBD_WITH_DECORATED_BLOCK_DATA = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="GenericBlocks" TargetType="Program" ContainsContext="true" ExportOptions="References NoRawData L5KData DecoratedData Context">
@@ -58,6 +68,76 @@ function rawUdtArraySource(softwareRevision: string): string {
 }
 
 describe('pinned ladder-visualizer package', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('exposes document payloads and encoded comparison through the public API', () => {
+    const source = `<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="Secret" TargetType="Routine" ContainsContext="true">
+      <Controller Use="Context" Name="FixtureController"><Programs><Program Name="Main"><Routines>
+        <EncodedData Name="Secret" Type="RLL" EncodedType="Routine"><![CDATA[synthetic-old-payload]]></EncodedData>
+      </Routines></Program></Programs></Controller>
+    </RSLogix5000Content>`;
+    const before = parseDocumentString(source, 'l5x');
+    const after = parseDocumentString(source.replace('old-payload', 'new-payload'), 'l5x');
+
+    expect(before).toMatchObject({ success: true, status: 'partial' });
+    expect(after.success).toBe(true);
+    expect(before.data?.encodedData[0]).toMatchObject({
+      payload: 'synthetic-old-payload',
+      capabilities: { inspectPayload: true, decodedView: false, semanticQuery: false },
+    });
+    expect(before.data?.targetIds).toContain(before.data?.encodedData[0]?.sourcePath);
+    if (!before.data || !after.data) throw new Error('Expected parsed documents');
+    const document: PlcDocument = before.data;
+    expect(diffEncodedData(document, document)).toMatchObject([{ kind: 'unchanged' }]);
+    expect(diffEncodedData(document, after.data)).toMatchObject([{ kind: 'changed' }]);
+  });
+
+  it('compares and renders FBD revisions using the central theme', () => {
+    // jsdom has no layout observer; browser layout is verified separately.
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    const before = parseString(FBD_WITH_DECORATED_BLOCK_DATA, 'l5x');
+    const after = parseString(FBD_WITH_DECORATED_BLOCK_DATA.replace('X="20"', 'X="80"'), 'l5x');
+    const oldBody = before.data?.programs[0]?.routines[0]?.fbd;
+    const newBody = after.data?.programs[0]?.routines[0]?.fbd;
+    expect(oldBody).toBeDefined();
+    expect(newBody).toBeDefined();
+    expect(diffFBD(oldBody, oldBody).hasChanges).toBe(false);
+    expect(diffFBD(oldBody, newBody)).toMatchObject({
+      hasChanges: true,
+      complete: true,
+      sheets: [{ elements: [{ kind: 'modified', categories: ['presentation'] }] }],
+    });
+
+    render(createElement(FBDDiffDiagram, { oldBody, newBody, theme: CONTROL_ZEBRA_LADDER_THEME }));
+    expect(screen.getByRole('button', { name: 'Overlay' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Side by side' }));
+    expect(screen.getByRole('button', { name: 'Side by side' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('preserves SFC XML for the public raw routine viewer', () => {
+    const routineXml = `<Routine Name="Sequence" Type="SFC"><SFCContent><!-- keep source -->
+      <Step ID="1" X="20" Y="20" Operand="Stage_1" InitialStep="true" />
+    </SFCContent></Routine>`;
+    const source = `<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="FixtureController" TargetType="Controller" ContainsContext="false">
+      <Controller Use="Target" Name="FixtureController"><Programs><Program Name="Main"><Routines>
+        ${routineXml}
+      </Routines></Program></Programs></Controller>
+    </RSLogix5000Content>`;
+    const result = parseString(source, 'l5x');
+    const routine = result.data?.programs[0]?.routines[0];
+    expect(result).toMatchObject({ success: true, status: 'partial' });
+    expect(routine?.rawSource?.text).toBe(routineXml);
+    if (!routine) throw new Error('Expected an SFC routine');
+    render(createElement(RawRoutineViewer, { routine }));
+    const region = screen.getByRole('region', { name: 'Sequence XML source' });
+    expect(region.querySelector('code')?.textContent).toBe(routineXml);
+    expect(region.querySelector('Step')).toBeNull();
+  });
+
   it('infers FBD Block ports from decorated program data', () => {
     const result = parseString(FBD_WITH_DECORATED_BLOCK_DATA, 'l5x');
     const block = result.data?.programs[0]?.routines[0]?.fbd?.sheets[0]?.elements.find(
