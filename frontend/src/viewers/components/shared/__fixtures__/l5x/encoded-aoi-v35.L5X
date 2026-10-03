@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.00" TargetName="FixtureEncodedAOI" TargetType="AddOnInstructionDefinition" ContainsContext="true">
+  <Controller Use="Context" Name="FixtureController">
+    <AddOnInstructionDefinitions>
+      <EncodedData EncodedType="AddOnInstructionDefinition" Name="FixtureEncodedAOI" Revision="1.0" SoftwareRevision="v35.00" EncryptionConfig="9">
+        <Description><![CDATA[Sanitized encoded AOI export]]></Description>
+        <Parameters />
+<![CDATA[
+  synthetic-aoi-payload]]></EncodedData>
+    </AddOnInstructionDefinitions>
+  </Controller>
+</RSLogix5000Content>

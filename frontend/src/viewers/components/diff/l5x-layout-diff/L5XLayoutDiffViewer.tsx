@@ -3,14 +3,12 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  FileWarning,
   Loader2,
   RefreshCw,
 } from 'lucide-react';
 import {
   clearAOIs,
   diffControllers,
-  parseString,
   registerAOIsFromController,
   TagTable,
   type ColumnDefinition,
@@ -25,6 +23,8 @@ import { ICON_SIZES } from '../../../../shared/constants';
 import { TabBar } from '../../file/l5x';
 import { getPathFileName } from '../../shared/path-utils';
 import L5XProjectOrganizer from '../../shared/L5XProjectOrganizer';
+import L5XDocumentStatus from '../../shared/L5XDocumentStatus';
+import { hasEncodedOnlyTargets, parseL5XDocument, type L5XDocumentResult } from '../../shared/l5x-document';
 import type { DiffSide } from '../../../registry/diff-registry';
 import { loadTextSide, serializeDiffSide } from '../diff-side-loaders';
 import { buildL5XDiffLayoutViewModel } from './adapter';
@@ -32,13 +32,15 @@ import { RoutineDiffInspector } from './RoutineDiffInspector';
 import type { L5XDiffAggregateChangeKind, L5XDiffRenderableEntity } from './types';
 import { useDiffTabs } from './useDiffTabs';
 
-interface CachedController {
-  controller: NormalizedController;
+interface CachedDocument {
+  document: L5XDocumentResult;
   timestamp: number;
 }
 
 interface CachedDiffBundle {
-  diff: L5XDiff;
+  diff: L5XDiff | null;
+  oldDocument: L5XDocumentResult | null;
+  newDocument: L5XDocumentResult | null;
   oldController: NormalizedController;
   newController: NormalizedController;
   timestamp: number;
@@ -55,10 +57,11 @@ export interface L5XLayoutDiffViewerProps {
   oldSide: DiffSide;
   newSide: DiffSide;
   reloadToken?: number;
+  onShowRaw?: () => void;
   fileStatus: 'added' | 'modified' | 'deleted' | 'renamed' | string;
 }
 
-const controllerCache = new Map<string, CachedController>();
+const documentCache = new Map<string, CachedDocument>();
 const diffCache = new Map<string, CachedDiffBundle>();
 
 const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
@@ -80,7 +83,7 @@ const PHASE_LABELS: Record<string, string> = {
   'loading-old': 'Loading previous version…',
   'loading-new': 'Loading current version…',
   parsing: 'Parsing L5X data…',
-  diffing: 'Preparing Phase 1 model…',
+  diffing: 'Preparing comparison…',
 };
 
 function buildControllerCacheKey(repoPath: string, side: DiffSide): string {
@@ -91,34 +94,34 @@ function buildDiffCacheKey(repoPath: string, oldSide: DiffSide, newSide: DiffSid
   return `${repoPath}|${serializeDiffSide(oldSide)}|${serializeDiffSide(newSide)}`;
 }
 
-function getCachedController(key: string): NormalizedController | undefined {
-  const entry = controllerCache.get(key);
+function getCachedDocument(key: string): L5XDocumentResult | undefined {
+  const entry = documentCache.get(key);
   if (!entry) {
     return undefined;
   }
   if (Date.now() - entry.timestamp > CACHE_MAX_AGE_MS) {
-    controllerCache.delete(key);
+    documentCache.delete(key);
     return undefined;
   }
-  return entry.controller;
+  return entry.document;
 }
 
-function setCachedController(key: string, controller: NormalizedController): void {
-  if (controllerCache.size >= MAX_CACHE_ENTRIES) {
+function setCachedDocument(key: string, document: L5XDocumentResult): void {
+  if (documentCache.size >= MAX_CACHE_ENTRIES) {
     let oldestKey: string | undefined;
     let oldestTime = Infinity;
-    for (const [candidateKey, candidateValue] of controllerCache) {
+    for (const [candidateKey, candidateValue] of documentCache) {
       if (candidateValue.timestamp < oldestTime) {
         oldestTime = candidateValue.timestamp;
         oldestKey = candidateKey;
       }
     }
     if (oldestKey) {
-      controllerCache.delete(oldestKey);
+      documentCache.delete(oldestKey);
     }
   }
 
-  controllerCache.set(key, { controller, timestamp: Date.now() });
+  documentCache.set(key, { document, timestamp: Date.now() });
 }
 
 function getCachedDiffBundle(key: string): CachedDiffBundle | undefined {
@@ -152,16 +155,8 @@ function setCachedDiffBundle(key: string, bundle: Omit<CachedDiffBundle, 'timest
 }
 
 export function clearL5XLayoutDiffCache(): void {
-  controllerCache.clear();
+  documentCache.clear();
   diffCache.clear();
-}
-
-function parseL5X(content: string, label: string): NormalizedController {
-  const result = parseString(content, 'l5x');
-  if (!result.success || !result.data) {
-    throw new Error(result.errors?.[0]?.message || `Failed to parse ${label} L5X content`);
-  }
-  return result.data;
 }
 
 function getChangeTone(kind: L5XDiffAggregateChangeKind): string {
@@ -352,8 +347,8 @@ function L5XLayoutDiffViewer({
   filePath,
   oldSide,
   newSide,
-  fileStatus,
   reloadToken = 0,
+  onShowRaw,
 }: L5XLayoutDiffViewerProps): JSX.Element {
   const { theme } = useLayout();
   const [loadState, setLoadState] = useState<LoadState>({ phase: 'idle' });
@@ -394,8 +389,8 @@ function L5XLayoutDiffViewer({
   }, []);
 
   const handleReload = useCallback(() => {
-    controllerCache.delete(cacheKeys.oldController);
-    controllerCache.delete(cacheKeys.newController);
+    documentCache.delete(cacheKeys.oldController);
+    documentCache.delete(cacheKeys.newController);
     diffCache.delete(cacheKeys.diff);
     setRetryCount((prev) => prev + 1);
   }, [cacheKeys]);
@@ -423,54 +418,43 @@ function L5XLayoutDiffViewer({
         setLoadState({ phase: 'loading-old' });
         setBundle(null);
 
-        let oldController: NormalizedController | undefined;
-        if (fileStatus !== 'added') {
-          oldController = getCachedController(cacheKeys.oldController);
-          if (!oldController) {
-            const oldContent = await loadTextSide(repoPath, oldSide);
-            if (cancelled) return;
-            if (oldContent !== null) {
-              setLoadState({ phase: 'parsing' });
-              oldController = parseL5X(oldContent, 'old');
-              setCachedController(cacheKeys.oldController, oldController);
-            }
-          }
-        }
+        const loadDocument = async (side: DiffSide, key: string): Promise<L5XDocumentResult | null> => {
+          if (side.kind === 'missing') return null;
+          const cached = getCachedDocument(key);
+          if (cached) return cached;
+          const content = await loadTextSide(repoPath, side);
+          if (cancelled || content === null) return null;
+          setLoadState({ phase: 'parsing' });
+          const document = parseL5XDocument(content);
+          setCachedDocument(key, document);
+          return document;
+        };
+        const oldDocument = await loadDocument(oldSide, cacheKeys.oldController);
 
         if (cancelled) return;
 
         setLoadState({ phase: 'loading-new' });
 
-        let newController: NormalizedController | undefined;
-        if (fileStatus !== 'deleted') {
-          newController = getCachedController(cacheKeys.newController);
-          if (!newController) {
-            const newContent = await loadTextSide(repoPath, newSide);
-            if (cancelled) return;
-            if (newContent !== null) {
-              setLoadState({ phase: 'parsing' });
-              newController = parseL5X(newContent, 'new');
-              setCachedController(cacheKeys.newController, newController);
-            }
-          }
-        }
+        const newDocument = await loadDocument(newSide, cacheKeys.newController);
 
         if (cancelled) return;
 
-        clearAOIs();
-        if (newController) {
-          registerAOIsFromController(newController);
-        } else if (oldController) {
-          registerAOIsFromController(oldController);
-        }
+        const oldController = oldDocument?.controller;
+        const newController = newDocument?.controller;
 
         setLoadState({ phase: 'diffing' });
 
         const resolvedOldController = oldController ?? emptyController;
         const resolvedNewController = newController ?? emptyController;
-        const diff = diffControllers(resolvedOldController, resolvedNewController);
+        // Empty controllers are comparison inputs only for known absent sides.
+        // A failed or encoded-only document must never look like a deletion.
+        const canCompare = [oldDocument, newDocument].every(document =>
+          document === null || (document.status !== 'failed' && document.controller && !hasEncodedOnlyTargets(document)));
+        const diff = canCompare ? diffControllers(resolvedOldController, resolvedNewController) : null;
         const nextBundle = {
           diff,
+          oldDocument,
+          newDocument,
           oldController: resolvedOldController,
           newController: resolvedNewController,
         };
@@ -484,7 +468,10 @@ function L5XLayoutDiffViewer({
         if (!cancelled) {
           const message = error instanceof Error ? error.message : String(error);
           console.error('[L5XLayoutDiffViewer] Error:', message);
-          setLoadState({ phase: 'error', error: message });
+          setBundle(null);
+          setLoadState({ phase: 'error', error: message.includes('max 10MB')
+            ? 'This file exceeds the 10 MB text viewer limit. Open it in the default app to inspect it.'
+            : 'Cannot load the comparison. Check that the files are available, then retry.' });
         }
       }
     }
@@ -494,10 +481,16 @@ function L5XLayoutDiffViewer({
     return () => {
       cancelled = true;
     };
-  }, [cacheKeys, fileStatus, newSide, oldSide, repoPath, retryCount]);
+  }, [cacheKeys, newSide, oldSide, repoPath, retryCount]);
+
+  useEffect(() => {
+    clearAOIs();
+    const controller = bundle?.newDocument?.controller ?? bundle?.oldDocument?.controller;
+    if (controller) registerAOIsFromController(controller);
+  }, [bundle]);
 
   const viewModel = useMemo(() => {
-    if (!bundle) {
+    if (!bundle?.diff) {
       return null;
     }
 
@@ -675,23 +668,28 @@ function L5XLayoutDiffViewer({
     );
   }
 
-  if (!viewModel) {
+  if (!viewModel || !bundle) {
     return (
-      <div className="flex items-center justify-center h-full text-theme-muted text-sm">
-        <FileWarning size={ICON_SIZES.md} className="mr-2" />
-        No diff data available
+      <div className="flex h-full flex-col bg-theme-surface text-theme-secondary">
+        {bundle && <>
+          <L5XDocumentStatus result={bundle.oldDocument} label="Previous version" onShowRaw={onShowRaw} />
+          <L5XDocumentStatus result={bundle.newDocument} label="Current version" onShowRaw={onShowRaw} />
+        </>}
+        <p className="p-4 text-sm">A structured comparison is unavailable. Use Raw to inspect the changes.</p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-theme-surface">
+      <L5XDocumentStatus result={bundle.oldDocument} label="Previous version" onShowRaw={onShowRaw} />
+      <L5XDocumentStatus result={bundle.newDocument} label="Current version" onShowRaw={onShowRaw} />
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewModel.navigatorSections.length === 0 ? (
           <div className="flex h-full items-center justify-center text-theme-secondary">
             <div className="text-center">
               <p className="text-sm font-medium text-theme-primary">No changed routines or tags</p>
-              <p className="mt-1 text-xs text-theme-muted">The Phase 1 model only surfaces changed routines and tag groups.</p>
+              <p className="mt-1 text-xs text-theme-muted">This view compares ladder routines and tag groups. Use Raw to inspect other content.</p>
             </div>
           </div>
         ) : (

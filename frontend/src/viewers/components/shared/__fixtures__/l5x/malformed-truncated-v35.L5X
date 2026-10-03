@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="TruncatedFixture" TargetType="Controller">
+  <Controller Use="Target" Name="TruncatedFixture">
+    <Programs><Program Name="NeverClosed">

@@ -10,7 +10,7 @@ function L5XFileViewer(props: ViewerProps): JSX.Element {
     <L5XModeViewer
       key={props.filePath}
       filePath={props.filePath}
-      pretty={<L5XViewer {...props} />}
+      pretty={(onShowRaw) => <L5XViewer {...props} onShowRaw={onShowRaw} />}
       raw={<TextViewer {...props} />}
     />
   );

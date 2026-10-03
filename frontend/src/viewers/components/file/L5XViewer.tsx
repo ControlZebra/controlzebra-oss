@@ -24,10 +24,11 @@ import type { ViewerProps } from '../../registry/viewer-registry';
 import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
 import { getPathFileName } from '../shared/path-utils';
 import L5XProjectOrganizer from '../shared/L5XProjectOrganizer';
+import L5XDocumentStatus from '../shared/L5XDocumentStatus';
+import { hasEncodedOnlyTargets, parseL5XDocument, type L5XDocumentResult } from '../shared/l5x-document';
 
 // Import ladder-visualizer components and parsers
 import {
-  parseString,
   ControllerInfo,
   TagTable,
   AOIParameterTable,
@@ -35,7 +36,6 @@ import {
   ModuleInfoTable,
   registerAOIsFromController,
   clearAOIs,
-  type NormalizedController,
   type NormalizedRoutine,
   type NormalizedDataType,
   type NormalizedAOI,
@@ -65,7 +65,7 @@ interface L5XViewerUIState {
  * Part of the multi-viewer architecture.
  * Uses cached parsed data to persist across tab switches.
  */
-function L5XViewer({ filePath }: ViewerProps): JSX.Element {
+function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => void }): JSX.Element {
   // UI state (not cached - should reset on new file)
   const [uiState, setUIState] = useState<L5XViewerUIState>({
     showNavigator: true,
@@ -114,34 +114,31 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   }, [filePath, normalizedFilePath]);
 
   // Loader function for cached content - parses L5X file
-  const loadAndParseFile = useCallback(async (): Promise<NormalizedController> => {
+  const loadAndParseFile = useCallback(async (): Promise<L5XDocumentResult> => {
     const result = await ReadTextFile(filePath);
     
     if (!result.success) {
-      throw new Error(result.error || 'Failed to read file');
+      throw new Error(result.error?.includes('max 10MB')
+        ? 'This file exceeds the 10 MB text viewer limit. Open it in the default app to inspect it.'
+        : 'Cannot read this file. Check that it is available, then reopen it.');
     }
 
-    const parseResult = parseString(result.content || '', 'l5x');
-
-    if (!parseResult.success || !parseResult.data) {
-      throw new Error(parseResult.errors?.[0]?.message || 'Failed to parse L5X file');
-    }
-
-    return parseResult.data;
+    return parseL5XDocument(result.content || '');
   }, [filePath]);
 
   // Use cached content - persists across tab/view switches
-  const { data: controller, error, isLoading } = useCachedContent<NormalizedController>(
+  const { data: documentResult, error, isLoading } = useCachedContent<L5XDocumentResult>(
     `l5x:${filePath}`,
     loadAndParseFile,
     [refreshCounter]
   );
+  const controller = documentResult?.controller ?? null;
 
   // Register AOIs when controller data is available (from cache or fresh load)
   useEffect(() => {
+    clearAOIs();
     if (controller) {
       // Re-register AOIs - needed for proper parameter labels
-      clearAOIs();
       registerAOIsFromController(controller);
     }
   }, [controller]);
@@ -468,19 +465,22 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-theme-secondary gap-3">
-        <AlertCircle size={ICON_SIZES.lg} className="text-red-400" />
+        <AlertCircle size={ICON_SIZES.lg} className="text-theme-error" />
         <div className="text-center">
-          <p className="text-theme-primary font-medium mb-1">Cannot parse L5X file</p>
+          <p className="text-theme-primary font-medium mb-1">Cannot load L5X file</p>
           <p className="text-sm">{error}</p>
         </div>
       </div>
     );
   }
 
-  if (!controller) {
+  if (!controller || documentResult?.status === 'failed' || (documentResult && hasEncodedOnlyTargets(documentResult))) {
     return (
-      <div className="flex items-center justify-center h-full text-theme-secondary">
-        <p>No controller data found</p>
+      <div className="flex h-full flex-col bg-theme-surface text-theme-secondary">
+        {documentResult && <L5XDocumentStatus result={documentResult} onShowRaw={onShowRaw} />}
+        {documentResult?.status !== 'failed' && (
+          <p className="p-4 text-sm">No structured view is available for this export target. Use Raw to inspect the file.</p>
+        )}
       </div>
     );
   }
@@ -491,6 +491,7 @@ function L5XViewer({ filePath }: ViewerProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-theme-surface">
+      <L5XDocumentStatus result={documentResult} onShowRaw={onShowRaw} />
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Navigator sidebar */}

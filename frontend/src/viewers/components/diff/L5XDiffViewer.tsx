@@ -69,10 +69,10 @@ function L5XDiffSession(request: DiffRenderRequest): JSX.Element {
     <L5XModeViewer
       filePath={absolutePath}
       actions={<Button variant="ghost" size="sm" aria-label="Reload diff" onClick={reload}><RefreshCw size={ICON_SIZES.sm} /></Button>}
-      pretty={oldSide && newSide ? (
+      pretty={(onShowRaw) => oldSide && newSide ? (
         <L5XLayoutDiffViewer
           repoPath={repoPath ?? ''} filePath={filePath} oldSide={oldSide} newSide={newSide}
-          fileStatus={request.fileStatus ?? 'modified'} reloadToken={reloadToken}
+          fileStatus={request.fileStatus ?? 'modified'} reloadToken={reloadToken} onShowRaw={onShowRaw}
         />
       ) : <TextDiffViewer {...request} fileDiff={request.fileDiff as TextDiffViewerProps['fileDiff']} repoPath={repoPath ?? ''} showHeader={false} reloadToken={reloadToken} />}
       raw={<RawL5XDiff key={reloadToken} request={request} reloadToken={reloadToken} />}

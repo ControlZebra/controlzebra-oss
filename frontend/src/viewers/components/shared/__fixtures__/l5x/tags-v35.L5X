@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="FixtureTagsV35" TargetType="Tag" TargetCount="2" ContainsContext="false">
+  <Controller Use="Target" Name="FixtureTagsV35"><Tags><Tag Name="Counter" TagType="Base" DataType="DINT" Radix="Decimal"><Data Format="L5K"><![CDATA[1]]></Data></Tag><Tag Name="Done" TagType="Alias" DataType="BOOL" AliasFor="Counter.0" /></Tags></Controller>
+</RSLogix5000Content>

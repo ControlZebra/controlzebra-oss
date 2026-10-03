@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="FixtureAOI" TargetType="AddOnInstructionDefinition" ContainsContext="true" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies">
+  <Controller Use="Context" Name="FixtureController">
+    <AddOnInstructionDefinitions>
+      <AddOnInstructionDefinition Name="FixtureAOI" Class="Standard" Revision="1.0" ExecutePrescan="false" ExecutePostscan="false" ExecuteEnableInFalse="false">
+        <Description><![CDATA[Sanitized AOI fixture]]></Description>
+        <RevisionNote><LocalizedRevisionNote Lang="en-US"><Value>Localized revision note</Value></LocalizedRevisionNote><LocalizedRevisionNote Lang="de-DE"><![CDATA[Weitere Notiz]]></LocalizedRevisionNote></RevisionNote>
+        <Parameters>
+          <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input" Required="false" Visible="false" />
+          <Parameter Name="In" TagType="Base" DataType="BOOL" Usage="Input" Required="true" Visible="true"><DefaultData Format="L5K"><![CDATA[0]]></DefaultData></Parameter>
+          <Parameter Name="Out" TagType="Base" DataType="BOOL" Usage="Output" Required="false" Visible="true" />
+        </Parameters>
+        <LocalTags><LocalTag Name="State" DataType="BOOL" Radix="Decimal"><DefaultData Format="L5K"><![CDATA[1]]></DefaultData></LocalTag></LocalTags>
+        <Routines>
+          <Routine Name="Logic" Type="RLL"><RLLContent><Rung Number="0" Type="N"><Text><![CDATA[XIC(In)OTE(Out);]]></Text></Rung></RLLContent></Routine>
+          <Routine Name="Structured" Type="ST"><STContent><Line Number="5">Out := In;</Line></STContent></Routine>
+          <Routine Name="EmptyStructured" Type="ST"><STContent /></Routine>
+        </Routines>
+      </AddOnInstructionDefinition>
+    </AddOnInstructionDefinitions>
+  </Controller>
+</RSLogix5000Content>

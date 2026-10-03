@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="FixtureController" TargetType="Controller" ContainsContext="false" ExportOptions="References NoRawData L5KData DecoratedData Context">
+  <Controller Use="Target" Name="FixtureController" ProcessorType="1756-L85E" MajorRev="35" MinorRev="11">
+    <DataTypes>
+      <DataType Use="Context" Name="FixtureState" Family="NoFamily" Class="User">
+        <Members>
+          <Member Name="Ready" DataType="BOOL" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write" />
+          <Member Name="Count" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write" />
+        </Members>
+      </DataType>
+    </DataTypes>
+    <Modules>
+      <Module Name="Local" CatalogNumber="1756-L85E" Vendor="1" ProductType="14" ProductCode="166" Major="35" Minor="11" ParentModPortId="0" Inhibited="false" MajorFault="false">
+        <EKey State="CompatibleModule" />
+        <Ports>
+          <Port Id="1" Address="0" Type="ICP" Upstream="false"><Bus Size="17" /></Port>
+        </Ports>
+      </Module>
+    </Modules>
+    <AddOnInstructionDefinitions>
+      <AddOnInstructionDefinition Name="FixtureGate" Class="Standard" Revision="1.0" ExecutePrescan="false" ExecutePostscan="false" ExecuteEnableInFalse="false">
+        <Parameters>
+          <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input" Required="false" Visible="false" />
+          <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output" Required="false" Visible="false" />
+        </Parameters>
+        <LocalTags><LocalTag Name="Latch" DataType="BOOL" Radix="Decimal" /></LocalTags>
+        <Routines>
+          <Routine Name="Logic" Type="RLL">
+            <RLLContent><Rung Number="0" Type="N"><Text><![CDATA[XIC(EnableIn)OTE(EnableOut);]]></Text></Rung></RLLContent>
+          </Routine>
+        </Routines>
+      </AddOnInstructionDefinition>
+    </AddOnInstructionDefinitions>
+    <Tags>
+      <Tag Name="ControllerState" TagType="Base" DataType="FixtureState" ExternalAccess="Read/Write" />
+    </Tags>
+    <Programs>
+      <Program Name="FixtureProgram" MainRoutineName="Main">
+        <Tags><Tag Name="ProgramReady" TagType="Base" DataType="BOOL" ExternalAccess="Read/Write" /></Tags>
+        <Routines>
+          <Routine Name="Main" Type="RLL">
+            <RLLContent>
+              <Rung Number="0" Type="N"><Comment><![CDATA[Start fixture output]]></Comment><Text><![CDATA[XIC(ControllerState.Ready)OTE(ProgramReady);]]></Text></Rung>
+              <Rung Number="1" Type="N"><Text><![CDATA[ADD(ControllerState.Count,1,ControllerState.Count);]]></Text></Rung>
+            </RLLContent>
+          </Routine>
+        </Routines>
+      </Program>
+    </Programs>
+  </Controller>
+</RSLogix5000Content>
