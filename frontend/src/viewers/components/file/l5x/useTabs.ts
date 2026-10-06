@@ -7,7 +7,7 @@
  */
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { NormalizedController } from 'ladder-visualizer';
-import { collectAmbiguousProgramUids, programIdentityKey } from './program-identity';
+import { collectAmbiguousProgramUids, findProgram, programIdentityKey } from './program-identity';
 import { metadataTargetId, type MetadataTarget } from './metadata-model';
 
 // ============================================================================
@@ -112,6 +112,26 @@ export function generateTabId(data: TabData): string {
   }
 }
 
+/** Retain observed renames before a later UID collision needs the owner name. */
+function refreshProgramOwners(tabs: Tab[], programs: NormalizedController['programs'], ambiguousUids: ReadonlySet<string>): Tab[] {
+  let changed = false;
+  const updated = tabs.map(tab => {
+    const data = tab.data;
+    const target = data.type === 'metadata' && data.target.kind === 'program' ? data.target : undefined;
+    const view = data.type === 'routine' || data.type === 'program-tags' ? data : undefined;
+    const uid = target?.uid ?? view?.programUid;
+    if (uid === undefined || ambiguousUids.has(uid) || target?.ambiguousUid || view?.programUidAmbiguous) return tab;
+    const program = findProgram(programs, { uid });
+    if (!program || program.name === (target?.name ?? view?.programName)) return tab;
+    changed = true;
+    if (target) return { ...tab, title: `${program.name} Metadata`, data: { type: 'metadata' as const, target: { ...target, name: program.name } } };
+    if (view) return { ...tab, title: view.type === 'program-tags' ? `${program.name} Tags` : tab.title,
+      data: { ...view, programName: program.name } };
+    return tab;
+  });
+  return changed ? updated : tabs;
+}
+
 // ============================================================================
 // HOOK
 // ============================================================================
@@ -145,13 +165,16 @@ export function useTabs(filePath?: string, programs?: NormalizedController['prog
 
   // Track the file path for cache updates
   const filePathRef = useRef(filePath);
-  if (filePathRef.current !== filePath) {
+  const filePathChanged = filePathRef.current !== filePath;
+  if (filePathChanged) {
     filePathRef.current = filePath;
     setTabs(cachedState?.tabs ?? []);
     setActiveTabId(cachedState?.activeTabId ?? null);
     setUidHistory(cachedState?.ambiguousProgramUids ?? new Set());
   }
   const ambiguousProgramUids = useMemo(() => programs ? collectAmbiguousProgramUids(programs, uidHistory) : uidHistory, [programs, uidHistory]);
+  const refreshedTabs = useMemo(() => programs ? refreshProgramOwners(tabs, programs, ambiguousProgramUids) : tabs, [tabs, programs, ambiguousProgramUids]);
+  if (!filePathChanged && refreshedTabs !== tabs) setTabs(refreshedTabs);
   useEffect(() => { setUidHistory(ambiguousProgramUids); }, [ambiguousProgramUids]);
 
   // Persist tab state to cache whenever it changes

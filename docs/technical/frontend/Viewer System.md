@@ -188,8 +188,10 @@ Reloads resolve each selection against the current controller. Removed entities
 show a missing-entity state with Raw access.
 The file's tab cache retains observed UID collisions, so a later refresh cannot
 redirect a removed owner to another program or duplicate the surviving owner's tabs.
-Reopening an ambiguous view retains its source UID, so name reuse with a different
-UID cannot redirect the old view. FBD sheet state uses the retained tab ID.
+Each refresh updates stored owner names while their UIDs remain unique. A later
+collision therefore resolves against the last observed name. Reopening an
+ambiguous view retains its source UID, so name reuse with a different UID cannot
+redirect the old view. FBD sheet state uses the retained tab ID.
 Existing dedicated tag, datatype, module, AOI interface, and routine views
 remain available.
 

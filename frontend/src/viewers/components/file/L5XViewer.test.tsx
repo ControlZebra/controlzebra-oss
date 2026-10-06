@@ -484,6 +484,44 @@ describe('L5XViewer refresh behavior', () => {
     expect(screen.getByText(/This program is no longer in the file/)).toBeVisible();
   });
 
+  it.each([false, true])('retains an observed unique rename before a later UID collision, cached remount: %s', async remount => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const original = { ...data.programs[0], name: version === 'v1' ? 'Original' : 'Renamed', uid: '10',
+        description: 'Owned metadata', tags: [{ name: 'OwnedTag', dataType: 'BOOL' }],
+        routines: [makeRoutine('RoutineA', 'RLL', `owned-${version}`)] };
+      data.programs = version === 'v3' ? [{ ...original, name: 'Original', description: 'Replacement metadata',
+        tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }], routines: [makeRoutine('RoutineA', 'RLL', 'replacement')] }, original] : [original];
+      return { success: true, data };
+    });
+    const view = render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('No Content Selected');
+    clickEntry('Original');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    clickEntry('Original');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Renamed' });
+    expect(screen.getByRole('tab', { name: /Renamed Metadata/ })).toBeVisible();
+    if (remount) {
+      view.unmount();
+      render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+      await screen.findByRole('button', { name: 'Renamed' });
+    }
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Original' });
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OwnedTag', dataType: 'BOOL' }] }), expect.anything());
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
+    expect(screen.getByText('RLL:RoutineA@owned-v3')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Renamed Metadata/ }));
+    expect(screen.getByText('Owned metadata')).toBeVisible();
+    expect(organizer().getByRole('button', { name: 'Renamed' })).toHaveAttribute('aria-pressed', 'true');
+    clickEntry('Renamed');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+  });
+
   it('retains the source UID when reopened ambiguous views outlive their program and its name is reused', async () => {
     queueSuccessfulRead(['v1', 'v2', 'v3']);
     controllerResultMock.mockImplementation((version: string) => {
