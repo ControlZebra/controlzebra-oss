@@ -36,10 +36,7 @@ import {
   ModuleInfoTable,
   registerAOIsFromController,
   clearAOIs,
-  type NormalizedRoutine,
   type NormalizedDataType,
-  type NormalizedAOI,
-  type NormalizedModule,
   type NormalizedController,
 } from 'ladder-visualizer';
 
@@ -47,8 +44,8 @@ import {
 import { DataTypeTable, TabBar, useTabs, generateTabId, type TabData } from './l5x';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 import MetadataInspector from './l5x/MetadataInspector';
-import { metadataTargetId, type MetadataTarget } from './l5x/metadata-model';
-import { findProgram, programIdentity } from './l5x/program-identity';
+import { metadataTargetId } from './l5x/metadata-model';
+import { findProgram } from './l5x/program-identity';
 
 function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string }) {
   return findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex });
@@ -160,37 +157,6 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   // Navigator Event Handlers
   // ============================================================================
 
-  const handleRoutineSelect = useCallback((programIndex: number, routineIndex: number, routine: NormalizedRoutine) => {
-    const program = controller?.programs[programIndex];
-    const identity = controller && program ? programIdentity(controller.programs, program) : undefined;
-    openTab(
-      { type: 'routine', programIndex, routineIndex, programName: program?.name, programUid: identity?.uid, routineName: routine.name },
-      routine.name
-    );
-  }, [controller, openTab]);
-
-  const handleMetadataSelect = useCallback((target: MetadataTarget, title: string) => {
-    openTab({ type: 'metadata', target }, title);
-  }, [openTab]);
-
-  const handleControllerTagsSelect = useCallback(() => {
-    openTab({ type: 'controller-tags' }, 'Controller Tags');
-  }, [openTab]);
-
-  const handleProgramTagsSelect = useCallback((programIndex: number) => {
-    if (!controller) return;
-    const program = controller.programs[programIndex];
-    const identity = programIdentity(controller.programs, program);
-    openTab(
-      { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid },
-      `${program.name} Tags`
-    );
-  }, [controller, openTab]);
-
-  const handleControllerInfoSelect = useCallback(() => {
-    openTab({ type: 'controller-info' }, 'Controller Info');
-  }, [openTab]);
-
   const handleDataTypeSelect = useCallback((dataType: NormalizedDataType) => {
     openTab(
       { type: 'data-type', dataTypeName: dataType.name },
@@ -198,72 +164,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     );
   }, [openTab]);
 
-  const handleAOIParametersSelect = useCallback((aoi: NormalizedAOI) => {
-    openTab(
-      { type: 'aoi-parameters', aoiName: aoi.name },
-      `${aoi.name} Parameters`
-    );
-  }, [openTab]);
-
-  const handleAOILocalTagsSelect = useCallback((aoi: NormalizedAOI) => {
-    openTab(
-      { type: 'aoi-local-tags', aoiName: aoi.name },
-      `${aoi.name} Local Tags`
-    );
-  }, [openTab]);
-
-  const handleAOIRoutineSelect = useCallback((aoi: NormalizedAOI, routineIndex: number, routine: NormalizedRoutine) => {
-    openTab(
-      { type: 'aoi-routine', aoiName: aoi.name, routineIndex, routineName: routine.name },
-      `${aoi.name}:${routine.name}`
-    );
-  }, [openTab]);
-
-  const handleModuleSelect = useCallback((module: NormalizedModule) => {
-    openTab(
-      { type: 'module', moduleId: module.id, moduleName: module.name },
-      module.catalogNumber ? `${module.name} (${module.catalogNumber})` : module.name
-    );
-  }, [openTab]);
-
-  // ============================================================================
-  // Derive Navigator Selection from Active Tab
-  // ============================================================================
-
   const activeTabData = useMemo(() => {
     if (!activeTabId) return null;
     const tab = tabs.find(t => t.id === activeTabId);
     return tab?.data || null;
   }, [activeTabId, tabs]);
-
-  const selectedRoutine = useMemo(() => {
-    if (activeTabData?.type === 'routine') {
-      if (!controller) return undefined;
-      const program = resolveProgram(controller, activeTabData);
-      if (!program) return undefined;
-      const routineIndex = activeTabData.routineName !== undefined
-        ? program.routines.findIndex(routine => routine.name === activeTabData.routineName) : activeTabData.routineIndex;
-      return routineIndex >= 0 ? { programIndex: controller.programs.indexOf(program), routineIndex } : undefined;
-    }
-    return undefined;
-  }, [activeTabData, controller]);
-
-  const selectedAOIRoutine = useMemo(() => {
-    if (activeTabData?.type === 'aoi-routine') {
-      const aoi = controller?.aois.find(candidate => candidate.name === activeTabData.aoiName);
-      const routineIndex = activeTabData.routineName !== undefined
-        ? aoi?.routines.findIndex(routine => routine.name === activeTabData.routineName) : activeTabData.routineIndex;
-      return routineIndex !== undefined && routineIndex >= 0 ? { aoiName: activeTabData.aoiName, routineIndex } : undefined;
-    }
-    return undefined;
-  }, [activeTabData, controller]);
-
-  const selectedNavigatorItemId = useMemo(() => {
-    if (activeTabData?.type === 'data-type') {
-      return `dt-${activeTabData.dataTypeName}`;
-    }
-    return undefined;
-  }, [activeTabData]);
 
   // ============================================================================
   // Tab Content Rendering
@@ -530,20 +435,8 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
             <L5XProjectOrganizer
               controller={controller}
               programs={controller.programs}
-              selectedRoutine={selectedRoutine}
-              selectedAOIRoutine={selectedAOIRoutine}
-              selectedItemId={selectedNavigatorItemId}
-              onRoutineSelect={handleRoutineSelect}
-              onControllerTagsSelect={handleControllerTagsSelect}
-              onProgramTagsSelect={handleProgramTagsSelect}
-              onControllerInfoSelect={handleControllerInfoSelect}
-              onDataTypeSelect={handleDataTypeSelect}
-              onModuleSelect={handleModuleSelect}
-              onAOIParametersSelect={handleAOIParametersSelect}
-              onAOILocalTagsSelect={handleAOILocalTagsSelect}
-              onAOIRoutineSelect={handleAOIRoutineSelect}
-              onMetadataSelect={handleMetadataSelect}
-              selectedMetadataId={activeTabData?.type === 'metadata' ? metadataTargetId(activeTabData.target) : undefined}
+              onOpen={openTab}
+              activeTabData={activeTabData}
               className="flex-1"
             />
           </div>

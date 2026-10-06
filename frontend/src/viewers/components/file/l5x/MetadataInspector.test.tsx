@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseString, type NormalizedController } from 'ladder-visualizer';
 import MetadataInspector from './MetadataInspector';
 import { buildMetadataModel, formatMetadataDimensions, formatMetadataValue, metadataTargetId, type MetadataTarget } from './metadata-model';
-import L5XMetadataNavigator from '../../shared/L5XMetadataNavigator';
+import L5XEntityNavigator from '../../shared/L5XEntityNavigator';
+import type { TabData } from './useTabs';
 import { generateTabId } from './useTabs';
 
 function controllerFixture(name = 'controller-rll-v35'): NormalizedController {
@@ -105,14 +106,14 @@ describe('metadata values and relationships', () => {
     expect(parsed.status).toBe('partial');
     const controller = parsed.data!;
     const onSelect = vi.fn();
-    render(<L5XMetadataNavigator controller={controller} onSelect={onSelect} />);
+    render(<L5XEntityNavigator controller={controller} onOpen={onSelect} />);
     for (const name of ['DuplicateA', 'DuplicateB']) {
-      fireEvent.click(screen.getByRole('button', { name: `Inspect Program: ${name}` }));
-      const target = onSelect.mock.lastCall![0] as MetadataTarget;
+      fireEvent.click(screen.getByRole('button', { name }));
+      const target = (onSelect.mock.lastCall![0] as Extract<TabData, { type: 'metadata' }>).target;
       expect(buildMetadataModel(controller, target)?.title).toBe(`${name} Metadata`);
     }
-    const first = onSelect.mock.calls[0][0] as MetadataTarget;
-    const second = onSelect.mock.calls[1][0] as MetadataTarget;
+    const first = (onSelect.mock.calls[0][0] as Extract<TabData, { type: 'metadata' }>).target;
+    const second = (onSelect.mock.calls[1][0] as Extract<TabData, { type: 'metadata' }>).target;
     expect(metadataTargetId(first)).not.toBe(metadataTargetId(second));
     expect(buildMetadataModel(controller, { kind: 'program', name: 'DuplicateB', uid: '10' })?.title).toBe('DuplicateB Metadata');
     controller.programs[2].parentUid = '10';

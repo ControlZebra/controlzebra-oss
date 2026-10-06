@@ -116,63 +116,7 @@ vi.mock('ladder-visualizer', () => {
       <div>{`RLL:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
     FBDDiagram: fbdDiagramMock,
-    ProgramNavigator: ({
-      controller,
-      programs,
-      selectedRoutine,
-      onRoutineSelect,
-      onControllerTagsSelect,
-      onProgramTagsSelect,
-      onControllerInfoSelect,
-      onDataTypeSelect,
-      onAOIRoutineSelect,
-    }: {
-      controller: {
-        aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }>;
-        dataTypeCatalog?: Array<{ name: string }>;
-        dataTypes: Array<{ name: string }>;
-      };
-      programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
-      selectedRoutine?: { programIndex: number; routineIndex: number };
-      onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
-      onControllerTagsSelect: () => void;
-      onProgramTagsSelect: (programIndex: number) => void;
-      onControllerInfoSelect: () => void;
-      onDataTypeSelect: (dataType: { name: string }) => void;
-      onAOIRoutineSelect: (aoi: { name: string; routines: Array<{ name: string; versionTag?: string }> }, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
-    }) => (
-      <div>
-        <div data-testid="selected-routine">
-          {selectedRoutine ? `${selectedRoutine.programIndex}:${selectedRoutine.routineIndex}` : 'none'}
-        </div>
-        <button type="button" onClick={() => onRoutineSelect(0, 0, programs[0]?.routines[0])}>
-          Open Routine
-        </button>
-        <button type="button" onClick={onControllerTagsSelect}>Open Controller Tags</button>
-        <button type="button" onClick={() => onProgramTagsSelect(0)}>Open Program Tags</button>
-        <button type="button" onClick={onControllerInfoSelect}>Open Controller Info</button>
-        {(controller.dataTypeCatalog ?? controller.dataTypes)[0] && (
-          <button
-            type="button"
-            onClick={() => onDataTypeSelect((controller.dataTypeCatalog ?? controller.dataTypes)[0])}
-          >
-            Open Data Type
-          </button>
-        )}
-        {controller.aois[0]?.routines[0] && (
-          <button
-            type="button"
-            onClick={() => onAOIRoutineSelect(
-              controller.aois[0],
-              0,
-              controller.aois[0].routines[0],
-            )}
-          >
-            Open AOI Routine
-          </button>
-        )}
-      </div>
-    ),
+    ProgramNavigator: () => <div>Library comparison tree</div>,
     ControllerInfo: () => <div>Controller Info</div>,
     TagTable: tagTableMock,
     StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
@@ -317,6 +261,25 @@ async function renderLoadedViewer(filePath = '/repo/Programs/Main.L5X') {
   await screen.findByText('No Content Selected');
 }
 
+function organizer() {
+  const navigators = screen.getAllByRole('navigation', { name: 'Project entries' });
+  return within(navigators[navigators.length - 1]);
+}
+
+function clickEntry(label: string) {
+  fireEvent.click(organizer().getByRole('button', { name: label }));
+}
+
+function expandEntry(label: string) {
+  const arrow = organizer().queryByRole('button', { name: `Expand ${label}` });
+  if (arrow) fireEvent.click(arrow);
+}
+
+function openProgramRoutine(program = 'MainProgram') {
+  expandEntry(program);
+  clickEntry('RoutineA');
+}
+
 function latestFBDDiagramProps() {
   const calls = fbdDiagramMock.mock.calls;
   return calls[calls.length - 1]?.[0];
@@ -359,17 +322,20 @@ describe('L5XViewer refresh behavior', () => {
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
     await renderLoadedViewer();
-    const labels = ['Controller: Controller v1', 'Program: MainProgram', 'Task: Cycle', 'AOI: MixerAOI',
-      'Data type: PumpState', 'Module: Rack'];
+    expandEntry('User Defined');
+    const labels = ['Controller Controller v1', 'MainProgram', 'Cycle', 'MixerAOI', 'PumpState', 'Rack'];
     for (const label of labels) {
-      fireEvent.click(screen.getByRole('button', { name: `Inspect ${label}` }));
-      expect(screen.getByRole('button', { name: `Inspect ${label}` })).toHaveAttribute('aria-pressed', 'true');
+      clickEntry(label);
+      expect(organizer().getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');
       expect(screen.getAllByRole('heading', { level: 2 }).some(heading => heading.textContent?.includes('Metadata'))).toBe(true);
     }
+    expect(screen.queryByText('Metadata', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('Controller Info')).not.toBeInTheDocument();
+    expect(screen.queryByText('Module Info')).not.toBeInTheDocument();
     expect(screen.getAllByRole('tab')).toHaveLength(6);
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
     expect(screen.getAllByRole('tab')).toHaveLength(6);
-    const taskTab = screen.getByRole('tab', { name: /Task: Cycle Metadata/ });
+    const taskTab = screen.getByRole('tab', { name: /Cycle Metadata/ });
     taskTab.focus();
     fireEvent.keyDown(taskTab, { key: 'Enter' });
     expect(screen.getByRole('heading', { name: 'Cycle Metadata' })).toBeVisible();
@@ -387,19 +353,21 @@ describe('L5XViewer refresh behavior', () => {
       return { success: true, data };
     });
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    expandEntry('MainProgram');
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
     expect(screen.getByText('RLL:RoutineA@v1')).toBeVisible();
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
     expect(await screen.findByText('RLL:RoutineA@v2')).toBeVisible();
-    expect(screen.getByTestId('selected-routine')).toHaveTextContent('1:0');
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    expandEntry('MainProgram');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
     expect(screen.getByText('Description v2')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
     expect(screen.getAllByRole('tab')).toHaveLength(2);
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
     expect(await screen.findByText('Routine not found')).toBeVisible();
-    fireEvent.click(screen.getByRole('tab', { name: /Program: MainProgram Metadata/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /MainProgram Metadata/ }));
     expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
   });
 
@@ -407,14 +375,15 @@ describe('L5XViewer refresh behavior', () => {
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect AOI: MixerAOI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'MixerAOI' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Parameters: 0' }));
     expect(screen.getByText('AOI Parameters')).toBeVisible();
     expect(screen.getByRole('tab', { name: /MixerAOI Parameters/ })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Data type: PumpState' }));
+    expandEntry('User Defined');
+    fireEvent.click(screen.getByRole('button', { name: 'PumpState' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Member structure: 1' }));
     expect(screen.getByRole('heading', { name: 'PumpState' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Module: Rack' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rack' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Module configuration: Rack' }));
     expect(screen.getByText('Module Info')).toBeVisible();
   });
@@ -433,14 +402,14 @@ describe('L5XViewer refresh behavior', () => {
       return { success: true, data };
     });
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
     expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Inspect Program: Renamed' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Renamed' })).toBeInTheDocument());
     expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: Renamed' }));
-    expect(screen.getByRole('tab', { name: /Program: Renamed Metadata/ })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Renamed' }));
+    expect(screen.getByRole('tab', { name: /Renamed Metadata/ })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
     expect(screen.getByRole('tab', { name: /Renamed Tags/ })).toBeVisible();
     expect(screen.getAllByRole('tab')).toHaveLength(2);
@@ -459,21 +428,23 @@ describe('L5XViewer refresh behavior', () => {
       return { success: true, status: 'partial', data };
     });
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Program Tags' }));
+    expandEntry('DuplicateB');
+    clickEntry('Program Tags');
     expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine('DuplicateB');
     expect(screen.getByText('RLL:RoutineA@DuplicateB-v1')).toBeVisible();
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
     expect(await screen.findByText('RLL:RoutineA@DuplicateB-v2')).toBeVisible();
-    expect(screen.getByTestId('selected-routine')).toHaveTextContent('1:0');
+    expandEntry('DuplicateB');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
     for (const name of ['DuplicateA', 'DuplicateB']) {
-      fireEvent.click(screen.getByRole('button', { name: `Inspect Program: ${name}` }));
+      fireEvent.click(screen.getByRole('button', { name: name }));
       expect(screen.getByRole('heading', { name: `${name} Metadata` })).toBeVisible();
       fireEvent.click(within(screen.getByRole('region', { name: `${name} Metadata` })).getByRole('button', { name: 'Open Main routine: RoutineA' }));
       expect(screen.getByText(`RLL:RoutineA@${name}-v2`)).toBeVisible();
     }
     expect(screen.getAllByRole('tab', { name: /RoutineA/ })).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: DuplicateB' }));
+    fireEvent.click(screen.getByRole('button', { name: 'DuplicateB' }));
     fireEvent.click(within(screen.getByRole('region', { name: 'DuplicateB Metadata' })).getByRole('button', { name: 'Open Program tags: 1' }));
     expect(screen.getAllByRole('tab')).toHaveLength(5);
     expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
@@ -481,7 +452,7 @@ describe('L5XViewer refresh behavior', () => {
     expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
     fireEvent.click(screen.getAllByRole('tab', { name: /RoutineA/ })[0]);
     expect(screen.getByText('Routine not found')).toBeVisible();
-    fireEvent.click(screen.getByRole('tab', { name: /Program: DuplicateB Metadata/ }));
+    fireEvent.click(screen.getByRole('tab', { name: /DuplicateB Metadata/ }));
     expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
   });
 
@@ -489,8 +460,8 @@ describe('L5XViewer refresh behavior', () => {
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
-    const tab = screen.getByRole('tab', { name: /Program: MainProgram Metadata/ });
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
+    const tab = screen.getByRole('tab', { name: /MainProgram Metadata/ });
     const close = within(tab).getByRole('button', { name: 'Close tab' });
     close.focus();
     expect(fireEvent.keyDown(close, { key })).toBe(true);
@@ -498,23 +469,48 @@ describe('L5XViewer refresh behavior', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
-  it('bounds a large organizer inventory and finds an entity beyond the first page', async () => {
+  it('virtualizes a large organizer and finds an entry beyond the viewport', async () => {
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(280);
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(256);
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     const data = metadataController('v1');
     data.tasks = Array.from({ length: 70 }, (_, index) => ({ name: `Task${index}`, type: 'Periodic', rate: index, scheduledProgramNames: [] }));
     controllerResultMock.mockReturnValue({ success: true, data });
     await renderLoadedViewer();
-    const nav = screen.getByRole('navigation', { name: 'Entity metadata' });
-    expect(within(nav).getAllByRole('button')).toHaveLength(25);
-    fireEvent.change(screen.getByRole('textbox', { name: 'Find metadata entity' }), { target: { value: 'Task69' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Task: Task69' }));
+    const nav = screen.getByRole('navigation', { name: 'Project entries' });
+    expect(within(nav).getAllByRole('button').length).toBeLessThan(50);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Find organizer entry' }), { target: { value: 'Task69' } });
+    clickEntry('Task69');
     expect(screen.getByRole('heading', { name: 'Task69 Metadata' })).toBeVisible();
+    height.mockRestore();
+    width.mockRestore();
+  });
+
+  it('opens metadata from labels while arrows and group labels only change expansion', async () => {
+    queueSuccessfulRead(['v1']);
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    clickEntry('MainProgram');
+    expect(screen.getByRole('heading', { name: 'MainProgram Metadata' })).toBeVisible();
+    expect(organizer().queryByRole('button', { name: 'Program Tags' })).not.toBeInTheDocument();
+    expandEntry('MainProgram');
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    clickEntry('Program Tags');
+    expect(screen.getByText('No program-specific tags defined')).toBeVisible();
+    fireEvent.click(organizer().getByRole('button', { name: 'Collapse MainProgram' }));
+    expect(screen.getByRole('tab', { name: /MainProgram Tags/ })).toHaveAttribute('aria-selected', 'true');
+    clickEntry('Tasks');
+    expect(organizer().queryByRole('button', { name: 'MainProgram' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    clickEntry('Tasks');
+    expect(organizer().getByRole('button', { name: 'MainProgram' })).toBeVisible();
   });
 
   it('switches to raw text without mixing parsed caches and preserves structured selection', async () => {
     readTextFileMock.mockResolvedValue({ success: true, content: '<Controller />' });
     const view = render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Routine' }));
+    await screen.findByRole('button', { name: 'MainProgram' });
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@<Controller />')).toBeVisible();
     expect(screen.getAllByTestId('viewer-header')).toHaveLength(1);
 
@@ -563,7 +559,7 @@ describe('L5XViewer refresh behavior', () => {
       warnings: [{ message: 'Unsupported declaration dimensions.', location: { line: 12, column: 4, path: '/Controller[1]/Tags[1]' } }] });
     render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
     await screen.findByText('Some content is available only in Raw');
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@partial')).toBeVisible();
     fireEvent.click(screen.getByText('1 parser notice'));
     expect(screen.getByText('Line 12, column 4, /Controller[1]/Tags[1]')).toBeVisible();
@@ -575,7 +571,7 @@ describe('L5XViewer refresh behavior', () => {
   it.each(['success', 'error'])('ignores a stale %s from an earlier reload of the same file', async outcome => {
     queueSuccessfulRead(['v1']);
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     let resolveRead!: (result: { success: boolean; content: string }) => void;
     let rejectRead!: (error: Error) => void;
     readTextFileMock.mockImplementationOnce(() => new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; }))
@@ -637,14 +633,15 @@ describe('L5XViewer refresh behavior', () => {
 
     await renderLoadedViewer();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@v1')).toBeInTheDocument();
-    expect(screen.getByTestId('selected-routine')).toHaveTextContent('0:0');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
 
     expect(await screen.findByText('RLL:RoutineA@v2')).toBeInTheDocument();
-    expect(screen.getByTestId('selected-routine')).toHaveTextContent('0:0');
+    expandEntry('MainProgram');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('opens catalog data types and follows nested type selections in tabs', async () => {
@@ -656,10 +653,12 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Data Type' }));
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Member structure: 1' }));
 
     expect(await screen.findByRole('heading', { name: 'PumpState' })).toBeInTheDocument();
-    expect(screen.getByText('Current pump operating state.')).toBeInTheDocument();
+    expect(screen.getAllByText('Current pump operating state.')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Open DINT' }));
     expect(await screen.findByRole('heading', { name: 'DINT' })).toBeInTheDocument();
     expect(screen.getByText('This is an atomic data type with no member structure.')).toBeInTheDocument();
@@ -673,14 +672,15 @@ describe('L5XViewer refresh behavior', () => {
     controllerResultMock.mockReturnValue({ success: true, data: controller, errors: [] });
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Controller Tags' }));
+    clickEntry('Controller Tags');
 
     expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({
       tags: controller.tags,
       dataTypes: controller.dataTypeCatalog,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Program Tags' }));
+    expandEntry('MainProgram');
+    clickEntry('Program Tags');
     expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({
       tags: controller.programs[0].tags,
       dataTypes: controller.dataTypeCatalog,
@@ -704,7 +704,7 @@ describe('L5XViewer refresh behavior', () => {
 
     await renderLoadedViewer();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@v1')).toBeInTheDocument();
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
@@ -721,7 +721,7 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
 
     expect(await screen.findByText('FBD:v1:sheet-0')).toBeInTheDocument();
     expect(screen.queryByText(/FBD.*not yet supported/i)).not.toBeInTheDocument();
@@ -754,7 +754,9 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open AOI Routine' }));
+    expandEntry('MixerAOI');
+    expandEntry('Routines');
+    clickEntry('Logic');
 
     expect(await screen.findByText('FBD:AOI-v1:sheet-0')).toBeInTheDocument();
     expect(latestFBDDiagramProps()).toMatchObject({
@@ -778,7 +780,7 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     await screen.findByText('FBD:v1:sheet-0');
     fireEvent.click(screen.getByRole('button', { name: 'Report FBD diagnostic' }));
 
@@ -797,14 +799,14 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     await screen.findByText('FBD:v1:sheet-0');
     fireEvent.click(screen.getByRole('button', { name: 'Next FBD sheet' }));
     expect(await screen.findByText('FBD:v1:sheet-1')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Controller Info' }));
-    expect(screen.getByTitle('Controller Info')).toBeInTheDocument();
-    fireEvent.click(screen.getByTitle('RoutineA'));
+    clickEntry('Controller Controller v1');
+    expect(screen.getByTitle('Controller Metadata')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
     expect(screen.getByText('FBD:v1:sheet-1')).toBeInTheDocument();
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
@@ -824,7 +826,7 @@ describe('L5XViewer refresh behavior', () => {
 
     render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
     await screen.findByText('No Content Selected');
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     await screen.findByText('FBD:v1:sheet-0');
     expect(latestFBDDiagramProps().theme).toMatchObject({
       bgPrimary: 'var(--lv-bg-primary)',
@@ -869,7 +871,7 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('ST:RoutineA@st')).toBeInTheDocument();
 
     clearViewerCache();
@@ -883,8 +885,7 @@ describe('L5XViewer refresh behavior', () => {
 
     const secondView = render(<L5XViewer filePath="/repo/Programs/Other.L5X" />);
     await screen.findByText('No Content Selected');
-    const openButtons = screen.getAllByRole('button', { name: 'Open Routine' });
-    fireEvent.click(openButtons[openButtons.length - 1]);
+    openProgramRoutine();
     expect(await screen.findByText('SFC Visualization Not Supported')).toBeInTheDocument();
     secondView.unmount();
   });

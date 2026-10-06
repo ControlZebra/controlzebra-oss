@@ -162,10 +162,14 @@ even when structured parsing or rendering fails.
 
 ## L5X metadata inspectors
 
-The file viewer's Project Organizer adds a searchable Metadata list for
-controllers, programs, tasks, AOI definitions, datatypes, and modules. It uses
-the pinned package's public navigator for existing content views and an
-app-owned selection list for metadata. The comparison organizer is unchanged.
+The file viewer's Project Organizer uses an app-owned entity tree. Controller,
+program, task, AOI, datatype, and module labels open metadata tabs. Expansion
+arrows work separately; grouping folders only expand or collapse. This replaces
+the separate metadata list and the controller, datatype, and module tables
+previously opened directly from entity labels. Dedicated tags, AOI interface,
+routine, datatype structure, and module configuration views remain accessible
+through child entries or inspector links. Comparison views retain the public
+library navigator.
 
 `metadata-model.ts` maps normalized fields and resolvable references into
 property groups. `MetadataInspector.tsx` renders those groups with shared
@@ -173,14 +177,14 @@ table and button primitives and central theme tokens. Missing values display
 as "Not supplied". Zero and false remain values, program UIDs stay strings,
 dates display in ISO UTC, and task and scan-time units are not inferred.
 Member declarations, task schedules, ports, and connections retain source
-order. The entity list shows at most 25 entries per page, and inspectors show
-at most 50 fields per page.
+order. The organizer virtualizes inventories above 50 visible rows and supports
+finding entries in collapsed branches. Inspectors show at most 50 fields per page.
 
 Metadata tabs use unique source program UIDs when available and entity names
 otherwise. Partial documents with duplicate UIDs keep programs separate by
 name, and ambiguous parent UID references stay as text. Routine links retain
-owner and routine names rather than depending
-on array positions. Reloads resolve each selection against the current
+owner and routine names rather than depending on array positions. Reloads
+resolve each selection against the current
 controller. Removed entities show a missing-entity state with Raw access.
 Existing dedicated tag, datatype, module, AOI interface, and routine views
 remain available.
