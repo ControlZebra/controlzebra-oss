@@ -40,11 +40,20 @@ import {
   type NormalizedDataType,
   type NormalizedAOI,
   type NormalizedModule,
+  type NormalizedController,
 } from 'ladder-visualizer';
 
 // Import local tab components
-import { DataTypeTable, TabBar, useTabs, type TabData } from './l5x';
+import { DataTypeTable, TabBar, useTabs, generateTabId, type TabData } from './l5x';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
+import MetadataInspector from './l5x/MetadataInspector';
+import { metadataTargetId, type MetadataTarget } from './l5x/metadata-model';
+
+function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string }) {
+  return data.programUid !== undefined ? controller.programs.find(program => program.uid === data.programUid)
+    : data.programName !== undefined ? controller.programs.find(program => program.name === data.programName)
+    : controller.programs[data.programIndex];
+}
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
 
@@ -153,10 +162,15 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   // ============================================================================
 
   const handleRoutineSelect = useCallback((programIndex: number, routineIndex: number, routine: NormalizedRoutine) => {
+    const program = controller?.programs[programIndex];
     openTab(
-      { type: 'routine', programIndex, routineIndex },
+      { type: 'routine', programIndex, routineIndex, programName: program?.name, programUid: program?.uid, routineName: routine.name },
       routine.name
     );
+  }, [controller, openTab]);
+
+  const handleMetadataSelect = useCallback((target: MetadataTarget, title: string) => {
+    openTab({ type: 'metadata', target }, title);
   }, [openTab]);
 
   const handleControllerTagsSelect = useCallback(() => {
@@ -199,7 +213,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
   const handleAOIRoutineSelect = useCallback((aoi: NormalizedAOI, routineIndex: number, routine: NormalizedRoutine) => {
     openTab(
-      { type: 'aoi-routine', aoiName: aoi.name, routineIndex },
+      { type: 'aoi-routine', aoiName: aoi.name, routineIndex, routineName: routine.name },
       `${aoi.name}:${routine.name}`
     );
   }, [openTab]);
@@ -223,17 +237,25 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
   const selectedRoutine = useMemo(() => {
     if (activeTabData?.type === 'routine') {
-      return { programIndex: activeTabData.programIndex, routineIndex: activeTabData.routineIndex };
+      if (!controller) return undefined;
+      const program = resolveProgram(controller, activeTabData);
+      if (!program) return undefined;
+      const routineIndex = activeTabData.routineName !== undefined
+        ? program.routines.findIndex(routine => routine.name === activeTabData.routineName) : activeTabData.routineIndex;
+      return routineIndex >= 0 ? { programIndex: controller.programs.indexOf(program), routineIndex } : undefined;
     }
     return undefined;
-  }, [activeTabData]);
+  }, [activeTabData, controller]);
 
   const selectedAOIRoutine = useMemo(() => {
     if (activeTabData?.type === 'aoi-routine') {
-      return { aoiName: activeTabData.aoiName, routineIndex: activeTabData.routineIndex };
+      const aoi = controller?.aois.find(candidate => candidate.name === activeTabData.aoiName);
+      const routineIndex = activeTabData.routineName !== undefined
+        ? aoi?.routines.findIndex(routine => routine.name === activeTabData.routineName) : activeTabData.routineIndex;
+      return routineIndex !== undefined && routineIndex >= 0 ? { aoiName: activeTabData.aoiName, routineIndex } : undefined;
     }
     return undefined;
-  }, [activeTabData]);
+  }, [activeTabData, controller]);
 
   const selectedNavigatorItemId = useMemo(() => {
     if (activeTabData?.type === 'data-type') {
@@ -254,6 +276,12 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     const dataTypes = controller.dataTypeCatalog ?? controller.dataTypes;
 
     switch (tabData.type) {
+      case 'metadata':
+        return <div key={metadataTargetId(tabData.target)} className={containerClass}>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <MetadataInspector controller={controller} target={tabData.target} onOpen={openTab} onShowRaw={onShowRaw} />
+          </div>
+        </div>;
       case 'controller-tags':
         return (
           <div key="controller-tags" className={containerClass}>
@@ -264,10 +292,10 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         );
 
       case 'program-tags': {
-        const program = controller.programs[tabData.programIndex];
+        const program = resolveProgram(controller, tabData);
         const tags = program?.tags ?? [];
         return (
-          <div key={`program-tags-${tabData.programIndex}`} className={containerClass}>
+          <div key={generateTabId(tabData)} className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
               {tags.length > 0 ? (
                 <TagTable tags={tags} dataTypes={dataTypes} />
@@ -348,11 +376,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
       case 'aoi-routine': {
         const aoi = controller.aois.find(a => a.name === tabData.aoiName);
-        const routine = aoi?.routines[tabData.routineIndex];
-        const routineKey = `${normalizedFilePath}:aoi:${tabData.aoiName}:${tabData.routineIndex}`;
+        const routine = tabData.routineName !== undefined ? aoi?.routines.find(item => item.name === tabData.routineName) : aoi?.routines[tabData.routineIndex];
+        const routineKey = `${normalizedFilePath}:aoi:${tabData.aoiName}:${tabData.routineName ?? tabData.routineIndex}`;
         if (aoi && routine) {
           return (
-            <div key={`aoi-routine-${tabData.aoiName}-${tabData.routineIndex}`} className={containerClass}>
+            <div key={generateTabId(tabData)} className={containerClass}>
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
@@ -366,18 +394,19 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={`aoi-routine-${tabData.aoiName}-${tabData.routineIndex}`} className={containerClass}>
+          <div key={generateTabId(tabData)} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">AOI routine not found</p>
           </div>
         );
       }
 
       case 'routine': {
-        const routine = controller.programs[tabData.programIndex]?.routines[tabData.routineIndex];
-        const routineKey = `${normalizedFilePath}:program:${tabData.programIndex}:${tabData.routineIndex}`;
+        const program = resolveProgram(controller, tabData);
+        const routine = tabData.routineName !== undefined ? program?.routines.find(item => item.name === tabData.routineName) : program?.routines[tabData.routineIndex];
+        const routineKey = `${normalizedFilePath}:program:${tabData.programUid ?? tabData.programName ?? tabData.programIndex}:${tabData.routineName ?? tabData.routineIndex}`;
         if (routine) {
           return (
-            <div key={`routine-${tabData.programIndex}-${tabData.routineIndex}`} className={containerClass}>
+            <div key={generateTabId(tabData)} className={containerClass}>
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
@@ -391,17 +420,17 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={`routine-${tabData.programIndex}-${tabData.routineIndex}`} className={containerClass}>
+          <div key={generateTabId(tabData)} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">Routine not found</p>
           </div>
         );
       }
 
       case 'module': {
-        const module = controller.modules.find(m => m.id === tabData.moduleId);
+        const module = controller.modules.find(m => m.name === tabData.moduleName);
         if (module) {
           return (
-            <div key={`module-${tabData.moduleId}`} className={containerClass}>
+            <div key={generateTabId(tabData)} className={containerClass}>
               <div className="flex-1 overflow-auto p-4">
                 <ModuleInfoTable module={module} />
               </div>
@@ -409,7 +438,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={`module-${tabData.moduleId}`} className={containerClass}>
+          <div key={generateTabId(tabData)} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">Module not found</p>
           </div>
         );
@@ -418,7 +447,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
       default:
         return null;
     }
-  }, [controller, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath]);
+  }, [controller, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath, openTab, onShowRaw]);
 
   // ============================================================================
   // Main Content Rendering
@@ -512,6 +541,8 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
               onAOIParametersSelect={handleAOIParametersSelect}
               onAOILocalTagsSelect={handleAOILocalTagsSelect}
               onAOIRoutineSelect={handleAOIRoutineSelect}
+              onMetadataSelect={handleMetadataSelect}
+              selectedMetadataId={activeTabData?.type === 'metadata' ? metadataTargetId(activeTabData.target) : undefined}
               className="flex-1"
             />
           </div>

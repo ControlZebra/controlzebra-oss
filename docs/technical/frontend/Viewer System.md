@@ -160,6 +160,29 @@ LFS content. The wrapper owns diff reload actions and working-file subscriptions
 The mode controls sit outside the content error boundaries, making Raw accessible
 even when structured parsing or rendering fails.
 
+## L5X metadata inspectors
+
+The file viewer's Project Organizer adds a searchable Metadata list for
+controllers, programs, tasks, AOI definitions, datatypes, and modules. It uses
+the pinned package's public navigator for existing content views and an
+app-owned selection list for metadata. The comparison organizer is unchanged.
+
+`metadata-model.ts` maps normalized fields and resolvable references into
+property groups. `MetadataInspector.tsx` renders those groups with shared
+table and button primitives and central theme tokens. Missing values display
+as "Not supplied". Zero and false remain values, program UIDs stay strings,
+dates display in ISO UTC, and task and scan-time units are not inferred.
+Member declarations, task schedules, ports, and connections retain source
+order. The entity list shows at most 25 entries per page, and inspectors show
+at most 50 fields per page.
+
+Metadata tabs use source program UIDs when available and entity names
+otherwise. Routine links retain owner and routine names rather than depending
+on array positions. Reloads resolve each selection against the current
+controller. Removed entities show a missing-entity state with Raw access.
+Existing dedicated tag, datatype, module, AOI interface, and routine views
+remain available.
+
 ## Read-only text surface
 
 `TextViewer` owns backend reads, the existing 10 MB size limit, caching and the

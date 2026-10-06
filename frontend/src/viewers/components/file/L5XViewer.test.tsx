@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAllTabStates } from './l5x/useTabs';
@@ -343,6 +343,93 @@ describe('L5XViewer refresh behavior', () => {
       data: makeController(content),
       errors: [],
     }));
+  });
+
+  function metadataController(version: string) {
+    const base = makeController(version, { includeDataTypes: true, includeAOIFBD: true });
+    return { ...base,
+      programs: [{ ...base.programs[0], uid: '18446744073709551615', description: `Description ${version}`,
+        mainRoutineName: 'RoutineA', executingTaskName: 'Cycle', parameters: [], localTags: [] }],
+      tasks: [{ name: 'Cycle', type: 'Periodic', rate: 0, scheduledProgramNames: ['MainProgram'] }],
+      modules: [{ name: 'Rack', id: 0, ports: [], connections: [], inhibited: false, majorFault: false, safetyEnabled: false }],
+    };
+  }
+
+  it('opens all six metadata families from the organizer without duplicate tabs', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    const labels = ['Controller: Controller v1', 'Program: MainProgram', 'Task: Cycle', 'AOI: MixerAOI',
+      'Data type: PumpState', 'Module: Rack'];
+    for (const label of labels) {
+      fireEvent.click(screen.getByRole('button', { name: `Inspect ${label}` }));
+      expect(screen.getByRole('button', { name: `Inspect ${label}` })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getAllByRole('heading', { level: 2 }).some(heading => heading.textContent?.includes('Metadata'))).toBe(true);
+    }
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    const taskTab = screen.getByRole('tab', { name: /Task: Cycle Metadata/ });
+    taskTab.focus();
+    fireEvent.keyDown(taskTab, { key: 'Enter' });
+    expect(screen.getByRole('heading', { name: 'Cycle Metadata' })).toBeVisible();
+  });
+
+  it('keeps metadata, routine links and selection attached to their owner after reordering and removal', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      if (version !== 'v1') {
+        data.programs.unshift({ ...data.programs[0], uid: '1', name: 'Other',
+          routines: [makeRoutine('OtherRoutine', 'RLL', version)] });
+        if (version === 'v3') data.programs.pop();
+      }
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    expect(screen.getByText('RLL:RoutineA@v1')).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('RLL:RoutineA@v2')).toBeVisible();
+    expect(screen.getByTestId('selected-routine')).toHaveTextContent('1:0');
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    expect(screen.getByText('Description v2')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Program: MainProgram Metadata/ }));
+    expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
+  });
+
+  it('opens existing AOI, datatype and module views from metadata links', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect AOI: MixerAOI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Parameters: 0' }));
+    expect(screen.getByText('AOI Parameters')).toBeVisible();
+    expect(screen.getByRole('tab', { name: /MixerAOI Parameters/ })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Data type: PumpState' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Member structure: 1' }));
+    expect(screen.getByRole('heading', { name: 'PumpState' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Module: Rack' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Module configuration: Rack' }));
+    expect(screen.getByText('Module Info')).toBeVisible();
+  });
+
+  it('bounds a large organizer inventory and finds an entity beyond the first page', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    const data = metadataController('v1');
+    data.tasks = Array.from({ length: 70 }, (_, index) => ({ name: `Task${index}`, type: 'Periodic', rate: index, scheduledProgramNames: [] }));
+    controllerResultMock.mockReturnValue({ success: true, data });
+    await renderLoadedViewer();
+    const nav = screen.getByRole('navigation', { name: 'Entity metadata' });
+    expect(within(nav).getAllByRole('button')).toHaveLength(25);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Find metadata entity' }), { target: { value: 'Task69' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Task: Task69' }));
+    expect(screen.getByRole('heading', { name: 'Task69 Metadata' })).toBeVisible();
   });
 
   it('switches to raw text without mixing parsed caches and preserves structured selection', async () => {

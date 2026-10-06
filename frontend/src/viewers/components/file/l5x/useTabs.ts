@@ -6,6 +6,7 @@
  * tabs across view switches.
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { metadataTargetId, type MetadataTarget } from './metadata-model';
 
 // ============================================================================
 // TAB TYPES AND INTERFACES
@@ -20,6 +21,7 @@ export type TabType =
   | 'aoi-parameters' 
   | 'aoi-local-tags' 
   | 'aoi-routine'
+  | 'metadata'
   | 'module';
 
 export interface Tab {
@@ -30,14 +32,15 @@ export interface Tab {
 }
 
 export type TabData = 
-  | { type: 'routine'; programIndex: number; routineIndex: number }
+  | { type: 'routine'; programIndex: number; routineIndex: number; programName?: string; programUid?: string; routineName?: string }
   | { type: 'controller-tags' }
   | { type: 'program-tags'; programIndex: number; programName: string }
   | { type: 'controller-info' }
   | { type: 'data-type'; dataTypeName: string }
   | { type: 'aoi-parameters'; aoiName: string }
   | { type: 'aoi-local-tags'; aoiName: string }
-  | { type: 'aoi-routine'; aoiName: string; routineIndex: number }
+  | { type: 'aoi-routine'; aoiName: string; routineIndex: number; routineName?: string }
+  | { type: 'metadata'; target: MetadataTarget }
   | { type: 'module'; moduleId: number; moduleName: string };
 
 // ============================================================================
@@ -81,11 +84,12 @@ export function clearAllTabStates(): void {
 export function generateTabId(data: TabData): string {
   switch (data.type) {
     case 'routine':
+      if (data.programName && data.routineName) return JSON.stringify(['routine', data.programUid ?? data.programName, data.routineName]);
       return `routine-${data.programIndex}-${data.routineIndex}`;
     case 'controller-tags':
       return 'controller-tags';
     case 'program-tags':
-      return `program-tags-${data.programIndex}`;
+      return `program-tags-${data.programName}`;
     case 'controller-info':
       return 'controller-info';
     case 'data-type':
@@ -95,9 +99,12 @@ export function generateTabId(data: TabData): string {
     case 'aoi-local-tags':
       return `aoi-local-tags-${data.aoiName}`;
     case 'aoi-routine':
+      if (data.routineName) return JSON.stringify(['aoi-routine', data.aoiName, data.routineName]);
       return `aoi-routine-${data.aoiName}-${data.routineIndex}`;
     case 'module':
-      return `module-${data.moduleId}`;
+      return `module-${data.moduleName}`;
+    case 'metadata':
+      return metadataTargetId(data.target);
   }
 }
 
