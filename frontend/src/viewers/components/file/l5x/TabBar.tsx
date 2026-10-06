@@ -4,6 +4,7 @@
  */
 import { memo, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
+import { ICON_SIZES } from '../../../../shared/constants';
 
 export interface TabBarTab {
   id: string;
@@ -38,6 +39,14 @@ const TabItem = memo(function TabItem({
 
   return (
     <div
+      role="tab"
+      tabIndex={0}
+      aria-selected={isActive}
+      onKeyDown={event => {
+        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault(); onSelect();
+        }
+      }}
       className={`
         flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none
         border-r border-theme-default text-xs max-w-[180px]
@@ -62,7 +71,7 @@ const TabItem = memo(function TabItem({
         onClick={handleCloseClick}
         title="Close tab"
       >
-        <X size={12} className="text-theme-secondary" />
+        <X size={ICON_SIZES.xs} className="text-theme-secondary" />
       </button>
     </div>
   );
@@ -97,7 +106,7 @@ export const TabBar = memo(function TabBar({
   }
 
   return (
-    <div className="flex items-end bg-theme-elevated border-b border-theme-default overflow-x-auto scrollbar-thin">
+    <div role="tablist" aria-label="L5X views" className="flex items-end bg-theme-elevated border-b border-theme-default overflow-x-auto scrollbar-thin">
       {tabs.map((tab) => (
         <TabItem
           key={tab.id}

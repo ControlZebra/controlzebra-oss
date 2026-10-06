@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { clearAllTabStates } from './l5x/useTabs';
+import { clearAllTabStates, getCachedTabState } from './l5x/useTabs';
 import { clearViewerCache, getCachedContent } from '../../registry/viewer-cache';
 import L5XViewer from './L5XViewer';
 import L5XFileViewer from './L5XFileViewer';
@@ -116,63 +116,7 @@ vi.mock('ladder-visualizer', () => {
       <div>{`RLL:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
     FBDDiagram: fbdDiagramMock,
-    ProgramNavigator: ({
-      controller,
-      programs,
-      selectedRoutine,
-      onRoutineSelect,
-      onControllerTagsSelect,
-      onProgramTagsSelect,
-      onControllerInfoSelect,
-      onDataTypeSelect,
-      onAOIRoutineSelect,
-    }: {
-      controller: {
-        aois: Array<{ name: string; routines: Array<{ name: string; versionTag?: string }> }>;
-        dataTypeCatalog?: Array<{ name: string }>;
-        dataTypes: Array<{ name: string }>;
-      };
-      programs: Array<{ routines: Array<{ name: string; versionTag?: string }> }>;
-      selectedRoutine?: { programIndex: number; routineIndex: number };
-      onRoutineSelect: (programIndex: number, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
-      onControllerTagsSelect: () => void;
-      onProgramTagsSelect: (programIndex: number) => void;
-      onControllerInfoSelect: () => void;
-      onDataTypeSelect: (dataType: { name: string }) => void;
-      onAOIRoutineSelect: (aoi: { name: string; routines: Array<{ name: string; versionTag?: string }> }, routineIndex: number, routine: { name: string; versionTag?: string }) => void;
-    }) => (
-      <div>
-        <div data-testid="selected-routine">
-          {selectedRoutine ? `${selectedRoutine.programIndex}:${selectedRoutine.routineIndex}` : 'none'}
-        </div>
-        <button type="button" onClick={() => onRoutineSelect(0, 0, programs[0]?.routines[0])}>
-          Open Routine
-        </button>
-        <button type="button" onClick={onControllerTagsSelect}>Open Controller Tags</button>
-        <button type="button" onClick={() => onProgramTagsSelect(0)}>Open Program Tags</button>
-        <button type="button" onClick={onControllerInfoSelect}>Open Controller Info</button>
-        {(controller.dataTypeCatalog ?? controller.dataTypes)[0] && (
-          <button
-            type="button"
-            onClick={() => onDataTypeSelect((controller.dataTypeCatalog ?? controller.dataTypes)[0])}
-          >
-            Open Data Type
-          </button>
-        )}
-        {controller.aois[0]?.routines[0] && (
-          <button
-            type="button"
-            onClick={() => onAOIRoutineSelect(
-              controller.aois[0],
-              0,
-              controller.aois[0].routines[0],
-            )}
-          >
-            Open AOI Routine
-          </button>
-        )}
-      </div>
-    ),
+    ProgramNavigator: () => <div>Library comparison tree</div>,
     ControllerInfo: () => <div>Controller Info</div>,
     TagTable: tagTableMock,
     StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
@@ -317,6 +261,33 @@ async function renderLoadedViewer(filePath = '/repo/Programs/Main.L5X') {
   await screen.findByText('No Content Selected');
 }
 
+function organizer() {
+  const navigators = screen.getAllByRole('navigation', { name: 'Project entries' });
+  return within(navigators[navigators.length - 1]);
+}
+
+function mainTabs() {
+  return within(screen.getByRole('tablist', { name: 'L5X views' }));
+}
+
+function dataTypeView(name: string) {
+  return within(screen.getByRole('tablist', { name: `${name} views` }).parentElement!);
+}
+
+function clickEntry(label: string) {
+  fireEvent.click(organizer().getByRole('button', { name: label }));
+}
+
+function expandEntry(label: string) {
+  const arrow = organizer().queryByRole('button', { name: `Expand ${label}` });
+  if (arrow) fireEvent.click(arrow);
+}
+
+function openProgramRoutine(program = 'MainProgram') {
+  expandEntry(program);
+  clickEntry('RoutineA');
+}
+
 function latestFBDDiagramProps() {
   const calls = fbdDiagramMock.mock.calls;
   return calls[calls.length - 1]?.[0];
@@ -345,10 +316,337 @@ describe('L5XViewer refresh behavior', () => {
     }));
   });
 
+  function metadataController(version: string) {
+    const base = makeController(version, { includeDataTypes: true, includeAOIFBD: true });
+    return { ...base,
+      programs: [{ ...base.programs[0], uid: '18446744073709551615', description: `Description ${version}`,
+        mainRoutineName: 'RoutineA', executingTaskName: 'Cycle', parameters: [], localTags: [] }],
+      tasks: [{ name: 'Cycle', type: 'Periodic', rate: 0, scheduledProgramNames: ['MainProgram'] }],
+      modules: [{ name: 'Rack', id: 0, ports: [], connections: [], inhibited: false, majorFault: false, safetyEnabled: false }],
+    };
+  }
+
+  it('opens six entity families from the organizer, defaulting datatypes to table without duplicate tabs', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    expandEntry('User Defined');
+    const labels = ['Controller Controller v1', 'MainProgram', 'Cycle', 'MixerAOI', 'PumpState', 'Rack'];
+    for (const label of labels) {
+      clickEntry(label);
+      expect(organizer().getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');
+      if (label === 'PumpState') expect(dataTypeView(label).getByRole('tab', { name: 'table' })).toHaveAttribute('aria-selected', 'true');
+      else expect(screen.getAllByRole('heading', { level: 2 }).some(heading => heading.textContent?.includes('Metadata'))).toBe(true);
+    }
+    expect(screen.queryByText('Metadata', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('Controller Info')).not.toBeInTheDocument();
+    expect(screen.queryByText('Module Info')).not.toBeInTheDocument();
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(6);
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(6);
+    const taskTab = screen.getByRole('tab', { name: /Cycle Metadata/ });
+    taskTab.focus();
+    fireEvent.keyDown(taskTab, { key: 'Enter' });
+    expect(screen.getByRole('heading', { name: 'Cycle Metadata' })).toBeVisible();
+  });
+
+  it('keeps metadata, routine links and selection attached to their owner after reordering and removal', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      if (version !== 'v1') {
+        data.programs.unshift({ ...data.programs[0], uid: '1', name: 'Other',
+          routines: [makeRoutine('OtherRoutine', 'RLL', version)] });
+        if (version === 'v3') data.programs.pop();
+      }
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    expandEntry('MainProgram');
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    expect(screen.getByText('RLL:RoutineA@v1')).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('RLL:RoutineA@v2')).toBeVisible();
+    expandEntry('MainProgram');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
+    expect(screen.getByText('Description v2')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(2);
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /MainProgram Metadata/ }));
+    expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
+  });
+
+  it('opens existing AOI, datatype and module views from metadata links', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'MixerAOI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Parameters: 0' }));
+    expect(screen.getByText('AOI Parameters')).toBeVisible();
+    expect(screen.getByRole('tab', { name: /MixerAOI Parameters/ })).toBeVisible();
+    expandEntry('User Defined');
+    fireEvent.click(screen.getByRole('button', { name: 'PumpState' }));
+    fireEvent.click(dataTypeView('PumpState').getByRole('tab', { name: 'other' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Member structure: 1' }));
+    expect(screen.getByRole('heading', { name: 'PumpState' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Rack' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Module configuration: Rack' }));
+    expect(screen.getByText('Module Info')).toBeVisible();
+  });
+
+  it('retains program-tag ownership and deduplication after UID-preserving rename and name reuse', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      data.programs[0].tags = [{ name: 'OriginalTag', dataType: 'BOOL' }];
+      if (version !== 'v1') {
+        data.programs[0].name = 'Renamed';
+        data.programs.unshift({ ...data.programs[0], name: 'MainProgram', uid: '1',
+          tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }] });
+      }
+      if (version === 'v3') data.programs.pop();
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Renamed' })).toBeInTheDocument());
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'Renamed' }));
+    expect(screen.getByRole('tab', { name: /Renamed Metadata/ })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(screen.getByRole('tab', { name: /Renamed Tags/ })).toBeVisible();
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(2);
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
+    expect(screen.queryByText('No program-specific tags defined')).not.toBeInTheDocument();
+  });
+
+  it('keeps duplicate-UID inspectors and linked views on the selected program through reorder and removal', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const programs = ['DuplicateA', 'DuplicateB'].map(name => ({ ...data.programs[0], name, uid: '10',
+        tags: [{ name: `${name}Tag`, dataType: 'BOOL' }], routines: [makeRoutine('RoutineA', 'RLL', `${name}-${version}`)] }));
+      data.programs = version === 'v1' ? programs.reverse() : version === 'v3' ? programs.slice(0, 1) : programs;
+      return { success: true, status: 'partial', data };
+    });
+    await renderLoadedViewer();
+    expandEntry('DuplicateB');
+    clickEntry('Program Tags');
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
+    openProgramRoutine('DuplicateB');
+    expect(screen.getByText('RLL:RoutineA@DuplicateB-v1')).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('RLL:RoutineA@DuplicateB-v2')).toBeVisible();
+    expandEntry('DuplicateB');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
+    for (const name of ['DuplicateA', 'DuplicateB']) {
+      fireEvent.click(screen.getByRole('button', { name: name }));
+      expect(screen.getByRole('heading', { name: `${name} Metadata` })).toBeVisible();
+      fireEvent.click(within(screen.getByRole('region', { name: `${name} Metadata` })).getByRole('button', { name: 'Open Main routine: RoutineA' }));
+      expect(screen.getByText(`RLL:RoutineA@${name}-v2`)).toBeVisible();
+    }
+    expect(screen.getAllByRole('tab', { name: /RoutineA/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'DuplicateB' }));
+    fireEvent.click(within(screen.getByRole('region', { name: 'DuplicateB Metadata' })).getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(5);
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
+    fireEvent.click(screen.getAllByRole('tab', { name: /RoutineA/ })[0]);
+    expect(screen.getByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /DuplicateB Metadata/ }));
+    expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
+  });
+
+  it('never redirects a previously unique UID after it collides and the original program disappears', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const original = { ...data.programs[0], name: 'Original', uid: '10',
+        tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] };
+      const replacement = { ...original, name: 'Replacement', tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }] };
+      data.programs = version === 'v1' ? [original] : version === 'v2' ? [replacement, original] : [replacement];
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    clickEntry('Original');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    clickEntry('Original');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Replacement' });
+    clickEntry('Original');
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(3);
+    expect(screen.getByRole('heading', { name: 'Original Metadata' })).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This entity is no longer in the file/)).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
+    expect(screen.getByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Original Tags/ }));
+    expect(screen.getByText(/This program is no longer in the file/)).toBeVisible();
+  });
+
+  it.each([false, true])('retains an observed unique rename before a later UID collision, cached remount: %s', async remount => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const original = { ...data.programs[0], name: version === 'v1' ? 'Original' : 'Renamed', uid: '10',
+        description: 'Owned metadata', tags: [{ name: 'OwnedTag', dataType: 'BOOL' }],
+        routines: [makeRoutine('RoutineA', 'RLL', `owned-${version}`)] };
+      data.programs = version === 'v3' ? [{ ...original, name: 'Original', description: 'Replacement metadata',
+        tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }], routines: [makeRoutine('RoutineA', 'RLL', 'replacement')] }, original] : [original];
+      return { success: true, data };
+    });
+    const view = render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('No Content Selected');
+    clickEntry('Original');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    clickEntry('Original');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Renamed' });
+    expect(screen.getByRole('tab', { name: /Renamed Metadata/ })).toBeVisible();
+    if (remount) {
+      view.unmount();
+      render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+      await screen.findByRole('button', { name: 'Renamed' });
+    }
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Original' });
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OwnedTag', dataType: 'BOOL' }] }), expect.anything());
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
+    expect(screen.getByText('RLL:RoutineA@owned-v3')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Renamed Metadata/ }));
+    expect(screen.getByText('Owned metadata')).toBeVisible();
+    expect(organizer().getByRole('button', { name: 'Renamed' })).toHaveAttribute('aria-pressed', 'true');
+    clickEntry('Renamed');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(3);
+  });
+
+  it('retains the source UID when reopened ambiguous views outlive their program and its name is reused', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const original = { ...data.programs[0], name: 'Original', uid: version === 'v3' ? '20' : '10',
+        tags: [{ name: version === 'v3' ? 'ReplacementTag' : 'OriginalTag', dataType: 'BOOL' }],
+        routines: [makeRoutine('RoutineA', 'RLL', version)] };
+      data.programs = version === 'v1' ? [original] : [original, { ...original, name: 'Duplicate', uid: '10' }];
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    const openOriginalViews = () => {
+      clickEntry('Original');
+      fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+      clickEntry('Original');
+      fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    };
+    openOriginalViews();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Duplicate' });
+    openOriginalViews();
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(3);
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
+    expect(screen.getByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Original Metadata/ }));
+    expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
+    openOriginalViews();
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(6);
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }] }), expect.anything());
+  });
+
+  it('deduplicates surviving duplicate-UID views after refresh and a cached viewer remount', async () => {
+    queueSuccessfulRead(['v1', 'v2']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      data.programs = ['DuplicateB', ...(version === 'v1' ? ['DuplicateA'] : [])]
+        .map(name => ({ ...data.programs[0], name, uid: '10', tags: [{ name: `${name}Tag`, dataType: 'BOOL' }] }));
+      return { success: true, data };
+    });
+    const view = render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('No Content Selected');
+    clickEntry('DuplicateB');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    clickEntry('DuplicateB');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'DuplicateB' });
+    view.unmount();
+    render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByRole('button', { name: 'DuplicateB' });
+    clickEntry('DuplicateB');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    clickEntry('DuplicateB');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(3);
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
+  });
+
+  it.each(['Enter', ' '])('does not cancel native close-button activation with %s', async key => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'MainProgram' }));
+    const tab = screen.getByRole('tab', { name: /MainProgram Metadata/ });
+    const close = within(tab).getByRole('button', { name: 'Close tab' });
+    close.focus();
+    expect(fireEvent.keyDown(close, { key })).toBe(true);
+    fireEvent.click(close);
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('virtualizes a large organizer and finds an entry beyond the viewport', async () => {
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(280);
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(256);
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    const data = metadataController('v1');
+    data.tasks = Array.from({ length: 70 }, (_, index) => ({ name: `Task${index}`, type: 'Periodic', rate: index, scheduledProgramNames: [] }));
+    controllerResultMock.mockReturnValue({ success: true, data });
+    await renderLoadedViewer();
+    const nav = screen.getByRole('navigation', { name: 'Project entries' });
+    expect(within(nav).getAllByRole('button').length).toBeLessThan(50);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Find organizer entry' }), { target: { value: 'Task69' } });
+    clickEntry('Task69');
+    expect(screen.getByRole('heading', { name: 'Task69 Metadata' })).toBeVisible();
+    height.mockRestore();
+    width.mockRestore();
+  });
+
+  it('opens metadata from labels while arrows and group labels only change expansion', async () => {
+    queueSuccessfulRead(['v1']);
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    clickEntry('MainProgram');
+    expect(screen.getByRole('heading', { name: 'MainProgram Metadata' })).toBeVisible();
+    expect(organizer().queryByRole('button', { name: 'Program Tags' })).not.toBeInTheDocument();
+    expandEntry('MainProgram');
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(1);
+    clickEntry('Program Tags');
+    expect(screen.getByText('No program-specific tags defined')).toBeVisible();
+    fireEvent.click(organizer().getByRole('button', { name: 'Collapse MainProgram' }));
+    expect(screen.getByRole('tab', { name: /MainProgram Tags/ })).toHaveAttribute('aria-selected', 'true');
+    clickEntry('Tasks');
+    expect(organizer().queryByRole('button', { name: 'MainProgram' })).not.toBeInTheDocument();
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(2);
+    clickEntry('Tasks');
+    expect(organizer().getByRole('button', { name: 'MainProgram' })).toBeVisible();
+  });
+
   it('switches to raw text without mixing parsed caches and preserves structured selection', async () => {
     readTextFileMock.mockResolvedValue({ success: true, content: '<Controller />' });
     const view = render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Open Routine' }));
+    await screen.findByRole('button', { name: 'MainProgram' });
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@<Controller />')).toBeVisible();
     expect(screen.getAllByTestId('viewer-header')).toHaveLength(1);
 
@@ -397,7 +695,7 @@ describe('L5XViewer refresh behavior', () => {
       warnings: [{ message: 'Unsupported declaration dimensions.', location: { line: 12, column: 4, path: '/Controller[1]/Tags[1]' } }] });
     render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
     await screen.findByText('Some content is available only in Raw');
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@partial')).toBeVisible();
     fireEvent.click(screen.getByText('1 parser notice'));
     expect(screen.getByText('Line 12, column 4, /Controller[1]/Tags[1]')).toBeVisible();
@@ -409,7 +707,7 @@ describe('L5XViewer refresh behavior', () => {
   it.each(['success', 'error'])('ignores a stale %s from an earlier reload of the same file', async outcome => {
     queueSuccessfulRead(['v1']);
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     let resolveRead!: (result: { success: boolean; content: string }) => void;
     let rejectRead!: (error: Error) => void;
     readTextFileMock.mockImplementationOnce(() => new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; }))
@@ -471,14 +769,15 @@ describe('L5XViewer refresh behavior', () => {
 
     await renderLoadedViewer();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@v1')).toBeInTheDocument();
-    expect(screen.getByTestId('selected-routine')).toHaveTextContent('0:0');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
 
     expect(await screen.findByText('RLL:RoutineA@v2')).toBeInTheDocument();
-    expect(screen.getByTestId('selected-routine')).toHaveTextContent('0:0');
+    expandEntry('MainProgram');
+    expect(organizer().getByRole('button', { name: 'RoutineA' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('opens catalog data types and follows nested type selections in tabs', async () => {
@@ -490,13 +789,152 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Data Type' }));
-
+    expandEntry('User Defined');
+    clickEntry('PumpState');
     expect(await screen.findByRole('heading', { name: 'PumpState' })).toBeInTheDocument();
-    expect(screen.getByText('Current pump operating state.')).toBeInTheDocument();
+    expect(screen.getAllByText('Current pump operating state.')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Open DINT' }));
     expect(await screen.findByRole('heading', { name: 'DINT' })).toBeInTheDocument();
     expect(screen.getByText('This is an atomic data type with no member structure.')).toBeInTheDocument();
+  });
+
+  it('restores the main-branch member table and switches to complete metadata within one datatype tab', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    const view = dataTypeView('PumpState');
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(1);
+    expect(mainTabs().getByRole('tab', { name: /PumpState/ })).toHaveAttribute('title', 'PumpState');
+    expect(view.getByRole('tab', { name: 'table' })).toHaveAttribute('aria-selected', 'true');
+    expect(view.getAllByRole('columnheader').map(header => header.textContent)).toEqual(['Name', 'Data Type', 'Description']);
+    expect(view.getByRole('row', { name: 'Mode DINT State code.' })).toBeInTheDocument();
+    fireEvent.click(view.getByRole('tab', { name: 'other' }));
+    expect(view.getByRole('heading', { name: 'PumpState Metadata' })).toBeVisible();
+    expect(view.getByRole('row', { name: 'Category UserDefined' })).toBeVisible();
+    expect(view.getByRole('row', { name: 'Dimensions Scalar' })).toBeVisible();
+    fireEvent.click(view.getByRole('button', { name: 'Open Member structure: 1' }));
+    expect(view.getByRole('tab', { name: 'table' })).toHaveAttribute('aria-selected', 'true');
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(1);
+  });
+
+  it('retains datatype view selection through navigation, refresh and cached remount, then resets after closing', async () => {
+    queueSuccessfulRead(['v1', 'v2']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      data.dataTypeCatalog[0].description = `Description ${version}`;
+      return { success: true, data };
+    });
+    const viewer = render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('No Content Selected');
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    fireEvent.click(dataTypeView('PumpState').getByRole('tab', { name: 'other' }));
+    clickEntry('Controller Controller v1');
+    clickEntry('PumpState');
+    expect(dataTypeView('PumpState').getByRole('tab', { name: 'other' })).toHaveAttribute('aria-selected', 'true');
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByRole('row', { name: 'Description Description v2' })).toBeVisible();
+    expect(dataTypeView('PumpState').getByRole('tab', { name: 'other' })).toHaveAttribute('aria-selected', 'true');
+    viewer.unmount();
+    render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByRole('tablist', { name: 'PumpState views' });
+    expect(dataTypeView('PumpState').getByRole('tab', { name: 'other' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(within(mainTabs().getByRole('tab', { name: /PumpState/ })).getByRole('button', { name: 'Close tab' }));
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    expect(dataTypeView('PumpState').getByRole('tab', { name: 'table' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('supports arrow, Home and End keys for datatype tabs without creating main tabs', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    const view = dataTypeView('PumpState');
+    const table = view.getByRole('tab', { name: 'table' });
+    const other = view.getByRole('tab', { name: 'other' });
+    table.focus();
+    fireEvent.keyDown(table, { key: 'ArrowRight' });
+    expect(other).toHaveFocus();
+    expect(other).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(other, { key: 'Home' });
+    expect(table).toHaveFocus();
+    expect(table).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(table, { key: 'End' });
+    expect(other).toHaveFocus();
+    fireEvent.keyDown(other, { key: 'ArrowLeft' });
+    expect(table).toHaveFocus();
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(1);
+  });
+
+  it('uses table and other for every datatype category, preserving atomic and unresolved empty states', async () => {
+    const categories = [
+      ['UserDefined', 'User Defined'], ['String', 'Strings'], ['AddOnDefined', 'Add-On Defined'],
+      ['Predefined', 'Predefined'], ['ModuleDefined', 'Module Defined'],
+    ];
+    const data = metadataController('v1');
+    const template = data.dataTypeCatalog[0];
+    data.dataTypeCatalog = categories.map(([category]) => ({ ...template, name: `${category}Type`, category,
+      resolution: category === 'Predefined' ? 'Atomic' : category === 'ModuleDefined' ? 'Unresolved' : 'Declared', members: [] }));
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data });
+    await renderLoadedViewer();
+    for (const [category, label] of categories) {
+      expandEntry(label);
+      clickEntry(`${category}Type`);
+      const view = dataTypeView(`${category}Type`);
+      expect(view.getByRole('tab', { name: 'table' })).toHaveAttribute('aria-selected', 'true');
+      if (category === 'Predefined') expect(view.getByText('This is an atomic data type with no member structure.')).toBeVisible();
+      else if (category === 'ModuleDefined') expect(view.getByText(/its member structure is not included in the L5X export/)).toBeVisible();
+      else expect(view.getByText('No members are defined for this data type.')).toBeVisible();
+      fireEvent.click(view.getByRole('tab', { name: 'other' }));
+      expect(view.getByRole('row', { name: `Category ${category}` })).toBeVisible();
+    }
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(categories.length);
+  });
+
+  it('shows a removed datatype safely after refresh without resetting its selected view', async () => {
+    queueSuccessfulRead(['v1', 'v2']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      if (version === 'v2') data.dataTypeCatalog.shift();
+      return { success: true, data };
+    });
+    const onShowRaw = vi.fn();
+    render(<L5XViewer filePath="/repo/Programs/Main.L5X" onShowRaw={onShowRaw} />);
+    await screen.findByText('No Content Selected');
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    fireEvent.click(dataTypeView('PumpState').getByRole('tab', { name: 'other' }));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This data type is no longer in the file/)).toBeVisible();
+    fireEvent.click(within(screen.getByRole('region', { name: 'Missing data type' })).getByRole('button', { name: 'View Raw' }));
+    expect(onShowRaw).toHaveBeenCalledOnce();
+    expect(getCachedTabState('/repo/Programs/Main.L5X')?.tabs[0].data).toMatchObject({ type: 'data-type', view: 'other' });
+  });
+
+  it('merges legacy metadata and member-table cache entries into the active datatype tab', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    const viewer = render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByText('No Content Selected');
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    viewer.unmount();
+    const cached = getCachedTabState('/repo/Programs/Main.L5X')!;
+    cached.tabs.push({ id: 'legacy-pump-metadata', type: 'metadata', title: 'PumpState Metadata',
+      data: { type: 'metadata', target: { kind: 'data-type', name: 'PumpState' } } });
+    cached.activeTabId = 'legacy-pump-metadata';
+    render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
+    await screen.findByRole('tablist', { name: 'PumpState views' });
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(1);
+    expect(dataTypeView('PumpState').getByRole('tab', { name: 'other' })).toHaveAttribute('aria-selected', 'true');
+    expandEntry('User Defined');
+    clickEntry('PumpState');
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(1);
   });
 
   it('supplies the complete data type catalog to controller and program tag tables', async () => {
@@ -507,14 +945,15 @@ describe('L5XViewer refresh behavior', () => {
     controllerResultMock.mockReturnValue({ success: true, data: controller, errors: [] });
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Controller Tags' }));
+    clickEntry('Controller Tags');
 
     expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({
       tags: controller.tags,
       dataTypes: controller.dataTypeCatalog,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Program Tags' }));
+    expandEntry('MainProgram');
+    clickEntry('Program Tags');
     expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({
       tags: controller.programs[0].tags,
       dataTypes: controller.dataTypeCatalog,
@@ -538,7 +977,7 @@ describe('L5XViewer refresh behavior', () => {
 
     await renderLoadedViewer();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@v1')).toBeInTheDocument();
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
@@ -555,7 +994,7 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
 
     expect(await screen.findByText('FBD:v1:sheet-0')).toBeInTheDocument();
     expect(screen.queryByText(/FBD.*not yet supported/i)).not.toBeInTheDocument();
@@ -588,7 +1027,9 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open AOI Routine' }));
+    expandEntry('MixerAOI');
+    expandEntry('Routines');
+    clickEntry('Logic');
 
     expect(await screen.findByText('FBD:AOI-v1:sheet-0')).toBeInTheDocument();
     expect(latestFBDDiagramProps()).toMatchObject({
@@ -612,7 +1053,7 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     await screen.findByText('FBD:v1:sheet-0');
     fireEvent.click(screen.getByRole('button', { name: 'Report FBD diagnostic' }));
 
@@ -631,14 +1072,14 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     await screen.findByText('FBD:v1:sheet-0');
     fireEvent.click(screen.getByRole('button', { name: 'Next FBD sheet' }));
     expect(await screen.findByText('FBD:v1:sheet-1')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Controller Info' }));
-    expect(screen.getByTitle('Controller Info')).toBeInTheDocument();
-    fireEvent.click(screen.getByTitle('RoutineA'));
+    clickEntry('Controller Controller v1');
+    expect(screen.getByTitle('Controller Metadata')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
     expect(screen.getByText('FBD:v1:sheet-1')).toBeInTheDocument();
 
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
@@ -646,6 +1087,35 @@ describe('L5XViewer refresh behavior', () => {
     expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
       controller: { name: 'Controller v2' },
     });
+  });
+
+  it('keeps FBD sheets per tab when an owner UID becomes ambiguous and its view is reopened', async () => {
+    queueSuccessfulRead(['v1', 'v2']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      data.programs = ['DuplicateB', ...(version === 'v2' ? ['DuplicateA'] : [])].map(name => ({
+        ...data.programs[0], name, uid: '10', routines: [makeRoutine('RoutineA', 'FBD', `${name}-${version}`)],
+      }));
+      return { success: true, data };
+    });
+    const openRoutine = (name: string) => {
+      clickEntry(name);
+      fireEvent.click(within(screen.getByRole('region', { name: `${name} Metadata` })).getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    };
+    await renderLoadedViewer();
+    openRoutine('DuplicateB');
+    fireEvent.click(await screen.findByRole('button', { name: 'Next FBD sheet' }));
+    expect(screen.getByText('FBD:DuplicateB-v1:sheet-1')).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('FBD:DuplicateB-v2:sheet-1')).toBeVisible();
+    openRoutine('DuplicateB');
+    expect(screen.getByText('FBD:DuplicateB-v2:sheet-1')).toBeVisible();
+    openRoutine('DuplicateA');
+    expect(await screen.findByText('FBD:DuplicateA-v2:sheet-0')).toBeVisible();
+    fireEvent.click(within(screen.getByText('FBD:DuplicateA-v2:sheet-0').parentElement!).getByRole('button', { name: 'Next FBD sheet' }));
+    openRoutine('DuplicateB');
+    expect(screen.getByText('FBD:DuplicateB-v2:sheet-1')).toBeVisible();
+    expect(screen.getAllByRole('tab', { name: /RoutineA/ })).toHaveLength(2);
   });
 
   it('preserves FBD navigation while the CSS palette changes with the app theme', async () => {
@@ -658,7 +1128,7 @@ describe('L5XViewer refresh behavior', () => {
 
     render(<L5XViewer filePath="/repo/Programs/Main.L5X" />);
     await screen.findByText('No Content Selected');
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     await screen.findByText('FBD:v1:sheet-0');
     expect(latestFBDDiagramProps().theme).toMatchObject({
       bgPrimary: 'var(--lv-bg-primary)',
@@ -703,7 +1173,7 @@ describe('L5XViewer refresh behavior', () => {
     }));
 
     await renderLoadedViewer();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    openProgramRoutine();
     expect(await screen.findByText('ST:RoutineA@st')).toBeInTheDocument();
 
     clearViewerCache();
@@ -717,8 +1187,7 @@ describe('L5XViewer refresh behavior', () => {
 
     const secondView = render(<L5XViewer filePath="/repo/Programs/Other.L5X" />);
     await screen.findByText('No Content Selected');
-    const openButtons = screen.getAllByRole('button', { name: 'Open Routine' });
-    fireEvent.click(openButtons[openButtons.length - 1]);
+    openProgramRoutine();
     expect(await screen.findByText('SFC Visualization Not Supported')).toBeInTheDocument();
     secondView.unmount();
   });

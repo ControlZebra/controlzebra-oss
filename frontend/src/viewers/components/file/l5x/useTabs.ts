@@ -5,7 +5,10 @@
  * Supports optional caching of tab state by file path to persist
  * tabs across view switches.
  */
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import type { NormalizedController } from 'ladder-visualizer';
+import { collectAmbiguousProgramUids, findProgram, programIdentityKey } from './program-identity';
+import { metadataTargetId, type MetadataTarget } from './metadata-model';
 
 // ============================================================================
 // TAB TYPES AND INTERFACES
@@ -20,6 +23,7 @@ export type TabType =
   | 'aoi-parameters' 
   | 'aoi-local-tags' 
   | 'aoi-routine'
+  | 'metadata'
   | 'module';
 
 export interface Tab {
@@ -30,15 +34,24 @@ export interface Tab {
 }
 
 export type TabData = 
-  | { type: 'routine'; programIndex: number; routineIndex: number }
+  | { type: 'routine'; programIndex: number; routineIndex: number; programName?: string; programUid?: string; programUidAmbiguous?: boolean; routineName?: string }
   | { type: 'controller-tags' }
-  | { type: 'program-tags'; programIndex: number; programName: string }
+  | { type: 'program-tags'; programIndex: number; programName: string; programUid?: string; programUidAmbiguous?: boolean }
   | { type: 'controller-info' }
-  | { type: 'data-type'; dataTypeName: string }
+  | { type: 'data-type'; dataTypeName: string; view?: DataTypeViewMode }
   | { type: 'aoi-parameters'; aoiName: string }
   | { type: 'aoi-local-tags'; aoiName: string }
-  | { type: 'aoi-routine'; aoiName: string; routineIndex: number }
+  | { type: 'aoi-routine'; aoiName: string; routineIndex: number; routineName?: string }
+  | { type: 'metadata'; target: MetadataTarget }
   | { type: 'module'; moduleId: number; moduleName: string };
+
+export type DataTypeViewMode = 'table' | 'other';
+
+/** Older metadata links and cached tabs resolve to the same datatype view. */
+export function normalizeTabData(data: TabData): TabData {
+  return data.type === 'metadata' && data.target.kind === 'data-type'
+    ? { type: 'data-type', dataTypeName: data.target.name, view: 'other' } : data;
+}
 
 // ============================================================================
 // TAB STATE CACHE
@@ -48,6 +61,7 @@ export type TabData =
 interface TabStateCache {
   tabs: Tab[];
   activeTabId: string | null;
+  ambiguousProgramUids?: ReadonlySet<string>;
 }
 
 /** Module-level cache for L5X viewer tab states, keyed by file path */
@@ -79,13 +93,16 @@ export function clearAllTabStates(): void {
 // ============================================================================
 
 export function generateTabId(data: TabData): string {
+  data = normalizeTabData(data);
   switch (data.type) {
     case 'routine':
+      if (data.programName && data.routineName) return JSON.stringify(['routine',
+        programIdentityKey({ name: data.programName, uid: data.programUid, ambiguousUid: data.programUidAmbiguous }), data.routineName]);
       return `routine-${data.programIndex}-${data.routineIndex}`;
     case 'controller-tags':
       return 'controller-tags';
     case 'program-tags':
-      return `program-tags-${data.programIndex}`;
+      return JSON.stringify(['program-tags', programIdentityKey({ name: data.programName, uid: data.programUid, ambiguousUid: data.programUidAmbiguous })]);
     case 'controller-info':
       return 'controller-info';
     case 'data-type':
@@ -95,10 +112,49 @@ export function generateTabId(data: TabData): string {
     case 'aoi-local-tags':
       return `aoi-local-tags-${data.aoiName}`;
     case 'aoi-routine':
+      if (data.routineName) return JSON.stringify(['aoi-routine', data.aoiName, data.routineName]);
       return `aoi-routine-${data.aoiName}-${data.routineIndex}`;
     case 'module':
-      return `module-${data.moduleId}`;
+      return `module-${data.moduleName}`;
+    case 'metadata':
+      return metadataTargetId(data.target);
   }
+}
+
+function normalizeCachedDatatypeTabs(state?: TabStateCache): TabStateCache | undefined {
+  if (!state?.tabs.some(tab => tab.data.type === 'metadata' && tab.data.target.kind === 'data-type')) return state;
+  const tabs = new Map<string, Tab>();
+  let activeTabId = state.activeTabId;
+  for (const tab of state.tabs) {
+    const data = normalizeTabData(tab.data);
+    const id = data.type === 'data-type' ? generateTabId(data) : tab.id;
+    if (tab.id === state.activeTabId) activeTabId = id;
+    if (!tabs.has(id) || tab.id === state.activeTabId) {
+      tabs.set(id, { ...tab, id, type: data.type, data,
+        title: data.type === 'data-type' ? data.dataTypeName : tab.title });
+    }
+  }
+  return { ...state, tabs: [...tabs.values()], activeTabId };
+}
+
+/** Retain observed renames before a later UID collision needs the owner name. */
+function refreshProgramOwners(tabs: Tab[], programs: NormalizedController['programs'], ambiguousUids: ReadonlySet<string>): Tab[] {
+  let changed = false;
+  const updated = tabs.map(tab => {
+    const data = tab.data;
+    const target = data.type === 'metadata' && data.target.kind === 'program' ? data.target : undefined;
+    const view = data.type === 'routine' || data.type === 'program-tags' ? data : undefined;
+    const uid = target?.uid ?? view?.programUid;
+    if (uid === undefined || ambiguousUids.has(uid) || target?.ambiguousUid || view?.programUidAmbiguous) return tab;
+    const program = findProgram(programs, { uid });
+    if (!program || program.name === (target?.name ?? view?.programName)) return tab;
+    changed = true;
+    if (target) return { ...tab, title: `${program.name} Metadata`, data: { type: 'metadata' as const, target: { ...target, name: program.name } } };
+    if (view) return { ...tab, title: view.type === 'program-tags' ? `${program.name} Tags` : tab.title,
+      data: { ...view, programName: program.name } };
+    return tab;
+  });
+  return changed ? updated : tabs;
 }
 
 // ============================================================================
@@ -108,7 +164,8 @@ export function generateTabId(data: TabData): string {
 export interface UseTabsResult {
   tabs: Tab[];
   activeTabId: string | null;
-  openTab: (data: TabData, title: string) => void;
+  openTab: (data: TabData, title: string, existingTabId?: string) => void;
+  ambiguousProgramUids: ReadonlySet<string>;
   closeTab: (tabId: string) => void;
   selectTab: (tabId: string) => void;
   closeAllTabs: () => void;
@@ -123,34 +180,48 @@ export interface UseTabsResult {
  * @param filePath - Optional file path for caching tab state.
  *                   When provided, tab state persists across view switches.
  */
-export function useTabs(filePath?: string): UseTabsResult {
+export function useTabs(filePath?: string, programs?: NormalizedController['programs']): UseTabsResult {
   // Initialize from cache if available
-  const cachedState = filePath ? getCachedTabState(filePath) : undefined;
+  const cachedState = useMemo(() => normalizeCachedDatatypeTabs(filePath ? getCachedTabState(filePath) : undefined), [filePath]);
   
   const [tabs, setTabs] = useState<Tab[]>(cachedState?.tabs ?? []);
   const [activeTabId, setActiveTabId] = useState<string | null>(cachedState?.activeTabId ?? null);
+  const [uidHistory, setUidHistory] = useState<ReadonlySet<string>>(cachedState?.ambiguousProgramUids ?? new Set());
 
   // Track the file path for cache updates
   const filePathRef = useRef(filePath);
-  filePathRef.current = filePath;
+  const filePathChanged = filePathRef.current !== filePath;
+  if (filePathChanged) {
+    filePathRef.current = filePath;
+    setTabs(cachedState?.tabs ?? []);
+    setActiveTabId(cachedState?.activeTabId ?? null);
+    setUidHistory(cachedState?.ambiguousProgramUids ?? new Set());
+  }
+  const ambiguousProgramUids = useMemo(() => programs ? collectAmbiguousProgramUids(programs, uidHistory) : uidHistory, [programs, uidHistory]);
+  const refreshedTabs = useMemo(() => programs ? refreshProgramOwners(tabs, programs, ambiguousProgramUids) : tabs, [tabs, programs, ambiguousProgramUids]);
+  if (!filePathChanged && refreshedTabs !== tabs) setTabs(refreshedTabs);
+  useEffect(() => { setUidHistory(ambiguousProgramUids); }, [ambiguousProgramUids]);
 
   // Persist tab state to cache whenever it changes
   useEffect(() => {
     if (filePathRef.current) {
-      tabStateCache.set(filePathRef.current, { tabs, activeTabId });
+      tabStateCache.set(filePathRef.current, { tabs, activeTabId, ambiguousProgramUids });
     }
-  }, [tabs, activeTabId]);
+  }, [tabs, activeTabId, ambiguousProgramUids]);
 
   /**
    * Open a new tab or switch to an existing one
    */
-  const openTab = useCallback((data: TabData, title: string) => {
-    const id = generateTabId(data);
+  const openTab = useCallback((data: TabData, title: string, existingTabId?: string) => {
+    data = normalizeTabData(data);
+    const id = existingTabId ?? generateTabId(data);
     
     setTabs((prevTabs) => {
       const existingTab = prevTabs.find(t => t.id === id);
       if (existingTab) {
-        return prevTabs;
+        const nextData = data.type === 'data-type' && data.view === undefined && existingTab.data.type === 'data-type'
+          ? { ...data, view: existingTab.data.view } : data;
+        return prevTabs.map(tab => tab.id === id ? { ...tab, type: nextData.type, title, data: nextData } : tab);
       }
       
       const newTab: Tab = {
@@ -238,6 +309,7 @@ export function useTabs(filePath?: string): UseTabsResult {
     tabs,
     activeTabId,
     openTab,
+    ambiguousProgramUids,
     closeTab,
     selectTab,
     closeAllTabs,

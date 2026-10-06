@@ -24,6 +24,7 @@ import type { ViewerProps } from '../../registry/viewer-registry';
 import { invalidateCachedContent, useCachedContent } from '../../registry/viewer-cache';
 import { getPathFileName } from '../shared/path-utils';
 import L5XProjectOrganizer from '../shared/L5XProjectOrganizer';
+import { organizerSelectionId } from '../shared/l5x-organizer-model';
 import L5XDocumentStatus from '../shared/L5XDocumentStatus';
 import { hasEncodedOnlyTargets, parseL5XDocument, type L5XDocumentResult } from '../shared/l5x-document';
 
@@ -36,15 +37,21 @@ import {
   ModuleInfoTable,
   registerAOIsFromController,
   clearAOIs,
-  type NormalizedRoutine,
   type NormalizedDataType,
-  type NormalizedAOI,
-  type NormalizedModule,
+  type NormalizedController,
 } from 'ladder-visualizer';
 
 // Import local tab components
-import { DataTypeTable, TabBar, useTabs, type TabData } from './l5x';
+import { TabBar, useTabs, type TabData } from './l5x';
+import { normalizeTabData } from './l5x/useTabs';
+import DataTypeView from './l5x/DataTypeView';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
+import MetadataInspector from './l5x/MetadataInspector';
+import { findProgram } from './l5x/program-identity';
+
+function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string; programUidAmbiguous?: boolean }, ambiguousProgramUids: ReadonlySet<string>) {
+  return findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex, ambiguousUid: data.programUidAmbiguous }, ambiguousProgramUids);
+}
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
 
@@ -74,7 +81,6 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   const [fbdSheetIndices, setFbdSheetIndices] = useState<Record<string, number>>({});
 
   // Tab management - internal to L5X viewer, cached by filePath
-  const { tabs, activeTabId, openTab, closeTab, selectTab } = useTabs(filePath);
 
   const normalizedFilePath = useMemo(() => filePath.replace(/\\/g, '/'), [filePath]);
 
@@ -133,6 +139,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     [refreshCounter]
   );
   const controller = documentResult?.controller ?? null;
+  const { tabs, activeTabId, openTab, closeTab, selectTab, ambiguousProgramUids } = useTabs(filePath, controller?.programs);
 
   // Register AOIs when controller data is available (from cache or fresh load)
   useEffect(() => {
@@ -152,68 +159,20 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   // Navigator Event Handlers
   // ============================================================================
 
-  const handleRoutineSelect = useCallback((programIndex: number, routineIndex: number, routine: NormalizedRoutine) => {
-    openTab(
-      { type: 'routine', programIndex, routineIndex },
-      routine.name
-    );
-  }, [openTab]);
-
-  const handleControllerTagsSelect = useCallback(() => {
-    openTab({ type: 'controller-tags' }, 'Controller Tags');
-  }, [openTab]);
-
-  const handleProgramTagsSelect = useCallback((programIndex: number) => {
-    if (!controller) return;
-    const program = controller.programs[programIndex];
-    openTab(
-      { type: 'program-tags', programIndex, programName: program.name },
-      `${program.name} Tags`
-    );
-  }, [controller, openTab]);
-
-  const handleControllerInfoSelect = useCallback(() => {
-    openTab({ type: 'controller-info' }, 'Controller Info');
-  }, [openTab]);
+  const handleOpen = useCallback((data: TabData, title: string) => {
+    data = normalizeTabData(data);
+    const selectionId = controller ? organizerSelectionId(controller, data, ambiguousProgramUids) : undefined;
+    const existing = selectionId && tabs.find(tab => tab.type === data.type &&
+      organizerSelectionId(controller!, tab.data, ambiguousProgramUids) === selectionId);
+    openTab(data, data.type === 'data-type' ? data.dataTypeName : title, existing ? existing.id : undefined);
+  }, [controller, ambiguousProgramUids, tabs, openTab]);
 
   const handleDataTypeSelect = useCallback((dataType: NormalizedDataType) => {
-    openTab(
+    handleOpen(
       { type: 'data-type', dataTypeName: dataType.name },
       dataType.name
     );
-  }, [openTab]);
-
-  const handleAOIParametersSelect = useCallback((aoi: NormalizedAOI) => {
-    openTab(
-      { type: 'aoi-parameters', aoiName: aoi.name },
-      `${aoi.name} Parameters`
-    );
-  }, [openTab]);
-
-  const handleAOILocalTagsSelect = useCallback((aoi: NormalizedAOI) => {
-    openTab(
-      { type: 'aoi-local-tags', aoiName: aoi.name },
-      `${aoi.name} Local Tags`
-    );
-  }, [openTab]);
-
-  const handleAOIRoutineSelect = useCallback((aoi: NormalizedAOI, routineIndex: number, routine: NormalizedRoutine) => {
-    openTab(
-      { type: 'aoi-routine', aoiName: aoi.name, routineIndex },
-      `${aoi.name}:${routine.name}`
-    );
-  }, [openTab]);
-
-  const handleModuleSelect = useCallback((module: NormalizedModule) => {
-    openTab(
-      { type: 'module', moduleId: module.id, moduleName: module.name },
-      module.catalogNumber ? `${module.name} (${module.catalogNumber})` : module.name
-    );
-  }, [openTab]);
-
-  // ============================================================================
-  // Derive Navigator Selection from Active Tab
-  // ============================================================================
+  }, [handleOpen]);
 
   const activeTabData = useMemo(() => {
     if (!activeTabId) return null;
@@ -221,32 +180,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     return tab?.data || null;
   }, [activeTabId, tabs]);
 
-  const selectedRoutine = useMemo(() => {
-    if (activeTabData?.type === 'routine') {
-      return { programIndex: activeTabData.programIndex, routineIndex: activeTabData.routineIndex };
-    }
-    return undefined;
-  }, [activeTabData]);
-
-  const selectedAOIRoutine = useMemo(() => {
-    if (activeTabData?.type === 'aoi-routine') {
-      return { aoiName: activeTabData.aoiName, routineIndex: activeTabData.routineIndex };
-    }
-    return undefined;
-  }, [activeTabData]);
-
-  const selectedNavigatorItemId = useMemo(() => {
-    if (activeTabData?.type === 'data-type') {
-      return `dt-${activeTabData.dataTypeName}`;
-    }
-    return undefined;
-  }, [activeTabData]);
-
   // ============================================================================
   // Tab Content Rendering
   // ============================================================================
 
-  const renderTabContent = useCallback((tabData: TabData, isActive: boolean) => {
+  const renderTabContent = useCallback((tabData: TabData, isActive: boolean, tabId: string) => {
     if (!controller) return null;
 
     const containerClass = `flex-1 flex flex-col overflow-hidden h-full ${isActive ? '' : 'hidden'}`;
@@ -254,6 +192,12 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     const dataTypes = controller.dataTypeCatalog ?? controller.dataTypes;
 
     switch (tabData.type) {
+      case 'metadata':
+        return <div key={tabId} className={containerClass}>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <MetadataInspector controller={controller} target={tabData.target} onOpen={handleOpen} onShowRaw={onShowRaw} ambiguousProgramUids={ambiguousProgramUids} />
+          </div>
+        </div>;
       case 'controller-tags':
         return (
           <div key="controller-tags" className={containerClass}>
@@ -264,12 +208,12 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         );
 
       case 'program-tags': {
-        const program = controller.programs[tabData.programIndex];
+        const program = resolveProgram(controller, tabData, ambiguousProgramUids);
         const tags = program?.tags ?? [];
         return (
-          <div key={`program-tags-${tabData.programIndex}`} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
-              {tags.length > 0 ? (
+              {!program ? <p className="text-center text-theme-secondary py-10">This program is no longer in the file. Select another item in the Project Organizer.</p> : tags.length > 0 ? (
                 <TagTable tags={tags} dataTypes={dataTypes} />
               ) : (
                 <p className="text-center text-theme-secondary py-10">No program-specific tags defined</p>
@@ -289,25 +233,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         );
 
       case 'data-type': {
-        const dataType = dataTypes.find(dt => dt.name === tabData.dataTypeName);
-        if (dataType) {
-          return (
-            <div key={`data-type-${tabData.dataTypeName}`} className={containerClass}>
-              <div className="flex-1 overflow-hidden p-4">
-                <DataTypeTable
-                  dataType={dataType}
-                  allDataTypes={dataTypes}
-                  onDataTypeSelect={handleDataTypeSelect}
-                />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div key={`data-type-${tabData.dataTypeName}`} className={containerClass}>
-            <p className="text-center text-theme-secondary py-10">Data type not found</p>
-          </div>
-        );
+        return <div key={tabId} className={containerClass}>
+          <DataTypeView controller={controller} dataTypeName={tabData.dataTypeName} view={tabData.view}
+            onViewChange={view => openTab({ ...tabData, view }, tabData.dataTypeName, tabId)}
+            onDataTypeSelect={handleDataTypeSelect} onOpen={handleOpen} onShowRaw={onShowRaw} />
+        </div>;
       }
 
       case 'aoi-parameters': {
@@ -348,11 +278,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
       case 'aoi-routine': {
         const aoi = controller.aois.find(a => a.name === tabData.aoiName);
-        const routine = aoi?.routines[tabData.routineIndex];
-        const routineKey = `${normalizedFilePath}:aoi:${tabData.aoiName}:${tabData.routineIndex}`;
+        const routine = tabData.routineName !== undefined ? aoi?.routines.find(item => item.name === tabData.routineName) : aoi?.routines[tabData.routineIndex];
+        const routineKey = `${normalizedFilePath}:${tabId}`;
         if (aoi && routine) {
           return (
-            <div key={`aoi-routine-${tabData.aoiName}-${tabData.routineIndex}`} className={containerClass}>
+            <div key={tabId} className={containerClass}>
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
@@ -366,18 +296,19 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={`aoi-routine-${tabData.aoiName}-${tabData.routineIndex}`} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">AOI routine not found</p>
           </div>
         );
       }
 
       case 'routine': {
-        const routine = controller.programs[tabData.programIndex]?.routines[tabData.routineIndex];
-        const routineKey = `${normalizedFilePath}:program:${tabData.programIndex}:${tabData.routineIndex}`;
+        const program = resolveProgram(controller, tabData, ambiguousProgramUids);
+        const routine = tabData.routineName !== undefined ? program?.routines.find(item => item.name === tabData.routineName) : program?.routines[tabData.routineIndex];
+        const routineKey = `${normalizedFilePath}:${tabId}`;
         if (routine) {
           return (
-            <div key={`routine-${tabData.programIndex}-${tabData.routineIndex}`} className={containerClass}>
+            <div key={tabId} className={containerClass}>
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
@@ -391,17 +322,17 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={`routine-${tabData.programIndex}-${tabData.routineIndex}`} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">Routine not found</p>
           </div>
         );
       }
 
       case 'module': {
-        const module = controller.modules.find(m => m.id === tabData.moduleId);
+        const module = controller.modules.find(m => m.name === tabData.moduleName);
         if (module) {
           return (
-            <div key={`module-${tabData.moduleId}`} className={containerClass}>
+            <div key={tabId} className={containerClass}>
               <div className="flex-1 overflow-auto p-4">
                 <ModuleInfoTable module={module} />
               </div>
@@ -409,7 +340,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={`module-${tabData.moduleId}`} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">Module not found</p>
           </div>
         );
@@ -418,7 +349,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
       default:
         return null;
     }
-  }, [controller, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath]);
+  }, [controller, ambiguousProgramUids, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath, handleOpen, onShowRaw, openTab]);
 
   // ============================================================================
   // Main Content Rendering
@@ -439,7 +370,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     // Render all tabs (keeping inactive ones mounted but hidden)
     return (
       <>
-        {tabs.map(tab => renderTabContent(tab.data, tab.id === activeTabId))}
+        {tabs.map(tab => renderTabContent(tab.data, tab.id === activeTabId, tab.id))}
       </>
     );
   };
@@ -500,18 +431,9 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
             <L5XProjectOrganizer
               controller={controller}
               programs={controller.programs}
-              selectedRoutine={selectedRoutine}
-              selectedAOIRoutine={selectedAOIRoutine}
-              selectedItemId={selectedNavigatorItemId}
-              onRoutineSelect={handleRoutineSelect}
-              onControllerTagsSelect={handleControllerTagsSelect}
-              onProgramTagsSelect={handleProgramTagsSelect}
-              onControllerInfoSelect={handleControllerInfoSelect}
-              onDataTypeSelect={handleDataTypeSelect}
-              onModuleSelect={handleModuleSelect}
-              onAOIParametersSelect={handleAOIParametersSelect}
-              onAOILocalTagsSelect={handleAOILocalTagsSelect}
-              onAOIRoutineSelect={handleAOIRoutineSelect}
+              onOpen={handleOpen}
+              activeTabData={activeTabData}
+              ambiguousProgramUids={ambiguousProgramUids}
               className="flex-1"
             />
           </div>

@@ -160,6 +160,48 @@ LFS content. The wrapper owns diff reload actions and working-file subscriptions
 The mode controls sit outside the content error boundaries, making Raw accessible
 even when structured parsing or rendering fails.
 
+## L5X metadata inspectors
+
+The file viewer's Project Organizer uses an app-owned entity tree. Controller,
+program, task, AOI, and module labels open metadata tabs. Datatype labels open
+one tab named after the datatype, with `table` and `other` tabs inside it.
+`table` is the default and reuses the original member table with Name, Data Type,
+and Description columns, datatype links, and atomic or unresolved empty states.
+`other` contains all datatype and member metadata. The selected inner tab stays
+with the open datatype tab across navigation, refreshes, and cached remounts;
+closing and reopening starts on `table`. All datatype categories use this layout.
+Metadata links and member-table links reuse the same datatype tab, and older
+cached metadata and member-table tabs merge into one datatype tab.
+
+Expansion arrows work separately; grouping folders only expand or collapse.
+The separate metadata list is removed. Dedicated tags, AOI interface, routine,
+and module configuration views remain accessible through child entries or
+inspector links. Comparison views retain the public library navigator.
+
+`metadata-model.ts` maps normalized fields and resolvable references into
+property groups. `MetadataInspector.tsx` renders those groups with shared
+table and button primitives and central theme tokens. Missing values display
+as "Not supplied". Zero and false remain values, program UIDs stay strings,
+dates display in ISO UTC, and task and scan-time units are not inferred.
+Member declarations, task schedules, ports, and connections retain source
+order. The organizer virtualizes inventories above 50 visible rows and supports
+finding entries in collapsed branches. Inspectors show at most 50 fields per page.
+
+Metadata tabs use unique source program UIDs when available and entity names
+otherwise. Partial documents with duplicate UIDs identify each program by its
+UID and name, and ambiguous parent UID references stay as text. Routine links
+retain owner and routine identities rather than depending on array positions.
+Reloads resolve each selection against the current controller. Removed entities
+show a missing-entity state with Raw access.
+The file's tab cache retains observed UID collisions, so a later refresh cannot
+redirect a removed owner to another program or duplicate the surviving owner's tabs.
+Each refresh updates stored owner names while their UIDs remain unique. A later
+collision therefore resolves against the last observed name. Reopening an
+ambiguous view retains its source UID, so name reuse with a different UID cannot
+redirect the old view. FBD sheet state uses the retained tab ID.
+Existing dedicated tag, datatype, module, AOI interface, and routine views
+remain available.
+
 ## Read-only text surface
 
 `TextViewer` owns backend reads, the existing 10 MB size limit, caching and the
