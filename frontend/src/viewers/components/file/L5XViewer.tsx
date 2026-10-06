@@ -48,11 +48,10 @@ import { DataTypeTable, TabBar, useTabs, generateTabId, type TabData } from './l
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 import MetadataInspector from './l5x/MetadataInspector';
 import { metadataTargetId, type MetadataTarget } from './l5x/metadata-model';
+import { findProgram, programIdentity } from './l5x/program-identity';
 
 function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string }) {
-  return data.programUid !== undefined ? controller.programs.find(program => program.uid === data.programUid)
-    : data.programName !== undefined ? controller.programs.find(program => program.name === data.programName)
-    : controller.programs[data.programIndex];
+  return findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex });
 }
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
@@ -163,8 +162,9 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
   const handleRoutineSelect = useCallback((programIndex: number, routineIndex: number, routine: NormalizedRoutine) => {
     const program = controller?.programs[programIndex];
+    const identity = controller && program ? programIdentity(controller.programs, program) : undefined;
     openTab(
-      { type: 'routine', programIndex, routineIndex, programName: program?.name, programUid: program?.uid, routineName: routine.name },
+      { type: 'routine', programIndex, routineIndex, programName: program?.name, programUid: identity?.uid, routineName: routine.name },
       routine.name
     );
   }, [controller, openTab]);
@@ -180,8 +180,9 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   const handleProgramTagsSelect = useCallback((programIndex: number) => {
     if (!controller) return;
     const program = controller.programs[programIndex];
+    const identity = programIdentity(controller.programs, program);
     openTab(
-      { type: 'program-tags', programIndex, programName: program.name, programUid: program.uid },
+      { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid },
       `${program.name} Tags`
     );
   }, [controller, openTab]);

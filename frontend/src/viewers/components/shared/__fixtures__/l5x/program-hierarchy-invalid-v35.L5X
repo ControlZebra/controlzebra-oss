@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="InvalidHierarchy" TargetType="Controller" ContainsContext="false">
+  <Controller Use="Target" Name="InvalidHierarchy">
+    <Programs>
+      <Program Name="DuplicateA" UId="10" UseAsFolder="true" />
+      <Program Name="DuplicateB" UId="10" />
+      <Program Name="MissingParent" UId="11" ParentUId="999" />
+      <Program Name="CycleA" UId="20" ParentUId="21" UseAsFolder="true" />
+      <Program Name="CycleB" UId="21" ParentUId="20" UseAsFolder="true" />
+      <Program Name="FlatParent" UId="30" UseAsFolder="false" />
+      <Program Name="ContradictoryChild" UId="31" ParentUId="30" />
+    </Programs>
+  </Controller>
+</RSLogix5000Content>

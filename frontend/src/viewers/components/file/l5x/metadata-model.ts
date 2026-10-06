@@ -1,5 +1,6 @@
 import type { NormalizedController } from 'ladder-visualizer';
 import type { TabData } from './useTabs';
+import { findProgram, programIdentity } from './program-identity';
 
 export type MetadataTarget =
   | { kind: 'controller' }
@@ -61,8 +62,8 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
   const typeLink = (name?: string) => name && catalog.some(type => type.name === name)
     ? metadataLink({ kind: 'data-type', name }) : undefined;
   const programLink = (name: string) => {
-    const program = controller.programs.find(candidate => candidate.name === name);
-    return program ? metadataLink({ kind: 'program', name: program.name, uid: program.uid }) : undefined;
+    const program = findProgram(controller.programs, { name });
+    return program ? metadataLink({ kind: 'program', ...programIdentity(controller.programs, program) }) : undefined;
   };
   switch (target.kind) {
     case 'controller': {
@@ -89,10 +90,10 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
       ] };
     }
     case 'program': {
-      const programIndex = controller.programs.findIndex(program => target.uid !== undefined
-        ? program.uid === target.uid : program.name === target.name);
-      const program = controller.programs[programIndex];
+      const program = findProgram(controller.programs, target);
       if (!program) return null;
+      const programIndex = controller.programs.indexOf(program);
+      const identity = programIdentity(controller.programs, program);
       const properties = fields(program, [
         ['name', 'Name'], ['uid', 'UID'], ['parentUid', 'Parent UID'], ['useAsFolder', 'Use as folder'],
         ['programType', 'Type'], ['description', 'Description'], ['mainRoutineName', 'Main routine'],
@@ -109,19 +110,19 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
         if (['Main routine', 'Pre-state routine', 'Fault routine'].includes(field.label)) {
           const routineIndex = program.routines.findIndex(routine => routine.name === field.value);
           if (routineIndex >= 0) field.link = { type: 'routine', programIndex, programName: program.name,
-            programUid: program.uid, routineIndex, routineName: program.routines[routineIndex].name };
+            programUid: identity.uid, routineIndex, routineName: program.routines[routineIndex].name };
         }
         if (field.label === 'Executing task' && controller.tasks?.some(task => task.name === field.value)) {
           field.link = metadataLink({ kind: 'task', name: String(field.value) });
         }
         if (field.label === 'Parent UID') {
-          const parent = controller.programs.find(candidate => candidate.uid !== undefined && candidate.uid === field.value);
-          if (parent) field.link = metadataLink({ kind: 'program', name: parent.name, uid: parent.uid });
+          const parent = typeof field.value === 'string' ? findProgram(controller.programs, { uid: field.value }) : undefined;
+          if (parent) field.link = metadataLink({ kind: 'program', ...programIdentity(controller.programs, parent) });
         }
       }
       return { title: `${program.name} Metadata`, groups: [{ title: 'Program', fields: properties },
         { title: 'Views', fields: [{ label: 'Program tags', value: program.tags.length,
-          link: { type: 'program-tags', programIndex, programName: program.name, programUid: program.uid } }] }] };
+          link: { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid } }] }] };
     }
     case 'task': {
       const task = controller.tasks?.find(candidate => candidate.name === target.name);

@@ -449,6 +449,42 @@ describe('L5XViewer refresh behavior', () => {
     expect(screen.queryByText('No program-specific tags defined')).not.toBeInTheDocument();
   });
 
+  it('keeps duplicate-UID inspectors and linked views on the selected program through reorder and removal', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const programs = ['DuplicateA', 'DuplicateB'].map(name => ({ ...data.programs[0], name, uid: '10',
+        tags: [{ name: `${name}Tag`, dataType: 'BOOL' }], routines: [makeRoutine('RoutineA', 'RLL', `${name}-${version}`)] }));
+      data.programs = version === 'v1' ? programs.reverse() : version === 'v3' ? programs.slice(0, 1) : programs;
+      return { success: true, status: 'partial', data };
+    });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program Tags' }));
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'Open Routine' }));
+    expect(screen.getByText('RLL:RoutineA@DuplicateB-v1')).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('RLL:RoutineA@DuplicateB-v2')).toBeVisible();
+    expect(screen.getByTestId('selected-routine')).toHaveTextContent('1:0');
+    for (const name of ['DuplicateA', 'DuplicateB']) {
+      fireEvent.click(screen.getByRole('button', { name: `Inspect Program: ${name}` }));
+      expect(screen.getByRole('heading', { name: `${name} Metadata` })).toBeVisible();
+      fireEvent.click(within(screen.getByRole('region', { name: `${name} Metadata` })).getByRole('button', { name: 'Open Main routine: RoutineA' }));
+      expect(screen.getByText(`RLL:RoutineA@${name}-v2`)).toBeVisible();
+    }
+    expect(screen.getAllByRole('tab', { name: /RoutineA/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: DuplicateB' }));
+    fireEvent.click(within(screen.getByRole('region', { name: 'DuplicateB Metadata' })).getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'DuplicateBTag', dataType: 'BOOL' }] }), expect.anything());
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
+    fireEvent.click(screen.getAllByRole('tab', { name: /RoutineA/ })[0]);
+    expect(screen.getByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Program: DuplicateB Metadata/ }));
+    expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
+  });
+
   it.each(['Enter', ' '])('does not cancel native close-button activation with %s', async key => {
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });

@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseString, type NormalizedController } from 'ladder-visualizer';
 import MetadataInspector from './MetadataInspector';
 import { buildMetadataModel, formatMetadataDimensions, formatMetadataValue, metadataTargetId, type MetadataTarget } from './metadata-model';
+import L5XMetadataNavigator from '../../shared/L5XMetadataNavigator';
+import { generateTabId } from './useTabs';
 
 function controllerFixture(name = 'controller-rll-v35'): NormalizedController {
   const source = readFileSync(resolve('src/viewers/components/shared/__fixtures__/l5x', `${name}.L5X`), 'utf8');
@@ -94,6 +96,52 @@ describe('metadata values and relationships', () => {
     controller.programs[1].uid = '1';
     controller.programs[1].name = 'Main';
     expect(buildMetadataModel(controller, target)).toBeNull();
+  });
+
+  it('keeps duplicate-UID programs separate in a real partial document and leaves ambiguous parents unresolved', () => {
+    const source = readFileSync(resolve('src/viewers/components/shared/__fixtures__/l5x/program-hierarchy-invalid-v35.L5X'), 'utf8');
+    const parsed = parseString(source, 'l5x');
+    expect(parsed.success).toBe(true);
+    expect(parsed.status).toBe('partial');
+    const controller = parsed.data!;
+    const onSelect = vi.fn();
+    render(<L5XMetadataNavigator controller={controller} onSelect={onSelect} />);
+    for (const name of ['DuplicateA', 'DuplicateB']) {
+      fireEvent.click(screen.getByRole('button', { name: `Inspect Program: ${name}` }));
+      const target = onSelect.mock.lastCall![0] as MetadataTarget;
+      expect(buildMetadataModel(controller, target)?.title).toBe(`${name} Metadata`);
+    }
+    const first = onSelect.mock.calls[0][0] as MetadataTarget;
+    const second = onSelect.mock.calls[1][0] as MetadataTarget;
+    expect(metadataTargetId(first)).not.toBe(metadataTargetId(second));
+    expect(buildMetadataModel(controller, { kind: 'program', name: 'DuplicateB', uid: '10' })?.title).toBe('DuplicateB Metadata');
+    controller.programs[2].parentUid = '10';
+    const parent = buildMetadataModel(controller, { kind: 'program', name: 'MissingParent', uid: '11' })!
+      .groups[0].fields.find(field => field.label === 'Parent UID');
+    expect(parent).toMatchObject({ value: '10' });
+    expect(parent?.link).toBeUndefined();
+    controller.programs.reverse();
+    expect(buildMetadataModel(controller, second)?.title).toBe('DuplicateB Metadata');
+    controller.programs = controller.programs.filter(program => program.name !== 'DuplicateB');
+    expect(buildMetadataModel(controller, second)).toBeNull();
+  });
+
+  it('disambiguates duplicate-UID routine and tag links by program name', () => {
+    const controller = controllerFixture('program-hierarchy-invalid-v35');
+    for (const program of controller.programs.slice(0, 2)) {
+      program.mainRoutineName = 'Logic';
+      program.routines = [{ name: 'Logic', type: 'RLL', rungs: [] }];
+    }
+    const first = buildMetadataModel(controller, { kind: 'program', name: 'DuplicateA', uid: '10' })!;
+    const second = buildMetadataModel(controller, { kind: 'program', name: 'DuplicateB', uid: '10' })!;
+    const linkedViews = (model: typeof first) => model.groups.flatMap(group => group.fields)
+      .filter(field => field.link?.type === 'routine' || field.link?.type === 'program-tags').map(field => field.link!);
+    expect(linkedViews(second).map(link => link.type)).toEqual(['routine', 'program-tags']);
+    expect(linkedViews(second)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'routine', programName: 'DuplicateB' }),
+      expect.objectContaining({ type: 'program-tags', programName: 'DuplicateB' }),
+    ]));
+    expect(linkedViews(first).map(generateTabId)).not.toEqual(linkedViews(second).map(generateTabId));
   });
 });
 

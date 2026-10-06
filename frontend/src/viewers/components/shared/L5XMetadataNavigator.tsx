@@ -3,6 +3,7 @@ import type { NormalizedController } from 'ladder-visualizer';
 import { Button } from '../../../shared/ui/button';
 import { Input } from '../../../shared/ui/input';
 import { metadataTargetId, type MetadataTarget } from '../file/l5x/metadata-model';
+import { programIdentity } from '../file/l5x/program-identity';
 
 function L5XMetadataNavigator({ controller, selectedId, onSelect }: {
   controller: NormalizedController;
@@ -14,7 +15,7 @@ function L5XMetadataNavigator({ controller, selectedId, onSelect }: {
   const entries = useMemo(() => [
     { label: `Controller: ${controller.name}`, target: { kind: 'controller' } as MetadataTarget },
     ...controller.programs.map(program => ({ label: `Program: ${program.name}`,
-      target: { kind: 'program', name: program.name, uid: program.uid } as MetadataTarget })),
+      target: { kind: 'program', ...programIdentity(controller.programs, program) } as MetadataTarget })),
     ...(controller.tasks ?? []).map(task => ({ label: `Task: ${task.name}`, target: { kind: 'task', name: task.name } as MetadataTarget })),
     ...controller.aois.map(aoi => ({ label: `AOI: ${aoi.name}`, target: { kind: 'aoi', name: aoi.name } as MetadataTarget })),
     ...(controller.dataTypeCatalog ?? controller.dataTypes).map(type => ({ label: `Data type: ${type.name}`,

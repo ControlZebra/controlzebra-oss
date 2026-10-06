@@ -176,8 +176,10 @@ Member declarations, task schedules, ports, and connections retain source
 order. The entity list shows at most 25 entries per page, and inspectors show
 at most 50 fields per page.
 
-Metadata tabs use source program UIDs when available and entity names
-otherwise. Routine links retain owner and routine names rather than depending
+Metadata tabs use unique source program UIDs when available and entity names
+otherwise. Partial documents with duplicate UIDs keep programs separate by
+name, and ambiguous parent UID references stay as text. Routine links retain
+owner and routine names rather than depending
 on array positions. Reloads resolve each selection against the current
 controller. Removed entities show a missing-entity state with Raw access.
 Existing dedicated tag, datatype, module, AOI interface, and routine views
