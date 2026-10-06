@@ -7,7 +7,7 @@
  */
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { NormalizedController } from 'ladder-visualizer';
-import { collectAmbiguousProgramUids } from './program-identity';
+import { collectAmbiguousProgramUids, programIdentityKey } from './program-identity';
 import { metadataTargetId, type MetadataTarget } from './metadata-model';
 
 // ============================================================================
@@ -34,9 +34,9 @@ export interface Tab {
 }
 
 export type TabData = 
-  | { type: 'routine'; programIndex: number; routineIndex: number; programName?: string; programUid?: string; routineName?: string }
+  | { type: 'routine'; programIndex: number; routineIndex: number; programName?: string; programUid?: string; programUidAmbiguous?: boolean; routineName?: string }
   | { type: 'controller-tags' }
-  | { type: 'program-tags'; programIndex: number; programName: string; programUid?: string }
+  | { type: 'program-tags'; programIndex: number; programName: string; programUid?: string; programUidAmbiguous?: boolean }
   | { type: 'controller-info' }
   | { type: 'data-type'; dataTypeName: string }
   | { type: 'aoi-parameters'; aoiName: string }
@@ -87,12 +87,13 @@ export function clearAllTabStates(): void {
 export function generateTabId(data: TabData): string {
   switch (data.type) {
     case 'routine':
-      if (data.programName && data.routineName) return JSON.stringify(['routine', data.programUid ?? data.programName, data.routineName]);
+      if (data.programName && data.routineName) return JSON.stringify(['routine',
+        programIdentityKey({ name: data.programName, uid: data.programUid, ambiguousUid: data.programUidAmbiguous }), data.routineName]);
       return `routine-${data.programIndex}-${data.routineIndex}`;
     case 'controller-tags':
       return 'controller-tags';
     case 'program-tags':
-      return JSON.stringify(['program-tags', data.programUid !== undefined ? ['uid', data.programUid] : ['name', data.programName]]);
+      return JSON.stringify(['program-tags', programIdentityKey({ name: data.programName, uid: data.programUid, ambiguousUid: data.programUidAmbiguous })]);
     case 'controller-info':
       return 'controller-info';
     case 'data-type':

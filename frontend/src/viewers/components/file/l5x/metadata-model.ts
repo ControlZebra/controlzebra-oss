@@ -1,10 +1,10 @@
 import type { NormalizedController } from 'ladder-visualizer';
 import type { TabData } from './useTabs';
-import { findProgram, programIdentity } from './program-identity';
+import { findProgram, programIdentity, programIdentityKey } from './program-identity';
 
 export type MetadataTarget =
   | { kind: 'controller' }
-  | { kind: 'program'; name: string; uid?: string }
+  | { kind: 'program'; name: string; uid?: string; ambiguousUid?: boolean }
   | { kind: 'task' | 'aoi' | 'data-type' | 'module'; name: string };
 
 export interface MetadataField {
@@ -18,7 +18,7 @@ export interface MetadataModel { title: string; groups: MetadataGroup[] }
 /** Names and source UIDs survive reordering. Document-local module indexes do not. */
 export function metadataTargetId(target: MetadataTarget): string {
   return JSON.stringify(['metadata', target.kind, target.kind === 'controller' ? '' :
-    target.kind === 'program' && target.uid !== undefined ? ['uid', target.uid] : ['name', target.name]]);
+    target.kind === 'program' ? programIdentityKey(target) : ['name', target.name]]);
 }
 
 /** Shared by file inspectors and future comparison inspectors. No units are inferred. */
@@ -110,7 +110,7 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
         if (['Main routine', 'Pre-state routine', 'Fault routine'].includes(field.label)) {
           const routineIndex = program.routines.findIndex(routine => routine.name === field.value);
           if (routineIndex >= 0) field.link = { type: 'routine', programIndex, programName: program.name,
-            programUid: identity.uid, routineIndex, routineName: program.routines[routineIndex].name };
+            programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid, routineIndex, routineName: program.routines[routineIndex].name };
         }
         if (field.label === 'Executing task' && controller.tasks?.some(task => task.name === field.value)) {
           field.link = metadataLink({ kind: 'task', name: String(field.value) });
@@ -122,7 +122,7 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
       }
       return { title: `${program.name} Metadata`, groups: [{ title: 'Program', fields: properties },
         { title: 'Views', fields: [{ label: 'Program tags', value: program.tags.length,
-          link: { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid } }] }] };
+          link: { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid } }] }] };
     }
     case 'task': {
       const task = controller.tasks?.find(candidate => candidate.name === target.name);

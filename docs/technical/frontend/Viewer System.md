@@ -181,13 +181,15 @@ order. The organizer virtualizes inventories above 50 visible rows and supports
 finding entries in collapsed branches. Inspectors show at most 50 fields per page.
 
 Metadata tabs use unique source program UIDs when available and entity names
-otherwise. Partial documents with duplicate UIDs keep programs separate by
-name, and ambiguous parent UID references stay as text. Routine links retain
-owner and routine names rather than depending on array positions. Reloads
-resolve each selection against the current
-controller. Removed entities show a missing-entity state with Raw access.
+otherwise. Partial documents with duplicate UIDs identify each program by its
+UID and name, and ambiguous parent UID references stay as text. Routine links
+retain owner and routine identities rather than depending on array positions.
+Reloads resolve each selection against the current controller. Removed entities
+show a missing-entity state with Raw access.
 The file's tab cache retains observed UID collisions, so a later refresh cannot
 redirect a removed owner to another program or duplicate the surviving owner's tabs.
+Reopening an ambiguous view retains its source UID, so name reuse with a different
+UID cannot redirect the old view. FBD sheet state uses the retained tab ID.
 Existing dedicated tag, datatype, module, AOI interface, and routine views
 remain available.
 

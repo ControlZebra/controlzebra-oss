@@ -484,6 +484,39 @@ describe('L5XViewer refresh behavior', () => {
     expect(screen.getByText(/This program is no longer in the file/)).toBeVisible();
   });
 
+  it('retains the source UID when reopened ambiguous views outlive their program and its name is reused', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      const original = { ...data.programs[0], name: 'Original', uid: version === 'v3' ? '20' : '10',
+        tags: [{ name: version === 'v3' ? 'ReplacementTag' : 'OriginalTag', dataType: 'BOOL' }],
+        routines: [makeRoutine('RoutineA', 'RLL', version)] };
+      data.programs = version === 'v1' ? [original] : [original, { ...original, name: 'Duplicate', uid: '10' }];
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    const openOriginalViews = () => {
+      clickEntry('Original');
+      fireEvent.click(screen.getByRole('button', { name: 'Open Main routine: RoutineA' }));
+      clickEntry('Original');
+      fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    };
+    openOriginalViews();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await screen.findByRole('button', { name: 'Duplicate' });
+    openOriginalViews();
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /RoutineA/ }));
+    expect(screen.getByText('Routine not found')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Original Metadata/ }));
+    expect(screen.getByText(/This entity is no longer in the file/)).toBeVisible();
+    openOriginalViews();
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }] }), expect.anything());
+  });
+
   it('deduplicates surviving duplicate-UID views after refresh and a cached viewer remount', async () => {
     queueSuccessfulRead(['v1', 'v2']);
     controllerResultMock.mockImplementation((version: string) => {
@@ -869,6 +902,35 @@ describe('L5XViewer refresh behavior', () => {
     expect(getCachedContent('l5x:/repo/Programs/Main.L5X')).toMatchObject({
       controller: { name: 'Controller v2' },
     });
+  });
+
+  it('keeps FBD sheets per tab when an owner UID becomes ambiguous and its view is reopened', async () => {
+    queueSuccessfulRead(['v1', 'v2']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      data.programs = ['DuplicateB', ...(version === 'v2' ? ['DuplicateA'] : [])].map(name => ({
+        ...data.programs[0], name, uid: '10', routines: [makeRoutine('RoutineA', 'FBD', `${name}-${version}`)],
+      }));
+      return { success: true, data };
+    });
+    const openRoutine = (name: string) => {
+      clickEntry(name);
+      fireEvent.click(within(screen.getByRole('region', { name: `${name} Metadata` })).getByRole('button', { name: 'Open Main routine: RoutineA' }));
+    };
+    await renderLoadedViewer();
+    openRoutine('DuplicateB');
+    fireEvent.click(await screen.findByRole('button', { name: 'Next FBD sheet' }));
+    expect(screen.getByText('FBD:DuplicateB-v1:sheet-1')).toBeVisible();
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText('FBD:DuplicateB-v2:sheet-1')).toBeVisible();
+    openRoutine('DuplicateB');
+    expect(screen.getByText('FBD:DuplicateB-v2:sheet-1')).toBeVisible();
+    openRoutine('DuplicateA');
+    expect(await screen.findByText('FBD:DuplicateA-v2:sheet-0')).toBeVisible();
+    fireEvent.click(within(screen.getByText('FBD:DuplicateA-v2:sheet-0').parentElement!).getByRole('button', { name: 'Next FBD sheet' }));
+    openRoutine('DuplicateB');
+    expect(screen.getByText('FBD:DuplicateB-v2:sheet-1')).toBeVisible();
+    expect(screen.getAllByRole('tab', { name: /RoutineA/ })).toHaveLength(2);
   });
 
   it('preserves FBD navigation while the CSS palette changes with the app theme', async () => {

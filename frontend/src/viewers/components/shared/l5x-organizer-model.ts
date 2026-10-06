@@ -23,9 +23,9 @@ export function buildOrganizerTree(controller: NormalizedController, ambiguousPr
   const programNodes = controller.programs.map((program, programIndex) => {
     const identity = programIdentity(controller.programs, program, ambiguousProgramUids);
     return entity(program.name, 'program', metadata({ kind: 'program', ...identity }), [
-      entity('Program Tags', 'tags', { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid }),
+      entity('Program Tags', 'tags', { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid }),
       ...program.routines.map((routine, routineIndex) => entity(routine.name, 'routine', {
-        type: 'routine', programIndex, programName: program.name, programUid: identity.uid, routineIndex, routineName: routine.name,
+        type: 'routine', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid, routineIndex, routineName: routine.name,
       })).sort((left, right) => left.label.localeCompare(right.label)),
     ]);
   });
@@ -79,14 +79,14 @@ export function organizerSelectionId(controller: NormalizedController, data?: Ta
   if (!data) return undefined;
   const programData = (program: NormalizedProgram) => {
     const identity = programIdentity(controller.programs, program, ambiguousProgramUids);
-    return { programIndex: controller.programs.indexOf(program), programName: program.name, programUid: identity.uid };
+    return { programIndex: controller.programs.indexOf(program), programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid };
   };
   if (data.type === 'metadata' && data.target.kind === 'program') {
     const program = findProgram(controller.programs, data.target, ambiguousProgramUids);
     return program ? generateTabId(metadata({ kind: 'program', ...programIdentity(controller.programs, program, ambiguousProgramUids) })) : undefined;
   }
   if (data.type === 'routine' || data.type === 'program-tags') {
-    const program = findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex }, ambiguousProgramUids);
+    const program = findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex, ambiguousUid: data.programUidAmbiguous }, ambiguousProgramUids);
     if (!program) return undefined;
     if (data.type === 'program-tags') return generateTabId({ ...data, ...programData(program) });
     const routine = data.routineName !== undefined ? program.routines.find(candidate => candidate.name === data.routineName)

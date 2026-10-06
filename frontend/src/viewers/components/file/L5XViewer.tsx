@@ -42,14 +42,13 @@ import {
 } from 'ladder-visualizer';
 
 // Import local tab components
-import { DataTypeTable, TabBar, useTabs, generateTabId, type TabData } from './l5x';
+import { DataTypeTable, TabBar, useTabs, type TabData } from './l5x';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 import MetadataInspector from './l5x/MetadataInspector';
-import { metadataTargetId } from './l5x/metadata-model';
 import { findProgram } from './l5x/program-identity';
 
-function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string }, ambiguousProgramUids: ReadonlySet<string>) {
-  return findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex }, ambiguousProgramUids);
+function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string; programUidAmbiguous?: boolean }, ambiguousProgramUids: ReadonlySet<string>) {
+  return findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex, ambiguousUid: data.programUidAmbiguous }, ambiguousProgramUids);
 }
 
 // Note: ladder-visualizer CSS is imported via index.css to work with Vite's CSS handling
@@ -182,7 +181,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   // Tab Content Rendering
   // ============================================================================
 
-  const renderTabContent = useCallback((tabData: TabData, isActive: boolean) => {
+  const renderTabContent = useCallback((tabData: TabData, isActive: boolean, tabId: string) => {
     if (!controller) return null;
 
     const containerClass = `flex-1 flex flex-col overflow-hidden h-full ${isActive ? '' : 'hidden'}`;
@@ -191,7 +190,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
     switch (tabData.type) {
       case 'metadata':
-        return <div key={metadataTargetId(tabData.target)} className={containerClass}>
+        return <div key={tabId} className={containerClass}>
           <div className="min-h-0 flex-1 overflow-auto">
             <MetadataInspector controller={controller} target={tabData.target} onOpen={handleOpen} onShowRaw={onShowRaw} ambiguousProgramUids={ambiguousProgramUids} />
           </div>
@@ -209,7 +208,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         const program = resolveProgram(controller, tabData, ambiguousProgramUids);
         const tags = program?.tags ?? [];
         return (
-          <div key={generateTabId(tabData)} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
               {!program ? <p className="text-center text-theme-secondary py-10">This program is no longer in the file. Select another item in the Project Organizer.</p> : tags.length > 0 ? (
                 <TagTable tags={tags} dataTypes={dataTypes} />
@@ -291,10 +290,10 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
       case 'aoi-routine': {
         const aoi = controller.aois.find(a => a.name === tabData.aoiName);
         const routine = tabData.routineName !== undefined ? aoi?.routines.find(item => item.name === tabData.routineName) : aoi?.routines[tabData.routineIndex];
-        const routineKey = `${normalizedFilePath}:aoi:${tabData.aoiName}:${tabData.routineName ?? tabData.routineIndex}`;
+        const routineKey = `${normalizedFilePath}:${tabId}`;
         if (aoi && routine) {
           return (
-            <div key={generateTabId(tabData)} className={containerClass}>
+            <div key={tabId} className={containerClass}>
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
@@ -308,7 +307,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={generateTabId(tabData)} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">AOI routine not found</p>
           </div>
         );
@@ -317,10 +316,10 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
       case 'routine': {
         const program = resolveProgram(controller, tabData, ambiguousProgramUids);
         const routine = tabData.routineName !== undefined ? program?.routines.find(item => item.name === tabData.routineName) : program?.routines[tabData.routineIndex];
-        const routineKey = `${normalizedFilePath}:program:${tabData.programUid ?? tabData.programName ?? tabData.programIndex}:${tabData.routineName ?? tabData.routineIndex}`;
+        const routineKey = `${normalizedFilePath}:${tabId}`;
         if (routine) {
           return (
-            <div key={generateTabId(tabData)} className={containerClass}>
+            <div key={tabId} className={containerClass}>
               <div className={ladderContentClass}>
                 <L5XRoutineViewer
                   routine={routine}
@@ -334,7 +333,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={generateTabId(tabData)} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">Routine not found</p>
           </div>
         );
@@ -344,7 +343,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         const module = controller.modules.find(m => m.name === tabData.moduleName);
         if (module) {
           return (
-            <div key={generateTabId(tabData)} className={containerClass}>
+            <div key={tabId} className={containerClass}>
               <div className="flex-1 overflow-auto p-4">
                 <ModuleInfoTable module={module} />
               </div>
@@ -352,7 +351,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           );
         }
         return (
-          <div key={generateTabId(tabData)} className={containerClass}>
+          <div key={tabId} className={containerClass}>
             <p className="text-center text-theme-secondary py-10">Module not found</p>
           </div>
         );
@@ -382,7 +381,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     // Render all tabs (keeping inactive ones mounted but hidden)
     return (
       <>
-        {tabs.map(tab => renderTabContent(tab.data, tab.id === activeTabId))}
+        {tabs.map(tab => renderTabContent(tab.data, tab.id === activeTabId, tab.id))}
       </>
     );
   };
