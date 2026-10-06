@@ -419,6 +419,47 @@ describe('L5XViewer refresh behavior', () => {
     expect(screen.getByText('Module Info')).toBeVisible();
   });
 
+  it('retains program-tag ownership and deduplication after UID-preserving rename and name reuse', async () => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = metadataController(version);
+      data.programs[0].tags = [{ name: 'OriginalTag', dataType: 'BOOL' }];
+      if (version !== 'v1') {
+        data.programs[0].name = 'Renamed';
+        data.programs.unshift({ ...data.programs[0], name: 'MainProgram', uid: '1',
+          tags: [{ name: 'ReplacementTag', dataType: 'BOOL' }] });
+      }
+      if (version === 'v3') data.programs.pop();
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Inspect Program: Renamed' })).toBeInTheDocument());
+    expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: Renamed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();
+    expect(screen.queryByText('No program-specific tags defined')).not.toBeInTheDocument();
+  });
+
+  it.each(['Enter', ' '])('does not cancel native close-button activation with %s', async key => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
+    await renderLoadedViewer();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: MainProgram' }));
+    const tab = screen.getByRole('tab', { name: /Program: MainProgram Metadata/ });
+    const close = within(tab).getByRole('button', { name: 'Close tab' });
+    close.focus();
+    expect(fireEvent.keyDown(close, { key })).toBe(true);
+    fireEvent.click(close);
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
   it('bounds a large organizer inventory and finds an entity beyond the first page', async () => {
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     const data = metadataController('v1');

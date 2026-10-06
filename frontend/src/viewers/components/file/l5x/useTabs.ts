@@ -34,7 +34,7 @@ export interface Tab {
 export type TabData = 
   | { type: 'routine'; programIndex: number; routineIndex: number; programName?: string; programUid?: string; routineName?: string }
   | { type: 'controller-tags' }
-  | { type: 'program-tags'; programIndex: number; programName: string }
+  | { type: 'program-tags'; programIndex: number; programName: string; programUid?: string }
   | { type: 'controller-info' }
   | { type: 'data-type'; dataTypeName: string }
   | { type: 'aoi-parameters'; aoiName: string }
@@ -89,7 +89,7 @@ export function generateTabId(data: TabData): string {
     case 'controller-tags':
       return 'controller-tags';
     case 'program-tags':
-      return `program-tags-${data.programName}`;
+      return JSON.stringify(['program-tags', data.programUid !== undefined ? ['uid', data.programUid] : ['name', data.programName]]);
     case 'controller-info':
       return 'controller-info';
     case 'data-type':

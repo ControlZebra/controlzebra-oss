@@ -181,7 +181,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     if (!controller) return;
     const program = controller.programs[programIndex];
     openTab(
-      { type: 'program-tags', programIndex, programName: program.name },
+      { type: 'program-tags', programIndex, programName: program.name, programUid: program.uid },
       `${program.name} Tags`
     );
   }, [controller, openTab]);
@@ -297,7 +297,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         return (
           <div key={generateTabId(tabData)} className={containerClass}>
             <div className="flex-1 overflow-auto p-4">
-              {tags.length > 0 ? (
+              {!program ? <p className="text-center text-theme-secondary py-10">This program is no longer in the file. Select another item in the Project Organizer.</p> : tags.length > 0 ? (
                 <TagTable tags={tags} dataTypes={dataTypes} />
               ) : (
                 <p className="text-center text-theme-secondary py-10">No program-specific tags defined</p>

@@ -121,7 +121,7 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
       }
       return { title: `${program.name} Metadata`, groups: [{ title: 'Program', fields: properties },
         { title: 'Views', fields: [{ label: 'Program tags', value: program.tags.length,
-          link: { type: 'program-tags', programIndex, programName: program.name } }] }] };
+          link: { type: 'program-tags', programIndex, programName: program.name, programUid: program.uid } }] }] };
     }
     case 'task': {
       const task = controller.tasks?.find(candidate => candidate.name === target.name);

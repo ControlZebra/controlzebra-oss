@@ -43,7 +43,9 @@ const TabItem = memo(function TabItem({
       tabIndex={0}
       aria-selected={isActive}
       onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(); }
+        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault(); onSelect();
+        }
       }}
       className={`
         flex items-center gap-1.5 px-3 py-1.5 cursor-pointer select-none
