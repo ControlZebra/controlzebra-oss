@@ -440,7 +440,9 @@ describe('L5XViewer refresh behavior', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Inspect Program: Renamed' })).toBeInTheDocument());
     expect(tagTableMock).toHaveBeenLastCalledWith(expect.objectContaining({ tags: [{ name: 'OriginalTag', dataType: 'BOOL' }] }), expect.anything());
     fireEvent.click(screen.getByRole('button', { name: 'Inspect Program: Renamed' }));
+    expect(screen.getByRole('tab', { name: /Program: Renamed Metadata/ })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(screen.getByRole('tab', { name: /Renamed Tags/ })).toBeVisible();
     expect(screen.getAllByRole('tab')).toHaveLength(2);
     await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
     expect(await screen.findByText(/This program is no longer in the file/)).toBeVisible();

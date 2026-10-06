@@ -71,6 +71,18 @@ describe('metadata values and relationships', () => {
       .toEqual([{ label: 'a', value: '35.01' }, { label: 'b', value: 0 }, { label: 'z', value: false }]);
   });
 
+  it('retains unsigned-long program IDs through the real public parser and inspector', () => {
+    const parsed = parseString(`<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetType="Controller" TargetName="ExactIds">
+      <Controller Name="ExactIds"><Programs><Program Name="Exact" UId="18446744073709551615" ParentUId="18446744073709551614" Verified="false" LastScanTime="0" /></Programs></Controller>
+    </RSLogix5000Content>`, 'l5x');
+    expect(parsed.data?.programs[0].uid).toBe('18446744073709551615');
+    render(<MetadataInspector controller={parsed.data!} target={{ kind: 'program', name: 'Exact', uid: '18446744073709551615' }} onOpen={vi.fn()} />);
+    expect(screen.getByRole('row', { name: 'UID 18446744073709551615' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: 'Parent UID 18446744073709551614' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: 'Verified false' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: 'Last scan time 0' })).toBeInTheDocument();
+  });
+
   it('uses a program UID after rename/reorder and never redirects a removed UID to a reused name', () => {
     const controller = richController();
     const target: MetadataTarget = { kind: 'program', name: 'Main', uid: '18446744073709551615' };

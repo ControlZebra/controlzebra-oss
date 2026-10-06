@@ -157,7 +157,7 @@ export function useTabs(filePath?: string): UseTabsResult {
     setTabs((prevTabs) => {
       const existingTab = prevTabs.find(t => t.id === id);
       if (existingTab) {
-        return prevTabs;
+        return prevTabs.map(tab => tab.id === id ? { ...tab, title, data } : tab);
       }
       
       const newTab: Tab = {
