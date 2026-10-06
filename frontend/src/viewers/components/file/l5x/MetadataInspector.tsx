@@ -24,14 +24,15 @@ export const MetadataPropertyList = memo(function MetadataPropertyList({ fields,
   </TableBody></Table>;
 });
 
-function MetadataInspector({ controller, target, onOpen, onShowRaw }: {
+function MetadataInspector({ controller, target, onOpen, onShowRaw, ambiguousProgramUids }: {
   controller: NormalizedController;
   target: MetadataTarget;
+  ambiguousProgramUids?: ReadonlySet<string>;
   onOpen: (data: TabData, title: string) => void;
   onShowRaw?: () => void;
 }) {
   const headingId = useId();
-  const model = useMemo(() => buildMetadataModel(controller, target), [controller, target]);
+  const model = useMemo(() => buildMetadataModel(controller, target, ambiguousProgramUids), [controller, target, ambiguousProgramUids]);
   const [page, setPage] = useState(0);
   // Bound rendering of long member/port/schedule inventories while preserving source order.
   const rows = useMemo(() => model?.groups.flatMap(group => group.fields.length

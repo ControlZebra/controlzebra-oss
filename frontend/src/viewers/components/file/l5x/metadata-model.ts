@@ -57,13 +57,13 @@ export function metadataLinkTitle(data: TabData): string {
   }
 }
 
-export function buildMetadataModel(controller: NormalizedController, target: MetadataTarget): MetadataModel | null {
+export function buildMetadataModel(controller: NormalizedController, target: MetadataTarget, ambiguousProgramUids?: ReadonlySet<string>): MetadataModel | null {
   const catalog = controller.dataTypeCatalog ?? controller.dataTypes;
   const typeLink = (name?: string) => name && catalog.some(type => type.name === name)
     ? metadataLink({ kind: 'data-type', name }) : undefined;
   const programLink = (name: string) => {
-    const program = findProgram(controller.programs, { name });
-    return program ? metadataLink({ kind: 'program', ...programIdentity(controller.programs, program) }) : undefined;
+    const program = findProgram(controller.programs, { name }, ambiguousProgramUids);
+    return program ? metadataLink({ kind: 'program', ...programIdentity(controller.programs, program, ambiguousProgramUids) }) : undefined;
   };
   switch (target.kind) {
     case 'controller': {
@@ -90,10 +90,10 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
       ] };
     }
     case 'program': {
-      const program = findProgram(controller.programs, target);
+      const program = findProgram(controller.programs, target, ambiguousProgramUids);
       if (!program) return null;
       const programIndex = controller.programs.indexOf(program);
-      const identity = programIdentity(controller.programs, program);
+      const identity = programIdentity(controller.programs, program, ambiguousProgramUids);
       const properties = fields(program, [
         ['name', 'Name'], ['uid', 'UID'], ['parentUid', 'Parent UID'], ['useAsFolder', 'Use as folder'],
         ['programType', 'Type'], ['description', 'Description'], ['mainRoutineName', 'Main routine'],
@@ -116,8 +116,8 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
           field.link = metadataLink({ kind: 'task', name: String(field.value) });
         }
         if (field.label === 'Parent UID') {
-          const parent = typeof field.value === 'string' ? findProgram(controller.programs, { uid: field.value }) : undefined;
-          if (parent) field.link = metadataLink({ kind: 'program', ...programIdentity(controller.programs, parent) });
+          const parent = typeof field.value === 'string' ? findProgram(controller.programs, { uid: field.value }, ambiguousProgramUids) : undefined;
+          if (parent) field.link = metadataLink({ kind: 'program', ...programIdentity(controller.programs, parent, ambiguousProgramUids) });
         }
       }
       return { title: `${program.name} Metadata`, groups: [{ title: 'Program', fields: properties },

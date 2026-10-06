@@ -12,16 +12,17 @@ import { buildOrganizerTree, organizerSelectionId, organizerTabTitle, type Organ
 const icons = { controller: Cpu, task: Clock, program: Folder, aoi: Boxes, type: Code, module: Network, tags: Tags, routine: FileCode, folder: Folder };
 interface Row { node: OrganizerNode; depth: number; path: string; expanded: boolean }
 
-function L5XEntityNavigator({ controller, activeTabData, onOpen }: {
+function L5XEntityNavigator({ controller, activeTabData, onOpen, ambiguousProgramUids }: {
   controller: NormalizedController;
+  ambiguousProgramUids?: ReadonlySet<string>;
   activeTabData?: TabData | null;
   onOpen: (data: TabData, title: string) => void;
 }) {
-  const tree = useMemo(() => buildOrganizerTree(controller), [controller]);
+  const tree = useMemo(() => buildOrganizerTree(controller, ambiguousProgramUids), [controller, ambiguousProgramUids]);
   const [expansion, setExpansion] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const selectedId = organizerSelectionId(controller, activeTabData);
+  const selectedId = organizerSelectionId(controller, activeTabData, ambiguousProgramUids);
   const rows = useMemo(() => {
     const result: Row[] = [];
     const query = search.trim().toLowerCase();

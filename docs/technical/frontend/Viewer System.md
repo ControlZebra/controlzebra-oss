@@ -186,6 +186,8 @@ name, and ambiguous parent UID references stay as text. Routine links retain
 owner and routine names rather than depending on array positions. Reloads
 resolve each selection against the current
 controller. Removed entities show a missing-entity state with Raw access.
+The file's tab cache retains observed UID collisions, so a later refresh cannot
+redirect a removed owner to another program or duplicate the surviving owner's tabs.
 Existing dedicated tag, datatype, module, AOI interface, and routine views
 remain available.
 

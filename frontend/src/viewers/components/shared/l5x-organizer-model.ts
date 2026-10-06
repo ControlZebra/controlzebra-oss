@@ -19,9 +19,9 @@ const folder = (key: string, label: string, children: OrganizerNode[], defaultEx
   ({ key, label, icon: 'folder', children, defaultExpanded });
 
 /** Build the existing organizer hierarchy from public normalized data. */
-export function buildOrganizerTree(controller: NormalizedController): OrganizerNode[] {
+export function buildOrganizerTree(controller: NormalizedController, ambiguousProgramUids?: ReadonlySet<string>): OrganizerNode[] {
   const programNodes = controller.programs.map((program, programIndex) => {
-    const identity = programIdentity(controller.programs, program);
+    const identity = programIdentity(controller.programs, program, ambiguousProgramUids);
     return entity(program.name, 'program', metadata({ kind: 'program', ...identity }), [
       entity('Program Tags', 'tags', { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid }),
       ...program.routines.map((routine, routineIndex) => entity(routine.name, 'routine', {
@@ -75,18 +75,18 @@ export function organizerTabTitle(data: TabData): string {
 }
 
 /** Resolve old tab descriptors against refreshed owners before highlighting a row. */
-export function organizerSelectionId(controller: NormalizedController, data?: TabData | null): string | undefined {
+export function organizerSelectionId(controller: NormalizedController, data?: TabData | null, ambiguousProgramUids?: ReadonlySet<string>): string | undefined {
   if (!data) return undefined;
   const programData = (program: NormalizedProgram) => {
-    const identity = programIdentity(controller.programs, program);
+    const identity = programIdentity(controller.programs, program, ambiguousProgramUids);
     return { programIndex: controller.programs.indexOf(program), programName: program.name, programUid: identity.uid };
   };
   if (data.type === 'metadata' && data.target.kind === 'program') {
-    const program = findProgram(controller.programs, data.target);
-    return program ? generateTabId(metadata({ kind: 'program', ...programIdentity(controller.programs, program) })) : undefined;
+    const program = findProgram(controller.programs, data.target, ambiguousProgramUids);
+    return program ? generateTabId(metadata({ kind: 'program', ...programIdentity(controller.programs, program, ambiguousProgramUids) })) : undefined;
   }
   if (data.type === 'routine' || data.type === 'program-tags') {
-    const program = findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex });
+    const program = findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex }, ambiguousProgramUids);
     if (!program) return undefined;
     if (data.type === 'program-tags') return generateTabId({ ...data, ...programData(program) });
     const routine = data.routineName !== undefined ? program.routines.find(candidate => candidate.name === data.routineName)

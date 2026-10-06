@@ -5,7 +5,9 @@
  * Supports optional caching of tab state by file path to persist
  * tabs across view switches.
  */
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import type { NormalizedController } from 'ladder-visualizer';
+import { collectAmbiguousProgramUids } from './program-identity';
 import { metadataTargetId, type MetadataTarget } from './metadata-model';
 
 // ============================================================================
@@ -51,6 +53,7 @@ export type TabData =
 interface TabStateCache {
   tabs: Tab[];
   activeTabId: string | null;
+  ambiguousProgramUids?: ReadonlySet<string>;
 }
 
 /** Module-level cache for L5X viewer tab states, keyed by file path */
@@ -115,7 +118,8 @@ export function generateTabId(data: TabData): string {
 export interface UseTabsResult {
   tabs: Tab[];
   activeTabId: string | null;
-  openTab: (data: TabData, title: string) => void;
+  openTab: (data: TabData, title: string, existingTabId?: string) => void;
+  ambiguousProgramUids: ReadonlySet<string>;
   closeTab: (tabId: string) => void;
   selectTab: (tabId: string) => void;
   closeAllTabs: () => void;
@@ -130,29 +134,37 @@ export interface UseTabsResult {
  * @param filePath - Optional file path for caching tab state.
  *                   When provided, tab state persists across view switches.
  */
-export function useTabs(filePath?: string): UseTabsResult {
+export function useTabs(filePath?: string, programs?: NormalizedController['programs']): UseTabsResult {
   // Initialize from cache if available
   const cachedState = filePath ? getCachedTabState(filePath) : undefined;
   
   const [tabs, setTabs] = useState<Tab[]>(cachedState?.tabs ?? []);
   const [activeTabId, setActiveTabId] = useState<string | null>(cachedState?.activeTabId ?? null);
+  const [uidHistory, setUidHistory] = useState<ReadonlySet<string>>(cachedState?.ambiguousProgramUids ?? new Set());
 
   // Track the file path for cache updates
   const filePathRef = useRef(filePath);
-  filePathRef.current = filePath;
+  if (filePathRef.current !== filePath) {
+    filePathRef.current = filePath;
+    setTabs(cachedState?.tabs ?? []);
+    setActiveTabId(cachedState?.activeTabId ?? null);
+    setUidHistory(cachedState?.ambiguousProgramUids ?? new Set());
+  }
+  const ambiguousProgramUids = useMemo(() => programs ? collectAmbiguousProgramUids(programs, uidHistory) : uidHistory, [programs, uidHistory]);
+  useEffect(() => { setUidHistory(ambiguousProgramUids); }, [ambiguousProgramUids]);
 
   // Persist tab state to cache whenever it changes
   useEffect(() => {
     if (filePathRef.current) {
-      tabStateCache.set(filePathRef.current, { tabs, activeTabId });
+      tabStateCache.set(filePathRef.current, { tabs, activeTabId, ambiguousProgramUids });
     }
-  }, [tabs, activeTabId]);
+  }, [tabs, activeTabId, ambiguousProgramUids]);
 
   /**
    * Open a new tab or switch to an existing one
    */
-  const openTab = useCallback((data: TabData, title: string) => {
-    const id = generateTabId(data);
+  const openTab = useCallback((data: TabData, title: string, existingTabId?: string) => {
+    const id = existingTabId ?? generateTabId(data);
     
     setTabs((prevTabs) => {
       const existingTab = prevTabs.find(t => t.id === id);
@@ -245,6 +257,7 @@ export function useTabs(filePath?: string): UseTabsResult {
     tabs,
     activeTabId,
     openTab,
+    ambiguousProgramUids,
     closeTab,
     selectTab,
     closeAllTabs,
