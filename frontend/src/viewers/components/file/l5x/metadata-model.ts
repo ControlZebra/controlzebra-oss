@@ -40,7 +40,9 @@ export function formatMetadataDimensions(dimensions?: number[], dimension?: numb
 function fields<T extends object>(entity: T, definitions: Array<[keyof T, string]>): MetadataField[] {
   return definitions.map(([key, label]) => ({ label, value: entity[key] }));
 }
-function metadataLink(target: MetadataTarget): TabData { return { type: 'metadata', target }; }
+function metadataLink(target: MetadataTarget): TabData {
+  return target.kind === 'data-type' ? { type: 'data-type', dataTypeName: target.name } : { type: 'metadata', target };
+}
 
 export function metadataLinkTitle(data: TabData): string {
   switch (data.type) {
@@ -161,7 +163,7 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
         { title: 'Data type', fields: [...fields(type, [['name', 'Name'], ['description', 'Description'],
           ['family', 'Family'], ['class', 'Class'], ['category', 'Category'], ['resolution', 'Resolution'],
           ['usage', 'Usage'], ['provenance', 'Provenance']]),
-          { label: 'Member structure', value: type.members.length, link: { type: 'data-type', dataTypeName: type.name } }] },
+          { label: 'Member structure', value: type.members.length, link: { type: 'data-type', dataTypeName: type.name, view: 'table' } }] },
         ...type.members.map((member, index) => ({ title: `Member ${index + 1}: ${member.name}`, fields: [
           { label: 'Data type', value: member.dataType, link: typeLink(member.dataType) },
           { label: 'Dimensions', value: formatMetadataDimensions(member.dimensions, member.dimension) },

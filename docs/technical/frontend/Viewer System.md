@@ -163,13 +163,20 @@ even when structured parsing or rendering fails.
 ## L5X metadata inspectors
 
 The file viewer's Project Organizer uses an app-owned entity tree. Controller,
-program, task, AOI, datatype, and module labels open metadata tabs. Expansion
-arrows work separately; grouping folders only expand or collapse. This replaces
-the separate metadata list and the controller, datatype, and module tables
-previously opened directly from entity labels. Dedicated tags, AOI interface,
-routine, datatype structure, and module configuration views remain accessible
-through child entries or inspector links. Comparison views retain the public
-library navigator.
+program, task, AOI, and module labels open metadata tabs. Datatype labels open
+one tab named after the datatype, with `table` and `other` tabs inside it.
+`table` is the default and reuses the original member table with Name, Data Type,
+and Description columns, datatype links, and atomic or unresolved empty states.
+`other` contains all datatype and member metadata. The selected inner tab stays
+with the open datatype tab across navigation, refreshes, and cached remounts;
+closing and reopening starts on `table`. All datatype categories use this layout.
+Metadata links and member-table links reuse the same datatype tab, and older
+cached metadata and member-table tabs merge into one datatype tab.
+
+Expansion arrows work separately; grouping folders only expand or collapse.
+The separate metadata list is removed. Dedicated tags, AOI interface, routine,
+and module configuration views remain accessible through child entries or
+inspector links. Comparison views retain the public library navigator.
 
 `metadata-model.ts` maps normalized fields and resolvable references into
 property groups. `MetadataInspector.tsx` renders those groups with shared

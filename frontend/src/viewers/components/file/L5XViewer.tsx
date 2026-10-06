@@ -42,7 +42,9 @@ import {
 } from 'ladder-visualizer';
 
 // Import local tab components
-import { DataTypeTable, TabBar, useTabs, type TabData } from './l5x';
+import { TabBar, useTabs, type TabData } from './l5x';
+import { normalizeTabData } from './l5x/useTabs';
+import DataTypeView from './l5x/DataTypeView';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 import MetadataInspector from './l5x/MetadataInspector';
 import { findProgram } from './l5x/program-identity';
@@ -158,18 +160,19 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   // ============================================================================
 
   const handleOpen = useCallback((data: TabData, title: string) => {
+    data = normalizeTabData(data);
     const selectionId = controller ? organizerSelectionId(controller, data, ambiguousProgramUids) : undefined;
     const existing = selectionId && tabs.find(tab => tab.type === data.type &&
       organizerSelectionId(controller!, tab.data, ambiguousProgramUids) === selectionId);
-    openTab(data, title, existing ? existing.id : undefined);
+    openTab(data, data.type === 'data-type' ? data.dataTypeName : title, existing ? existing.id : undefined);
   }, [controller, ambiguousProgramUids, tabs, openTab]);
 
   const handleDataTypeSelect = useCallback((dataType: NormalizedDataType) => {
-    openTab(
+    handleOpen(
       { type: 'data-type', dataTypeName: dataType.name },
       dataType.name
     );
-  }, [openTab]);
+  }, [handleOpen]);
 
   const activeTabData = useMemo(() => {
     if (!activeTabId) return null;
@@ -230,25 +233,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         );
 
       case 'data-type': {
-        const dataType = dataTypes.find(dt => dt.name === tabData.dataTypeName);
-        if (dataType) {
-          return (
-            <div key={`data-type-${tabData.dataTypeName}`} className={containerClass}>
-              <div className="flex-1 overflow-hidden p-4">
-                <DataTypeTable
-                  dataType={dataType}
-                  allDataTypes={dataTypes}
-                  onDataTypeSelect={handleDataTypeSelect}
-                />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div key={`data-type-${tabData.dataTypeName}`} className={containerClass}>
-            <p className="text-center text-theme-secondary py-10">Data type not found</p>
-          </div>
-        );
+        return <div key={tabId} className={containerClass}>
+          <DataTypeView controller={controller} dataTypeName={tabData.dataTypeName} view={tabData.view}
+            onViewChange={view => openTab({ ...tabData, view }, tabData.dataTypeName, tabId)}
+            onDataTypeSelect={handleDataTypeSelect} onOpen={handleOpen} onShowRaw={onShowRaw} />
+        </div>;
       }
 
       case 'aoi-parameters': {
@@ -360,7 +349,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
       default:
         return null;
     }
-  }, [controller, ambiguousProgramUids, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath, handleOpen, onShowRaw]);
+  }, [controller, ambiguousProgramUids, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath, handleOpen, onShowRaw, openTab]);
 
   // ============================================================================
   // Main Content Rendering

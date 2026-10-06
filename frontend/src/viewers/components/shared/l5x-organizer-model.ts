@@ -62,7 +62,7 @@ export function buildOrganizerTree(controller: NormalizedController, ambiguousPr
       ]))),
     folder('data-types', 'Data Types', typeCategories.map(([category, label]) => folder(`types:${category}`, label,
       types.filter(type => typeCategory(type) === category).map(type => entity(type.name, 'type',
-        metadata({ kind: 'data-type', name: type.name }))), false))),
+        { type: 'data-type', dataTypeName: type.name })), false))),
     folder('io', 'I/O Configuration', controller.modules.map(module => entity(
       module.catalogNumber ? `${module.name} (${module.catalogNumber})` : module.name, 'module',
       metadata({ kind: 'module', name: module.name })))),
@@ -94,7 +94,7 @@ export function organizerSelectionId(controller: NormalizedController, data?: Ta
     return routine ? generateTabId({ ...data, ...programData(program), routineName: routine.name }) : undefined;
   }
   if (data.type === 'controller-info') return generateTabId(metadata({ kind: 'controller' }));
-  if (data.type === 'data-type') return generateTabId(metadata({ kind: 'data-type', name: data.dataTypeName }));
+  if (data.type === 'data-type') return generateTabId(data);
   if (data.type === 'module') return generateTabId(metadata({ kind: 'module', name: data.moduleName }));
   return generateTabId(data);
 }

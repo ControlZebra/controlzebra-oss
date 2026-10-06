@@ -185,7 +185,7 @@ describe('metadata inspector presentation', () => {
     expect(screen.getByRole('row', { name: 'Dimensions [2][3]' })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: 'Default value 0' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Open Data type: DINT' }));
-    expect(onOpen).toHaveBeenCalledWith({ type: 'metadata', target: { kind: 'data-type', name: 'DINT' } }, 'DINT Metadata');
+    expect(onOpen).toHaveBeenCalledWith({ type: 'data-type', dataTypeName: 'DINT' }, 'DINT');
   });
 
   it('opens module parents and configuration without depending on array indexes', () => {
