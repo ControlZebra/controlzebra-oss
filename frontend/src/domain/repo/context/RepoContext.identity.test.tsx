@@ -278,6 +278,54 @@ describe('RepoContext git identity prompts', () => {
     StopWatching.mockResolvedValue({ success: true });
   });
 
+  it('prepares the settings directory when opening an existing repository', async () => {
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => { api = value; });
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      expect(await api!.openRepo('/tmp/existing-project')).toBe(true);
+    });
+
+    expect(EnsureControlZebraDir).toHaveBeenCalledWith('/tmp/existing-project');
+  });
+
+  it('does not create project settings when browsing an untracked folder', async () => {
+    DetectRepo.mockResolvedValue({ path: '/tmp/folder', isRepo: false, hasError: false });
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => { api = value; });
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      expect(await api!.openRepo('/tmp/folder')).toBe(true);
+    });
+
+    expect(EnsureControlZebraDir).not.toHaveBeenCalled();
+  });
+
+  it.each(['result', 'rejection'])('still opens a project after settings preparation fails (%s)', async (failure) => {
+    if (failure === 'result') {
+      EnsureControlZebraDir.mockResolvedValue({ success: false, error: 'Check folder permissions.' });
+    } else {
+      EnsureControlZebraDir.mockRejectedValue(new Error('Service unavailable'));
+    }
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => { api = value; });
+    await waitFor(() => expect(api).not.toBeNull());
+
+    try {
+      await act(async () => {
+        expect(await api!.openRepo('/tmp/existing-project')).toBe(true);
+      });
+      expect(warning).toHaveBeenCalled();
+      expect(StartBackgroundTasks).toHaveBeenCalledWith('/tmp/existing-project');
+      expect(api!.isLoading).toBe(false);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it('prompts before saving changes when git identity is missing', async () => {
     let api: ReturnType<typeof useRepo> | null = null;
     renderHarness((value) => {

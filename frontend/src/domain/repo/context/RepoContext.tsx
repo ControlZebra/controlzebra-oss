@@ -858,6 +858,17 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
       
       if (info.isRepo) {
+        // Repair settings folders from older builds or a fresh clone before
+        // the file watcher starts. Attribute failures must not block opening.
+        try {
+          const result = await EnsureControlZebraDir(path);
+          if (!result.success) {
+            console.warn('Failed to prepare project settings folder:', result.error);
+          }
+        } catch (err) {
+          console.warn('Failed to prepare project settings folder:', err);
+        }
+
         // Check if repo has remotes configured
         try {
           const remotes = await GetRemotes(path);
