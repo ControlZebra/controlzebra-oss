@@ -305,6 +305,50 @@ describe('L5X document source inspection', () => {
     expect(findDocumentRecord(after, selection)).toBeUndefined();
   });
 
+  it('opens distinct trend templates and retains their owners through refresh and cached reopen', async () => {
+    const trend = (name: string, template = `template ${name}`) => `<Trend Name="${name}"><Template>${template}</Template></Trend>`;
+    const content = (inner: string) => wrap(`<Trends>${inner}</Trends>`);
+    const original = content(`${trend('A')}${trend('B')}`);
+    const view = await load(original);
+    for (const name of ['A', 'B']) {
+      openDocument();
+      const fragment = parseDocumentString(original, 'l5x').data!.fragments.find(fragment => fragment.value === `template ${name}`)!;
+      fireEvent.click(within(overview().getByText(fragment.path).closest('li')!).getByRole('button', { name: 'Template[1]' }));
+      await screen.findByRole('textbox', { name: 'File content' });
+      expect(JSON.parse(editor().state.sliceDoc())).toBe(`template ${name}`);
+    }
+    expect(screen.getAllByRole('tab', { name: /Template/ })).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole('tab', { name: /Template/ })[0]);
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: content(`${trend('B')}${trend('A', 'refreshed A')}`) });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(JSON.parse(editor().state.sliceDoc())).toBe('refreshed A');
+    view.unmount();
+    render(<L5XFileViewer filePath={filePath} />);
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(JSON.parse(editor().state.sliceDoc())).toBe('refreshed A');
+    expect(screen.getAllByRole('tab', { name: /Template/ })).toHaveLength(2);
+  });
+
+  it('does not redirect a trend template selection when its named owner is replaced', () => {
+    const trend = (name: string) => wrap(`<Trends><Trend Name="${name}"><Template>template ${name}</Template></Trend></Trends>`);
+    const before = buildDocumentRecords(parseDocumentString(trend('A'), 'l5x').data!);
+    const selection = before.find(record => record.fragment?.path.endsWith('/Template[1]'))!.selection;
+    const after = buildDocumentRecords(parseDocumentString(trend('B'), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)).toBeUndefined();
+  });
+
+  it('invalidates templates under unnamed trend owners on refresh without losing current-document inspection', () => {
+    const trend = (value: string) => `<Trend><Template>${value}</Template></Trend>`;
+    const content = (inner: string) => wrap(`<Trends>${inner}</Trends>`);
+    const document = parseDocumentString(content(`${trend('A')}${trend('B')}`), 'l5x').data!;
+    const before = buildDocumentRecords(document);
+    const selection = before.find(record => record.fragment?.value === 'A')!.selection;
+    expect(findDocumentRecord(buildDocumentRecords(document), selection)?.fragment?.value).toBe('A');
+    const after = buildDocumentRecords(parseDocumentString(content(trend('B')), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)).toBeUndefined();
+  });
+
   it('inspects parsed preserved configuration and links covering diagnostics', async () => {
     const content = wrap('<VendorConfiguration Flag="yes"><![CDATA[<script>text</script>]]></VendorConfiguration>');
     await load(content);

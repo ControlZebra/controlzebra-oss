@@ -1,6 +1,16 @@
 import type { PlcDocument, PlcResource, PlcEncodedData, PlcVendorFragment } from 'ladder-visualizer';
 import { collectAmbiguousProgramUids, programIdentityKey } from './program-identity';
 
+const documentGenerations = new WeakMap<PlcDocument, number>();
+let nextDocumentGeneration = 0;
+function documentGeneration(document: PlcDocument): number {
+  const existing = documentGenerations.get(document);
+  if (existing !== undefined) return existing;
+  const generation = ++nextDocumentGeneration;
+  documentGenerations.set(document, generation);
+  return generation;
+}
+
 const resourceLabels: Record<PlcResource['kind'], string> = {
   controller: 'Controller', program: 'Program', routine: 'Routine', rung: 'Rung',
   tag: 'Tag', dataType: 'Data type', aoi: 'AOI', module: 'Module',
@@ -38,12 +48,37 @@ export function buildDocumentRecords(document: PlcDocument, ambiguousProgramUids
     return value;
   };
   const byPath = new Map(document.resources.map(resource => [resource.sourcePath, resource]));
+  const namesByPath = new Map<string, string>();
+  for (const mapping of document.mappings) {
+    if (!mapping.sourcePath.endsWith('/@Name')) continue;
+    let value: unknown = mapping.resourceId ? byId.get(mapping.resourceId)?.data : document.source;
+    for (const field of mapping.field.split('.')) {
+      value = typeof value === 'object' && value !== null && Object.prototype.hasOwnProperty.call(value, field)
+        ? (value as Record<string, unknown>)[field] : undefined;
+    }
+    if (typeof value === 'string') namesByPath.set(mapping.sourcePath.slice(0, -6), value);
+  }
+  for (const fragment of document.fragments) {
+    if (typeof fragment.value === 'object' && typeof fragment.value['@_Name'] === 'string') {
+      namesByPath.set(fragment.path, fragment.value['@_Name']);
+    }
+  }
   const sourceKey = (path: string, identity: unknown): string => {
     let ownerPath = path;
     while (ownerPath && !byPath.has(ownerPath)) ownerPath = ownerPath.slice(0, ownerPath.lastIndexOf('/'));
     const owner = byPath.get(ownerPath);
-    const location = path.slice(ownerPath.length).replace(/\[\d+\]/g, '');
-    return JSON.stringify([owner ? key(owner) : '', location, identity]);
+    let currentPath = ownerPath;
+    const steps = path.slice(ownerPath.length).split('/').filter(Boolean).map(part => {
+      currentPath += `/${part}`;
+      return { part, name: namesByPath.get(currentPath) };
+    });
+    const lastParent = steps.length - 1;
+    const lastNamedOwner = steps.reduce((last, step, index) => index < lastParent && step.name !== undefined ? index : last, -1);
+    const unidentifiedOwner = steps.some((step, index) => index < lastParent && index > lastNamedOwner && step.name === undefined);
+    const location = steps.map((step, index) => index === lastParent ? step.part.replace(/\[\d+\]/g, '')
+      : step.name !== undefined ? [step.part.replace(/\[\d+\]/g, ''), step.name] : step.part);
+    // Unidentified intermediate owners are inspectable only within this parsed document.
+    return JSON.stringify([owner ? key(owner) : '', location, identity, unidentifiedOwner ? documentGeneration(document) : null]);
   };
   const encodedKey = (encoded: PlcEncodedData): string => {
     // Names identify wrappers; revisions and payloads can change on refresh.
