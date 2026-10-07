@@ -58,26 +58,33 @@ func TestRemoveGhCredentialHelpers(t *testing.T) {
 		want    map[string][]string
 	}{
 		{
-			name: "host-specific helpers and their resets",
+			name: "clean only github.com helpers and their resets",
 			helpers: map[string][]string{
 				"credential.helper": {"manager"},
 				githubKey:           {"", staleWindowsHelper, "", staleWindowsHelper},
 				gistKey:             {"", installedWindowsHelper},
-				otherKey:            {"", "store --file=/tmp/other-credentials"},
+				otherKey:            {"", installedWindowsHelper},
+				"credential.https://github.com.example.com.helper": {"", installedWindowsHelper},
 			},
 			want: map[string][]string{
 				"credential.helper": {"manager"},
 				githubKey:           nil,
-				gistKey:             nil,
-				otherKey:            {"", "store --file=/tmp/other-credentials"},
+				gistKey:             {"", installedWindowsHelper},
+				otherKey:            {"", installedWindowsHelper},
+				"credential.https://github.com.example.com.helper": {"", installedWindowsHelper},
 			},
 		},
 		{
-			name: "generic duplicates use literal matching",
+			name: "shared helpers remain unchanged",
 			helpers: map[string][]string{
 				"credential.helper": {"", staleWindowsHelper, staleWindowsHelper, "cache", "cache"},
 			},
-			want: map[string][]string{"credential.helper": {"", "cache", "cache"}},
+			want: map[string][]string{"credential.helper": {"", staleWindowsHelper, staleWindowsHelper, "cache", "cache"}},
+		},
+		{
+			name:    "host duplicates use literal matching",
+			helpers: map[string][]string{githubKey: {"", staleWindowsHelper, staleWindowsHelper, "cache", "cache"}},
+			want:    map[string][]string{githubKey: {"", "cache", "cache"}},
 		},
 		{
 			name: "preserve other helpers and reset order at the same host",
@@ -88,6 +95,17 @@ func TestRemoveGhCredentialHelpers(t *testing.T) {
 			want: map[string][]string{
 				githubKey: {"", "", "!custom-helper\n--option", " "},
 				gistKey:   {""},
+			},
+		},
+		{
+			name: "ignore other helpers disabled by the last reset",
+			helpers: map[string][]string{
+				"credential.helper": {"cache"},
+				githubKey:           {"manager", "", "!gh auth git-credential"},
+			},
+			want: map[string][]string{
+				"credential.helper": {"cache"},
+				githubKey:           {"manager"},
 			},
 		},
 		{
@@ -121,12 +139,163 @@ func TestRemoveGhCredentialHelpers(t *testing.T) {
 	}
 }
 
-func TestConfigureGitHubHTTPSCredentialsCleansUpBeforeAuthFailure(t *testing.T) {
+func TestConfigureGitHubHTTPSCredentialsWithOnlyGhHelper(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh uses a POSIX shell")
+	}
+	runner := isolatedCredentialConfig(t)
+	installFakeGh(t, `#!/bin/sh
+case "$*" in
+  '--version') exit 0 ;;
+  'auth status --hostname github.com') exit 0 ;;
+  'auth token --hostname github.com') printf '%s\n' fixture-token ;;
+  'auth git-credential get') printf '%s\n' username=x-access-token password=fixture-token ;;
+  'auth git-credential store'|'auth git-credential erase') cat >/dev/null ;;
+  *) exit 1 ;;
+esac
+`)
+	// The resolved path must remain a valid Git shell helper when the install
+	// directory contains spaces or an apostrophe.
+	quotedGh := filepath.Join(t.TempDir(), "engineer's gh")
+	if err := os.Rename(GhPath(), quotedGh); err != nil {
+		t.Fatal(err)
+	}
+	resolveMu.Lock()
+	resolvedGh = quotedGh
+	resolveMu.Unlock()
+	const key = "credential.https://github.com.helper"
+	addCredentialHelper(t, runner, key, "")
+	addCredentialHelper(t, runner, key, "!'"+strings.ReplaceAll(GhPath(), "'", "'\\''")+"' auth git-credential")
+	before := runner.RunWithStdin("", "protocol=https\nhost=github.com\n\n", GitPath(), "credential", "fill")
+	if !before.Success || !strings.Contains(before.Stdout, "password=fixture-token\n") {
+		t.Fatal("the original sole helper must supply fixture credentials")
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		if !configureGitHubHTTPSCredentials(runner) {
+			t.Fatal("setup failed with authenticated fake gh")
+		}
+		result := runner.RunWithStdin("", "protocol=https\nhost=github.com\n\n", GitPath(), "credential", "fill")
+		if !result.Success || !strings.Contains(result.Stdout, "password=fixture-token\n") {
+			t.Fatalf("migration removed the only usable credential source: %s", result.Stderr)
+		}
+	}
+}
+
+func TestConfigureGitHubHTTPSCredentialsWithoutHelper(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh uses a POSIX shell")
+	}
+	runner := isolatedCredentialConfig(t)
+	installFakeGh(t, `#!/bin/sh
+case "$*" in
+  '--version') exit 0 ;;
+  'auth status --hostname github.com') exit 0 ;;
+  'auth token --hostname github.com') printf '%s\n' fixture-token ;;
+  'auth git-credential get') printf '%s\n' username=x-access-token password=fixture-token ;;
+  'auth git-credential store'|'auth git-credential erase') cat >/dev/null ;;
+  *) exit 1 ;;
+esac
+`)
+	if !configureGitHubHTTPSCredentials(runner) {
+		t.Fatal("setup failed with authenticated fake gh")
+	}
+	result := runner.RunWithStdin("", "protocol=https\nhost=github.com\n\n", GitPath(), "credential", "fill")
+	if !result.Success || !strings.Contains(result.Stdout, "password=fixture-token\n") {
+		t.Fatalf("setup reported success without a usable helper: %s", result.Stderr)
+	}
+}
+
+func TestConfigureGitHubHTTPSCredentialsPreservesOtherHosts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh uses a POSIX shell")
+	}
+	for _, mode := range []string{"host-specific", "shared", "shared-after-scoped"} {
+		t.Run(mode, func(t *testing.T) {
+			runner := isolatedCredentialConfig(t)
+			legacyGh := filepath.Join(t.TempDir(), "legacy-gh")
+			if err := os.WriteFile(legacyGh, []byte(`#!/bin/sh
+if [ "$3" = get ]; then
+  while IFS= read -r line && [ -n "$line" ]; do
+    case "$line" in host=*) host=${line#host=} ;; esac
+  done
+  printf '%s\n' username=legacy-user "password=fixture-$host"
+else
+  cat >/dev/null
+fi
+`), 0755); err != nil {
+				t.Fatal(err)
+			}
+			legacyHelper := "!'" + legacyGh + "' auth git-credential"
+			installFakeGh(t, `#!/bin/sh
+case "$*" in
+  '--version'|'auth status --hostname github.com') exit 0 ;;
+  'auth token --hostname github.com') printf '%s\n' fixture-github ;;
+  'auth git-credential get') printf '%s\n' username=x-access-token password=fixture-github ;;
+  'auth git-credential store'|'auth git-credential erase') cat >/dev/null ;;
+  *) exit 1 ;;
+esac
+`)
+			unchanged := map[string][]string{}
+			if mode != "host-specific" {
+				unchanged["credential.helper"] = []string{legacyHelper}
+			} else {
+				for _, host := range []string{"gist.github.com", "git.example.com"} {
+					unchanged["credential.https://"+host+".helper"] = []string{"", legacyHelper}
+				}
+			}
+			if mode != "shared" {
+				addCredentialHelper(t, runner, githubCredentialHelperKey, "")
+				addCredentialHelper(t, runner, githubCredentialHelperKey, legacyHelper)
+			}
+			for key, helpers := range unchanged {
+				for _, helper := range helpers {
+					addCredentialHelper(t, runner, key, helper)
+				}
+			}
+			for attempt := 0; attempt < 2; attempt++ {
+				if !configureGitHubHTTPSCredentials(runner) {
+					t.Fatal("credential migration failed")
+				}
+				for key, helpers := range unchanged {
+					assertCredentialHelpers(t, runner, key, helpers)
+				}
+				for _, host := range []string{"github.com", "gist.github.com", "git.example.com"} {
+					want := "fixture-" + host
+					if host == githubHost {
+						want = "fixture-github"
+					}
+					result := runner.RunWithStdin("", "protocol=https\nhost="+host+"\n\n", GitPath(), "credential", "fill")
+					if !result.Success || !strings.Contains(result.Stdout, "password="+want+"\n") {
+						t.Fatalf("credential lookup failed for %s: %s", host, result.Stderr)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestConfigureGitHubHTTPSCredentialsKeepsHelperWhenReplacementUnavailable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake gh uses a POSIX shell")
 	}
 	runner := isolatedCredentialConfig(t)
 	installFakeGh(t, "#!/bin/sh\nexit 1\n")
+	helpers := []string{"", "!gh auth git-credential"}
+	for _, helper := range helpers {
+		addCredentialHelper(t, runner, githubCredentialHelperKey, helper)
+	}
+	if configureGitHubHTTPSCredentials(runner) {
+		t.Fatal("setup succeeded without an available replacement")
+	}
+	assertCredentialHelpers(t, runner, githubCredentialHelperKey, helpers)
+}
+
+func TestConfigureGitHubHTTPSCredentialsCleansUpBeforeAuthFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh uses a POSIX shell")
+	}
+	runner := isolatedCredentialConfig(t)
+	installFakeGh(t, "#!/bin/sh\n[ \"$1\" = --version ]\n")
 	const key = "credential.https://github.com.helper"
 	addCredentialHelper(t, runner, "credential.helper", "cache")
 	addCredentialHelper(t, runner, key, "")
@@ -134,7 +303,7 @@ func TestConfigureGitHubHTTPSCredentialsCleansUpBeforeAuthFailure(t *testing.T) 
 	if configureGitHubHTTPSCredentials(runner) {
 		t.Fatal("setup should report unavailable authentication")
 	}
-	assertCredentialHelpers(t, runner, key, nil)
+	assertCredentialHelpers(t, runner, key, []string{"!'" + GhPath() + "' auth git-credential"})
 	assertCredentialHelpers(t, runner, "credential.helper", []string{"cache"})
 }
 
@@ -164,8 +333,10 @@ func TestConfigureGitHubHTTPSCredentialsStoresTokenAfterMigration(t *testing.T) 
 	t.Setenv("CZ_TEST_CREDENTIAL_PATH", credentialPath)
 	installFakeGh(t, `#!/bin/sh
 case "$*" in
+  '--version') exit 0 ;;
   'auth status --hostname github.com') exit 0 ;;
   'auth token --hostname github.com') printf '%s\n' 'fixture-token' ;;
+  'auth git-credential store') cat >/dev/null ;;
   *) exit 1 ;;
 esac
 `)
@@ -176,7 +347,7 @@ esac
 	if !configureGitHubHTTPSCredentials(runner) {
 		t.Fatal("credential-store setup failed with authenticated fake gh")
 	}
-	assertCredentialHelpers(t, runner, key, nil)
+	assertCredentialHelpers(t, runner, key, []string{"!'" + GhPath() + "' auth git-credential"})
 	credential, err := os.ReadFile(credentialPath)
 	if err != nil {
 		t.Fatalf("credential approval did not reach the preserved store: %v", err)
@@ -187,7 +358,7 @@ esac
 	}
 }
 
-func TestEnsureWindowsCredentialHelperPreservesOtherHelpers(t *testing.T) {
+func TestPrepareWindowsCredentialHelperPreservesOtherHelpers(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake git uses a POSIX shell")
 	}
@@ -196,11 +367,15 @@ func TestEnsureWindowsCredentialHelperPreservesOtherHelpers(t *testing.T) {
 		helpers   []string
 		available bool
 		want      []string
+		wantOK    bool
+		scoped    []string
 	}{
-		{"append fallback", []string{"cache", "!custom-helper"}, true, []string{"cache", "!custom-helper", "wincred"}},
-		{"respect reset order", []string{"wincred", "", "!custom-helper"}, true, []string{"wincred", "", "!custom-helper", "wincred"}},
-		{"supported helper already active", []string{"!custom-helper", "", "wincred"}, true, []string{"!custom-helper", "", "wincred"}},
-		{"no fallback installed", []string{"!custom-helper"}, false, []string{"!custom-helper"}},
+		{"append scoped fallback", []string{"cache", "!custom-helper"}, true, []string{"wincred"}, true, nil},
+		{"respect reset order", []string{"wincred", "", "!custom-helper"}, true, []string{"wincred"}, true, nil},
+		{"supported helper already active", []string{"!custom-helper", "", "wincred"}, true, nil, true, nil},
+		{"no fallback installed", []string{"!gh auth git-credential"}, false, []string{"", "!gh auth git-credential"}, false, []string{"", "!gh auth git-credential"}},
+		{"host reset disables inherited helper", []string{"wincred"}, true, []string{"manager", "", "wincred"}, true, []string{"manager", "", "!gh auth git-credential"}},
+		{"isolate shared gh helper", []string{"wincred", "!gh auth git-credential"}, true, []string{"", "wincred"}, true, nil},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -234,8 +409,19 @@ fi
 			for _, value := range test.helpers {
 				addCredentialHelper(t, runner, "credential.helper", value)
 			}
-			ensureWindowsCredentialHelper(runner)
-			assertCredentialHelpers(t, runner, "credential.helper", test.want)
+			for _, value := range test.scoped {
+				addCredentialHelper(t, runner, githubCredentialHelperKey, value)
+			}
+			for attempt := 0; attempt < 2; attempt++ {
+				if _, ok := prepareGitHubCredentialHelper(runner, true); ok != test.wantOK {
+					t.Errorf("replacement available = %v, want %v", ok, test.wantOK)
+				}
+				if test.wantOK {
+					removeGhCredentialHelpers(runner)
+				}
+				assertCredentialHelpers(t, runner, "credential.helper", test.helpers)
+				assertCredentialHelpers(t, runner, githubCredentialHelperKey, test.want)
+			}
 		})
 	}
 }
@@ -261,6 +447,7 @@ func TestRepoCreateFromLocalUsesCredentialMigration(t *testing.T) {
 	installFakeGh(t, `#!/bin/sh
 printf '%s\n' "$*" >> "$CZ_TEST_GH_CALLS"
 case "$*" in
+  '--version') exit 0 ;;
   'auth status --hostname github.com') exit 1 ;;
   'repo create '*) exit 0 ;;
   *) exit 1 ;;
@@ -273,7 +460,7 @@ esac
 	if !result.Success {
 		t.Fatalf("create with fake gh: %s", result.Error)
 	}
-	assertCredentialHelpers(t, runner, key, nil)
+	assertCredentialHelpers(t, runner, key, []string{"!'" + GhPath() + "' auth git-credential"})
 	calls, err := os.ReadFile(callsPath)
 	if err != nil {
 		t.Fatal(err)
