@@ -1,11 +1,56 @@
 package services
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestControlZebraDirectoryHideFailure(t *testing.T) {
+	hideErr := errors.New("attribute update denied")
+	t.Run("empty directory is removed so a retry can hide it", func(t *testing.T) {
+		dirPath := controlZebraDirPath(filepath.Join(t.TempDir(), "new", "project"))
+		if err := createControlZebraDirectory(dirPath, func(string) error { return hideErr }); !errors.Is(err, hideErr) {
+			t.Fatalf("expected attribute failure, got %v", err)
+		}
+		if _, err := os.Stat(dirPath); !os.IsNotExist(err) {
+			t.Fatalf("failed creation left a directory behind: %v", err)
+		}
+		hidden := false
+		if err := createControlZebraDirectory(dirPath, func(string) error {
+			hidden = true
+			return nil
+		}); err != nil || !hidden {
+			t.Fatalf("retry did not hide the newly created directory: hidden=%v, err=%v", hidden, err)
+		}
+		if err := createControlZebraDirectory(dirPath, func(string) error {
+			t.Fatal("existing directory must not be hidden again")
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("contents added during failure are preserved", func(t *testing.T) {
+		dirPath := controlZebraDirPath(t.TempDir())
+		childPath := filepath.Join(dirPath, "keep.txt")
+		err := createControlZebraDirectory(dirPath, func(string) error {
+			if err := os.WriteFile(childPath, []byte("keep this content"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			return hideErr
+		})
+		if !errors.Is(err, hideErr) {
+			t.Fatalf("expected attribute failure, got %v", err)
+		}
+		data, err := os.ReadFile(childPath)
+		if err != nil || string(data) != "keep this content" {
+			t.Fatalf("concurrent contents changed: %q, %v", data, err)
+		}
+	})
+}
 
 func TestRepositorySettingsServiceProjectConfig(t *testing.T) {
 	repoPath := t.TempDir()

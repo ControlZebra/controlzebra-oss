@@ -79,11 +79,12 @@ func TestRepositorySettingsServiceHiddenDirectory(t *testing.T) {
 						t.Fatalf("operation failed: %s", result.Error)
 					}
 					attrs := hiddenTestAttributes(t, dirPath)
-					if attrs&windows.FILE_ATTRIBUTE_HIDDEN == 0 {
-						t.Errorf(".controlzebra is missing the Windows Hidden attribute: %#x", attrs)
+					wantHidden := state != "existing_visible"
+					if gotHidden := attrs&windows.FILE_ATTRIBUTE_HIDDEN != 0; gotHidden != wantHidden {
+						t.Errorf(".controlzebra Hidden attribute: got %v, want %v (%#x)", gotHidden, wantHidden, attrs)
 					}
-					if attrs&before != before {
-						t.Errorf("existing directory attributes were lost: before=%#x after=%#x", before, attrs)
+					if state != "new" && attrs != before {
+						t.Errorf("existing directory attributes changed: before=%#x after=%#x", before, attrs)
 					}
 					entries, err := os.ReadDir(dirPath)
 					if err != nil {
@@ -108,6 +109,35 @@ func TestRepositorySettingsServiceHiddenDirectory(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+func TestRepositorySettingsServiceUnhiddenDirectory(t *testing.T) {
+	repoPath := t.TempDir()
+	service := &RepositorySettingsService{}
+	if result := service.EnsureControlZebraDir(repoPath); !result.Success {
+		t.Fatal(result.Error)
+	}
+	dirPath := controlZebraDirPath(repoPath)
+	attrs := hiddenTestAttributes(t, dirPath) &^ windows.FILE_ATTRIBUTE_HIDDEN
+	path, err := windows.UTF16PtrFromString(dirPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := windows.SetFileAttributes(path, attrs); err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range []OperationResult{
+		service.EnsureControlZebraDir(repoPath),
+		service.WriteRepoLocalConfig(repoPath, RepoLocalConfig{}),
+		service.WriteRepoPersonalConfig(repoPath, RepoPersonalConfig{}),
+	} {
+		if !result.Success {
+			t.Fatal(result.Error)
+		}
+		if got := hiddenTestAttributes(t, dirPath); got != attrs {
+			t.Errorf("manually unhidden directory attributes changed: before=%#x after=%#x", attrs, got)
 		}
 	}
 }

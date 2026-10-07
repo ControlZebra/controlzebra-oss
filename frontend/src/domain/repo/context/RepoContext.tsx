@@ -858,17 +858,6 @@ export function RepoProvider({ children }: RepoProviderProps) {
       }
       
       if (info.isRepo) {
-        // Repair settings folders from older builds or a fresh clone before
-        // the file watcher starts. Attribute failures must not block opening.
-        try {
-          const result = await EnsureControlZebraDir(path);
-          if (!result.success) {
-            console.warn('Failed to prepare project settings folder:', result.error);
-          }
-        } catch (err) {
-          console.warn('Failed to prepare project settings folder:', err);
-        }
-
         // Check if repo has remotes configured
         try {
           const remotes = await GetRemotes(path);
@@ -1167,9 +1156,17 @@ export function RepoProvider({ children }: RepoProviderProps) {
       
       // Step 3: Create .controlzebra/ directory & ensure local.json is gitignored
       try {
-        await EnsureControlZebraDir(repoPath);
+        const directoryResult = await EnsureControlZebraDir(repoPath);
+        if (!directoryResult.success) {
+          showMessage('error', directoryResult.error || 'Could not prepare the project settings folder. Check the folder\'s permissions and try again.');
+          setIsLoading(false);
+          return false;
+        }
       } catch (err) {
         console.warn('Failed to ensure .controlzebra directory:', err);
+        showMessage('error', 'Could not prepare the project settings folder. Check the folder\'s permissions and try again.');
+        setIsLoading(false);
+        return false;
       }
       
       // Step 4: Ensure git identity from ControlZebra account
@@ -3415,15 +3412,25 @@ export function RepoProvider({ children }: RepoProviderProps) {
         }
       }
 
-      // Write .controlzebra/ config (non-fatal if it fails)
+      // Prepare project settings before committing or publishing.
       try {
-        await WriteRepoLocalConfig(path, {
+        const configResult = await WriteRepoLocalConfig(path, {
           createdAt: new Date().toISOString(),
           createdBy: userName || userEmail || 'unknown',
           appVersion: '0.0.0-dev',
         });
+        if (!configResult.success) {
+          return {
+            success: false,
+            error: configResult.error || 'Could not prepare the project settings folder. Check the folder\'s permissions and try again.',
+          };
+        }
       } catch (err) {
         console.warn('Failed to write .controlzebra config:', err);
+        return {
+          success: false,
+          error: 'Could not prepare the project settings folder. Check the folder\'s permissions and try again.',
+        };
       }
 
       // ── Step 1: Commit ──────────────────────────────────────────────

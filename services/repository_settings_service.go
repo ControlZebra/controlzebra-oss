@@ -1469,13 +1469,40 @@ func controlZebraDirPath(repoPath string) string {
 	return filepath.Join(repoPath, controlZebraDir)
 }
 
-// prepareControlZebraDirectory also repairs directories created by older builds
-// or checked out by Git, which does not preserve the Windows Hidden attribute.
+var controlZebraDirectoryMu sync.Mutex
+
+// prepareControlZebraDirectory hides only directories this operation creates.
+// Existing directories, including those checked out by Git, keep their attributes.
 func prepareControlZebraDirectory(dirPath string) error {
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
+	return createControlZebraDirectory(dirPath, hideControlZebraDirectory)
+}
+
+func createControlZebraDirectory(dirPath string, hide func(string) error) error {
+	// Do not let another settings operation use a new directory before hiding
+	// succeeds, or before a failed creation has been cleaned up for a retry.
+	controlZebraDirectoryMu.Lock()
+	defer controlZebraDirectoryMu.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(dirPath), 0755); err != nil {
 		return err
 	}
-	return hideControlZebraDirectory(dirPath)
+	if err := os.Mkdir(dirPath, 0755); err != nil {
+		if os.IsExist(err) {
+			if info, statErr := os.Stat(dirPath); statErr == nil && info.IsDir() {
+				return nil
+			}
+		}
+		return err
+	}
+	if err := hide(dirPath); err != nil {
+		// Remove only the newly created, empty directory. Never remove contents
+		// another process may have written while the attribute change was attempted.
+		if cleanupErr := os.Remove(dirPath); cleanupErr != nil {
+			return fmt.Errorf("could not hide project settings folder: %w; could not remove the new folder: %v", err, cleanupErr)
+		}
+		return fmt.Errorf("could not hide project settings folder: %w", err)
+	}
+	return nil
 }
 
 func controlZebraDirectoryFailure(err error) OperationResult {
