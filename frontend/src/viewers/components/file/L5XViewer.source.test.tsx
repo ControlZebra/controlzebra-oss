@@ -18,7 +18,10 @@ vi.mock('../shared/ViewerHeader', () => ({ ViewerHeader: ({ extraContent }: { ex
 vi.mock('ladder-visualizer', async importOriginal => {
   const actual = await importOriginal<typeof import('ladder-visualizer')>();
   // Diagram geometry belongs to its existing renderer tests. Keep parser/source/text real.
-  return { ...actual, VirtualizedLadderDiagram: () => <div>Ladder content</div> };
+  return { ...actual, VirtualizedLadderDiagram: () => <div>Ladder content</div>,
+    FBDDiagram: ({ sheetIndex = 0, onSheetIndexChange }: { sheetIndex?: number; onSheetIndexChange?: (index: number) => void }) =>
+      <div>Sheet {sheetIndex}<button onClick={() => onSheetIndexChange?.(sheetIndex + 1)}>Next sheet</button></div>,
+  };
 });
 
 const filePath = '/repo/Source.L5X';
@@ -69,11 +72,11 @@ describe('L5X document source inspection', () => {
     expect(overview().getByRole('row', { name: 'Target type Routine' })).toBeVisible();
     expect(overview().getByRole('row', { name: 'Target count 1' })).toBeVisible();
     fireEvent.click(overview().getByRole('button', { name: 'Context' }));
-    openRecord('DocumentFixture / Dependency (dataType)');
+    openRecord('Controller DocumentFixture / Dependency (Data type)');
     expect(screen.getByRole('row', { name: 'Role context' })).toBeVisible();
     openDocument();
     fireEvent.click(overview().getByRole('button', { name: 'References' }));
-    openRecord('DocumentFixture / ReferencedType (dataType)');
+    openRecord('Controller DocumentFixture / ReferencedType (Data type)');
     expect(screen.getByRole('row', { name: 'Role reference' })).toBeVisible();
   });
 
@@ -86,7 +89,7 @@ describe('L5X document source inspection', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Expand P' }));
       fireEvent.click(screen.getByRole('button', { name: 'Flow' }));
     } else if (owner === 'AOI') {
-      fireEvent.click(screen.getByRole('button', { name: 'A / Flow (routine)' }));
+      fireEvent.click(screen.getByRole('button', { name: 'AOI A / Flow (Routine)' }));
     }
     expect(xmlText()).toBe(sfc());
     expect(document.querySelector('script')).toBeNull();
@@ -101,7 +104,7 @@ describe('L5X document source inspection', () => {
     const view = await load(content);
     for (const owner of ['P1', 'P2', 'A']) {
       openDocument();
-      openRecord(`${owner} / Flow (routine)`);
+      openRecord(`${owner === 'A' ? 'AOI' : 'Program'} ${owner} / Flow (Routine)`);
       expect(xmlText()).toBe(sfc(owner));
     }
     expect(screen.getAllByRole('tab', { name: /Flow/ })).toHaveLength(3);
@@ -116,6 +119,28 @@ describe('L5X document source inspection', () => {
     expect(await screen.findByRole('region', { name: 'Flow XML source' })).toBeVisible();
     expect(xmlText()).toBe(sfc('P1'));
     expect(ReadTextFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('distinguishes identical routine and owner names between program and AOI scopes', async () => {
+    await load(wrap(`<Programs>${program('Shared')}</Programs><AddOnInstructionDefinitions><AddOnInstructionDefinition Name="Shared"><Routines>${sfc('AOI')}</Routines></AddOnInstructionDefinition></AddOnInstructionDefinitions>`));
+    openDocument();
+    openRecord('Program Shared / Flow (Routine)');
+    expect(xmlText()).toBe(sfc('Shared'));
+    openDocument();
+    openRecord('AOI Shared / Flow (Routine)');
+    expect(xmlText()).toBe(sfc('AOI'));
+    expect(screen.getAllByRole('tab', { name: /Shared \/ Flow/ })).toHaveLength(2);
+  });
+
+  it('preserves FBD sheet selection when a declared routine target refreshes', async () => {
+    const content = wrap('<Programs><Program Name="P"><Routines><Routine Name="Flow" Type="FBD"><FBDContent SheetSize="D" SheetOrientation="Landscape"><Sheet Number="1"/><Sheet Number="2"/></FBDContent></Routine></Routines></Program></Programs>', 'Routine', 'Flow');
+    await load(content);
+    fireEvent.click(screen.getByRole('button', { name: 'Next sheet' }));
+    expect(screen.getByText('Sheet 1')).toBeVisible();
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: content.replace('35.00', '35.01') });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(await screen.findByText('Sheet 1')).toBeVisible();
   });
 
   it('opens an encoded-only target with exact payload, paths, attributes, and capabilities', async () => {

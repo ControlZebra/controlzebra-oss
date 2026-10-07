@@ -1,5 +1,10 @@
 import type { PlcDocument, PlcResource, PlcEncodedData, PlcVendorFragment } from 'ladder-visualizer';
 
+const resourceLabels: Record<PlcResource['kind'], string> = {
+  controller: 'Controller', program: 'Program', routine: 'Routine', rung: 'Rung',
+  tag: 'Tag', dataType: 'Data type', aoi: 'AOI', module: 'Module',
+};
+
 export type DocumentSelection = { kind: 'source' } | { kind: 'resource'; key: string }
   | { kind: 'encoded' | 'fragment'; path: string };
 export interface DocumentRecord {
@@ -36,7 +41,7 @@ export function buildDocumentRecords(document: PlcDocument): DocumentRecord[] {
       const name = resource.kind === 'rung' ? `Rung ${resource.data.number}` : resource.data.name;
       const ownerName = owner && owner.kind !== 'rung' ? owner.data.name : undefined;
       return { selection: { kind: 'resource' as const, key: key(resource) },
-        title: `${ownerName ? `${ownerName} / ` : ''}${name} (${resource.kind})`,
+        title: `${owner && ownerName ? `${resourceLabels[owner.kind]} ${ownerName} / ` : ''}${name} (${resourceLabels[resource.kind]})`,
         group: targets.has(resource.id) ? 'Targets' as const : resource.role === 'target' ? 'Target content' as const
           : resource.role === 'context' ? 'Context' as const : 'References' as const,
         path: resource.sourcePath, resource };

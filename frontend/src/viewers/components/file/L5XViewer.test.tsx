@@ -802,7 +802,7 @@ describe('L5XViewer refresh behavior', () => {
     controllerResultMock.mockReturnValue({ success: true, status: 'partial', data: makeController('partial'),
       warnings: [{ message: 'Unsupported declaration dimensions.', location: { line: 12, column: 4, path: '/Controller[1]/Tags[1]' } }] });
     render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
-    await screen.findByText('Some content is available only in Raw');
+    await screen.findByText('Some content needs source inspection');
     openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@partial')).toBeVisible();
     fireEvent.click(screen.getByText('1 parser notice'));

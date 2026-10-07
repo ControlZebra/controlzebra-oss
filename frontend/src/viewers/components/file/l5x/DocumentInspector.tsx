@@ -1,11 +1,13 @@
-import { memo, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { TagTable, type PlcDocument, type NormalizedController } from 'ladder-visualizer';
 import { Button } from '../../../../shared/ui/button';
-import CodeMirrorTextViewer from '../../text/CodeMirrorTextViewer';
+import LoadingState from '../../../../shared/ui/LoadingState';
 import MetadataInspector, { MetadataPropertyList } from './MetadataInspector';
 import { L5XRoutineViewer } from './L5XRoutineViewer';
 import { findDocumentRecord, type DocumentSelection, type DocumentRecord } from './document-model';
 import type { TabData } from './useTabs';
+
+const CodeMirrorTextViewer = lazy(() => import('../../text/CodeMirrorTextViewer'));
 
 type OpenTab = (data: TabData, title: string) => void;
 const filters = ['All', 'Targets', 'Context', 'References', 'Encoded', 'Preserved'] as const;
@@ -55,9 +57,10 @@ const DocumentOverview = memo(function DocumentOverview({ document, records, onO
   </section>;
 });
 
-function DocumentInspector({ document, records, controller, selection, onOpen, onShowRaw }: {
+function DocumentInspector({ document, records, controller, selection, onOpen, onShowRaw, fbdSheetIndex, onFbdSheetIndexChange }: {
   document: PlcDocument; records: DocumentRecord[]; controller: NormalizedController | null; selection: DocumentSelection;
   onOpen: OpenTab; onShowRaw?: () => void;
+  fbdSheetIndex?: number; onFbdSheetIndexChange?: (index: number) => void;
 }) {
   const record = useMemo(() => findDocumentRecord(records, selection), [records, selection]);
   if (selection.kind === 'source') return <DocumentOverview document={document} records={records} onOpen={onOpen} />;
@@ -98,8 +101,8 @@ function DocumentInspector({ document, records, controller, selection, onOpen, o
       {onShowRaw && <Button size="sm" variant="ghost" onClick={onShowRaw}>View Raw</Button>}
     </header>
     <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-      {content !== undefined ? <CodeMirrorTextViewer content={content} />
-        : resource?.kind === 'routine' ? <L5XRoutineViewer routine={resource.data} />
+      {content !== undefined ? <Suspense fallback={<LoadingState message="Loading source viewer..." />}><CodeMirrorTextViewer content={content} /></Suspense>
+        : resource?.kind === 'routine' ? <L5XRoutineViewer routine={resource.data} fbdSheetIndex={fbdSheetIndex} onFbdSheetIndexChange={onFbdSheetIndexChange} />
           : resource?.kind === 'tag' ? <div className="h-full overflow-auto p-4"><TagTable tags={[resource.data]} dataTypes={controller?.dataTypeCatalog ?? controller?.dataTypes} /></div>
             : controller && metadataTarget ? <div className="h-full overflow-auto"><MetadataInspector controller={controller} target={metadataTarget} onOpen={onOpen} onShowRaw={onShowRaw} /></div>
               : null}

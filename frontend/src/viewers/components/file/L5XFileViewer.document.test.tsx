@@ -29,8 +29,8 @@ describe('L5X file document results', () => {
 
   it.each([
     ['controller-rll-v35', 'Supported content loaded'],
-    ['document-envelope-v35', 'Some content is available only in Raw'],
-    ['document-encoded-v35', 'Some content is available only in Raw'],
+    ['document-envelope-v35', 'Some content needs source inspection'],
+    ['document-encoded-v35', 'Some content needs source inspection'],
     ['malformed-truncated-v35', 'Cannot parse L5X file'],
   ])('loads and caches the complete %s result once', async (name, status) => {
     vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: fixture(name) });

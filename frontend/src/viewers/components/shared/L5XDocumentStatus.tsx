@@ -38,12 +38,12 @@ function L5XDocumentStatus({ result, label, onShowRaw, records, onOpen }: {
       <div className="flex items-center justify-between gap-2">
         <p className={result?.status === 'failed' ? 'text-theme-error' : 'text-theme-primary'}>
           {label && <span className="font-medium">{label}: </span>}
-          {result ? STATUS_LABELS[result.status] : 'File absent'}
+          {result ? result.status === 'partial' && onOpen ? 'Some content needs source inspection' : STATUS_LABELS[result.status] : 'File absent'}
         </p>
         {onShowRaw && <Button size="sm" variant="ghost" onClick={onShowRaw}>View Raw</Button>}
       </div>
       {result?.data && result.data.encodedData.length > 0 && (
-        <p>Encoded content is preserved. Use Raw to inspect its source.</p>
+        <p>Encoded content is preserved. {onOpen ? 'Open Document to inspect its payload and wrapper.' : 'Use Raw to inspect its source.'}</p>
       )}
       {result?.status === 'failed' && <p>Use Raw to inspect the file, or export it again from Studio 5000.</p>}
       {diagnostics.length > 0 && (

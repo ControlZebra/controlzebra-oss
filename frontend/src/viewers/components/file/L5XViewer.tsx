@@ -204,7 +204,9 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     if (tabData.type === 'document') return document ? <div key={tabId} hidden={!isActive} aria-hidden={!isActive}
       className={`flex h-full min-h-0 min-w-0 flex-col ${isActive ? '' : 'hidden'}`}>
       <DocumentInspector document={document} records={documentRecords} controller={controller} selection={tabData.selection}
-        onOpen={handleOpen} onShowRaw={onShowRaw} />
+        onOpen={handleOpen} onShowRaw={onShowRaw}
+        fbdSheetIndex={fbdSheetIndices[`${normalizedFilePath}:${tabId}`] ?? 0}
+        onFbdSheetIndexChange={index => setFbdSheetIndices(current => ({ ...current, [`${normalizedFilePath}:${tabId}`]: index }))} />
     </div> : null;
     if (!controller) return null;
 
