@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,6 +32,28 @@ func NewCommandRunner() *CommandRunner {
 	return &CommandRunner{
 		Timeout: 30 * time.Second,
 	}
+}
+
+// runWithStderr streams a long-lived command's stderr to its caller. It waits
+// exactly once, including after cancellation, and bounds waits on inherited
+// pipes. The caller owns output parsing and redacted diagnostic logging.
+func (r *CommandRunner) runWithStderr(ctx context.Context, stderr io.Writer, name string, args ...string) CommandResult {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.SysProcAttr = hideWindowAttr()
+	cmd.Env = buildCommandEnv(name)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = stderr
+	cmd.WaitDelay = 2 * time.Second
+	err := cmd.Run()
+	result := CommandResult{Success: err == nil}
+	if err != nil {
+		result.Error = err.Error()
+		result.ExitCode = -1
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitErr.ExitCode()
+		}
+	}
+	return result
 }
 
 // Run executes a command in the specified working directory

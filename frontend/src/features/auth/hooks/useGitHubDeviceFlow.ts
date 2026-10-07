@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRepo } from '../../../context';
 import type { GitHubDeviceFlowResult } from '../../../domain/repo/context/RepoContext.types';
 
@@ -28,6 +28,7 @@ interface UseGitHubDeviceFlowOptions {
 
 interface UseGitHubDeviceFlowResult {
   deviceFlow: GitHubDeviceFlowState;
+  isStarting: boolean;
   startDeviceFlow: () => Promise<boolean>;
   closeDeviceFlow: () => void;
   handleDeviceFlowOpenChange: (open: boolean) => void;
@@ -38,20 +39,52 @@ export function useGitHubDeviceFlow(
 ): UseGitHubDeviceFlowResult {
   const { startGitHubLogin } = useRepo();
   const [deviceFlow, setDeviceFlow] = useState<GitHubDeviceFlowState>(CLOSED_DEVICE_FLOW_STATE);
+  const [isStarting, setIsStarting] = useState(false);
+  const startingRef = useRef(false);
+  const requestRef = useRef(0);
+
+  useEffect(() => () => {
+    requestRef.current += 1;
+    startingRef.current = false;
+  }, []);
 
   const closeDeviceFlow = useCallback((): void => {
+    requestRef.current += 1;
+    startingRef.current = false;
+    setIsStarting(false);
     setDeviceFlow(CLOSED_DEVICE_FLOW_STATE);
   }, []);
 
   const startDeviceFlow = useCallback(async (): Promise<boolean> => {
-    const result = await startGitHubLogin();
-    if (result.success && result.userCode) {
-      setDeviceFlow(toOpenDeviceFlowState(result));
-      return true;
+    // The ref closes the gap before React renders the disabled button.
+    if (startingRef.current) {
+      return false;
     }
-
-    options.onStartError?.(result.error || 'Failed to start GitHub authentication');
-    return false;
+    startingRef.current = true;
+    setIsStarting(true);
+    const request = ++requestRef.current;
+    try {
+      const result = await startGitHubLogin();
+      if (request !== requestRef.current || result.cancelled) {
+        return false;
+      }
+      if (result.success && result.userCode) {
+        setDeviceFlow(toOpenDeviceFlowState(result));
+        return true;
+      }
+      options.onStartError?.(result.error || 'GitHub sign-in could not start. Try connecting again.');
+      return false;
+    } catch {
+      if (request === requestRef.current) {
+        options.onStartError?.('GitHub sign-in could not start. Try connecting again.');
+      }
+      return false;
+    } finally {
+      if (request === requestRef.current) {
+        startingRef.current = false;
+        setIsStarting(false);
+      }
+    }
   }, [options, startGitHubLogin]);
 
   const handleDeviceFlowOpenChange = useCallback((open: boolean): void => {
@@ -62,6 +95,7 @@ export function useGitHubDeviceFlow(
 
   return {
     deviceFlow,
+    isStarting,
     startDeviceFlow,
     closeDeviceFlow,
     handleDeviceFlowOpenChange,

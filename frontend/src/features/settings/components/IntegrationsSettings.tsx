@@ -61,6 +61,7 @@ function IntegrationsSettings(): JSX.Element {
   const [isDisconnectingGitHub, setIsDisconnectingGitHub] = useState(false);
   const {
     deviceFlow,
+    isStarting,
     startDeviceFlow,
     closeDeviceFlow,
     handleDeviceFlowOpenChange,
@@ -154,12 +155,12 @@ function IntegrationsSettings(): JSX.Element {
     }
 
     return (
-      <Button variant="secondary" size="sm" onClick={handleGitHubConnect}>
+      <Button variant="secondary" size="sm" onClick={handleGitHubConnect} disabled={isStarting} loading={isStarting}>
         <Github style={{ width: ICON_SIZES.sm, height: ICON_SIZES.sm }} />
-        <span>Connect</span>
+        <span>{isStarting ? 'Connecting...' : 'Connect'}</span>
       </Button>
     );
-  }, [ghAuthStatus, ghInstalled, handleGitHubConnect, handleGitHubDisconnect, installRequiredPackages, isDisconnectingGitHub, isInstallingPackages]);
+  }, [ghAuthStatus, ghInstalled, handleGitHubConnect, handleGitHubDisconnect, installRequiredPackages, isDisconnectingGitHub, isInstallingPackages, isStarting]);
 
   const integrations = useMemo<IntegrationRow[]>(() => ([
     {
