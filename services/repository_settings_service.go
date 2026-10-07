@@ -1469,6 +1469,48 @@ func controlZebraDirPath(repoPath string) string {
 	return filepath.Join(repoPath, controlZebraDir)
 }
 
+var controlZebraDirectoryMu sync.Mutex
+
+// prepareControlZebraDirectory hides only directories this operation creates.
+// Existing directories, including those checked out by Git, keep their attributes.
+func prepareControlZebraDirectory(dirPath string) error {
+	return createControlZebraDirectory(dirPath, hideControlZebraDirectory)
+}
+
+func createControlZebraDirectory(dirPath string, hide func(string) error) error {
+	// Do not let another settings operation use a new directory before hiding
+	// succeeds, or before a failed creation has been cleaned up for a retry.
+	controlZebraDirectoryMu.Lock()
+	defer controlZebraDirectoryMu.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(dirPath), 0755); err != nil {
+		return err
+	}
+	if err := os.Mkdir(dirPath, 0755); err != nil {
+		if os.IsExist(err) {
+			if info, statErr := os.Stat(dirPath); statErr == nil && info.IsDir() {
+				return nil
+			}
+		}
+		return err
+	}
+	if err := hide(dirPath); err != nil {
+		// Remove only the newly created, empty directory. Never remove contents
+		// another process may have written while the attribute change was attempted.
+		if cleanupErr := os.Remove(dirPath); cleanupErr != nil {
+			return fmt.Errorf("could not hide project settings folder: %w; could not remove the new folder: %v", err, cleanupErr)
+		}
+		return fmt.Errorf("could not hide project settings folder: %w", err)
+	}
+	return nil
+}
+
+func controlZebraDirectoryFailure(err error) OperationResult {
+	GetDebugLogger().Log(LogLevelError, LogCategoryError, "RepositorySettingsService",
+		"Could not prepare the project settings folder", LogDetails{Error: err.Error()}, -1)
+	return failedOp("Could not prepare the project settings folder. Check the folder's permissions and try again.")
+}
+
 // ReadRepoLocalConfig reads the shared config (.controlzebra/config.json) from
 // the repository. This file is committed and shared with collaborators.
 // Returns a zero-value config if the file does not exist.
@@ -1490,8 +1532,8 @@ func (r *RepositorySettingsService) ReadRepoLocalConfig(repoPath string) RepoLoc
 // the repository. Creates the .controlzebra/ directory if it does not exist.
 func (r *RepositorySettingsService) WriteRepoLocalConfig(repoPath string, config RepoLocalConfig) OperationResult {
 	dirPath := controlZebraDirPath(repoPath)
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return failedOp("Failed to create .controlzebra directory: " + err.Error())
+	if err := prepareControlZebraDirectory(dirPath); err != nil {
+		return controlZebraDirectoryFailure(err)
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -1530,8 +1572,8 @@ func (r *RepositorySettingsService) ReadRepoPersonalConfig(repoPath string) Repo
 // listed in the repository's .gitignore so it is never committed.
 func (r *RepositorySettingsService) WriteRepoPersonalConfig(repoPath string, config RepoPersonalConfig) OperationResult {
 	dirPath := controlZebraDirPath(repoPath)
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return failedOp("Failed to create .controlzebra directory: " + err.Error())
+	if err := prepareControlZebraDirectory(dirPath); err != nil {
+		return controlZebraDirectoryFailure(err)
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -1554,8 +1596,8 @@ func (r *RepositorySettingsService) WriteRepoPersonalConfig(repoPath string, con
 // personal config file is gitignored. Call this during project initialisation.
 func (r *RepositorySettingsService) EnsureControlZebraDir(repoPath string) OperationResult {
 	dirPath := controlZebraDirPath(repoPath)
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return failedOp("Failed to create .controlzebra directory: " + err.Error())
+	if err := prepareControlZebraDirectory(dirPath); err != nil {
+		return controlZebraDirectoryFailure(err)
 	}
 
 	r.ensureGitignoreEntry(repoPath, ".controlzebra/local.json")

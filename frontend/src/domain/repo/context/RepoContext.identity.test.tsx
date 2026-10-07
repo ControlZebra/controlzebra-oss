@@ -28,6 +28,8 @@ const {
   SetUserProfile,
   StartBackgroundTasks,
   StopBackgroundTasks,
+  WriteRepoLocalConfig,
+  RepoCreateFromLocal,
   EnsureControlZebraDir,
   WatchDirectory,
   StopWatching,
@@ -58,6 +60,8 @@ const {
   SetUserProfile: vi.fn(),
   StartBackgroundTasks: vi.fn(),
   StopBackgroundTasks: vi.fn(),
+  WriteRepoLocalConfig: vi.fn(),
+  RepoCreateFromLocal: vi.fn(),
   EnsureControlZebraDir: vi.fn(),
   WatchDirectory: vi.fn(),
   StopWatching: vi.fn(),
@@ -138,7 +142,7 @@ vi.mock('../services/repo-commands', () => ({
   AuthLoginCancel: vi.fn(),
   AuthLogout: vi.fn(),
   RepoClone: vi.fn(),
-  RepoCreateFromLocal: vi.fn(),
+  RepoCreateFromLocal,
   InitializeLFS,
   TrackPattern,
   EnsurePortableToolchainIfNeeded: vi.fn(),
@@ -148,7 +152,7 @@ vi.mock('../services/repo-commands', () => ({
   EnsureIdentity,
   GetUserProfile,
   SetUserProfile,
-  WriteRepoLocalConfig: vi.fn(),
+  WriteRepoLocalConfig,
   EnsureControlZebraDir,
   StartBackgroundTasks,
   StopBackgroundTasks,
@@ -274,8 +278,72 @@ describe('RepoContext git identity prompts', () => {
     StartBackgroundTasks.mockResolvedValue({ success: true });
     StopBackgroundTasks.mockResolvedValue({ success: true });
     EnsureControlZebraDir.mockResolvedValue({ success: true });
+    WriteRepoLocalConfig.mockResolvedValue({ success: true });
     WatchDirectory.mockResolvedValue({ success: true });
     StopWatching.mockResolvedValue({ success: true });
+  });
+
+  it.each([true, false])('does not prepare project settings just by opening a folder (isRepo=%s)', async (isRepo) => {
+    DetectRepo.mockResolvedValue({ path: '/tmp/folder', isRepo, branch: 'main', hasError: false });
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => { api = value; });
+    await waitFor(() => expect(api).not.toBeNull());
+
+    await act(async () => {
+      expect(await api!.openRepo('/tmp/folder')).toBe(true);
+    });
+
+    expect(EnsureControlZebraDir).not.toHaveBeenCalled();
+  });
+
+  it.each(['result', 'rejection'])('stops project setup when the settings folder cannot be prepared (%s)', async (failure) => {
+    const error = 'Could not prepare the project settings folder. Check the folder\'s permissions and try again.';
+    DetectRepo.mockResolvedValue({ path: '/tmp/folder', isRepo: false, hasError: false });
+    if (failure === 'result') {
+      EnsureControlZebraDir.mockResolvedValue({ success: false, error });
+    } else {
+      EnsureControlZebraDir.mockRejectedValue(new Error('Attribute update failed'));
+    }
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => { api = value; });
+    await waitFor(() => expect(api?.gitInstalled && api?.lfsInstalled).toBe(true));
+    await act(async () => { await api!.openRepo('/tmp/folder'); });
+
+    await act(async () => { expect(await api!.startTracking()).toBe(false); });
+
+    expect(EnsureControlZebraDir).toHaveBeenCalledWith('/tmp/folder');
+    expect(CommitAll).not.toHaveBeenCalled();
+    expect(toastMocks.error).toHaveBeenCalledWith(error, expect.any(Object));
+    expect(toastMocks.success).not.toHaveBeenCalled();
+    expect(api!.isLoading).toBe(false);
+  });
+
+  it.each(['result', 'rejection'])('stops project creation before saving or publishing when settings fail (%s)', async (failure) => {
+    const error = 'Could not prepare the project settings folder. Check the folder\'s permissions and try again.';
+    IsGHInstalled.mockResolvedValue(true);
+    DetectRepo.mockResolvedValue({ path: '/tmp/new-project', isRepo: false, hasError: false });
+    if (failure === 'result') {
+      WriteRepoLocalConfig.mockResolvedValue({ success: false, error });
+    } else {
+      WriteRepoLocalConfig.mockRejectedValue(new Error('Attribute update failed'));
+    }
+    let api: ReturnType<typeof useRepo> | null = null;
+    renderHarness((value) => { api = value; });
+    await waitFor(() => expect(api?.gitInstalled && api?.lfsInstalled && api?.ghInstalled).toBe(true));
+    const onStepChange = vi.fn();
+
+    await act(async () => {
+      expect(await api!.createProject({
+        path: '/tmp/new-project',
+        remote: { skip: false, repoName: 'new-project' },
+        onStepChange,
+      })).toEqual({ success: false, error });
+    });
+
+    expect(WriteRepoLocalConfig).toHaveBeenCalledWith('/tmp/new-project', expect.any(Object));
+    expect(CommitAll).not.toHaveBeenCalled();
+    expect(RepoCreateFromLocal).not.toHaveBeenCalled();
+    expect(onStepChange.mock.calls).toEqual([[0]]);
   });
 
   it('prompts before saving changes when git identity is missing', async () => {
