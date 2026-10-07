@@ -1,9 +1,12 @@
+import { createInstructionContextFromController } from 'ladder-visualizer';
+
 import type {
+  AOIDiff,
   ChangeKind,
+  InstructionContext,
   NormalizedController,
   NormalizedProgram,
   NormalizedRoutine,
-  NormalizedRoutineType,
   ProgramDiff,
   RoutineDiff,
   TagDiff,
@@ -20,14 +23,16 @@ import type {
   L5XDiffRenderableEntity,
   L5XDiffRoutineEntity,
   L5XDiffTabDescriptor,
+  RoutineOwner,
+  RoutineOwnerKind,
 } from './types';
 
 function encodeSegment(value: string): string {
   return encodeURIComponent(value);
 }
 
-export function buildRoutineSemanticId(programName: string, routineName: string): string {
-  return `routine:${encodeSegment(programName)}:${encodeSegment(routineName)}`;
+export function buildRoutineSemanticId(ownerName: string, routineName: string, ownerKind: RoutineOwnerKind = 'program'): string {
+  return `routine:${ownerKind}:${encodeSegment(ownerName)}:${encodeSegment(routineName)}`;
 }
 
 export function buildControllerTagsSemanticId(): string {
@@ -62,89 +67,59 @@ function getProgram(controller: NormalizedController, programName: string): Norm
   return controller.programs.find((program) => program.name === programName);
 }
 
-function getRoutine(program: NormalizedProgram | undefined, routineName: string): NormalizedRoutine | undefined {
-  return program?.routines.find((routine) => routine.name === routineName);
+function getRoutine(owner: RoutineOwner | undefined, routineName: string): NormalizedRoutine | undefined {
+  return owner?.routines.find((routine) => routine.name === routineName);
 }
 
 function getDataTypes(controller: NormalizedController) {
   return controller.dataTypeCatalog ?? controller.dataTypes;
 }
 
-function resolveRoutineType(
-  routineDiff: RoutineDiff,
-  oldRoutine?: NormalizedRoutine,
-  newRoutine?: NormalizedRoutine,
-): NormalizedRoutineType | undefined {
-  return routineDiff.routineType ?? newRoutine?.type ?? oldRoutine?.type;
-}
-
-function getChangedRungNumbers(routineDiff: RoutineDiff): number[] {
-  return [...(routineDiff.rungDiffs ?? [])]
-    .map((rungDiff) => rungDiff.rungNumber)
-    .sort((left, right) => left - right);
-}
-
 function buildRoutineEntity(
+  ownerKind: RoutineOwnerKind,
+  ownerDiff: ProgramDiff | AOIDiff,
+  routineDiff: RoutineDiff,
   oldController: NormalizedController,
   newController: NormalizedController,
-  programDiff: ProgramDiff,
-  routineDiff: RoutineDiff,
+  oldInstructionContext: InstructionContext,
+  newInstructionContext: InstructionContext,
 ): L5XDiffRoutineEntity | null {
-  const oldProgram = getProgram(oldController, programDiff.name);
-  const newProgram = getProgram(newController, programDiff.name);
-  const oldRoutine = getRoutine(oldProgram, routineDiff.name);
-  const newRoutine = getRoutine(newProgram, routineDiff.name);
-  const routineType = resolveRoutineType(routineDiff, oldRoutine, newRoutine);
+  const oldOwner = 'oldAOI' in ownerDiff ? ownerDiff.oldAOI : undefined;
+  const newOwner = 'newAOI' in ownerDiff ? ownerDiff.newAOI : undefined;
+  const ownerOnSide = (controller: NormalizedController) =>
+    (ownerKind === 'program' ? controller.programs : controller.aois).find(owner => owner.name === ownerDiff.name);
+  const resolvedOldOwner = ownerDiff.kind === 'added' ? undefined : oldOwner ?? ownerOnSide(oldController);
+  const resolvedNewOwner = ownerDiff.kind === 'removed' ? undefined : newOwner ?? ownerOnSide(newController);
+  const oldRoutine = routineDiff.kind === 'added' ? undefined : routineDiff.oldRoutine ?? getRoutine(resolvedOldOwner, routineDiff.name);
+  const newRoutine = routineDiff.kind === 'removed' ? undefined : routineDiff.newRoutine ?? getRoutine(resolvedNewOwner, routineDiff.name);
+  const routineType = newRoutine?.type ?? oldRoutine?.type ?? routineDiff.routineType;
+  if (!routineType || ![oldRoutine?.type, newRoutine?.type, routineType].some(type => type && ['RLL', 'ST', 'FBD'].includes(type))) return null;
 
-  if (routineType !== 'RLL') {
-    return null;
-  }
-
-  const semanticId = buildRoutineSemanticId(programDiff.name, routineDiff.name);
+  const semanticId = buildRoutineSemanticId(ownerDiff.name, routineDiff.name, ownerKind);
   const tab: L5XDiffTabDescriptor = {
-    id: buildTabId(semanticId),
-    semanticId,
-    kind: 'routine',
-    title: routineDiff.name,
-    subtitle: programDiff.name,
+    id: buildTabId(semanticId), semanticId, kind: 'routine', title: routineDiff.name,
+    subtitle: `${ownerKind === 'aoi' ? 'AOI' : 'Program'} ${ownerDiff.name}`,
   };
-
   return {
-    kind: 'routine',
-    semanticId,
-    navigatorItemId: buildNavigatorItemId(semanticId),
-    tab,
-    changeKind: routineDiff.kind,
-    programName: programDiff.name,
-    routineName: routineDiff.name,
-    routineType,
-    oldProgram,
-    newProgram,
-    oldRoutine: routineDiff.oldRoutine ?? oldRoutine,
-    newRoutine: routineDiff.newRoutine ?? newRoutine,
-    routineDiff,
-    programDiff,
-    changedRungNumbers: getChangedRungNumbers(routineDiff),
+    kind: 'routine', semanticId, navigatorItemId: buildNavigatorItemId(semanticId), tab,
+    changeKind: routineDiff.kind, ownerKind, ownerName: ownerDiff.name,
+    routineName: routineDiff.name, routineType,
+    oldOwner: resolvedOldOwner, newOwner: resolvedNewOwner, oldRoutine, newRoutine,
+    oldInstructionContext, newInstructionContext, routineDiff,
+    changedRungNumbers: (routineDiff.rungDiffs ?? []).map(rung => rung.rungNumber).sort((a, b) => a - b),
   };
 }
 
 function buildRoutineNavigatorItem(entity: L5XDiffRoutineEntity): L5XDiffNavigatorItem {
-  const totalCount = Math.max(
-    entity.oldRoutine?.rungs.length ?? 0,
-    entity.newRoutine?.rungs.length ?? 0,
-  );
-
+  const oldType = entity.oldRoutine?.type;
+  const newType = entity.newRoutine?.type;
   return {
-    id: entity.navigatorItemId,
-    semanticId: entity.semanticId,
-    tabId: entity.tab.id,
-    kind: 'routine',
-    title: entity.routineName,
-    description: entity.programName,
-    badge: entity.routineType,
+    id: entity.navigatorItemId, semanticId: entity.semanticId, tabId: entity.tab.id,
+    kind: 'routine', title: entity.routineName, description: entity.tab.subtitle,
+    badge: oldType && newType && oldType !== newType ? `${oldType} → ${newType}` : entity.routineType,
     changeKind: entity.changeKind,
-    changedCount: entity.changedRungNumbers.length || 1,
-    totalCount,
+    // Count routines once, regardless of nested rungs, sheets, elements or wires.
+    changedCount: 1,
   };
 }
 
@@ -218,18 +193,18 @@ function buildProgramTagsEntity(
   };
 }
 
-function buildRoutineSection(entities: L5XDiffRoutineEntity[]): L5XDiffNavigatorSection | null {
-  if (entities.length === 0) {
-    return null;
+function buildRoutineSections(entities: L5XDiffRoutineEntity[]): L5XDiffNavigatorSection[] {
+  const groups = new Map<string, L5XDiffNavigatorSection>();
+  for (const entity of entities) {
+    const id = `section:${buildRoutineSemanticId(entity.ownerName, '', entity.ownerKind)}`;
+    const group = groups.get(id) ?? {
+      id, kind: 'routines', title: entity.tab.subtitle!, itemCount: 0, items: [],
+    };
+    group.items.push(buildRoutineNavigatorItem(entity));
+    group.itemCount += 1;
+    groups.set(id, group);
   }
-
-  return {
-    id: 'section:routines',
-    kind: 'routines',
-    title: 'Changed Routines',
-    itemCount: entities.length,
-    items: entities.map(buildRoutineNavigatorItem),
-  };
+  return [...groups.values()];
 }
 
 function buildControllerTagsSection(entity: L5XDiffControllerTagsEntity | null): L5XDiffNavigatorSection | null {
@@ -292,26 +267,22 @@ export function buildL5XDiffLayoutViewModel({
 }: BuildL5XDiffLayoutViewModelInput): L5XDiffLayoutViewModel {
   const sortedProgramDiffs = sortByName(diff.programs);
 
-  let stRoutineCount = 0;
   let otherRoutineCount = 0;
-
-  const routineEntities = sortedProgramDiffs
-    .flatMap((programDiff) => sortByName(programDiff.routineDiffs).map((routineDiff) => ({ programDiff, routineDiff })))
-    .map(({ programDiff, routineDiff }) => {
-      const entity = buildRoutineEntity(oldController, newController, programDiff, routineDiff);
-      if (entity) {
-        return entity;
-      }
-
-      const routineType = routineDiff.routineType ?? routineDiff.newRoutine?.type ?? routineDiff.oldRoutine?.type;
-      if (routineType === 'ST') {
-        stRoutineCount += 1;
-      } else {
-        otherRoutineCount += 1;
-      }
-      return null;
-    })
-    .filter((entity): entity is L5XDiffRoutineEntity => entity !== null);
+  const oldInstructionContext = createInstructionContextFromController(oldController);
+  const newInstructionContext = createInstructionContextFromController(newController);
+  const routineEntities: L5XDiffRoutineEntity[] = [];
+  const owners = [
+    ...sortedProgramDiffs.map(ownerDiff => ({ ownerKind: 'program' as const, ownerDiff })),
+    ...sortByName(diff.aois).map(ownerDiff => ({ ownerKind: 'aoi' as const, ownerDiff })),
+  ];
+  for (const { ownerKind, ownerDiff } of owners) {
+    for (const routineDiff of sortByName(ownerDiff.routineDiffs ?? [])) {
+      const entity = buildRoutineEntity(ownerKind, ownerDiff, routineDiff, oldController, newController,
+        oldInstructionContext, newInstructionContext);
+      if (entity) routineEntities.push(entity);
+      else otherRoutineCount += 1;
+    }
+  }
 
   const controllerTagsEntity = buildControllerTagsEntity(oldController, newController, diff.tags);
   const programTagsEntities = sortedProgramDiffs
@@ -325,7 +296,7 @@ export function buildL5XDiffLayoutViewModel({
   ];
 
   const navigatorSections = [
-    buildRoutineSection(routineEntities),
+    ...buildRoutineSections(routineEntities),
     buildControllerTagsSection(controllerTagsEntity),
     buildProgramTagsSection(programTagsEntities),
   ].filter((section): section is L5XDiffNavigatorSection => section !== null);
@@ -341,7 +312,6 @@ export function buildL5XDiffLayoutViewModel({
     entitiesByTabId: toEntityMap(entities),
     initialTabId: tabs[0]?.id ?? null,
     unsupportedChanges: {
-      stRoutineCount,
       otherRoutineCount,
     },
   };

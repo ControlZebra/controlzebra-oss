@@ -7,14 +7,11 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import {
-  clearAOIs,
   diffControllers,
-  registerAOIsFromController,
   TagTable,
   type ColumnDefinition,
   type L5XDiff,
   type NormalizedController,
-  type NormalizedProgram,
   type NormalizedTag,
 } from 'ladder-visualizer';
 
@@ -29,6 +26,7 @@ import type { DiffSide } from '../../../registry/diff-registry';
 import { loadTextSide, serializeDiffSide } from '../diff-side-loaders';
 import { buildL5XDiffLayoutViewModel } from './adapter';
 import { RoutineDiffInspector } from './RoutineDiffInspector';
+import { L5XDiffNavigator } from './L5XDiffNavigator';
 import type { L5XDiffAggregateChangeKind, L5XDiffRenderableEntity } from './types';
 import { useDiffTabs } from './useDiffTabs';
 
@@ -248,68 +246,6 @@ function buildTagDiffColumns(entity: Extract<L5XDiffRenderableEntity, { kind: 'c
   ];
 }
 
-function buildNavigatorController(viewModel: NonNullable<ReturnType<typeof buildL5XDiffLayoutViewModel>>): NormalizedController {
-  const routineEntities = Object.values(viewModel.entitiesByTabId).filter(
-    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'routine' }> => entity.kind === 'routine',
-  );
-  const programTagEntities = Object.values(viewModel.entitiesByTabId).filter(
-    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'program-tags' }> => entity.kind === 'program-tags',
-  );
-  const controllerTagsEntity = Object.values(viewModel.entitiesByTabId).find(
-    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' }> => entity.kind === 'controller-tags',
-  );
-
-  const programsByName = new Map<string, NormalizedProgram>();
-
-  for (const routineEntity of routineEntities) {
-    const sourceProgram = routineEntity.newProgram ?? routineEntity.oldProgram;
-    const sourceRoutine = routineEntity.newRoutine ?? routineEntity.oldRoutine;
-    if (!sourceProgram || !sourceRoutine) {
-      continue;
-    }
-
-    const existingProgram = programsByName.get(routineEntity.programName);
-    if (existingProgram) {
-      existingProgram.routines.push(sourceRoutine);
-      continue;
-    }
-
-    programsByName.set(routineEntity.programName, {
-      ...sourceProgram,
-      routines: [sourceRoutine],
-      tags: [],
-    });
-  }
-
-  for (const programTagEntity of programTagEntities) {
-    const existingProgram = programsByName.get(programTagEntity.programName);
-    if (existingProgram) {
-      existingProgram.tags = programTagEntity.fullContextTags;
-      continue;
-    }
-
-    const sourceProgram = programTagEntity.newProgram ?? programTagEntity.oldProgram;
-    if (!sourceProgram) {
-      continue;
-    }
-
-    programsByName.set(programTagEntity.programName, {
-      ...sourceProgram,
-      routines: [],
-      tags: programTagEntity.fullContextTags,
-    });
-  }
-
-  return {
-    ...viewModel.newController,
-    tags: controllerTagsEntity?.fullContextTags ?? [],
-    programs: [...programsByName.values()].sort((left, right) => left.name.localeCompare(right.name)),
-    aois: [],
-    dataTypes: [],
-    modules: [],
-  };
-}
-
 function RenderEntityDetails({
   entity,
   isDarkMode,
@@ -483,12 +419,6 @@ function L5XLayoutDiffViewer({
     };
   }, [cacheKeys, newSide, oldSide, repoPath, retryCount]);
 
-  useEffect(() => {
-    clearAOIs();
-    const controller = bundle?.newDocument?.controller ?? bundle?.oldDocument?.controller;
-    if (controller) registerAOIsFromController(controller);
-  }, [bundle]);
-
   const viewModel = useMemo(() => {
     if (!bundle?.diff) {
       return null;
@@ -534,106 +464,12 @@ function L5XLayoutDiffViewer({
   }, [openTab, viewModel]);
 
   const activeEntity = activeTabId && viewModel ? viewModel.entitiesByTabId[activeTabId] : undefined;
-  const navigatorController = useMemo(() => {
-    if (!viewModel) {
-      return null;
-    }
-
-    return buildNavigatorController(viewModel);
-  }, [viewModel]);
-  const controllerTagsEntity = useMemo(() => {
-    if (!viewModel) {
-      return undefined;
-    }
-
-    return Object.values(viewModel.entitiesByTabId).find(
-      (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' }> => entity.kind === 'controller-tags',
-    );
-  }, [viewModel]);
-  const programTagEntitiesByName = useMemo(() => {
-    if (!viewModel) {
-      return new Map<string, Extract<L5XDiffRenderableEntity, { kind: 'program-tags' }>>();
-    }
-
-    return new Map(
-      Object.values(viewModel.entitiesByTabId)
-        .filter((entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'program-tags' }> => entity.kind === 'program-tags')
-        .map((entity) => [entity.programName, entity]),
-    );
-  }, [viewModel]);
-  const routineEntitiesByKey = useMemo(() => {
-    if (!viewModel) {
-      return new Map<string, Extract<L5XDiffRenderableEntity, { kind: 'routine' }>>();
-    }
-
-    return new Map(
-      Object.values(viewModel.entitiesByTabId)
-        .filter((entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'routine' }> => entity.kind === 'routine')
-        .map((entity) => [`${entity.programName}::${entity.routineName}`, entity]),
-    );
-  }, [viewModel]);
-
-  const selectedNavigatorItemId = useMemo(() => {
-    if (!activeEntity || !navigatorController) {
-      return null;
-    }
-
-    if (activeEntity.kind === 'controller-tags') {
-      return 'controller-tags';
-    }
-
-    const programIndex = navigatorController.programs.findIndex((program) => program.name === activeEntity.programName);
-    if (programIndex < 0) {
-      return null;
-    }
-
-    if (activeEntity.kind === 'program-tags') {
-      return `program-tags-${programIndex}`;
-    }
-
-    const routineIndex = navigatorController.programs[programIndex]?.routines.findIndex((routine) => routine.name === activeEntity.routineName) ?? -1;
-    if (routineIndex < 0) {
-      return null;
-    }
-
-    return `routine-${programIndex}-${routineIndex}`;
-  }, [activeEntity, navigatorController]);
-
-  // Auto-expand only the ancestry paths of changed items
-  const navigatorInitialExpanded = useMemo(() => {
-    if (!navigatorController) {
-      return undefined;
-    }
-
-    const keys = new Set<string>();
-    const hasControllerTags = Boolean(controllerTagsEntity);
-
-    if (hasControllerTags) {
-      keys.add('controller');
-    }
-
-    // Check each program for changed routines or tags
-    let hasAnyProgramChanges = false;
-    navigatorController.programs.forEach((program, pIdx) => {
-      const hasChangedRoutines = program.routines.some(
-        (routine) => routineEntitiesByKey.has(`${program.name}::${routine.name}`),
-      );
-      const hasChangedTags = programTagEntitiesByName.has(program.name);
-
-      if (hasChangedRoutines || hasChangedTags) {
-        keys.add(`program-${pIdx}`);
-        hasAnyProgramChanges = true;
-      }
-    });
-
-    // Show Tasks > MainTask ancestry if any program has changes
-    if (hasAnyProgramChanges) {
-      keys.add('tasks');
-      keys.add('mainTask');
-    }
-
-    return keys;
-  }, [navigatorController, controllerTagsEntity, programTagEntitiesByName, routineEntitiesByKey]);
+  // Keep opened FBD comparisons mounted so library sheet, view and viewport state survives tab switches.
+  const fbdEntities = useMemo(() => tabs.map(tab => viewModel?.entitiesByTabId[tab.id]).filter(
+    (entity): entity is Extract<L5XDiffRenderableEntity, { kind: 'routine' }> => entity?.kind === 'routine'
+      && (entity.routineType === 'FBD' || entity.oldRoutine?.type === 'FBD'),
+  ), [tabs, viewModel]);
+  const activeFbd = fbdEntities.some(entity => entity.tab.id === activeTabId);
 
   if (loadState.phase !== 'done' && loadState.phase !== 'error') {
     const phaseLabel = PHASE_LABELS[loadState.phase] ?? 'Preparing…';
@@ -684,72 +520,24 @@ function L5XLayoutDiffViewer({
     <div className="flex flex-col h-full min-h-0 bg-theme-surface">
       <L5XDocumentStatus result={bundle.oldDocument} label="Previous version" onShowRaw={onShowRaw} />
       <L5XDocumentStatus result={bundle.newDocument} label="Current version" onShowRaw={onShowRaw} />
+      {viewModel.unsupportedChanges.otherRoutineCount > 0 && <p role="status" className="shrink-0 border-b border-shell-divider px-3 py-2 text-xs text-theme-secondary">
+        {viewModel.unsupportedChanges.otherRoutineCount} routine comparisons are unsupported. Use Raw to inspect their source.
+      </p>}
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewModel.navigatorSections.length === 0 ? (
           <div className="flex h-full items-center justify-center text-theme-secondary">
             <div className="text-center">
               <p className="text-sm font-medium text-theme-primary">No changed routines or tags</p>
-              <p className="mt-1 text-xs text-theme-muted">This view compares ladder routines and tag groups. Use Raw to inspect other content.</p>
+              <p className="mt-1 text-xs text-theme-muted">This view compares RLL, ST, FBD routines and tag groups. Use Raw to inspect other content.</p>
             </div>
           </div>
         ) : (
           <div className="flex h-full min-h-0 overflow-hidden">
             {showNavigator ? (
               <aside className="w-72 min-h-0 overflow-hidden bg-theme-surface shrink-0">
-                <L5XProjectOrganizer
-                  controller={navigatorController ?? emptyController}
-                  programs={navigatorController?.programs ?? []}
-                  selectedItemId={selectedNavigatorItemId}
-                  initialExpanded={navigatorInitialExpanded}
-                  filter={{
-                    showController: Boolean(controllerTagsEntity),
-                    showControllerTags: Boolean(controllerTagsEntity),
-                    showPrograms: (program) => Boolean(programTagEntitiesByName.get(program.name) || program.routines.length > 0),
-                    showProgramTags: (program) => Boolean(programTagEntitiesByName.get(program.name)),
-                    showRoutine: (_program, _programIndex, routine, _routineIndex) => routineEntitiesByKey.has(`${_program.name}::${routine.name}`),
-                    showUnscheduled: false,
-                    showMotionGroups: false,
-                    showAOIs: false,
-                    showDataTypes: false,
-                    showIO: false,
-                  }}
-                  badges={{
-                    controllerTags: controllerTagsEntity ? `${controllerTagsEntity.changedTagDiffs.length} changed` : undefined,
-                    programTags: (program) => {
-                      const entity = programTagEntitiesByName.get(program.name);
-                      return entity ? `${entity.changedTagDiffs.length} changed` : undefined;
-                    },
-                    routine: (program, _programIndex, routine) => {
-                      const entity = routineEntitiesByKey.get(`${program.name}::${routine.name}`);
-                      return entity ? formatChangeKind(entity.changeKind) : undefined;
-                    },
-                  }}
-                  onControllerTagsSelect={() => {
-                    const entity = controllerTagsEntity;
-                    if (entity) {
-                      handleOpenItem(entity.tab.id);
-                    }
-                  }}
-                  onProgramTagsSelect={(programIndex) => {
-                    const program = navigatorController?.programs[programIndex];
-                    const entity = program ? programTagEntitiesByName.get(program.name) : undefined;
-                    if (entity) {
-                      handleOpenItem(entity.tab.id);
-                    }
-                  }}
-                  onRoutineSelect={(programIndex, _routineIndex, routine) => {
-                    const program = navigatorController?.programs[programIndex];
-                    if (!program) {
-                      return;
-                    }
-
-                    const entity = routineEntitiesByKey.get(`${program.name}::${routine.name}`);
-                    if (entity) {
-                      handleOpenItem(entity.tab.id);
-                    }
-                  }}
-                  className="h-full border-0"
-                />
+                <L5XProjectOrganizer programs={[]} className="h-full border-0">
+                  <L5XDiffNavigator sections={viewModel.navigatorSections} activeTabId={activeTabId} onSelect={handleOpenItem} />
+                </L5XProjectOrganizer>
               </aside>
             ) : null}
 
@@ -768,15 +556,18 @@ function L5XLayoutDiffViewer({
 
             <main className="flex h-full flex-1 min-h-0 flex-col overflow-hidden bg-theme-surface">
               <TabBar
-                tabs={tabs.map((tab) => ({ id: tab.id, title: tab.title }))}
+                tabs={tabs.map((tab) => ({ id: tab.id, title: tab.subtitle ? `${tab.title} (${tab.subtitle})` : tab.title }))}
                 activeTabId={activeTabId}
                 onTabSelect={selectTab}
                 onTabClose={closeTab}
               />
 
               <div className="relative flex-1 min-h-0 overflow-hidden">
-                {activeEntity ? (
-                  <RenderEntityDetails entity={activeEntity} isDarkMode={isDarkMode} />
+                {fbdEntities.map(entity => <div key={entity.tab.id} className={entity.tab.id === activeTabId ? 'h-full' : 'hidden'}>
+                  <RoutineDiffInspector entity={entity} isDarkMode={isDarkMode} />
+                </div>)}
+                {activeFbd ? null : activeEntity ? (
+                  <RenderEntityDetails key={activeEntity.tab.id} entity={activeEntity} isDarkMode={isDarkMode} />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-theme-surface text-theme-secondary">
                     Select a changed routine or tag group.

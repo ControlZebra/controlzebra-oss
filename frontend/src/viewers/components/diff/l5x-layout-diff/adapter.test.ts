@@ -223,7 +223,7 @@ describe('buildL5XDiffLayoutViewModel', () => {
     }
   });
 
-  it('filters unsupported routine types and reports them separately', () => {
+  it('retains ST-only body changes supplied by the comparison', () => {
     const oldController = makeController({
       programs: [makeProgram('Main', {
         routines: [makeRoutine('StructuredLogic', { type: 'ST', stContent: [{ number: 0, text: 'x := 1;' }] })],
@@ -239,12 +239,10 @@ describe('buildL5XDiffLayoutViewModel', () => {
     const diff = diffControllers(oldController, newController);
     const model = buildL5XDiffLayoutViewModel({ oldController, newController, diff });
 
-    expect(model.tabs).toHaveLength(0);
-    expect(model.navigatorSections).toHaveLength(0);
-    expect(model.unsupportedChanges).toEqual({
-      stRoutineCount: 1,
-      otherRoutineCount: 0,
-    });
+    expect(model.tabs).toHaveLength(1);
+    const entity = model.entitiesByTabId[model.tabs[0].id];
+    expect(entity.kind === 'routine' && entity.routineDiff.stDiff).toEqual({ oldText: 'x := 1;', newText: 'x := 2;' });
+    expect(model.unsupportedChanges.otherRoutineCount).toBe(0);
   });
 
   it('produces stable tab ids across repeated loads of the same diff', () => {

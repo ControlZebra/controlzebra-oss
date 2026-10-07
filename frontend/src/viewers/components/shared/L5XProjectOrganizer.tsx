@@ -1,24 +1,25 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { ProgramNavigator, type ProgramNavigatorProps } from 'ladder-visualizer';
 import { cn } from '../../../shared/utils/misc';
 import L5XEntityNavigator from './L5XEntityNavigator';
 import type { TabData } from '../file/l5x/useTabs';
 
 interface L5XProjectOrganizerProps extends ProgramNavigatorProps {
+  children?: ReactNode;
   onOpen?: (data: TabData, title: string) => void;
   activeTabData?: TabData | null;
   ambiguousProgramUids?: ReadonlySet<string>;
 }
 
 /** App heading for the library's navigation tree, shared by file and diff viewers. */
-function L5XProjectOrganizer({ className, onOpen, activeTabData, ambiguousProgramUids, ...props }: L5XProjectOrganizerProps): JSX.Element {
+function L5XProjectOrganizer({ children, className, onOpen, activeTabData, ambiguousProgramUids, ...props }: L5XProjectOrganizerProps): JSX.Element {
   return (
     <div className={cn('flex min-h-0 flex-col overflow-hidden bg-theme-surface', className)}>
       <h2 className="shrink-0 border-b border-shell-divider px-3 py-2 text-sm font-semibold text-theme-primary">
         Project Organizer
       </h2>
-      {props.controller && onOpen ? <L5XEntityNavigator controller={props.controller} onOpen={onOpen} activeTabData={activeTabData} ambiguousProgramUids={ambiguousProgramUids} />
-        : <ProgramNavigator {...props} className="l5x-project-organizer-tree min-h-0 flex-1" />}
+      {children ?? (props.controller && onOpen ? <L5XEntityNavigator controller={props.controller} onOpen={onOpen} activeTabData={activeTabData} ambiguousProgramUids={ambiguousProgramUids} />
+        : <ProgramNavigator {...props} className="l5x-project-organizer-tree min-h-0 flex-1" />)}
     </div>
   );
 }

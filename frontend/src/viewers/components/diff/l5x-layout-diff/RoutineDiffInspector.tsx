@@ -4,12 +4,14 @@ import {
   InlineDiffRung,
   VirtualizedLadderDiagram,
   type LadderDiagramTheme,
+  type InstructionContext,
   type NormalizedRung,
 } from 'ladder-visualizer';
 
 import { CONTROL_ZEBRA_LADDER_THEME } from '../../file/l5x/theme';
 import { buildRoutineDiffRenderModel, type L5XDiffRoutineRow } from './routine-render-model';
 import type { L5XDiffRoutineEntity } from './types';
+import { RoutineContentDiff } from './RoutineContentDiff';
 
 const OVERSCAN_ROWS = 6;
 
@@ -74,6 +76,7 @@ function RungDiagram({
   height,
   theme,
   isDarkMode,
+  instructionContext,
 }: {
   rung: NormalizedRung;
   label: string;
@@ -81,6 +84,7 @@ function RungDiagram({
   height: number;
   theme: LadderDiagramTheme;
   isDarkMode: boolean;
+  instructionContext: InstructionContext;
 }): JSX.Element {
   const rungs = useMemo(() => [rung], [rung]);
   const toneClass = tone === 'added'
@@ -95,6 +99,7 @@ function RungDiagram({
       <div className={isDarkMode ? 'ladder-visualizer-dark' : ''} style={{ height }}>
         <VirtualizedLadderDiagram
           rungs={rungs}
+          instructionContext={instructionContext}
           theme={theme}
           height={height}
           className="h-full"
@@ -107,9 +112,11 @@ function RungDiagram({
 function InlineDiffDiagram({
   row,
   theme,
+  instructionContext,
 }: {
   row: L5XDiffRoutineRow;
   theme: LadderDiagramTheme;
+  instructionContext: InstructionContext;
 }): JSX.Element {
   const [containerRef, containerWidth] = useMeasuredElementWidth<HTMLDivElement>();
 
@@ -124,7 +131,7 @@ function InlineDiffDiagram({
   return (
     <div ref={containerRef} className="overflow-x-auto border border-theme-modified/40 bg-theme-elevated/30">
       <div className="min-w-fit">
-        <InlineDiffRung model={row.inlineDiffModel} width={containerWidth} theme={theme} />
+        <InlineDiffRung model={row.inlineDiffModel} width={containerWidth} theme={theme} instructionContext={instructionContext} />
       </div>
     </div>
   );
@@ -134,10 +141,12 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
   row,
   theme,
   isDarkMode,
+  entity,
 }: {
   row: L5XDiffRoutineRow;
   theme: LadderDiagramTheme;
   isDarkMode: boolean;
+  entity: L5XDiffRoutineEntity;
 }): JSX.Element {
   const primaryRung = row.newRung ?? row.oldRung;
   const rowToneClass = row.state === 'added'
@@ -176,8 +185,15 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
       ) : null}
 
       <div className="space-y-2 px-3 py-2">
-        {row.state === 'modified' ? (
-          <InlineDiffDiagram row={row} theme={theme} />
+        {row.separateVersions ? (
+          <>
+            {row.oldRung && <RungDiagram rung={row.oldRung} label="Previous version" tone="removed" height={row.measuredHeight}
+              theme={theme} isDarkMode={isDarkMode} instructionContext={entity.oldInstructionContext} />}
+            {row.newRung && <RungDiagram rung={row.newRung} label="Current version" tone="added" height={row.measuredHeight}
+              theme={theme} isDarkMode={isDarkMode} instructionContext={entity.newInstructionContext} />}
+          </>
+        ) : row.state === 'modified' ? (
+          <InlineDiffDiagram row={row} theme={theme} instructionContext={entity.newInstructionContext} />
         ) : primaryRung ? (
           <RungDiagram
             rung={primaryRung}
@@ -186,6 +202,7 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
             height={row.measuredHeight}
             theme={theme}
             isDarkMode={isDarkMode}
+            instructionContext={row.state === 'removed' ? entity.oldInstructionContext : entity.newInstructionContext}
           />
         ) : (
           <div className="rounded-md border border-dashed border-theme-default px-3 py-6 text-sm text-theme-secondary">
@@ -197,7 +214,7 @@ const RoutineDiffRowCard = memo(function RoutineDiffRowCard({
   );
 });
 
-export const RoutineDiffInspector = memo(function RoutineDiffInspector({
+const RLLRoutineDiffInspector = memo(function RLLRoutineDiffInspector({
   entity,
   isDarkMode,
 }: {
@@ -256,7 +273,7 @@ export const RoutineDiffInspector = memo(function RoutineDiffInspector({
                     className="absolute left-0 top-0 w-full"
                     style={{ transform: `translateY(${virtualRow.start}px)` }}
                   >
-                    <RoutineDiffRowCard row={row} theme={theme} isDarkMode={isDarkMode} />
+                    <RoutineDiffRowCard row={row} theme={theme} isDarkMode={isDarkMode} entity={entity} />
                   </div>
                 );
               })}
@@ -266,4 +283,22 @@ export const RoutineDiffInspector = memo(function RoutineDiffInspector({
       </div>
     </div>
   );
+});
+
+export const RoutineDiffInspector = memo(function RoutineDiffInspector({ entity, isDarkMode }: {
+  entity: L5XDiffRoutineEntity; isDarkMode: boolean;
+}) {
+  const typeChanged = entity.oldRoutine && entity.newRoutine && entity.oldRoutine.type !== entity.newRoutine.type;
+  const useRll = !typeChanged && entity.routineType === 'RLL';
+  return <section aria-label={`${entity.tab.subtitle} / ${entity.routineName} comparison`} className="flex h-full min-h-0 flex-col bg-theme-surface">
+    <div className="shrink-0 border-b border-theme-default px-3 py-2 text-xs text-theme-primary">
+      <span className="font-medium">{entity.tab.subtitle} / {entity.routineName}</span>
+      <span className="ml-3 text-theme-secondary">{entity.changeKind.charAt(0).toUpperCase() + entity.changeKind.slice(1)}</span>
+      {!useRll && (entity.routineDiff.propertyChanges ?? []).map(change => <span key={change.property} className="ml-3 text-theme-secondary">
+        {change.property}: {String(change.oldValue ?? '(empty)')} → {String(change.newValue ?? '(empty)')}
+      </span>)}
+    </div>
+    <div className="min-h-0 flex-1">{useRll ? <RLLRoutineDiffInspector entity={entity} isDarkMode={isDarkMode} />
+      : <RoutineContentDiff entity={entity} />}</div>
+  </section>;
 });
