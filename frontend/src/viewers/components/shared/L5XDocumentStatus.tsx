@@ -1,6 +1,8 @@
 import { memo, useMemo } from 'react';
 import type { ParseLocation } from 'ladder-visualizer';
 import { Button } from '../../../shared/ui/button';
+import { findLocationRecord, type DocumentRecord } from '../file/l5x/document-model';
+import type { TabData } from '../file/l5x/useTabs';
 import type { L5XDocumentResult } from './l5x-document';
 
 function locationLabel(location?: ParseLocation): string {
@@ -18,10 +20,12 @@ const STATUS_LABELS = {
 };
 
 /** Source locations are shown for inspection, never used as comparison keys. */
-function L5XDocumentStatus({ result, label, onShowRaw }: {
+function L5XDocumentStatus({ result, label, onShowRaw, records, onOpen }: {
   result: L5XDocumentResult | null;
   label?: string;
   onShowRaw?: () => void;
+  records?: DocumentRecord[];
+  onOpen?: (data: TabData, title: string) => void;
 }): JSX.Element {
   const diagnostics = useMemo(() => [
     ...(result?.errors ?? []).map(issue => ({ ...issue, severity: 'Error' })),
@@ -50,6 +54,11 @@ function L5XDocumentStatus({ result, label, onShowRaw }: {
               <li key={index}>
                 <p>{issue.severity}: {issue.message}</p>
                 {issue.location && <p className="text-theme-muted">{locationLabel(issue.location)}</p>}
+                {onOpen && (() => {
+                  const record = findLocationRecord(records ?? [], issue.location?.path);
+                  return record && <Button size="sm" variant="ghost"
+                    onClick={() => onOpen({ type: 'document', selection: record.selection }, record.title)}>Inspect source record</Button>;
+                })()}
               </li>
             ))}
           </ul>

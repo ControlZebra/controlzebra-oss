@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { AlertCircle, TriangleAlert } from "lucide-react";
 import {
   FBDDiagram,
   StructuredTextViewer,
+  RawRoutineViewer,
   VirtualizedLadderDiagram,
   type FBDDiagramDiagnostic,
   type NormalizedFBDBody,
@@ -123,11 +124,15 @@ function FBDRoutineViewer({
 }
 
 /** Shared routine renderer used by program-owned and AOI-owned tabs. */
-export function L5XRoutineViewer({
+export const L5XRoutineViewer = memo(function L5XRoutineViewer({
   routine,
   fbdSheetIndex,
   onFbdSheetIndexChange,
 }: L5XRoutineViewerProps) {
+  if (routine.type === "SFC") {
+    return <RawRoutineViewer routine={routine} className="h-full w-full" />;
+  }
+
   if (routine.type === "ST") {
     return <StructuredTextViewer routine={routine} className="h-full w-full" />;
   }
@@ -155,4 +160,4 @@ export function L5XRoutineViewer({
   }
 
   return <UnsupportedRoutine routineType={routine.type} />;
-}
+});

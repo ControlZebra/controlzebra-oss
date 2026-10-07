@@ -1,0 +1,183 @@
+import { readFileSync } from 'node:fs';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { EditorView } from '@codemirror/view';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseDocumentString } from 'ladder-visualizer';
+import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
+import { onEvent } from '../../../shared/runtime/events';
+import { clearViewerCache } from '../../registry/viewer-cache';
+import { clearAllTabStates, getCachedTabState } from './l5x/useTabs';
+import { buildDocumentRecords, findLocationRecord } from './l5x/document-model';
+import L5XDocumentStatus from '../shared/L5XDocumentStatus';
+import { parseL5XDocument } from '../shared/l5x-document';
+import L5XFileViewer from './L5XFileViewer';
+
+vi.mock('../../../../bindings/controlzebra/services/filesystemservice', () => ({ ReadTextFile: vi.fn() }));
+vi.mock('../../../shared/runtime/events', () => ({ onEvent: vi.fn(() => vi.fn()) }));
+vi.mock('../shared/ViewerHeader', () => ({ ViewerHeader: ({ extraContent }: { extraContent: React.ReactNode }) => <div>{extraContent}</div> }));
+vi.mock('ladder-visualizer', async importOriginal => {
+  const actual = await importOriginal<typeof import('ladder-visualizer')>();
+  // Diagram geometry belongs to its existing renderer tests. Keep parser/source/text real.
+  return { ...actual, VirtualizedLadderDiagram: () => <div>Ladder content</div> };
+});
+
+const filePath = '/repo/Source.L5X';
+const fixture = (name: string) => readFileSync(`src/viewers/components/shared/__fixtures__/l5x/${name}.L5X`, 'utf8');
+const sfc = (marker = 'original') => `<Routine Name="Flow" Type="SFC">\r\n  <!-- ${marker} -->\r\n  <SFCContent><Step ID="0"><Description><![CDATA[A < B & <script>source</script>]]></Description><Action><STContent>  A := 1;  </STContent></Action></Step></SFCContent>\r\n</Routine>`;
+const program = (name: string) => `<Program Name="${name}"><Routines>${sfc(name)}</Routines></Program>`;
+const wrap = (inner: string, type = 'Controller', name = 'C') => `<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.00" TargetType="${type}" TargetName="${name}"><Controller Name="C">${inner}</Controller></RSLogix5000Content>`;
+const xmlText = () => screen.getByRole('region', { name: 'Flow XML source' }).querySelector('code')!.textContent;
+const editor = () => EditorView.findFromDOM(screen.getByRole('textbox', { name: 'File content' }))!;
+async function load(content: string) {
+  vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content });
+  const view = render(<L5XFileViewer filePath={filePath} />);
+  await screen.findByRole('button', { name: 'Document' });
+  return view;
+}
+function openDocument() { fireEvent.click(screen.getByRole('button', { name: 'Document' })); }
+function overview() { return within(screen.getByRole('region', { name: 'Document export and source' })); }
+function openRecord(title: string) { fireEvent.click(overview().getByRole('button', { name: title })); }
+
+describe('L5X document source inspection', () => {
+  beforeEach(() => {
+    clearViewerCache();
+    clearAllTabStates();
+    vi.clearAllMocks();
+  });
+
+  it.each(['controller-rll-v35', 'program-rll-v35', 'routine-rll-v35', 'rung-rll-v35', 'tags-v35', 'datatype-v35', 'aoi-v35', 'module-v35'])(
+    'selects the declared target family in %s', async name => {
+      const content = fixture(name);
+      const document = parseDocumentString(content, 'l5x').data!;
+      const records = buildDocumentRecords(document);
+      const targets = records.filter(record => record.group === 'Targets');
+      expect(targets.map(record => record.path)).toEqual(document.targetIds);
+      await load(content);
+      if (document.source.targetType === 'Controller') {
+        openDocument();
+        fireEvent.click(overview().getByRole('button', { name: 'Targets' }));
+        openRecord(targets[0].title);
+      }
+      expect(await screen.findByRole('heading', { level: 2, name: targets[0].title })).toBeVisible();
+      const cached = getCachedTabState(filePath)!;
+      expect(cached.tabs.find(tab => tab.id === cached.activeTabId)?.data).toMatchObject({ type: 'document', selection: targets[0].selection });
+    });
+
+  it('shows export metadata and distinguishes context and reference resources', async () => {
+    await load(fixture('document-envelope-v35'));
+    openDocument();
+    expect(overview().getByRole('row', { name: 'Target type Routine' })).toBeVisible();
+    expect(overview().getByRole('row', { name: 'Target count 1' })).toBeVisible();
+    fireEvent.click(overview().getByRole('button', { name: 'Context' }));
+    openRecord('DocumentFixture / Dependency (dataType)');
+    expect(screen.getByRole('row', { name: 'Role context' })).toBeVisible();
+    openDocument();
+    fireEvent.click(overview().getByRole('button', { name: 'References' }));
+    openRecord('DocumentFixture / ReferencedType (dataType)');
+    expect(screen.getByRole('row', { name: 'Role reference' })).toBeVisible();
+  });
+
+  it.each(['program', 'AOI', 'standalone'])('renders supplied original %s SFC source', async owner => {
+    const content = owner === 'AOI'
+      ? wrap(`<AddOnInstructionDefinitions><AddOnInstructionDefinition Name="A"><Routines>${sfc()}</Routines></AddOnInstructionDefinition></AddOnInstructionDefinitions>`, 'AddOnInstructionDefinition', 'A')
+      : wrap(`<Programs><Program Name="P"><Routines>${sfc()}</Routines></Program></Programs>`, owner === 'standalone' ? 'Routine' : 'Controller', owner === 'standalone' ? 'Flow' : 'C');
+    await load(content);
+    if (owner === 'program') {
+      fireEvent.click(screen.getByRole('button', { name: 'Expand P' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Flow' }));
+    } else if (owner === 'AOI') {
+      fireEvent.click(screen.getByRole('button', { name: 'A / Flow (routine)' }));
+    }
+    expect(xmlText()).toBe(sfc());
+    expect(document.querySelector('script')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: 'View Raw' })[0]);
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(editor().state.sliceDoc()).toBe(content);
+    expect(screen.getByRole('button', { name: 'Raw' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps same-name routines distinct across owners, refresh, and cached reopen', async () => {
+    const content = wrap(`<Programs>${program('P1')}${program('P2')}</Programs><AddOnInstructionDefinitions><AddOnInstructionDefinition Name="A"><Routines>${sfc('A')}</Routines></AddOnInstructionDefinition></AddOnInstructionDefinitions>`);
+    const view = await load(content);
+    for (const owner of ['P1', 'P2', 'A']) {
+      openDocument();
+      openRecord(`${owner} / Flow (routine)`);
+      expect(xmlText()).toBe(sfc(owner));
+    }
+    expect(screen.getAllByRole('tab', { name: /Flow/ })).toHaveLength(3);
+    fireEvent.click(screen.getByRole('tab', { name: /P1 \/ Flow/ }));
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: content.replace(`${program('P1')}${program('P2')}`, `${program('P2')}${program('P1')}`) });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    await waitFor(() => expect(ReadTextFile).toHaveBeenCalledTimes(2));
+    expect(xmlText()).toBe(sfc('P1'));
+    view.unmount();
+    render(<L5XFileViewer filePath={filePath} />);
+    expect(await screen.findByRole('region', { name: 'Flow XML source' })).toBeVisible();
+    expect(xmlText()).toBe(sfc('P1'));
+    expect(ReadTextFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens an encoded-only target with exact payload, paths, attributes, and capabilities', async () => {
+    const payload = '\r\n  <script>opaque</script>\r\n  payload  \t';
+    const content = fixture('encoded-aoi-v35').replace('\n  synthetic-aoi-payload', payload);
+    const document = parseDocumentString(content, 'l5x').data!;
+    expect(document.resources.some(resource => resource.kind === 'aoi' || resource.kind === 'routine')).toBe(false);
+    await load(content);
+    const region = within(screen.getByRole('region', { name: 'FixtureEncodedAOI payload' }));
+    expect(region.getByRole('row', { name: 'EncryptionConfig 9' })).toBeVisible();
+    expect(region.getByRole('row', { name: 'Decoded view false' })).toBeVisible();
+    expect(region.getByRole('row', { name: 'Semantic queries false' })).toBeVisible();
+    expect(region.getByRole('row', { name: `Source path ${document.encodedData[0].sourcePath}` })).toBeVisible();
+    expect(editor().state.sliceDoc()).toBe(payload);
+    expect(editor().state.readOnly).toBe(true);
+    expect(screen.getByRole('textbox', { name: 'File content' })).toHaveAttribute('aria-readonly', 'true');
+    expect(window.document.querySelector('script')).toBeNull();
+  });
+
+  it('inspects parsed preserved configuration and links covering diagnostics', async () => {
+    const content = wrap('<VendorConfiguration Flag="yes"><![CDATA[<script>text</script>]]></VendorConfiguration>');
+    await load(content);
+    openDocument();
+    fireEvent.click(overview().getByRole('button', { name: 'Preserved' }));
+    openRecord('VendorConfiguration[1]');
+    expect(screen.getByText(/Read-only parsed preserved representation/)).toBeVisible();
+    expect(JSON.parse(editor().state.sliceDoc())).toEqual({ '#cdata': '<script>text</script>', '@_Flag': 'yes' });
+    expect(document.querySelector('script')).toBeNull();
+
+    const result = parseL5XDocument(content);
+    const records = buildDocumentRecords(result.data!);
+    const path = result.data!.fragments[0].path;
+    const onOpen = vi.fn();
+    result.warnings = [{ message: 'Preserved configuration', code: 'TEST', location: { path: `${path}/@Flag` } }];
+    render(<L5XDocumentStatus result={result} records={records} onOpen={onOpen} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect source record' }));
+    expect(onOpen).toHaveBeenCalledWith({ type: 'document', selection: { kind: 'fragment', path } }, 'VendorConfiguration[1]');
+    expect(findLocationRecord(records, '/absent')).toBeUndefined();
+  });
+
+  it('paginates preserved records without losing source order', async () => {
+    await load(wrap(Array.from({ length: 61 }, (_, i) => `<VendorConfiguration Index="${i}"/>`).join('')));
+    openDocument();
+    fireEvent.click(overview().getByRole('button', { name: 'Preserved' }));
+    expect(overview().getAllByRole('listitem')).toHaveLength(50);
+    fireEvent.click(overview().getByRole('button', { name: 'Next records' }));
+    openRecord('VendorConfiguration[61]');
+    expect(JSON.parse(editor().state.sliceDoc())).toEqual({ '@_Index': '60' });
+  });
+
+  it('retains whole-file Raw after failed parsing and the existing text-read limit', async () => {
+    const content = fixture('malformed-truncated-v35');
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content });
+    const view = render(<L5XFileViewer filePath={filePath} />);
+    await screen.findByText('Cannot parse L5X file');
+    fireEvent.click(screen.getByRole('button', { name: 'View Raw' }));
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(editor().state.sliceDoc()).toBe(content);
+    view.unmount();
+    clearViewerCache();
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: false, error: 'File exceeds max 10MB' });
+    render(<L5XFileViewer filePath={filePath} />);
+    expect(await screen.findByText(/10 MB text viewer limit/)).toBeVisible();
+  });
+});
