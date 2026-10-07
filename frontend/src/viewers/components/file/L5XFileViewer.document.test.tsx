@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { parseDocumentString } from 'ladder-visualizer';
@@ -46,12 +47,14 @@ describe('L5X file document results', () => {
   });
 
   it('keeps encoded source reachable without presenting an empty project as the export target', async () => {
-    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: fixture('document-encoded-v35') });
+    const content = fixture('document-encoded-v35');
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content });
     render(<L5XFileViewer filePath={filePath} />);
     await screen.findByRole('heading', { name: 'Secret payload' });
     expect(screen.getByText(/Decoded visualization and semantic operations are unavailable/)).toBeVisible();
     fireEvent.click(screen.getAllByRole('button', { name: 'View Raw' })[0]);
-    await screen.findByText(/synthetic-encoded-marker/);
+    const textBox = await screen.findByRole('textbox', { name: 'File content' });
+    expect(EditorView.findFromDOM(textBox)!.state.sliceDoc()).toBe(content);
     expect(screen.getByRole('button', { name: 'Raw' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

@@ -6,8 +6,8 @@ const resourceLabels: Record<PlcResource['kind'], string> = {
   tag: 'Tag', dataType: 'Data type', aoi: 'AOI', module: 'Module',
 };
 
-export type DocumentSelection = { kind: 'source' } | { kind: 'resource'; key: string }
-  | { kind: 'encoded' | 'fragment'; path: string };
+export type DocumentSelection = { kind: 'source' } | { kind: 'resource' | 'encoded'; key: string }
+  | { kind: 'fragment'; path: string };
 export interface DocumentRecord {
   selection: DocumentSelection;
   title: string;
@@ -38,6 +38,18 @@ export function buildDocumentRecords(document: PlcDocument, ambiguousProgramUids
     keys.set(resource.id, value);
     return value;
   };
+  const byPath = new Map(document.resources.map(resource => [resource.sourcePath, resource]));
+  const encodedKey = (encoded: PlcEncodedData): string => {
+    let ownerPath = encoded.containerPath;
+    while (ownerPath && !byPath.has(ownerPath)) ownerPath = ownerPath.slice(0, ownerPath.lastIndexOf('/'));
+    const owner = byPath.get(ownerPath);
+    // Names identify wrappers; revisions and payloads can change on refresh.
+    const wrapper = encoded.attributes.Name
+      ? ['named', encoded.attributes.Name, encoded.attributes.EncodedType, encoded.attributes.Type]
+      : ['attributes', Object.keys(encoded.attributes).sort().map(name => [name, encoded.attributes[name]])];
+    const container = encoded.containerPath.slice(ownerPath.length).replace(/\[\d+\]/g, '');
+    return JSON.stringify([owner ? key(owner) : '', container, wrapper]);
+  };
   const targets = new Set(document.targetIds);
   return [
     ...document.resources.map(resource => {
@@ -50,7 +62,7 @@ export function buildDocumentRecords(document: PlcDocument, ambiguousProgramUids
           : resource.role === 'context' ? 'Context' as const : 'References' as const,
         path: resource.sourcePath, resource };
     }),
-    ...document.encodedData.map(encoded => ({ selection: { kind: 'encoded' as const, path: encoded.sourcePath },
+    ...document.encodedData.map(encoded => ({ selection: { kind: 'encoded' as const, key: encodedKey(encoded) },
       title: `${encoded.attributes.Name ?? encoded.attributes.EncodedType ?? 'Encoded'} payload`,
       group: targets.has(encoded.sourcePath) ? 'Targets' as const : 'Encoded' as const,
       path: encoded.sourcePath, encoded })),

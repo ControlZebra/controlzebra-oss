@@ -216,6 +216,55 @@ describe('L5X document source inspection', () => {
     expect(window.document.querySelector('script')).toBeNull();
   });
 
+  it('keeps a named encoded tab on its payload after reorder, refresh and cached reopen', async () => {
+    const encoded = (name: string, revision = '1', payload = name) => `<EncodedData EncodedType="AddOnInstructionDefinition" Name="${name}" Revision="${revision}"><![CDATA[payload ${payload}]]></EncodedData>`;
+    const content = (inner: string) => wrap(`<AddOnInstructionDefinitions>${inner}</AddOnInstructionDefinitions>`);
+    const view = await load(content(`${encoded('A')}${encoded('B')}`));
+    openDocument();
+    openRecord('A payload');
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(editor().state.sliceDoc()).toBe('payload A');
+    const refreshed = content(`${encoded('B')}${encoded('A', '2', 'A refreshed')}`);
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: refreshed });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(editor().state.sliceDoc()).toBe('payload A refreshed');
+    expect(screen.getByRole('heading', { name: 'A payload' })).toBeVisible();
+    const a = parseDocumentString(refreshed, 'l5x').data!.encodedData.find(value => value.attributes.Name === 'A')!;
+    expect(screen.getByRole('row', { name: `Source path ${a.sourcePath}` })).toBeVisible();
+    view.unmount();
+    render(<L5XFileViewer filePath={filePath} />);
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(editor().state.sliceDoc()).toBe('payload A refreshed');
+    openDocument();
+    openRecord('A payload');
+    expect(screen.getAllByRole('tab', { name: /A payload/ })).toHaveLength(1);
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: content(encoded('B')) });
+    const handlers = vi.mocked(onEvent).mock.calls.filter(call => call[0] === 'files-changed');
+    const reopenedHandler = handlers[handlers.length - 1][1];
+    await act(async () => { reopenedHandler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(screen.getByText(/This source record is no longer available/)).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: 'File content' })).not.toBeInTheDocument();
+  });
+
+  it('keeps same-name encoded routines on their program owner after reordering', () => {
+    const owner = (name: string) => `<Program Name="${name}" UId="${name === 'P1' ? '1' : '2'}"><Routines><EncodedData EncodedType="Routine" Name="Secret" Type="RLL"><![CDATA[payload ${name}]]></EncodedData></Routines></Program>`;
+    const content = (inner: string) => wrap(`<Programs>${inner}</Programs>`);
+    const before = buildDocumentRecords(parseDocumentString(content(`${owner('P1')}${owner('P2')}`), 'l5x').data!);
+    const selection = before.find(record => record.encoded?.payload === 'payload P1')!.selection;
+    const after = buildDocumentRecords(parseDocumentString(content(`${owner('P2')}${owner('P1')}`), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)?.encoded?.payload).toBe('payload P1');
+  });
+
+  it('refuses an encoded selection when another wrapper shares its owner, name and type', () => {
+    const encoded = (payload: string) => `<EncodedData EncodedType="AddOnInstructionDefinition" Name="A"><![CDATA[${payload}]]></EncodedData>`;
+    const content = (inner: string) => wrap(`<AddOnInstructionDefinitions>${inner}</AddOnInstructionDefinitions>`);
+    const before = buildDocumentRecords(parseDocumentString(content(encoded('original')), 'l5x').data!);
+    const selection = before.find(record => record.encoded)!.selection;
+    const after = buildDocumentRecords(parseDocumentString(content(`${encoded('replacement')}${encoded('original')}`), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)).toBeUndefined();
+  });
+
   it('inspects parsed preserved configuration and links covering diagnostics', async () => {
     const content = wrap('<VendorConfiguration Flag="yes"><![CDATA[<script>text</script>]]></VendorConfiguration>');
     await load(content);
