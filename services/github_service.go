@@ -3,12 +3,10 @@
 package services
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -23,9 +21,7 @@ type GitHubService struct {
 
 	// Auth process tracking
 	authMu      sync.Mutex
-	authCmd     *exec.Cmd
-	authCancel  context.CancelFunc
-	authStarted bool
+	authAttempt *githubAuthAttempt
 }
 
 // NewGitHubService creates a new GitHubService instance
@@ -33,6 +29,12 @@ func NewGitHubService() *GitHubService {
 	return &GitHubService{
 		runner: NewCommandRunner(),
 	}
+}
+
+// ServiceShutdown stops and reaps an outstanding sign-in when the app closes.
+func (g *GitHubService) ServiceShutdown() error {
+	g.AuthLoginCancel()
+	return nil
 }
 
 // ============================================================================
@@ -256,6 +258,7 @@ type GitHubAuthResult struct {
 
 // GitHubDeviceFlowResult represents the device flow authentication state
 type GitHubDeviceFlowResult struct {
+	Cancelled       bool   `json:"cancelled,omitempty"`
 	Success         bool   `json:"success"`
 	UserCode        string `json:"userCode,omitempty"`        // The one-time code user needs to enter
 	VerificationURL string `json:"verificationUrl,omitempty"` // URL to visit for authentication
@@ -1071,31 +1074,15 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 	done := LogMethod("GitHubService.AuthLogin", nil)
 	defer func() { done(nil, nil) }()
 
-	// Use device flow (no --web flag) to get the verification code
-	// We need a longer timeout for auth since user interaction is involved
+	// Browser sign-in needs time for the user to enter the verification code.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, GhPath(), "auth", "login", "--hostname", "github.com", "--git-protocol", "https")
-	cmd.SysProcAttr = hideWindowAttr()
-	cmd.Env = buildCommandEnv(GhPath())
-
-	// We need to handle the interactive prompts
-	// The gh CLI will output the verification code to stderr
-	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		outputStr := string(output)
-		// Check if it's a context timeout
-		if ctx.Err() == context.DeadlineExceeded {
-			return GitHubAuthResult{
-				Success: false,
-				Error:   "Authentication timed out. Please try again.",
-			}
-		}
+	output := &githubDeviceFlowOutput{codes: make(chan string, 1)}
+	result := g.runner.runWithStderr(ctx, output, GhPath(), "auth", "login", "--hostname", githubHost, "--git-protocol", "https", "--web", "--clipboard=false")
+	if !result.Success {
 		return GitHubAuthResult{
-			Success: false,
-			Error:   getErrorFromOutput(outputStr, err),
+			Error: "GitHub sign-in could not finish. Check your internet connection and try again.",
 		}
 	}
 
@@ -1114,206 +1101,38 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 	}
 }
 
-// AuthLoginStart initiates the device code authentication flow.
-// Returns the user code and verification URL for the user to complete auth in browser.
-// After calling this, call AuthLoginComplete to wait for the auth to finish.
-// The gh CLI process will continue running in the background until the user completes auth.
+// AuthLoginStart starts or joins the current device-code attempt. Repeated
+// starts share its result rather than cancelling a sign-in already in progress.
 func (g *GitHubService) AuthLoginStart() GitHubDeviceFlowResult {
-	done := LogMethod("GitHubService.AuthLoginStart", nil)
-	defer func() { done(nil, nil) }()
-
-	// Cancel any existing auth process first (hold lock briefly)
-	g.authMu.Lock()
-	if g.authCancel != nil {
-		g.authCancel()
-		g.authCancel = nil
-	}
-	if g.authCmd != nil && g.authCmd.Process != nil {
-		g.authCmd.Process.Kill()
-		g.authCmd = nil
-	}
-	g.authStarted = false
-	g.authMu.Unlock()
-
-	// Create a context with a 10-minute timeout (user needs time to authenticate)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-
-	// Use --web flag to make it open browser, but we'll capture the code first
-	cmd := exec.CommandContext(ctx, GhPath(), "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web")
-	cmd.SysProcAttr = hideWindowAttr()
-	cmd.Env = buildCommandEnv(GhPath())
-
-	// Create pipes for stdout and stderr
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		cancel()
-		return GitHubDeviceFlowResult{
-			Success: false,
-			Error:   "Failed to create stderr pipe: " + err.Error(),
-		}
-	}
-
-	if err := cmd.Start(); err != nil {
-		cancel()
-		return GitHubDeviceFlowResult{
-			Success: false,
-			Error:   "Failed to start authentication: " + err.Error(),
-		}
-	}
-
-	// Store the cmd and cancel function so the process can continue running
-	g.authMu.Lock()
-	g.authCmd = cmd
-	g.authCancel = cancel
-	g.authStarted = true
-	g.authMu.Unlock()
-
-	// Read stderr for the device code
-	// The output format is:
-	// ! First copy your one-time code: XXXX-XXXX
-	// Press Enter to open github.com in your browser...
-	var userCode string
-	verificationURL := "https://github.com/login/device"
-
-	scanner := bufio.NewScanner(stderr)
-	codePattern := regexp.MustCompile(`code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})`)
-
-	// Read lines until we find the code (with a short timeout for reading)
-	codeChan := make(chan string, 1)
-	go func() {
-		defer close(codeChan)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if matches := codePattern.FindStringSubmatch(line); len(matches) > 1 {
-				codeChan <- matches[1]
-				return
-			}
-		}
-		// Check for scanner errors
-		if scanner.Err() != nil {
-			codeChan <- ""
-			return
-		}
-		codeChan <- ""
-	}()
-
-	// Wait for the code with a 30-second timeout
-	select {
-	case userCode = <-codeChan:
-	case <-time.After(30 * time.Second):
-		userCode = ""
-	}
-
-	if userCode == "" {
-		// Clean up if we couldn't get the code
-		cancel()
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-		g.authMu.Lock()
-		g.authCmd = nil
-		g.authCancel = nil
-		g.authStarted = false
-		g.authMu.Unlock()
-		return GitHubDeviceFlowResult{
-			Success: false,
-			Error:   "Could not retrieve verification code from GitHub CLI",
-		}
-	}
-
-	// Let the command continue running in background - it will complete when user authenticates
-	go func() {
-		cmd.Wait()
-		// Clean up after completion
-		g.authMu.Lock()
-		if g.authCmd == cmd {
-			g.authCmd = nil
-			g.authCancel = nil
-			g.authStarted = false
-		}
-		g.authMu.Unlock()
-	}()
-
-	return GitHubDeviceFlowResult{
-		Success:         true,
-		UserCode:        userCode,
-		VerificationURL: verificationURL,
-	}
+	return g.authLoginStart(30 * time.Second)
 }
 
-// AuthLoginComplete checks if the device flow authentication has completed.
-// This should be called after AuthLoginStart and after the user has entered the code.
-// It polls the auth status to detect successful authentication.
+// AuthLoginComplete polls the desktop process's authentication status. It can
+// only cancel the attempt that was current when this call began.
 func (g *GitHubService) AuthLoginComplete() GitHubAuthResult {
-	done := LogMethod("GitHubService.AuthLoginComplete", nil)
-	defer func() { done(nil, nil) }()
-
-	// Give the gh process a moment to complete the token exchange
-	// after the user authenticates in the browser
-	const maxAttempts = 5
-	const pollInterval = 500 * time.Millisecond
-
-	for i := 0; i < maxAttempts; i++ {
-		time.Sleep(pollInterval)
-
-		status := g.AuthStatus()
-		if status.LoggedIn {
-			// Best-effort: preconfigure token-based credentials for HTTPS operations.
+	g.authMu.Lock()
+	attempt := g.authAttempt
+	g.authMu.Unlock()
+	for i := 0; i < 5; i++ {
+		time.Sleep(500 * time.Millisecond)
+		if g.AuthStatus().LoggedIn {
 			configureGitHubHTTPSCredentials(g.runner)
-
-			// Clean up the auth process references
-			g.authMu.Lock()
-			// Save references before clearing to avoid race
-			cancelFn := g.authCancel
-			g.authCancel = nil
-			g.authCmd = nil
-			g.authStarted = false
-			g.authMu.Unlock()
-
-			// Cancel outside of lock to avoid holding lock during cancel
-			if cancelFn != nil {
-				cancelFn()
-			}
-
-			return GitHubAuthResult{
-				Success: true,
-				Message: "Authentication successful",
-			}
+			g.cancelAuthAttempt(attempt)
+			return GitHubAuthResult{Success: true, Message: "Authentication successful"}
 		}
 	}
-
 	return GitHubAuthResult{
-		Success: false,
-		Error:   "Authentication not completed. Please enter the code in your browser and try again.",
+		Error: "Authentication not completed. Please enter the code in your browser and try again.",
 	}
 }
 
-// AuthLoginCancel cancels an in-progress device flow authentication
+// AuthLoginCancel cancels and reaps the current device-code process.
 func (g *GitHubService) AuthLoginCancel() GitHubAuthResult {
-	done := LogMethod("GitHubService.AuthLoginCancel", nil)
-	defer func() { done(nil, nil) }()
-
 	g.authMu.Lock()
-	// Save references before clearing
-	cancelFn := g.authCancel
-	cmd := g.authCmd
-	g.authCancel = nil
-	g.authCmd = nil
-	g.authStarted = false
+	attempt := g.authAttempt
 	g.authMu.Unlock()
-
-	// Perform cleanup operations outside of lock
-	if cancelFn != nil {
-		cancelFn()
-	}
-	if cmd != nil && cmd.Process != nil {
-		cmd.Process.Kill()
-	}
-
-	return GitHubAuthResult{
-		Success: true,
-		Message: "Authentication cancelled",
-	}
+	g.cancelAuthAttempt(attempt)
+	return GitHubAuthResult{Success: true, Message: "Authentication cancelled"}
 }
 
 // getErrorFromOutput extracts a user-friendly error message from command output

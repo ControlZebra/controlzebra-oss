@@ -1292,6 +1292,7 @@ export class ConflictedFile {
 
 /**
  * DataLocations describes where ControlZebra stores app data by class.
+ * RoamingConfigDir retains its binding name; on Windows config is now local.
  */
 export class DataLocations {
     "roamingConfigDir": string;
@@ -2415,6 +2416,7 @@ export class GitHubCreateChangeRequestResult {
  * GitHubDeviceFlowResult represents the device flow authentication state
  */
 export class GitHubDeviceFlowResult {
+    "cancelled"?: boolean;
     "success": boolean;
 
     /**

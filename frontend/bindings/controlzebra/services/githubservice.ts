@@ -26,7 +26,7 @@ export function AuthLogin(): $CancellablePromise<$models.GitHubAuthResult> {
 }
 
 /**
- * AuthLoginCancel cancels an in-progress device flow authentication
+ * AuthLoginCancel cancels and reaps the current device-code process.
  */
 export function AuthLoginCancel(): $CancellablePromise<$models.GitHubAuthResult> {
     return $Call.ByID(979810388).then(($result: any) => {
@@ -35,9 +35,8 @@ export function AuthLoginCancel(): $CancellablePromise<$models.GitHubAuthResult>
 }
 
 /**
- * AuthLoginComplete checks if the device flow authentication has completed.
- * This should be called after AuthLoginStart and after the user has entered the code.
- * It polls the auth status to detect successful authentication.
+ * AuthLoginComplete polls the desktop process's authentication status. It can
+ * only cancel the attempt that was current when this call began.
  */
 export function AuthLoginComplete(): $CancellablePromise<$models.GitHubAuthResult> {
     return $Call.ByID(1398634085).then(($result: any) => {
@@ -46,10 +45,8 @@ export function AuthLoginComplete(): $CancellablePromise<$models.GitHubAuthResul
 }
 
 /**
- * AuthLoginStart initiates the device code authentication flow.
- * Returns the user code and verification URL for the user to complete auth in browser.
- * After calling this, call AuthLoginComplete to wait for the auth to finish.
- * The gh CLI process will continue running in the background until the user completes auth.
+ * AuthLoginStart starts or joins the current device-code attempt. Repeated
+ * starts share its result rather than cancelling a sign-in already in progress.
  */
 export function AuthLoginStart(): $CancellablePromise<$models.GitHubDeviceFlowResult> {
     return $Call.ByID(2121897454).then(($result: any) => {

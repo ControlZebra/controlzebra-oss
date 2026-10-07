@@ -81,6 +81,7 @@ export interface GitHubAuthResult {
  */
 export interface GitHubDeviceFlowResult {
   success: boolean;
+  cancelled?: boolean;
   userCode?: string;        // The one-time code user needs to enter
   verificationUrl?: string; // URL to visit for authentication
   error?: string;

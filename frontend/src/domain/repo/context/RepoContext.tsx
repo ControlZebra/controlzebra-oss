@@ -2803,11 +2803,10 @@ export function RepoProvider({ children }: RepoProviderProps) {
     try {
       const result = await AuthLoginStart();
       return result as GitHubDeviceFlowResult;
-    } catch (err) {
-      const error = err as Error;
+    } catch {
       return {
         success: false,
-        error: error.message || 'Failed to start GitHub login',
+        error: 'GitHub sign-in could not start. Try connecting again.',
       };
     }
   }, []);
