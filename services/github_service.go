@@ -1957,9 +1957,9 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 		}
 	}
 
-	// Best-effort: ensure git HTTPS credential helper is configured before
-	// `gh repo create --push` triggers git operations.
-	g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+	// Use the same credential-store setup as clone and sync before
+	// `gh repo create --push` triggers Git operations.
+	configureGitHubHTTPSCredentials(g.runner)
 
 	args := []string{"repo", "create"}
 
