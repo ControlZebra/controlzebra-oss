@@ -5,6 +5,7 @@ import {
   StructuredTextViewer,
   VirtualizedLadderDiagram,
   type FBDDiagramDiagnostic,
+  type InstructionContext,
   type NormalizedFBDBody,
   type NormalizedRoutine,
 } from "ladder-visualizer";
@@ -14,6 +15,7 @@ import { CONTROL_ZEBRA_LADDER_THEME } from "./theme";
 
 interface L5XRoutineViewerProps {
   routine: NormalizedRoutine;
+  instructionContext?: InstructionContext;
   fbdSheetIndex?: number;
   onFbdSheetIndexChange?: (sheetIndex: number) => void;
 }
@@ -125,6 +127,7 @@ function FBDRoutineViewer({
 /** Shared routine renderer used by program-owned and AOI-owned tabs. */
 export function L5XRoutineViewer({
   routine,
+  instructionContext,
   fbdSheetIndex,
   onFbdSheetIndexChange,
 }: L5XRoutineViewerProps) {
@@ -136,6 +139,7 @@ export function L5XRoutineViewer({
     return (
       <VirtualizedLadderDiagram
         routine={routine}
+        instructionContext={instructionContext}
         theme={CONTROL_ZEBRA_LADDER_THEME}
         className="h-full"
       />
