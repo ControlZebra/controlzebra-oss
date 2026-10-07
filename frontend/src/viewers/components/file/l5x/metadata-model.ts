@@ -51,6 +51,10 @@ export function metadataLinkTitle(data: TabData): string {
     case 'aoi-routine': return `${data.aoiName}:${data.routineName ?? 'Routine'}`;
     case 'controller-tags': return 'Controller Tags';
     case 'program-tags': return `${data.programName} Tags`;
+    case 'program-local-tags': return `${data.programName} Local Tags`;
+    case 'program-parameters': return `${data.programName} Parameters`;
+    case 'trends': return 'Trends';
+    case 'watch-lists': return 'Quick Watch Lists';
     case 'aoi-parameters': return `${data.aoiName} Parameters`;
     case 'aoi-local-tags': return `${data.aoiName} Local Tags`;
     case 'data-type': return data.dataTypeName;
@@ -85,8 +89,8 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
           { label: 'Tasks', value: controller.tasks?.length ?? 0 },
           { label: 'AOI definitions', value: controller.aois.length },
           { label: 'Data types', value: catalog.length }, { label: 'Modules', value: controller.modules.length },
-          { label: 'Trends', value: controller.trends?.length ?? 0 },
-          { label: 'Quick-watch lists', value: controller.quickWatchLists?.length ?? 0 },
+          { label: 'Trends', value: controller.trends?.length ?? 0, link: { type: 'trends' } },
+          { label: 'Quick-watch lists', value: controller.quickWatchLists?.length ?? 0, link: { type: 'watch-lists' } },
         ] },
         { title: 'Vendor metadata', fields: scalarMetadata.map(([label, value]) => ({ label, value })) },
       ] };
@@ -124,7 +128,11 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
       }
       return { title: `${program.name} Metadata`, groups: [{ title: 'Program', fields: properties },
         { title: 'Views', fields: [{ label: 'Program tags', value: program.tags.length,
-          link: { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid } }] }] };
+          link: { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid } },
+          { label: 'Local tags', value: program.localTags.length,
+            link: { type: 'program-local-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid } },
+          { label: 'Parameters', value: program.parameters.length,
+            link: { type: 'program-parameters', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid } }] }] };
     }
     case 'task': {
       const task = controller.tasks?.find(candidate => candidate.name === target.name);

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="34.01" TargetName="InterfaceMetadata" TargetType="AddOnInstructionDefinition" ContainsContext="true">
+  <Controller Use="Context" Name="FixtureController">
+    <AddOnInstructionDefinitions>
+      <AddOnInstructionDefinition Name="InterfaceMetadata" Class="Standard" Revision="1.0">
+        <Parameters>
+          <Parameter Name="RefA" TagType="Base" DataType="DINT" Usage="InOut" Required="true" Visible="true" Constant="true" />
+          <Parameter Name="RefB" TagType="Base" DataType="DINT" Usage="InOut" Required="true" Visible="true" Constant="false">
+            <Comments><Comment Operand=".0"><![CDATA[Bit zero]]></Comment></Comments>
+          </Parameter>
+          <Parameter Name="Plain" TagType="Base" DataType="BOOL" Usage="Input" Required="false" Visible="false" />
+        </Parameters>
+        <LocalTags>
+          <LocalTag Name="Flags" DataType="DINT" Radix="Decimal" ExternalAccess="None">
+            <Comments>
+              <Comment Operand=".0"><![CDATA[Create]]></Comment>
+              <Comment Operand=".1"><![CDATA[Read]]></Comment>
+            </Comments>
+          </LocalTag>
+          <LocalTag Name="Empty" DataType="BOOL" />
+        </LocalTags>
+      </AddOnInstructionDefinition>
+    </AddOnInstructionDefinitions>
+  </Controller>
+</RSLogix5000Content>

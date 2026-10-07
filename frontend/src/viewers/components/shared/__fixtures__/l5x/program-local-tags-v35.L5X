@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="ProgramLocals" TargetType="Program" ContainsContext="true">
+  <Controller Use="Context" Name="FixtureController">
+    <Programs><Program Name="ProgramLocals"><LocalTags>
+      <LocalTag Name="Hidden" UId="18446744073709551615" ParentUId="4" DataType="DINT" DataTypeUId="5" Radix="Decimal" ExternalAccess="Read Only" Verified="true"><Comments><Comment Operand=""><![CDATA[Initial value]]></Comment></Comments><Description><![CDATA[Hidden local]]></Description><DefaultData Format="L5K"><![CDATA[7]]></DefaultData><DefaultData Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="7" /></DefaultData></LocalTag>
+      <LocalTag Name="Buffer" DataType="DINT" Dimensions="2 3" />
+    </LocalTags></Program></Programs>
+  </Controller>
+</RSLogix5000Content>

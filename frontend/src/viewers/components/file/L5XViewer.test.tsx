@@ -386,7 +386,7 @@ describe('L5XViewer refresh behavior', () => {
     await renderLoadedViewer();
     fireEvent.click(screen.getByRole('button', { name: 'MixerAOI' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Parameters: 0' }));
-    expect(screen.getByText('AOI Parameters')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'MixerAOI Parameters' })).toBeVisible();
     expect(screen.getByRole('tab', { name: /MixerAOI Parameters/ })).toBeVisible();
     expandEntry('User Defined');
     fireEvent.click(screen.getByRole('button', { name: 'PumpState' }));
