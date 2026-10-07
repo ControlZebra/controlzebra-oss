@@ -143,10 +143,10 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     [refreshCounter]
   );
   const document = documentResult?.data;
-  const documentRecords = useMemo(() => document ? buildDocumentRecords(document) : [], [document]);
   const initializedFile = useRef<string | null>(null);
   const controller = documentResult?.controller ?? null;
   const { tabs, activeTabId, openTab, closeTab, selectTab, ambiguousProgramUids } = useTabs(filePath, controller?.programs);
+  const documentRecords = useMemo(() => document ? buildDocumentRecords(document, ambiguousProgramUids) : [], [document, ambiguousProgramUids]);
 
   // Register AOIs when controller data is available (from cache or fresh load)
   useEffect(() => {

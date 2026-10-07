@@ -1,4 +1,5 @@
 import type { PlcDocument, PlcResource, PlcEncodedData, PlcVendorFragment } from 'ladder-visualizer';
+import { collectAmbiguousProgramUids, programIdentityKey } from './program-identity';
 
 const resourceLabels: Record<PlcResource['kind'], string> = {
   controller: 'Controller', program: 'Program', routine: 'Routine', rung: 'Rung',
@@ -22,7 +23,8 @@ export function documentSelectionId(selection: DocumentSelection): string {
 }
 
 /** Resource keys include every owner and survive source-order changes. */
-export function buildDocumentRecords(document: PlcDocument): DocumentRecord[] {
+export function buildDocumentRecords(document: PlcDocument, ambiguousProgramUids: ReadonlySet<string> = new Set()): DocumentRecord[] {
+  const ambiguousUids = collectAmbiguousProgramUids(document.resources.flatMap(resource => resource.kind === 'program' ? [resource.data] : []), ambiguousProgramUids);
   const byId = new Map(document.resources.map(resource => [resource.id, resource]));
   const keys = new Map<string, string>();
   const key = (resource: PlcResource): string => {
@@ -30,7 +32,9 @@ export function buildDocumentRecords(document: PlcDocument): DocumentRecord[] {
     if (cached) return cached;
     const owner = resource.ownerId ? byId.get(resource.ownerId) : undefined;
     const value = JSON.stringify([owner ? key(owner) : '', resource.kind,
-      resource.kind === 'rung' ? resource.data.number : resource.kind === 'program' ? [resource.data.uid, resource.data.name] : resource.data.name]);
+      resource.kind === 'rung' ? resource.data.number : resource.kind === 'program'
+        ? programIdentityKey({ name: resource.data.name, uid: resource.data.uid,
+          ambiguousUid: resource.data.uid !== undefined && ambiguousUids.has(resource.data.uid) }) : resource.data.name]);
     keys.set(resource.id, value);
     return value;
   };

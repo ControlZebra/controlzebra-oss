@@ -7,7 +7,7 @@ import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesys
 import { onEvent } from '../../../shared/runtime/events';
 import { clearViewerCache } from '../../registry/viewer-cache';
 import { clearAllTabStates, getCachedTabState } from './l5x/useTabs';
-import { buildDocumentRecords, findLocationRecord } from './l5x/document-model';
+import { buildDocumentRecords, findDocumentRecord, findLocationRecord } from './l5x/document-model';
 import L5XDocumentStatus from '../shared/L5XDocumentStatus';
 import { parseL5XDocument } from '../shared/l5x-document';
 import L5XFileViewer from './L5XFileViewer';
@@ -119,6 +119,62 @@ describe('L5X document source inspection', () => {
     expect(await screen.findByRole('region', { name: 'Flow XML source' })).toBeVisible();
     expect(xmlText()).toBe(sfc('P1'));
     expect(ReadTextFile).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['program', 'routine', 'tag', 'rung'] as const)('retains %s source identity when its program UID survives a rename', kind => {
+    const content = wrap('<Programs><Program Name="Original" UId="123"><Tags><Tag Name="Owned" TagType="Base" DataType="BOOL"/></Tags><Routines><Routine Name="Flow" Type="RLL"><RLLContent><Rung Number="0" Type="N"><Text>XIC(Owned);</Text></Rung></RLLContent></Routine></Routines></Program></Programs>');
+    const before = buildDocumentRecords(parseDocumentString(content, 'l5x').data!);
+    const selection = before.find(record => record.resource?.kind === kind)!.selection;
+    const after = buildDocumentRecords(parseDocumentString(content.replace('Name="Original"', 'Name="Renamed"'), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)?.resource?.kind).toBe(kind);
+  });
+
+  it('keeps an open source tab through UID-preserving rename, name reuse and cached reopen', async () => {
+    const original = `<Program Name="Original" UId="123"><Routines>${sfc('owned')}</Routines></Program>`;
+    const view = await load(wrap(`<Programs>${original}</Programs>`));
+    openDocument();
+    openRecord('Program Original / Flow (Routine)');
+    const renamed = original.replace('Name="Original"', 'Name="Renamed"');
+    const replacement = `<Program Name="Original" UId="456"><Routines>${sfc('replacement')}</Routines></Program>`;
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: wrap(`<Programs>${replacement}${renamed}</Programs>`) });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(await screen.findByRole('heading', { name: 'Program Renamed / Flow (Routine)' })).toBeVisible();
+    expect(xmlText()).toBe(sfc('owned'));
+    view.unmount();
+    render(<L5XFileViewer filePath={filePath} />);
+    expect(await screen.findByRole('heading', { name: 'Program Renamed / Flow (Routine)' })).toBeVisible();
+    expect(xmlText()).toBe(sfc('owned'));
+    openDocument();
+    openRecord('Program Renamed / Flow (Routine)');
+    expect(screen.getAllByRole('tab', { name: /Flow/ })).toHaveLength(1);
+    expect(ReadTextFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps duplicate UID tabs distinct after a sibling disappears and the viewer reopens', async () => {
+    const owned = (name: string) => `<Program Name="${name}" UId="123"><Routines>${sfc(name)}</Routines></Program>`;
+    const view = await load(wrap(`<Programs>${owned('A')}${owned('B')}</Programs>`));
+    for (const name of ['A', 'B']) {
+      openDocument();
+      openRecord(`Program ${name} / Flow (Routine)`);
+      expect(xmlText()).toBe(sfc(name));
+    }
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: wrap(`<Programs>${owned('B')}</Programs>`) });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(await screen.findByRole('region', { name: 'Flow XML source' })).toBeVisible();
+    expect(xmlText()).toBe(sfc('B'));
+    fireEvent.click(screen.getByRole('tab', { name: /Program A \/ Flow/ }));
+    expect(screen.getByText(/This source record is no longer available/)).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Flow XML source' })).not.toBeInTheDocument();
+    view.unmount();
+    render(<L5XFileViewer filePath={filePath} />);
+    expect(await screen.findByText(/This source record is no longer available/)).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: /Program B \/ Flow/ }));
+    expect(xmlText()).toBe(sfc('B'));
+    openDocument();
+    openRecord('Program B / Flow (Routine)');
+    expect(screen.getAllByRole('tab', { name: /Flow/ })).toHaveLength(2);
   });
 
   it('distinguishes identical routine and owner names between program and AOI scopes', async () => {
