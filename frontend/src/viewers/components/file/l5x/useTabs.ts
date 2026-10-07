@@ -19,6 +19,10 @@ export type TabType =
   | 'routine' 
   | 'controller-tags' 
   | 'program-tags' 
+  | 'program-local-tags'
+  | 'program-parameters'
+  | 'trends'
+  | 'watch-lists'
   | 'controller-info' 
   | 'data-type' 
   | 'aoi-parameters' 
@@ -38,7 +42,8 @@ export interface Tab {
 export type TabData = 
   | { type: 'routine'; programIndex: number; routineIndex: number; programName?: string; programUid?: string; programUidAmbiguous?: boolean; routineName?: string }
   | { type: 'controller-tags' }
-  | { type: 'program-tags'; programIndex: number; programName: string; programUid?: string; programUidAmbiguous?: boolean }
+  | { type: 'program-tags' | 'program-local-tags' | 'program-parameters'; programIndex: number; programName: string; programUid?: string; programUidAmbiguous?: boolean }
+  | { type: 'trends' | 'watch-lists' }
   | { type: 'controller-info' }
   | { type: 'data-type'; dataTypeName: string; view?: DataTypeViewMode }
   | { type: 'aoi-parameters'; aoiName: string }
@@ -105,7 +110,12 @@ export function generateTabId(data: TabData): string {
     case 'controller-tags':
       return 'controller-tags';
     case 'program-tags':
-      return JSON.stringify(['program-tags', programIdentityKey({ name: data.programName, uid: data.programUid, ambiguousUid: data.programUidAmbiguous })]);
+    case 'program-local-tags':
+    case 'program-parameters':
+      return JSON.stringify([data.type, programIdentityKey({ name: data.programName, uid: data.programUid, ambiguousUid: data.programUidAmbiguous })]);
+    case 'trends':
+    case 'watch-lists':
+      return data.type;
     case 'controller-info':
       return 'controller-info';
     case 'data-type':
@@ -148,14 +158,14 @@ function refreshProgramOwners(tabs: Tab[], programs: NormalizedController['progr
   const updated = tabs.map(tab => {
     const data = tab.data;
     const target = data.type === 'metadata' && data.target.kind === 'program' ? data.target : undefined;
-    const view = data.type === 'routine' || data.type === 'program-tags' ? data : undefined;
+    const view = data.type === 'routine' || data.type === 'program-tags' || data.type === 'program-local-tags' || data.type === 'program-parameters' ? data : undefined;
     const uid = target?.uid ?? view?.programUid;
     if (uid === undefined || ambiguousUids.has(uid) || target?.ambiguousUid || view?.programUidAmbiguous) return tab;
     const program = findProgram(programs, { uid });
     if (!program || program.name === (target?.name ?? view?.programName)) return tab;
     changed = true;
     if (target) return { ...tab, title: `${program.name} Metadata`, data: { type: 'metadata' as const, target: { ...target, name: program.name } } };
-    if (view) return { ...tab, title: view.type === 'program-tags' ? `${program.name} Tags` : tab.title,
+    if (view) return { ...tab, title: view.type === 'routine' ? tab.title : `${program.name} ${view.type === 'program-tags' ? 'Tags' : view.type === 'program-local-tags' ? 'Local Tags' : 'Parameters'}`,
       data: { ...view, programName: program.name } };
     return tab;
   });

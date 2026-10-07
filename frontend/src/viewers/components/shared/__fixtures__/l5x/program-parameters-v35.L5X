@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="ProgramParamsV35" TargetType="Program" ContainsContext="true">
+  <Controller Use="Context" Name="FixtureController">
+    <Programs>
+      <Program Name="ProgramParamsV35" Type="EquipmentPhase" Disabled="false" InitialStepIndex="7" InitialState="Stopped" CompleteStateIfNotImpl="NotImplPhaseFailure" LossOfCommCmd="Stop" ExternalRequestAction="LastExternalRequestAction" LastScanTime="50" MaxScanTime="60" SynchronizeRedundancyDataAfterExecution="true">
+        <Description><![CDATA[Program parameter regression derived from supported schema forms]]></Description>
+        <Parameters>
+          <Parameter Name="Recipe" UId="18446744073709551615" ParentUId="9007199254740993" TagType="Base" DataType="DINT" DataTypeUId="42" Dimensions="[2,3]" Usage="InOut" Radix="Decimal" Required="true" Visible="true" Constant="false" ExternalAccess="None" Verified="true">
+            <Comments>
+              <Comment Operand="[0,0]"><![CDATA[First recipe cell]]></Comment>
+            </Comments>
+            <DefaultData Format="Decorated">
+              <Array DataType="DINT" Dimensions="[2,3]" Radix="Decimal">
+                <Element Index="[0,0]" Value="7" />
+                <Element Index="[1,2]" Value="9" />
+              </Array>
+            </DefaultData>
+          </Parameter>
+          <Parameter Name="Scratch" TagType="Base" DataType="BOOL" Usage="Local" />
+          <Parameter Name="Status" TagType="Base" DataType="DINT" Usage="Static" Radix="Decimal" />
+          <Parameter Name="NormalValue" TagType="Base" DataType="DINT" Usage="Normal" />
+          <Parameter Name="NullValue" TagType="Base" DataType="DINT" Usage="NULL" />
+        </Parameters>
+      </Program>
+    </Programs>
+  </Controller>
+</RSLogix5000Content>

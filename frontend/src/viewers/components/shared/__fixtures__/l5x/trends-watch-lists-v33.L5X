@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.00" TargetName="TrendWatchV33" TargetType="Controller" ContainsContext="false">
+  <Controller Use="Target" Name="TrendWatchV33">
+    <Trends UId="9007199254740993" ParentUId="7">
+      <Trend Name="ProcessTrend" UId="18446744073709551615" SamplePeriod="10" NumberOfCaptures="2" CaptureSizeType="Samples" CaptureSize="500" StartTriggerType="Event Trigger" StartTriggerTag1="StartTag" StartTriggerOperation1="1" StartTriggerTargetType1="Target Value" StartTriggerTargetValue1="5" StartTriggerTargetTag1="StartTarget" StartTriggerLogicalOperation="AND" StartTriggerTag2="PermitTag" StartTriggerOperation2="2" StartTriggerTargetType2="Target Tag" StartTriggerTargetValue2="6" StartTriggerTargetTag2="PermitTarget" PreSampleType="Samples" PreSamples="12" StopTriggerType="Event Trigger" StopTriggerTag1="StopTag" StopTriggerOperation1="3" StopTriggerTargetType1="Target Tag" StopTriggerTargetValue1="7" StopTriggerTargetTag1="StopTarget" StopTriggerLogicalOperation="OR" StopTriggerTag2="FaultTag" StopTriggerOperation2="4" StopTriggerTargetType2="Target Value" StopTriggerTargetValue2="8" StopTriggerTargetTag2="FaultTarget" PostSampleType="Time Period" PostSamples="25" TrendxVersion="5.2">
+        <Description><Value>Process trend description</Value></Description>
+        <Template>opaque-studio-template</Template>
+        <Pens>
+          <Pen Name="Temperature" Color="#ff0000" Visible="true" Width="2" Type="Analog" Style="1" Marker="3" Min="-1.5" Max="42.25" EngUnits="degC">
+            <Description>
+              <LocalizedDescription Lang="en">
+                <Value>Temperature pen</Value>
+              </LocalizedDescription>
+            </Description>
+          </Pen>
+        </Pens>
+      </Trend>
+    </Trends>
+    <QuickWatchLists>
+      <QuickWatchList Name="Operators">
+        <WatchTag Specifier="Temperature" Scope="MainProgram" />
+      </QuickWatchList>
+    </QuickWatchLists>
+  </Controller>
+</RSLogix5000Content>
