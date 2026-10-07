@@ -24,6 +24,8 @@ export function buildOrganizerTree(controller: NormalizedController, ambiguousPr
     const identity = programIdentity(controller.programs, program, ambiguousProgramUids);
     return entity(program.name, 'program', metadata({ kind: 'program', ...identity }), [
       entity('Program Tags', 'tags', { type: 'program-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid }),
+      entity('Local Tags', 'tags', { type: 'program-local-tags', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid }),
+      entity('Parameters', 'tags', { type: 'program-parameters', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid }),
       ...program.routines.map((routine, routineIndex) => entity(routine.name, 'routine', {
         type: 'routine', programIndex, programName: program.name, programUid: identity.uid, programUidAmbiguous: identity.ambiguousUid, routineIndex, routineName: routine.name,
       })).sort((left, right) => left.label.localeCompare(right.label)),
@@ -48,7 +50,9 @@ export function buildOrganizerTree(controller: NormalizedController, ambiguousPr
       : type.class === 'User' ? 'UserDefined' : 'Predefined');
   return [
     { ...entity(`Controller ${controller.name}`, 'controller', metadata({ kind: 'controller' }),
-      [entity('Controller Tags', 'tags', { type: 'controller-tags' })]), defaultExpanded: true },
+      [entity('Controller Tags', 'tags', { type: 'controller-tags' }),
+        entity('Trends', 'tags', { type: 'trends' }),
+        entity('Quick Watch Lists', 'tags', { type: 'watch-lists' })]), defaultExpanded: true },
     folder('tasks', 'Tasks', [...tasks,
       folder('unscheduled', 'Unscheduled', programNodes.filter((_, index) => !scheduled.has(index)))]),
     folder('motion-groups', 'Motion Groups', []),
@@ -85,10 +89,10 @@ export function organizerSelectionId(controller: NormalizedController, data?: Ta
     const program = findProgram(controller.programs, data.target, ambiguousProgramUids);
     return program ? generateTabId(metadata({ kind: 'program', ...programIdentity(controller.programs, program, ambiguousProgramUids) })) : undefined;
   }
-  if (data.type === 'routine' || data.type === 'program-tags') {
+  if (data.type === 'routine' || data.type === 'program-tags' || data.type === 'program-local-tags' || data.type === 'program-parameters') {
     const program = findProgram(controller.programs, { uid: data.programUid, name: data.programName, index: data.programIndex, ambiguousUid: data.programUidAmbiguous }, ambiguousProgramUids);
     if (!program) return undefined;
-    if (data.type === 'program-tags') return generateTabId({ ...data, ...programData(program) });
+    if (data.type !== 'routine') return generateTabId({ ...data, ...programData(program) });
     const routine = data.routineName !== undefined ? program.routines.find(candidate => candidate.name === data.routineName)
       : program.routines[data.routineIndex];
     return routine ? generateTabId({ ...data, ...programData(program), routineName: routine.name }) : undefined;

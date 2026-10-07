@@ -326,6 +326,111 @@ describe('L5XViewer refresh behavior', () => {
     };
   }
 
+  function declarationController(version: string) {
+    const base = metadataController(version);
+    return { ...base,
+      programs: [{ ...base.programs[0], tags: [{ name: 'Shared', dataType: 'DINT' }],
+        localTags: [{ name: 'Shared', dataType: 'DINT', scope: 'Program', programName: 'MainProgram',
+          description: `Program local ${version}`, comments: [], defaultValue: 0 }],
+        parameters: [{ name: 'Shared', dataType: 'DINT', scope: 'Program', programName: 'MainProgram',
+          usage: 'Input', description: `Program parameter ${version}`, comments: [] }] }],
+      aois: [{ ...base.aois[0], localTags: [{ name: 'Shared', dataType: 'DINT', description: 'AOI local', externalAccess: 'None' }],
+        parameters: [{ name: 'Shared', dataType: 'DINT', usage: 'InOut', description: 'AOI parameter', required: false, visible: false }] }],
+    };
+  }
+
+  it('keeps ordinary tags, program locals, program parameters and AOI declarations in distinct tabs', async () => {
+    const data = declarationController('v1');
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data });
+    await renderLoadedViewer();
+    clickEntry('MainProgram');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Program tags: 1' }));
+    expect(tagTableMock.mock.calls[tagTableMock.mock.calls.length - 1]?.[0]).toMatchObject({ tags: data.programs[0].tags });
+    for (const [owner, label, title, description] of [
+      ['MainProgram', 'Local tags', 'MainProgram Local Tags', 'Program local v1'],
+      ['MainProgram', 'Parameters', 'MainProgram Parameters', 'Program parameter v1'],
+      ['MixerAOI', 'Local tags', 'MixerAOI Local Tags', 'AOI local'],
+      ['MixerAOI', 'Parameters', 'MixerAOI Parameters', 'AOI parameter'],
+    ]) {
+      clickEntry(owner);
+      fireEvent.click(within(screen.getByRole('region', { name: `${owner} Metadata` })).getByRole('button', { name: `Open ${label}: 1` }));
+      fireEvent.click(within(screen.getByRole('heading', { name: title }).parentElement!).getByRole('button', { name: /1\. Shared DINT/ }));
+      expect(screen.getByRole('row', { name: `Description ${description}` })).toBeVisible();
+      expect(screen.getByRole('tab', { name: new RegExp(title) })).toHaveAttribute('aria-selected', 'true');
+    }
+    const tabCount = mainTabs().getAllByRole('tab').length;
+    clickEntry('MainProgram');
+    fireEvent.click(within(screen.getByRole('region', { name: 'MainProgram Metadata' })).getByRole('button', { name: 'Open Local tags: 1' }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(tabCount);
+    expect(screen.getByRole('row', { name: 'Description Program local v1' })).toBeVisible();
+  }, 15000);
+
+  it.each(['Local tags', 'Parameters'])('retains %s ownership and cached tabs across rename, reorder and removal', async label => {
+    queueSuccessfulRead(['v1', 'v2', 'v3']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = declarationController(version);
+      if (version !== 'v1') {
+        data.programs[0].name = 'Renamed';
+        data.programs[0].localTags[0].programName = 'Renamed';
+        data.programs[0].parameters[0].programName = 'Renamed';
+        data.programs.unshift({ ...data.programs[0], name: 'Other', uid: '2', localTags: [], parameters: [] });
+      }
+      if (version === 'v3') data.programs.pop();
+      return { success: true, data };
+    });
+    const path = '/repo/declarations.L5X';
+    const mounted = render(<L5XViewer filePath={path} />);
+    await screen.findByText('No Content Selected');
+    clickEntry('MainProgram');
+    fireEvent.click(screen.getByRole('button', { name: `Open ${label}: 1` }));
+    fireEvent.click(screen.getByRole('button', { name: /1\. Shared DINT/ }));
+    await emitFilesChanged(path, 'write');
+    expect(await screen.findByRole('heading', { name: `Renamed ${label === 'Local tags' ? 'Local Tags' : label}` })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /1\. Shared DINT/ }));
+    expect(screen.getByRole('row', { name: 'Program Renamed' })).toBeVisible();
+    mounted.unmount();
+    render(<L5XViewer filePath={path} />);
+    expect(await screen.findByRole('heading', { name: `Renamed ${label === 'Local tags' ? 'Local Tags' : label}` })).toBeVisible();
+    expect(readTextFileMock).toHaveBeenCalledTimes(2);
+    const count = mainTabs().getAllByRole('tab').length;
+    clickEntry('Renamed');
+    fireEvent.click(screen.getByRole('button', { name: `Open ${label}: 1` }));
+    expect(mainTabs().getAllByRole('tab')).toHaveLength(count);
+    await emitFilesChanged(path, 'write');
+    expect(await screen.findByText(/This owner is missing or ambiguous/)).toBeVisible();
+  });
+
+  it.each(['Local tags', 'Parameters'])('does not redirect %s to another program after a duplicate UID disappears', async label => {
+    queueSuccessfulRead(['v1', 'v2']);
+    controllerResultMock.mockImplementation((version: string) => {
+      const data = declarationController(version);
+      data.programs.push({ ...data.programs[0], name: 'Collision' });
+      if (version === 'v2') data.programs.shift();
+      return { success: true, data };
+    });
+    await renderLoadedViewer();
+    clickEntry('MainProgram');
+    fireEvent.click(screen.getByRole('button', { name: `Open ${label}: 1` }));
+    await emitFilesChanged('/repo/Programs/Main.L5X', 'write');
+    expect(await screen.findByText(/This owner is missing or ambiguous/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /1\. Shared DINT/ })).not.toBeInTheDocument();
+  });
+
+  it('opens trends and watch lists from both organizer entries and metadata links, including empty collections', async () => {
+    readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
+    controllerResultMock.mockReturnValue({ success: true, data: declarationController('v1') });
+    await renderLoadedViewer();
+    for (const [entry, link] of [['Trends', 'Trends'], ['Quick Watch Lists', 'Quick-watch lists']]) {
+      clickEntry(entry);
+      expect(within(screen.getByRole('heading', { name: `Controller v1 ${entry}` }).parentElement!).getByText(/No entries in this collection/)).toBeVisible();
+      clickEntry('Controller Controller v1');
+      const count = mainTabs().getAllByRole('tab').length;
+      fireEvent.click(screen.getByRole('button', { name: `Open ${link}: 0` }));
+      expect(mainTabs().getAllByRole('tab')).toHaveLength(count);
+    }
+  });
+
   it('opens six entity families from the organizer, defaulting datatypes to table without duplicate tabs', async () => {
     readTextFileMock.mockResolvedValue({ success: true, content: 'v1' });
     controllerResultMock.mockReturnValue({ success: true, data: metadataController('v1') });
@@ -386,7 +491,7 @@ describe('L5XViewer refresh behavior', () => {
     await renderLoadedViewer();
     fireEvent.click(screen.getByRole('button', { name: 'MixerAOI' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Parameters: 0' }));
-    expect(screen.getByText('AOI Parameters')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'MixerAOI Parameters' })).toBeVisible();
     expect(screen.getByRole('tab', { name: /MixerAOI Parameters/ })).toBeVisible();
     expandEntry('User Defined');
     fireEvent.click(screen.getByRole('button', { name: 'PumpState' }));

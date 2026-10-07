@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="35.01" TargetName="TrendWatchV35" TargetType="Controller" ContainsContext="false">
+  <Controller Use="Target" Name="TrendWatchV35">
+    <Trends>
+      <Trend Name="Minimal">
+        <Description><Value>Minimal trend</Value></Description>
+        <Pens />
+      </Trend>
+    </Trends>
+    <QuickWatchLists>
+      <QuickWatchList Name="Empty" />
+    </QuickWatchLists>
+  </Controller>
+</RSLogix5000Content>

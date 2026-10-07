@@ -32,8 +32,6 @@ import { hasEncodedOnlyTargets, parseL5XDocument, type L5XDocumentResult } from 
 import {
   ControllerInfo,
   TagTable,
-  AOIParameterTable,
-  AOILocalTagTable,
   ModuleInfoTable,
   registerAOIsFromController,
   clearAOIs,
@@ -47,6 +45,10 @@ import { normalizeTabData } from './l5x/useTabs';
 import DataTypeView from './l5x/DataTypeView';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 import MetadataInspector from './l5x/MetadataInspector';
+import DeclarationView from './l5x/DeclarationView';
+import ControllerCollections from './l5x/ControllerCollections';
+import EmptyState from '../../../shared/ui/EmptyState';
+import { Button } from '../../../shared/ui/button';
 import { findProgram } from './l5x/program-identity';
 
 function resolveProgram(controller: NormalizedController, data: { programIndex: number; programName?: string; programUid?: string; programUidAmbiguous?: boolean }, ambiguousProgramUids: ReadonlySet<string>) {
@@ -240,40 +242,34 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
         </div>;
       }
 
-      case 'aoi-parameters': {
-        const aoi = controller.aois.find(a => a.name === tabData.aoiName);
-        if (aoi) {
-          return (
-            <div key={`aoi-parameters-${tabData.aoiName}`} className={containerClass}>
-              <div className="flex-1 overflow-auto p-4">
-                <AOIParameterTable parameters={aoi.parameters} />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div key={`aoi-parameters-${tabData.aoiName}`} className={containerClass}>
-            <p className="text-center text-theme-secondary py-10">AOI not found</p>
-          </div>
-        );
+      case 'program-local-tags':
+      case 'program-parameters':
+      case 'aoi-parameters':
+      case 'aoi-local-tags': {
+        const aois = 'aoiName' in tabData ? controller.aois.filter(aoi => aoi.name === tabData.aoiName) : undefined;
+        const owner = 'programIndex' in tabData ? resolveProgram(controller, tabData, ambiguousProgramUids)
+          : aois?.length === 1 ? aois[0] : undefined;
+        const parameters = tabData.type === 'program-parameters' || tabData.type === 'aoi-parameters';
+        const declarations = owner && (parameters ? owner.parameters : owner.localTags);
+        return <div key={tabId} className={containerClass}><section className="min-h-0 flex-1 space-y-4 overflow-auto p-4 text-theme-primary"
+          aria-label="Declaration view">
+          <h2 className="break-words text-sm font-semibold">{owner?.name} {parameters ? 'Parameters' : 'Local Tags'}</h2>
+          {!owner ? <>
+            <EmptyState customMessage="This owner is missing or ambiguous. Select another item in the Project Organizer." />
+            {onShowRaw && <Button variant="ghost" size="sm" onClick={onShowRaw}>View Raw</Button>}
+          </> : !declarations?.length ? <EmptyState customMessage="No declarations in this collection. Select another item in the Project Organizer." />
+            : <DeclarationView declarations={declarations} catalog={dataTypes} onOpen={handleOpen} />}
+        </section></div>;
       }
 
-      case 'aoi-local-tags': {
-        const aoi = controller.aois.find(a => a.name === tabData.aoiName);
-        if (aoi) {
-          return (
-            <div key={`aoi-local-tags-${tabData.aoiName}`} className={containerClass}>
-              <div className="flex-1 overflow-auto p-4">
-                <AOILocalTagTable localTags={aoi.localTags} />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div key={`aoi-local-tags-${tabData.aoiName}`} className={containerClass}>
-            <p className="text-center text-theme-secondary py-10">AOI not found</p>
-          </div>
-        );
+      case 'trends':
+      case 'watch-lists': {
+        const count = tabData.type === 'trends' ? controller.trends?.length : controller.quickWatchLists?.length;
+        return <div key={tabId} className={containerClass}><section className="min-h-0 flex-1 space-y-4 overflow-auto p-4 text-theme-primary">
+          <h2 className="break-words text-sm font-semibold">{controller.name} {tabData.type === 'trends' ? 'Trends' : 'Quick Watch Lists'}</h2>
+          {!count ? <EmptyState customMessage="No entries in this collection. Select another item in the Project Organizer." />
+            : <ControllerCollections controller={controller} type={tabData.type} onOpen={handleOpen} />}
+        </section></div>;
       }
 
       case 'aoi-routine': {
