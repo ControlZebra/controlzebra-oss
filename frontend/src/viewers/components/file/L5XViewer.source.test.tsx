@@ -265,6 +265,46 @@ describe('L5X document source inspection', () => {
     expect(findDocumentRecord(after, selection)).toBeUndefined();
   });
 
+  it('keeps a preserved configuration on its program through reorder and cached reopen', async () => {
+    const program = (name: string) => `<Program Name="${name}" UId="${name === 'P1' ? '1' : '2'}"><VendorConfiguration Owner="${name}"/></Program>`;
+    const content = (inner: string) => wrap(`<Programs>${inner}</Programs>`);
+    const original = content(`${program('P1')}${program('P2')}`);
+    const selected = parseDocumentString(original, 'l5x').data!.fragments.find(fragment => fragment.path.includes('Program[1]/VendorConfiguration'))!;
+    const view = await load(original);
+    openDocument();
+    const entry = overview().getByText(selected.path).closest('li')!;
+    fireEvent.click(within(entry).getByRole('button', { name: 'VendorConfiguration[1]' }));
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(JSON.parse(editor().state.sliceDoc())).toEqual({ '@_Owner': 'P1' });
+    const reordered = content(`${program('P2')}${program('P1')}`);
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: reordered });
+    const handler = vi.mocked(onEvent).mock.calls.find(call => call[0] === 'files-changed')![1];
+    await act(async () => { handler({ data: { path: filePath, eventType: 'write' } }); });
+    expect(JSON.parse(editor().state.sliceDoc())).toEqual({ '@_Owner': 'P1' });
+    const refreshed = parseDocumentString(reordered, 'l5x').data!.fragments.find(fragment => fragment.path.includes('Program[2]/VendorConfiguration'))!;
+    expect(screen.getByRole('row', { name: `Source path ${refreshed.path}` })).toBeVisible();
+    view.unmount();
+    render(<L5XFileViewer filePath={filePath} />);
+    await screen.findByRole('textbox', { name: 'File content' });
+    expect(JSON.parse(editor().state.sliceDoc())).toEqual({ '@_Owner': 'P1' });
+  });
+
+  it('tracks preserved siblings by their attributes when their source order changes', () => {
+    const fragment = (id: string) => `<VendorConfiguration Index="${id}"><![CDATA[value ${id}]]></VendorConfiguration>`;
+    const before = buildDocumentRecords(parseDocumentString(wrap(`${fragment('A')}${fragment('B')}`), 'l5x').data!);
+    const selection = before.find(record => record.fragment?.path.endsWith('VendorConfiguration[1]'))!.selection;
+    const after = buildDocumentRecords(parseDocumentString(wrap(`${fragment('B')}${fragment('A')}`), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)?.fragment?.value).toEqual({ '@_Index': 'A', '#cdata': 'value A' });
+  });
+
+  it('refuses a preserved selection when multiple sibling fragments have the same attributes', () => {
+    const fragment = (text: string) => `<VendorConfiguration Index="A"><![CDATA[${text}]]></VendorConfiguration>`;
+    const before = buildDocumentRecords(parseDocumentString(wrap(fragment('original')), 'l5x').data!);
+    const selection = before.find(record => record.fragment?.path.endsWith('VendorConfiguration[1]'))!.selection;
+    const after = buildDocumentRecords(parseDocumentString(wrap(`${fragment('replacement')}${fragment('original')}`), 'l5x').data!);
+    expect(findDocumentRecord(after, selection)).toBeUndefined();
+  });
+
   it('inspects parsed preserved configuration and links covering diagnostics', async () => {
     const content = wrap('<VendorConfiguration Flag="yes"><![CDATA[<script>text</script>]]></VendorConfiguration>');
     await load(content);
@@ -282,7 +322,7 @@ describe('L5X document source inspection', () => {
     result.warnings = [{ message: 'Preserved configuration', code: 'TEST', location: { path: `${path}/@Flag` } }];
     render(<L5XDocumentStatus result={result} records={records} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: 'Inspect source record' }));
-    expect(onOpen).toHaveBeenCalledWith({ type: 'document', selection: { kind: 'fragment', path } }, 'VendorConfiguration[1]');
+    expect(onOpen).toHaveBeenCalledWith({ type: 'document', selection: records.find(record => record.fragment?.path === path)!.selection }, 'VendorConfiguration[1]');
     expect(findLocationRecord(records, '/absent')).toBeUndefined();
   });
 

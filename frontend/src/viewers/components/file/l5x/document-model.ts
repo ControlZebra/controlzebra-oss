@@ -6,8 +6,7 @@ const resourceLabels: Record<PlcResource['kind'], string> = {
   tag: 'Tag', dataType: 'Data type', aoi: 'AOI', module: 'Module',
 };
 
-export type DocumentSelection = { kind: 'source' } | { kind: 'resource' | 'encoded'; key: string }
-  | { kind: 'fragment'; path: string };
+export type DocumentSelection = { kind: 'source' } | { kind: 'resource' | 'encoded' | 'fragment'; key: string };
 export interface DocumentRecord {
   selection: DocumentSelection;
   title: string;
@@ -39,16 +38,25 @@ export function buildDocumentRecords(document: PlcDocument, ambiguousProgramUids
     return value;
   };
   const byPath = new Map(document.resources.map(resource => [resource.sourcePath, resource]));
-  const encodedKey = (encoded: PlcEncodedData): string => {
-    let ownerPath = encoded.containerPath;
+  const sourceKey = (path: string, identity: unknown): string => {
+    let ownerPath = path;
     while (ownerPath && !byPath.has(ownerPath)) ownerPath = ownerPath.slice(0, ownerPath.lastIndexOf('/'));
     const owner = byPath.get(ownerPath);
+    const location = path.slice(ownerPath.length).replace(/\[\d+\]/g, '');
+    return JSON.stringify([owner ? key(owner) : '', location, identity]);
+  };
+  const encodedKey = (encoded: PlcEncodedData): string => {
     // Names identify wrappers; revisions and payloads can change on refresh.
     const wrapper = encoded.attributes.Name
       ? ['named', encoded.attributes.Name, encoded.attributes.EncodedType, encoded.attributes.Type]
       : ['attributes', Object.keys(encoded.attributes).sort().map(name => [name, encoded.attributes[name]])];
-    const container = encoded.containerPath.slice(ownerPath.length).replace(/\[\d+\]/g, '');
-    return JSON.stringify([owner ? key(owner) : '', container, wrapper]);
+    return sourceKey(encoded.containerPath, wrapper);
+  };
+  const fragmentKey = (fragment: PlcVendorFragment): string => {
+    const value = fragment.value;
+    const attributes = typeof value === 'object'
+      ? Object.keys(value).filter(name => name.startsWith('@_')).sort().map(name => [name, value[name]]) : [];
+    return sourceKey(fragment.path, [fragment.reason, attributes]);
   };
   const targets = new Set(document.targetIds);
   return [
@@ -66,7 +74,7 @@ export function buildDocumentRecords(document: PlcDocument, ambiguousProgramUids
       title: `${encoded.attributes.Name ?? encoded.attributes.EncodedType ?? 'Encoded'} payload`,
       group: targets.has(encoded.sourcePath) ? 'Targets' as const : 'Encoded' as const,
       path: encoded.sourcePath, encoded })),
-    ...document.fragments.map(fragment => ({ selection: { kind: 'fragment' as const, path: fragment.path },
+    ...document.fragments.map(fragment => ({ selection: { kind: 'fragment' as const, key: fragmentKey(fragment) },
       title: fragment.path.split('/').pop() ?? fragment.path, group: 'Preserved' as const, path: fragment.path, fragment })),
   ];
 }
