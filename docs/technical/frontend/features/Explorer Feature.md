@@ -33,10 +33,14 @@ return <AllSyncedScreen />;
 ```
 
 ### File Browser
-- **SimpleFileBrowser** — Tree view of repo files
-  - Double-click opens file in viewer tab
-  - Right-click context menu (open, copy path, reveal in Finder)
+- **SimpleFileBrowser** — Grid and virtualized list layouts of repo files
+  - Double-click opens a file in its default application or navigates into a folder
+  - Right-click context menu (open, preview, generate preview, copy path, reveal in Finder/Explorer)
   - File status indicators (green=added, yellow=modified, red=deleted)
+
+**Generate preview** appears for every file in both layouts. Each menu opening checks the file's basename: a nonempty name followed by exactly one dot and `ACD`, without regard to letter case. For example, `Controller.AcD` is eligible; `Controller.BAK042.ACD`, `Controller.acd.something`, and `.ACD` are disabled. Dots in parent directories and Git tracking or ignore status do not change this result.
+
+This is a Phase 1 placeholder. Selecting an eligible file's action only shows “Preview generation is not available yet.” It does not start an SDK process, create files, or open a viewer. Working generation and installed Windows release verification are separate work.
 
 ### Modals
 - **LFSAutoTrackModal** — Intercepts commit flow when large files detected (see below)

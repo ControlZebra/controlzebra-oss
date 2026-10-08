@@ -22,6 +22,7 @@ import {
   FileAudio,
   FileArchive,
   FileSpreadsheet,
+  FileSearch,
   ChevronRight,
   Grid3X3,
   List,
@@ -60,7 +61,7 @@ import { useWindowSize } from '../../../shared/hooks';
 import { openExternalUrl } from '../../../shared/runtime/browser';
 import { toast } from 'sonner';
 import { onEvent } from '../../../shared/runtime/events';
-import { type ExplorerTab } from '../../../shared/constants';
+import { ICON_SIZES, type ExplorerTab } from '../../../shared/constants';
 import { getViewerForFile } from '../../../viewers/registry/viewer-registry';
 import {
   AlertDialog,
@@ -666,6 +667,23 @@ function Toolbar({
   );
 }
 
+function showGeneratePreviewPlaceholder() {
+  toast.info('Preview generation is not available yet.');
+}
+
+function GeneratePreviewMenuItem({ fileName }: { fileName: string }) {
+  // Menu content mounts on open, so eligibility uses the current file's basename.
+  const parts = fileName.split('.');
+  const eligible = parts.length === 2 && parts[0].length > 0 && parts[1].toLowerCase() === 'acd';
+
+  return (
+    <ContextMenuItem disabled={!eligible} onSelect={showGeneratePreviewPlaceholder}>
+      <FileSearch size={ICON_SIZES.sm} className="mr-2" />
+      <span>Generate preview</span>
+    </ContextMenuItem>
+  );
+}
+
 interface FileItemGridProps {
   file: FileEntry;
   gitStatus?: string;
@@ -750,6 +768,7 @@ function FileItemGrid({ file, gitStatus, isLfs, lockOwner, isOwnLock, isSelected
             <ContextMenuShortcut>␣</ContextMenuShortcut>
           </ContextMenuItem>
         )}
+        {!file.isDirectory && <GeneratePreviewMenuItem fileName={file.name} />}
         <ContextMenuSeparator />
         <ContextMenuItem
           disabled={lockDisabled}
@@ -977,6 +996,7 @@ const FileTableRow = memo(function FileTableRow({ file, gitStatus, isLfs, lockOw
             <ContextMenuShortcut>␣</ContextMenuShortcut>
           </ContextMenuItem>
         )}
+        {!file.isDirectory && <GeneratePreviewMenuItem fileName={file.name} />}
         <ContextMenuSeparator />
         <ContextMenuItem
           disabled={lockDisabled}
