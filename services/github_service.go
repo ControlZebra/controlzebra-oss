@@ -1732,7 +1732,7 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 				setup = g.runner.RunGit(cloneDir, "remote", "add", "origin", remote)
 			}
 		} else {
-			runner := g.runner.forGitOperation()
+			runner := g.forCreatedRepository(output)
 			for attempt := 0; attempt < 4; attempt++ {
 				if attempt > 0 {
 					time.Sleep(3 * time.Second)
@@ -1830,7 +1830,7 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 	if strings.TrimSpace(bare.Stdout) == "true" {
 		pushArgs = []string{"push", "origin", "--mirror"}
 	}
-	push := g.runner.forGitOperation().RunGit(localPath, pushArgs...)
+	push := g.forCreatedRepository(result.Stdout).RunGit(localPath, pushArgs...)
 	if !push.Success {
 		return GitHubRepoCreateResult{Error: getErrorMessage(push)}
 	}
@@ -1849,6 +1849,16 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 			Private:  private,
 		},
 	}
+}
+
+// A successful GitHub creation already established usable authentication.
+// Other hosts still need their independent github.com authentication decision.
+func (g *GitHubService) forCreatedRepository(repoURL string) *CommandRunner {
+	u, err := url.Parse(strings.TrimSpace(repoURL))
+	if err == nil && u.Hostname() == githubHost {
+		return g.runner.forGitOperation(true)
+	}
+	return g.runner.forGitOperation()
 }
 
 // createdRepoRemote preserves the protocol selected by gh for a newly created

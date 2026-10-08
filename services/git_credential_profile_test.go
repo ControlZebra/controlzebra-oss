@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // This uses the real resolved Git and gh binaries, including the managed
@@ -181,6 +182,10 @@ func TestGitCredentialProfileLookup(t *testing.T) {
 		if !runner.RunGit(root, "lfs", "version").Success {
 			t.Skip("Git LFS is not installed")
 		}
+		// A VM can take longer to start the pinned binaries; this fixture tests
+		// credential propagation rather than the production timeout budget.
+		lfsRunner := active
+		lfsRunner.Timeout = 2 * time.Minute
 		var authenticated, uploaded, sourceAPI atomic.Bool
 		content := []byte("issue 87 disposable LFS content\n")
 		oid := fmt.Sprintf("%x", sha256.Sum256(content))
@@ -192,6 +197,7 @@ func TestGitCredentialProfileLookup(t *testing.T) {
 				return
 			}
 			authenticated.Store(true)
+			t.Logf("LFS fixture: %s %s", r.Method, r.URL.Path)
 			w.Header().Set("Content-Type", "application/vnd.git-lfs+json")
 			switch {
 			case strings.HasSuffix(r.URL.Path, "/objects/batch"):
@@ -277,7 +283,7 @@ func TestGitCredentialProfileLookup(t *testing.T) {
 		}
 		args := []string{"-c", "http.sslVerify=false", "-c", "lfs.url=https://github.com/issue87-fixture.git/info/lfs",
 			"lfs", "locks", "--json"}
-		result := active.RunGit(root, args...)
+		result := lfsRunner.RunGit(root, args...)
 		if !result.Success {
 			t.Fatalf("LFS descendant lookup failed (exit %d): %s", result.ExitCode, result.Stderr)
 		}
@@ -285,7 +291,7 @@ func TestGitCredentialProfileLookup(t *testing.T) {
 			t.Fatal("LFS fixture did not receive credentials from the scoped gh helper")
 		}
 		for _, args := range [][]string{{"lfs", "fetch", "origin", "HEAD"}, {"lfs", "push", "--object-id", "origin", oid}} {
-			if result := active.RunGit(root, args...); !result.Success {
+			if result := lfsRunner.RunGit(root, args...); !result.Success {
 				t.Fatalf("explicit LFS transfer failed: %s", result.Stderr)
 			}
 		}
@@ -298,8 +304,8 @@ func TestGitCredentialProfileLookup(t *testing.T) {
 		if err := os.Remove(filepath.Join(root, "fixture.bin")); err != nil {
 			t.Fatal(err)
 		}
-		if result := active.RunGit(root, "checkout", "--", "fixture.bin"); !result.Success {
-			t.Fatalf("implicit LFS checkout failed: %s", result.Stderr)
+		if result := lfsRunner.RunGit(root, "checkout", "--", "fixture.bin"); !result.Success {
+			t.Fatalf("implicit LFS checkout failed (exit %d): %s; %s", result.ExitCode, result.Error, result.Stderr)
 		}
 		if data, err := os.ReadFile(filepath.Join(root, "fixture.bin")); err != nil || !bytes.Equal(data, content) {
 			t.Fatal("implicit LFS filter did not return fixture bytes")
