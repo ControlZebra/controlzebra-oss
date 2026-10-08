@@ -14,6 +14,7 @@ import {
 import { buildL5XDiffLayoutViewModel, buildRoutineSemanticId, buildTabId } from './adapter';
 import { RoutineDiffInspector } from './RoutineDiffInspector';
 import type { L5XDiffRoutineEntity } from './types';
+import { controller, routineXml } from './routine-fixtures.test-support';
 
 const useVirtualizerMock = vi.hoisted(() => vi.fn());
 
@@ -346,4 +347,37 @@ describe('RoutineDiffInspector', () => {
 
     clientWidthSpy.mockRestore();
   });
+  it('preserves shared inline diff behavior for AOI-owned RLL routines', () => {
+    const oldController = controller('aoi', routineXml('RLL'));
+    const newController = controller('aoi', routineXml('RLL', 'new'));
+    const model = buildL5XDiffLayoutViewModel({ oldController, newController, diff: diffControllers(oldController, newController) });
+    const entity = Object.values(model.entitiesByTabId)[0] as L5XDiffRoutineEntity;
+    const view = render(<RoutineDiffInspector entity={entity} isDarkMode={false} />);
+    expect(view.container.querySelector('[data-inline-diff-rung="0"]')).not.toBeNull();
+    expect(screen.getByText('AOI Shared / Logic')).toBeInTheDocument();
+    expect(screen.getByText('oldOutput')).toBeInTheDocument();
+    expect(screen.getByText('newOutput')).toBeInTheDocument();
+  });
+
+  it.each(['program', 'aoi'] as const)('renders each %s RLL source with its own AOI parameter labels when definitions change', ownerKind => {
+    const oldAOI = controller('aoi', '').aois[0];
+    oldAOI.parameters = [{ name: 'OldParameter', tagType: 'Base', dataType: 'DINT', usage: 'Input',
+      required: true, visible: true, externalAccess: 'ReadWrite' }];
+    const newAOI = structuredClone(oldAOI);
+    newAOI.parameters[0].name = 'NewParameter';
+    const oldRoutine = makeRoutine('Logic', [makeRung(0, 'Shared(Instance,OldValue)', [instruction('Shared', 'aoi', ['Instance', 'OldValue'])])]);
+    const newRoutine = makeRoutine('Logic', [makeRung(0, 'Shared(Instance,NewValue)', [instruction('Shared', 'aoi', ['Instance', 'NewValue'])])]);
+    if (ownerKind === 'aoi') { oldAOI.routines = [oldRoutine]; newAOI.routines = [newRoutine]; }
+    const oldController = makeController({ aois: [oldAOI], programs: ownerKind === 'program' ? [makeProgram('Shared', { routines: [oldRoutine] })] : [] });
+    const newController = makeController({ aois: [newAOI], programs: ownerKind === 'program' ? [makeProgram('Shared', { routines: [newRoutine] })] : [] });
+    const model = buildL5XDiffLayoutViewModel({ oldController, newController, diff: diffControllers(oldController, newController) });
+    const entity = Object.values(model.entitiesByTabId)[0] as L5XDiffRoutineEntity;
+    const view = render(<RoutineDiffInspector entity={entity} isDarkMode={false} />);
+    expect(view.container.querySelector('[data-inline-diff-rung="0"]')).toBeNull();
+    expect(screen.getByText('Previous version')).toBeInTheDocument();
+    expect(screen.getByText('Current version')).toBeInTheDocument();
+    expect(screen.getByText('OldParameter')).toBeInTheDocument();
+    expect(screen.getByText('NewParameter')).toBeInTheDocument();
+  });
+
 });

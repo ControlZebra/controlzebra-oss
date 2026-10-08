@@ -1,5 +1,7 @@
 import type {
   ChangeKind,
+  InstructionContext,
+  NormalizedAOI,
   L5XDiff,
   NormalizedController,
   NormalizedDataType,
@@ -7,7 +9,6 @@ import type {
   NormalizedRoutine,
   NormalizedRoutineType,
   NormalizedTag,
-  ProgramDiff,
   RoutineDiff,
   TagDiff,
 } from 'ladder-visualizer';
@@ -52,18 +53,23 @@ interface L5XDiffEntityBase {
   tab: L5XDiffTabDescriptor;
 }
 
+export type RoutineOwnerKind = 'program' | 'aoi';
+export type RoutineOwner = NormalizedProgram | NormalizedAOI;
+
 export interface L5XDiffRoutineEntity extends L5XDiffEntityBase {
   kind: 'routine';
   changeKind: ChangeKind;
-  programName: string;
+  ownerKind: RoutineOwnerKind;
+  ownerName: string;
   routineName: string;
   routineType: NormalizedRoutineType;
-  oldProgram?: NormalizedProgram;
-  newProgram?: NormalizedProgram;
+  oldOwner?: RoutineOwner;
+  newOwner?: RoutineOwner;
+  oldInstructionContext: InstructionContext;
+  newInstructionContext: InstructionContext;
   oldRoutine?: NormalizedRoutine;
   newRoutine?: NormalizedRoutine;
   routineDiff: RoutineDiff;
-  programDiff: ProgramDiff;
   changedRungNumbers: number[];
 }
 
@@ -94,7 +100,6 @@ export type L5XDiffRenderableEntity =
   | L5XDiffProgramTagsEntity;
 
 export interface L5XDiffUnsupportedChanges {
-  stRoutineCount: number;
   otherRoutineCount: number;
 }
 
