@@ -25,7 +25,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it('navigates same-name program/AOI routines, preserves FBD sheet and mode across tabs/theme changes, and reads each file side only once', async () => {
   const view = render(<L5XLayoutDiffViewer {...props} />);
-  const program = await screen.findByRole('button', { name: 'Program Shared / Logic' });
+  const program = await screen.findByRole('button', { name: 'Program Shared / Logic', pressed: true });
   const aoi = screen.getByRole('button', { name: 'AOI Shared / Logic' });
   expect(program).toHaveAttribute('aria-pressed', 'true');
   expect(aoi).toHaveTextContent('FBDModified');
