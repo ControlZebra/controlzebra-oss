@@ -1717,13 +1717,13 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 	}
 
 	if options.Clone {
-		remote, err := g.createdRepoRemote(workDir, repoURL)
+		remote, err := g.createdRepoRemote(workDir, output)
 		if err != "" {
 			return GitHubRepoCreateResult{Error: err}
 		}
 		// gh initializes empty repositories locally, respecting init.defaultBranch.
 		// Repositories initialized on GitHub are cloned with its existing retries.
-		dir := inferRepoNameFromIdentifier(repoURL)
+		dir := inferRepoNameFromIdentifier(output)
 		cloneDir := filepath.Join(workDir, dir)
 		var setup CommandResult
 		if !options.AddReadme && options.GitIgnore == "" && options.License == "" {

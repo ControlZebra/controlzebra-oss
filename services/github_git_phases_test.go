@@ -31,7 +31,7 @@ if args[:2] != ['repo', 'create'] or '--push' in args or '--clone' in args: sys.
 if os.environ.get('CZ_API_FAIL'): sys.exit(1)
 if '--source' in args:
     subprocess.check_call(['git', 'remote', 'add', 'origin', os.environ['CZ_PUBLISH_DEST']])
-print('https://github.com/fixture/new-repo')
+print(os.environ.get('CZ_CREATED_URL', 'https://github.com/fixture/new-repo'))
 `)
 	runner := NewCommandRunner()
 	dest := filepath.Join(root, "remote.git")
@@ -113,6 +113,18 @@ print('https://github.com/fixture/new-repo')
 			}
 		})
 	}
+	t.Run("enterprise empty create", func(t *testing.T) {
+		t.Setenv("CZ_CREATED_URL", "https://ghe.example/fixture/new-repo")
+		parent := t.TempDir()
+		got := service.RepoCreate(GitHubRepoCreateOptions{Name: "new-repo", Clone: true, ClonePath: parent})
+		if !got.Success || got.CloneDir != filepath.Join(parent, "new-repo") {
+			t.Fatal("enterprise create lost its local destination")
+		}
+		remote := runner.RunGit(got.CloneDir, "config", "--get", "remote.origin.url")
+		if strings.TrimSpace(remote.Stdout) != "https://ghe.example/fixture/new-repo.git" {
+			t.Fatal("enterprise create changed the remote")
+		}
+	})
 	t.Run("failed push reports failure", func(t *testing.T) {
 		local := filepath.Join(root, "push-failure")
 		runner.RunGit(root, "clone", source, local)
