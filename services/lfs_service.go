@@ -327,6 +327,7 @@ func (l *LFSService) LFSStatus(repoPath string) ([]LFSFileStatus, error) {
 // LFSFetch downloads LFS objects for the current ref or specified refs.
 // Equivalent to: git lfs fetch [remote] [refs...]
 func (l *LFSService) LFSFetch(repoPath string, remote string, refs ...string) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSFetch", map[string]interface{}{"repoPath": repoPath, "remote": remote})
 	defer func() { done(nil, nil) }()
 
@@ -340,7 +341,7 @@ func (l *LFSService) LFSFetch(repoPath string, remote string, refs ...string) Op
 		args = append(args, refs...)
 	}
 
-	result := l.runner.RunGit(repoPath, args...)
+	result := runner.RunGit(repoPath, args...)
 	if !result.Success {
 		return failedOp("Failed to fetch LFS objects: " + getErrorMessage(result))
 	}
@@ -351,6 +352,7 @@ func (l *LFSService) LFSFetch(repoPath string, remote string, refs ...string) Op
 // LFSFetchAll fetches LFS objects for all refs.
 // Equivalent to: git lfs fetch --all
 func (l *LFSService) LFSFetchAll(repoPath string) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSFetchAll", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 
@@ -358,7 +360,7 @@ func (l *LFSService) LFSFetchAll(repoPath string) OperationResult {
 		return failedOp("Git LFS is not installed")
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "fetch", "--all")
+	result := runner.RunGit(repoPath, "lfs", "fetch", "--all")
 	if !result.Success {
 		return failedOp("Failed to fetch LFS objects: " + getErrorMessage(result))
 	}
@@ -369,6 +371,7 @@ func (l *LFSService) LFSFetchAll(repoPath string) OperationResult {
 // LFSPull downloads LFS objects and checks them out into the working tree.
 // Equivalent to: git lfs pull [remote]
 func (l *LFSService) LFSPull(repoPath string, remote string) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSPull", map[string]interface{}{"repoPath": repoPath, "remote": remote})
 	defer func() { done(nil, nil) }()
 
@@ -381,7 +384,7 @@ func (l *LFSService) LFSPull(repoPath string, remote string) OperationResult {
 		args = append(args, remote)
 	}
 
-	result := l.runner.RunGit(repoPath, args...)
+	result := runner.RunGit(repoPath, args...)
 	if !result.Success {
 		return failedOp("Failed to pull LFS objects: " + getErrorMessage(result))
 	}
@@ -392,6 +395,7 @@ func (l *LFSService) LFSPull(repoPath string, remote string) OperationResult {
 // LFSPush uploads LFS objects to the remote.
 // Equivalent to: git lfs push [remote] [ref]
 func (l *LFSService) LFSPush(repoPath string, remote string, ref string) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSPush", map[string]interface{}{"repoPath": repoPath, "remote": remote, "ref": ref})
 	defer func() { done(nil, nil) }()
 
@@ -409,7 +413,7 @@ func (l *LFSService) LFSPush(repoPath string, remote string, ref string) Operati
 		}
 	}
 
-	result := l.runner.RunGit(repoPath, args...)
+	result := runner.RunGit(repoPath, args...)
 	if !result.Success {
 		return failedOp("Failed to push LFS objects: " + getErrorMessage(result))
 	}
@@ -420,6 +424,7 @@ func (l *LFSService) LFSPush(repoPath string, remote string, ref string) Operati
 // LFSPushAll uploads all LFS objects for all refs.
 // Equivalent to: git lfs push --all [remote]
 func (l *LFSService) LFSPushAll(repoPath string, remote string) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSPushAll", map[string]interface{}{"repoPath": repoPath, "remote": remote})
 	defer func() { done(nil, nil) }()
 
@@ -431,7 +436,7 @@ func (l *LFSService) LFSPushAll(repoPath string, remote string) OperationResult 
 		remote = "origin"
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "push", "--all", remote)
+	result := runner.RunGit(repoPath, "lfs", "push", "--all", remote)
 	if !result.Success {
 		return failedOp("Failed to push LFS objects: " + getErrorMessage(result))
 	}
@@ -449,7 +454,7 @@ func (l *LFSService) LFSPrune(repoPath string) OperationResult {
 		return failedOp("Git LFS is not installed")
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "prune")
+	result := l.runner.forGitOperation().RunGit(repoPath, "lfs", "prune")
 	if !result.Success {
 		return failedOp("Failed to prune LFS cache: " + getErrorMessage(result))
 	}
@@ -467,7 +472,7 @@ func (l *LFSService) LFSPruneDryRun(repoPath string) (string, error) {
 		return "", fmt.Errorf("Git LFS is not installed")
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "prune", "--dry-run")
+	result := l.runner.forGitOperation().RunGit(repoPath, "lfs", "prune", "--dry-run")
 	if !result.Success {
 		return "", fmt.Errorf("failed to check LFS prune: %s", getErrorMessage(result))
 	}
@@ -552,7 +557,7 @@ func (l *LFSService) LFSMigrateInfo(repoPath string) (string, error) {
 		return "", fmt.Errorf("Git LFS is not installed")
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "migrate", "info")
+	result := l.runner.forGitOperation().RunGit(repoPath, "lfs", "migrate", "info")
 	if !result.Success {
 		return "", fmt.Errorf("failed to get migration info: %s", getErrorMessage(result))
 	}
@@ -630,6 +635,7 @@ func normalizeLFSFilePath(repoPath string, filePath string) (string, error) {
 
 // LFSLocks returns the list of locked files in the repository
 func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSLocks", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 
@@ -637,7 +643,7 @@ func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
 		return nil, fmt.Errorf("Git LFS is not installed")
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "locks")
+	result := runner.RunGit(repoPath, "lfs", "locks")
 	if !result.Success {
 		errMsg := getErrorMessage(result)
 		// LFS locking requires remote/server support. Treat known environmental
@@ -679,6 +685,7 @@ func (l *LFSService) LFSLocks(repoPath string) ([]LFSLock, error) {
 
 // LFSLock locks a file to prevent others from modifying it
 func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSLock", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
 	defer func() { done(nil, nil) }()
 
@@ -695,7 +702,7 @@ func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
 		return failedOp(err.Error())
 	}
 
-	result := l.runner.RunGit(repoPath, "lfs", "lock", normalizedPath)
+	result := runner.RunGit(repoPath, "lfs", "lock", normalizedPath)
 	if !result.Success {
 		errMsg := getErrorMessage(result)
 		if strings.Contains(errMsg, "already locked") {
@@ -709,6 +716,7 @@ func (l *LFSService) LFSLock(repoPath string, filePath string) OperationResult {
 
 // LFSUnlock unlocks a file. If force is true, can unlock files locked by others.
 func (l *LFSService) LFSUnlock(repoPath string, filePath string, force bool) OperationResult {
+	runner := l.runner.forGitOperation()
 	done := LogMethod("LFSService.LFSUnlock", map[string]interface{}{"repoPath": repoPath, "filePath": filePath, "force": force})
 	defer func() { done(nil, nil) }()
 
@@ -730,7 +738,7 @@ func (l *LFSService) LFSUnlock(repoPath string, filePath string, force bool) Ope
 		args = append(args, "--force")
 	}
 
-	result := l.runner.RunGit(repoPath, args...)
+	result := runner.RunGit(repoPath, args...)
 	if !result.Success {
 		errMsg := getErrorMessage(result)
 		if strings.Contains(errMsg, "not locked") {

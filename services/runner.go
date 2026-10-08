@@ -24,7 +24,8 @@ type CommandResult struct {
 
 // CommandRunner executes shell commands with working directory support
 type CommandRunner struct {
-	Timeout time.Duration
+	Timeout     time.Duration
+	credentials *gitCredentialProfile
 }
 
 // NewCommandRunner creates a new CommandRunner with default timeout
@@ -38,10 +39,25 @@ func NewCommandRunner() *CommandRunner {
 // exactly once, including after cancellation, and bounds waits on inherited
 // pipes. The caller owns output parsing and redacted diagnostic logging.
 func (r *CommandRunner) runWithStderr(ctx context.Context, stderr io.Writer, name string, args ...string) CommandResult {
+	return r.runWithWriters(ctx, "", io.Discard, stderr, name, args...)
+}
+
+func (r *CommandRunner) prepare(ctx context.Context, workDir, name string, args []string) *exec.Cmd {
+	if r.credentials != nil && (name == GitPath() || name == "git") {
+		args = r.credentials.gitArgs(args)
+	}
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = workDir
 	cmd.SysProcAttr = hideWindowAttr()
 	cmd.Env = buildCommandEnv(name)
-	cmd.Stdout = io.Discard
+	return cmd
+}
+
+// runWithWriters keeps caller-owned parsing and logging, and bounds waits on
+// inherited pipes after cancellation. The supplied context owns the timeout.
+func (r *CommandRunner) runWithWriters(ctx context.Context, workDir string, stdout, stderr io.Writer, name string, args ...string) CommandResult {
+	cmd := r.prepare(ctx, workDir, name, args)
+	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.WaitDelay = 2 * time.Second
 	err := cmd.Run()
@@ -69,10 +85,7 @@ func (r *CommandRunner) RunWithContext(ctx context.Context, workDir string, name
 	logger := GetDebugLogger()
 	start := time.Now()
 
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = workDir
-	cmd.SysProcAttr = hideWindowAttr()
-	cmd.Env = buildCommandEnv(name)
+	cmd := r.prepare(ctx, workDir, name, args)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -140,10 +153,7 @@ func (r *CommandRunner) RunGitRaw(repoPath string, args ...string) ([]byte, erro
 	ctx, cancel := context.WithTimeout(context.Background(), r.Timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, GitPath(), args...)
-	cmd.Dir = repoPath
-	cmd.SysProcAttr = hideWindowAttr()
-	cmd.Env = buildCommandEnv(GitPath())
+	cmd := r.prepare(ctx, repoPath, GitPath(), args)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -240,10 +250,7 @@ func (r *CommandRunner) RunWithContextAndStdin(ctx context.Context, workDir stri
 	logger := GetDebugLogger()
 	start := time.Now()
 
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = workDir
-	cmd.SysProcAttr = hideWindowAttr()
-	cmd.Env = buildCommandEnv(name)
+	cmd := r.prepare(ctx, workDir, name, args)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

@@ -38,6 +38,10 @@ func NewGitService() *GitService {
 	}
 }
 
+func (g *GitService) forGitOperation() *GitService {
+	return &GitService{runner: g.runner.forGitOperation(), bus: g.bus}
+}
+
 // SetRepoEventBus wires the service to the repository event bus so state
 // holders such as the conflict queue can react to mutating operations.
 func (g *GitService) SetRepoEventBus(bus *RepoEventBus) {
@@ -152,6 +156,7 @@ func (g *GitService) OriginRemoteURL(repoPath string) (string, error) {
 // OriginRemoteBranches lists branches directly from origin. It intentionally
 // does not use locally cached remote-tracking refs or a preferred-remote fallback.
 func (g *GitService) OriginRemoteBranches(repoPath string) ([]RemoteBranch, error) {
+	g = g.forGitOperation()
 	if _, err := g.OriginRemoteURL(repoPath); err != nil {
 		return nil, err
 	}
@@ -435,7 +440,7 @@ func (g *GitService) Status(repoPath string) RepoStatus {
 				// Resolve the remote tip directly to compute ahead/behind without
 				// relying on a (missing) remote-tracking ref. This is the only path
 				// that touches the network, and only in this degraded state.
-				lsRemote := g.runner.RunGit(repoPath, "ls-remote", "--heads", remoteName, mergeRef)
+				lsRemote := g.runner.forGitOperation().RunGit(repoPath, "ls-remote", "--heads", remoteName, mergeRef)
 				remoteSha := firstLsRemoteSha(lsRemote)
 				if remoteSha != "" {
 					abResult := g.runner.RunGit(repoPath, "rev-list", "--left-right", "--count", remoteSha+"...HEAD")
@@ -639,17 +644,6 @@ func getErrorMessage(result CommandResult) string {
 	return errMsg
 }
 
-// ensureGitHubHTTPSCredentials configures non-interactive GitHub HTTPS auth
-// for repos that use github.com over HTTPS.
-func (g *GitService) ensureGitHubHTTPSCredentials(repoPath string) {
-	if !isGitHubHTTPSRemoteURL(g.GetRemoteURL(repoPath)) {
-		return
-	}
-	// Best effort. If this fails, git command execution continues and emits
-	// a user-facing auth error naturally.
-	configureGitHubHTTPSCredentials(g.runner)
-}
-
 // ============================================================================
 // Helper Functions - Operation Results & Common Checks
 // ============================================================================
@@ -685,6 +679,7 @@ func (g *GitService) requireCleanWorkingTree(repoPath string) error {
 // restoreFiles restores file(s) to HEAD state using git restore (2.23+) or git checkout.
 // Pass "." to restore all files, or a specific path for a single file.
 func (g *GitService) restoreFiles(repoPath string, pathSpec string) error {
+	g = g.forGitOperation()
 	if g.SupportsRestore() {
 		// Git 2.23+: use git restore
 		result := g.runner.RunGit(repoPath, "restore", "--", pathSpec)
@@ -872,6 +867,7 @@ func (g *GitService) UnstageAll(repoPath string) OperationResult {
 // Does NOT affect staged changes - use Unstage first if needed.
 // Equivalent to: git restore <path> (Git 2.23+) or git checkout -- <path>
 func (g *GitService) Restore(repoPath string, path string) OperationResult {
+	g = g.forGitOperation()
 	if path == "" {
 		return failedOp("Path is required")
 	}
@@ -891,6 +887,7 @@ func (g *GitService) Restore(repoPath string, path string) OperationResult {
 // Does NOT remove untracked files - use Clean for that.
 // Equivalent to: git restore . (Git 2.23+) or git checkout -- .
 func (g *GitService) RestoreAll(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	var result CommandResult
 	if g.SupportsRestore() {
 		result = g.runner.RunGit(repoPath, "restore", ".")
@@ -966,6 +963,7 @@ func (g *GitService) Commit(repoPath string, message string) (opResult Operation
 // Fetch downloads objects and refs from the remote without merging.
 // Equivalent to: git fetch [remote] [branch]
 func (g *GitService) Fetch(repoPath string, remote string, branch string) OperationResult {
+	g = g.forGitOperation()
 	done := LogMethod("GitService.Fetch", map[string]interface{}{"repoPath": repoPath, "remote": remote, "branch": branch})
 	defer func() { done(nil, nil) }()
 	if remote == "" {
@@ -993,6 +991,7 @@ func (g *GitService) Fetch(repoPath string, remote string, branch string) Operat
 // FetchAll fetches from all remotes.
 // Equivalent to: git fetch --all
 func (g *GitService) FetchAll(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	if !g.hasAnyRemote(repoPath) {
 		return failedOp("No remote repository configured. Publish to cloud first.")
 	}
@@ -1007,6 +1006,7 @@ func (g *GitService) FetchAll(repoPath string) OperationResult {
 // For safer operations with checks, use CheckoutBranch.
 // Equivalent to: git checkout <ref>
 func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.Checkout", map[string]interface{}{"repoPath": repoPath, "ref": ref})
 	defer func() { done(nil, nil) }()
@@ -1024,6 +1024,7 @@ func (g *GitService) Checkout(repoPath string, ref string) OperationResult {
 // For safer operations with checks, use CreateBranchAndCheckout.
 // Equivalent to: git checkout -b <branch>
 func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.CheckoutNewBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
 	defer func() { done(nil, nil) }()
@@ -1045,6 +1046,7 @@ func (g *GitService) CheckoutNewBranch(repoPath string, branchName string) Opera
 // WARNING: This is destructive - all uncommitted changes are lost.
 // Equivalent to: git reset --hard <ref>
 func (g *GitService) ResetHard(repoPath string, ref string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationOther)
 	if ref == "" {
 		ref = "HEAD"
@@ -1148,6 +1150,7 @@ func (g *GitService) MoveFile(repoPath string, source string, destination string
 
 // Pull fetches and merges changes from the remote
 func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationPull)
 	done := LogMethod("GitService.Pull", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(opResult, nil) }()
@@ -1155,7 +1158,6 @@ func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
 		opResult = failedOp("No remote repository configured. Publish to cloud first.")
 		return
 	}
-	g.ensureGitHubHTTPSCredentials(repoPath)
 	result := g.runner.RunGit(repoPath, "pull")
 	if !result.Success {
 		opResult = OperationResult{
@@ -1179,13 +1181,13 @@ func (g *GitService) Pull(repoPath string) (opResult OperationResult) {
 
 // Push pushes local commits to the remote
 func (g *GitService) Push(repoPath string) (opResult OperationResult) {
+	g = g.forGitOperation()
 	done := LogMethod("GitService.Push", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(opResult, nil) }()
 	if !g.hasAnyRemote(repoPath) {
 		opResult = failedOp("No remote repository configured. Publish to cloud first.")
 		return
 	}
-	g.ensureGitHubHTTPSCredentials(repoPath)
 
 	// First, try a regular push
 	result := g.runner.RunGit(repoPath, "push")
@@ -1262,13 +1264,13 @@ func (g *GitService) Push(repoPath string) (opResult OperationResult) {
 
 // Sync performs a git pull (merge) followed by git push
 func (g *GitService) Sync(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationPull)
 	done := LogMethod("GitService.Sync", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
 	if !g.hasAnyRemote(repoPath) {
 		return failedOp("No remote repository configured. Publish to cloud first.")
 	}
-	g.ensureGitHubHTTPSCredentials(repoPath)
 
 	// First, pull with merge (not rebase)
 	pullResult := g.runner.RunGit(repoPath, "pull", "--no-rebase")
@@ -1833,6 +1835,8 @@ func (g *GitService) DiffWorkingRaw(repoPath string, filePath string) RawDiffRes
 		result.Status = "deleted"
 	}
 
+	g = g.forGitOperation()
+
 	// Get the diff (use --textconv so filters like Git LFS can provide real content)
 	diffResult := g.runner.RunGit(repoPath, "diff", "--textconv", "--", filePath)
 	if !diffResult.Success {
@@ -1918,6 +1922,8 @@ func (g *GitService) DiffCommitFileRaw(repoPath string, hash string, filePath st
 		result.Error = "Commit hash is required"
 		return result
 	}
+
+	g = g.forGitOperation()
 
 	// Use git show with --textconv so filters like Git LFS can provide real content.
 	args := []string{"show", "--textconv", "--pretty=format:", hash, "--", filePath}
@@ -2115,6 +2121,8 @@ func (g *GitService) DiffMergeReviewFileRaw(repoPath string, targetBranch string
 	result.TargetRef = targetRef
 	result.SourceRef = sourceRef
 
+	g = g.forGitOperation()
+
 	diffResult := g.runner.RunGit(repoPath, "diff", "--textconv", targetRef+".."+sourceRef, "--", filePath)
 	if !diffResult.Success && diffResult.ExitCode != 1 {
 		result.HasError = true
@@ -2199,6 +2207,8 @@ func (g *GitService) readFileAtRevisionWithTimeout(repoPath string, filePath str
 	if err != nil {
 		return FileContentResult{HasError: true, Error: err.Error()}
 	}
+
+	g = g.forGitOperation()
 
 	showArg := revision + ":" + relPath
 
@@ -2345,6 +2355,8 @@ func (g *GitService) GetFileAtRevisionBase64(repoPath string, filePath string, r
 		return FileBase64Result{Success: false, Error: err.Error()}
 	}
 
+	g = g.forGitOperation()
+
 	objectRef := revision + ":" + relPath
 
 	// Use `git cat-file --filters` to apply smudge filters (including Git LFS).
@@ -2464,6 +2476,7 @@ func (g *GitService) lfsContentUnavailableError(repoPath string, filePath string
 // tryPullLFSForFile attempts to hydrate LFS content for the current checkout
 // of a specific file path. Returns true when pull succeeds.
 func (g *GitService) tryPullLFSForFile(repoPath string, filePath string) bool {
+	g = g.forGitOperation()
 	lfsCheck := g.runner.RunGit(repoPath, "lfs", "version")
 	if !lfsCheck.Success {
 		return false
@@ -2484,6 +2497,7 @@ func (g *GitService) tryPullLFSForFile(repoPath string, filePath string) bool {
 // now be available). Returns false when git-lfs is not installed or the fetch
 // failed.
 func (g *GitService) tryFetchLFSForFile(repoPath string, filePath string, refs ...string) bool {
+	g = g.forGitOperation()
 	// Verify git-lfs is available
 	lfsCheck := g.runner.RunGit(repoPath, "lfs", "version")
 	if !lfsCheck.Success {
@@ -2562,6 +2576,7 @@ func (g *GitService) tryFetchLFSForFile(repoPath string, filePath string, refs .
 // PDF, L5X, 3D) can ensure LFS content is available before attempting to load
 // file contents at those revisions.
 func (g *GitService) EnsureLFSForRefs(repoPath string, filePath string, refs ...string) OperationResult {
+	g = g.forGitOperation()
 	done := LogMethod("GitService.EnsureLFSForRefs", map[string]interface{}{"repoPath": repoPath, "filePath": filePath, "refs": refs})
 	defer func() { done(nil, nil) }()
 
@@ -2614,6 +2629,7 @@ func (g *GitService) EnsureLFSForRefs(repoPath string, filePath string, refs ...
 // A missing git-lfs installation is explicit but non-fatal because snapshots can
 // still be used for non-LFS files.
 func (g *GitService) EnsureOriginLFSForRef(repoPath string, ref string) OperationResult {
+	g = g.forGitOperation()
 	if repoPath == "" {
 		return failedOp("Repository path is required")
 	}
@@ -2765,6 +2781,7 @@ func (g *GitService) Branches(repoPath string) BranchList {
 // CheckoutBranch switches to an existing branch.
 // Fails if there are uncommitted changes to prevent accidental loss.
 func (g *GitService) CheckoutBranch(repoPath string, branchName string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.CheckoutBranch", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
 	defer func() { done(nil, nil) }()
@@ -2791,6 +2808,7 @@ func (g *GitService) CheckoutBranch(repoPath string, branchName string) Operatio
 // CreateBranchAndCheckout creates a new branch and switches to it.
 // Fails if there are uncommitted changes or if the branch name is invalid.
 func (g *GitService) CreateBranchAndCheckout(repoPath string, branchName string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationCheckout)
 	done := LogMethod("GitService.CreateBranchAndCheckout", map[string]interface{}{"repoPath": repoPath, "branchName": branchName})
 	defer func() { done(nil, nil) }()
@@ -2868,6 +2886,7 @@ func (g *GitService) RenameBranch(repoPath string, oldName string, newName strin
 		return successOp(fmt.Sprintf("Renamed branch '%s' to '%s'", oldName, newName))
 	}
 
+	g = g.forGitOperation()
 	pushNewResult := g.runner.RunGit(repoPath, "push", remote, "refs/heads/"+newName+":refs/heads/"+newName)
 	if !pushNewResult.Success {
 		if rollbackErr := g.rollbackBranchRename(repoPath, newName, oldName); rollbackErr != nil {
@@ -2930,6 +2949,7 @@ func (g *GitService) DeleteBranch(repoPath string, branchName string, confirm bo
 	remote, remoteBranch, hasUpstream := parseUpstream(upstream)
 
 	if hasUpstream {
+		g = g.forGitOperation()
 		deleteRemoteResult := g.runner.RunGit(repoPath, "push", remote, "--delete", remoteBranch)
 		if !deleteRemoteResult.Success {
 			return failedOp(fmt.Sprintf("Failed to delete remote branch '%s/%s': %s", remote, remoteBranch, getErrorMessage(deleteRemoteResult)))
@@ -3134,6 +3154,7 @@ func (g *GitService) StashPush(repoPath string, message string) OperationResult 
 
 // StashPop applies the most recent stash and removes it from the stash list.
 func (g *GitService) StashPop(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationStash)
 	done := LogMethod("GitService.StashPop", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
@@ -3234,6 +3255,7 @@ func (g *GitService) StashDrop(repoPath string, index int, confirm bool) Operati
 // Flow: stash push → checkout (or checkout -b if createNew) → stash pop
 // If the stash pop fails due to conflicts, the stash is preserved.
 func (g *GitService) StashAndSwitchBranch(repoPath string, targetBranch string, createNew bool) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationStash)
 	done := LogMethod("GitService.StashAndSwitchBranch", map[string]interface{}{"repoPath": repoPath, "targetBranch": targetBranch, "createNew": createNew})
 	defer func() { done(nil, nil) }()
@@ -3577,6 +3599,7 @@ func (g *GitService) ResolveConflictKeepTheirs(repoPath string, filePath string)
 // The local (mine) version is saved with a timestamp suffix to avoid collisions.
 // For example: file.txt becomes incoming version, file_COPY_20260115_143052.txt is local version.
 func (g *GitService) ResolveConflictKeepBoth(repoPath string, filePath string) OperationResult {
+	g = g.forGitOperation()
 	done := LogMethod("GitService.ResolveConflictKeepBoth", map[string]interface{}{"repoPath": repoPath, "filePath": filePath})
 	defer func() { done(nil, nil) }()
 	if filePath == "" {
@@ -3645,6 +3668,7 @@ func (g *GitService) MarkResolved(repoPath string, filePath string) OperationRes
 // Returns the branch that was checked out before preflight started so callers can restore it
 // when a failure occurs.
 func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch string) (string, error) {
+	g = g.forGitOperation()
 	targetBranch = strings.TrimSpace(targetBranch)
 	if targetBranch == "" {
 		return "", fmt.Errorf("target branch is required")
@@ -3727,6 +3751,7 @@ func (g *GitService) prepareMergeTargetBaseline(repoPath string, targetBranch st
 //   - targetBranch: The branch to merge INTO (e.g., "main") - required
 //   - sourceBranch: The branch to merge FROM (optional, defaults to current branch)
 func (g *GitService) StartMerge(repoPath string, targetBranch string, sourceBranch ...string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	done := LogMethod("GitService.StartMerge", map[string]interface{}{"repoPath": repoPath, "targetBranch": targetBranch})
 	defer func() { done(nil, nil) }()
@@ -3874,6 +3899,7 @@ type MergeOptions struct {
 // - All changes appear as a single commit authored by the user
 // - Results in cleaner, linear history
 func (g *GitService) StartMergeWithOptions(repoPath string, targetBranch string, sourceBranch string, options MergeOptions) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	if targetBranch == "" {
 		return failedOp("Target branch is required")
@@ -4145,6 +4171,7 @@ func (g *GitService) listChangedPathsForMerge(repoPath string, targetRef string,
 }
 
 func (g *GitService) neutralizeUnselectedPaths(repoPath string, paths []string) error {
+	g = g.forGitOperation()
 	for _, path := range paths {
 		normalizedPath := normalizeMergePath(path)
 		if normalizedPath == "" {
@@ -4258,6 +4285,7 @@ func (g *GitService) CompleteSquashMerge(repoPath string, message string) Operat
 // Returns the repository to the state before the merge started.
 // Handles both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) AbortMerge(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	done := LogMethod("GitService.AbortMerge", map[string]interface{}{"repoPath": repoPath})
 	defer func() { done(nil, nil) }()
@@ -4383,6 +4411,7 @@ func (g *GitService) SkipCherryPickCommit(repoPath string) OperationResult {
 // Use AbortRevert() to cancel or ContinueRevert() after resolving conflicts.
 // Runs: git revert --no-edit <commitHash>
 func (g *GitService) RevertCommit(repoPath string, commitHash string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationRevert)
 	done := LogMethod("GitService.RevertCommit", map[string]interface{}{"repoPath": repoPath, "commitHash": commitHash})
 	defer func() { done(nil, nil) }()
@@ -4467,6 +4496,7 @@ func (g *GitService) RevertCommit(repoPath string, commitHash string) OperationR
 // Requires a clean working tree (no uncommitted changes).
 // Runs: git revert -m <message> <commitHash> (via stdin for message)
 func (g *GitService) RevertCommitWithMessage(repoPath string, commitHash string, message string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationRevert)
 	if commitHash == "" {
 		return failedOp("Commit hash is required")
@@ -4538,6 +4568,7 @@ func (g *GitService) RevertCommitWithMessage(repoPath string, commitHash string,
 // AbortRevert aborts the current revert operation.
 // Runs: git revert --abort
 func (g *GitService) AbortRevert(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 	if !state.InRevert {
@@ -4555,6 +4586,7 @@ func (g *GitService) AbortRevert(repoPath string) OperationResult {
 // ContinueRevert continues the revert after conflicts are resolved.
 // Runs: git revert --continue
 func (g *GitService) ContinueRevert(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InRevert {
@@ -4595,6 +4627,7 @@ func (g *GitService) ContinueRevert(repoPath string) OperationResult {
 // SkipRevertCommit skips the current commit in a revert sequence.
 // Runs: git revert --skip
 func (g *GitService) SkipRevertCommit(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationContinue)
 	state := g.GetMergeState(repoPath)
 	if !state.InRevert {
@@ -4621,6 +4654,7 @@ func (g *GitService) SkipRevertCommit(repoPath string) OperationResult {
 // AbortBisect aborts the current bisect session.
 // Runs: git bisect reset
 func (g *GitService) AbortBisect(repoPath string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationAbort)
 	state := g.GetMergeState(repoPath)
 	if !state.InBisect {
@@ -4739,6 +4773,7 @@ func (g *GitService) IsDetachedHead(repoPath string) bool {
 // CreateBranchFromDetached creates a new branch from the current detached HEAD position.
 // This saves the user's work by attaching it to a named branch.
 func (g *GitService) CreateBranchFromDetached(repoPath string, branchName string) OperationResult {
+	g = g.forGitOperation()
 	if branchName == "" {
 		return failedOp("Branch name is required")
 	}
@@ -4888,6 +4923,7 @@ func (g *GitService) AbortCurrentOperation(repoPath string) OperationResult {
 // CompleteMerge completes the merge by committing after all conflicts are resolved.
 // Supports both regular merges (MERGE_HEAD) and squash merges (SQUASH_MSG).
 func (g *GitService) CompleteMerge(repoPath string, message string) OperationResult {
+	g = g.forGitOperation()
 	defer g.publishRepoMutation(repoPath, RepoMutationMerge)
 	state := g.GetMergeState(repoPath)
 	if !state.InMerge && !state.InSquashMerge {
@@ -5208,6 +5244,7 @@ func (g *GitService) CheckBranchConflicts(repoPath string, targetBranch string, 
 
 	// Step 1: Fetch from preferred remote (if present) to refresh refs for conflict simulation.
 	if preferredRemote, hasRemote := g.getPreferredRemote(repoPath); hasRemote {
+		g = g.forGitOperation()
 		fetchResult := g.runner.RunGit(repoPath, "fetch", preferredRemote, "--prune")
 		if !fetchResult.Success {
 			// Fetch might fail if branch doesn't exist on remote.

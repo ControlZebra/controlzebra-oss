@@ -208,7 +208,7 @@ func (g *GitService) EnsureChangeRequestSnapshotsLocal(
 
 	// The snapshot fetch uses the git transport, so gh's API session alone does
 	// not authorize a private-repository fetch.
-	g.ensureChangeRequestCredentials(repoPath)
+	g = g.forGitOperation()
 
 	headRef := changeRequestHeadRef(number)
 	baseTipRef := changeRequestBaseTipRef(number)
@@ -387,6 +387,7 @@ func (g *GitService) EnsureChangeRequestFileContent(
 	unlock := lockChangeRequestRepo(repoPath)
 	defer unlock()
 
+	g = g.forGitOperation()
 	oldSide := g.inspectChangeRequestFileSide(repoPath, oldRef, oldPath)
 	newSide := g.inspectChangeRequestFileSide(repoPath, newRef, newPath)
 
@@ -479,6 +480,7 @@ func (g *GitService) hydrateChangeRequestLFSObject(repoPath string, ref string, 
 		return false
 	}
 
+	g = g.forGitOperation()
 	ctx, cancel := context.WithTimeout(context.Background(), changeRequestLFSTimeout)
 	defer cancel()
 
@@ -518,16 +520,6 @@ func (g *GitService) resolveChangeRequestCommit(repoPath string, ref string) (st
 		return "", false
 	}
 	return oid, true
-}
-
-// ensureChangeRequestCredentials mirrors the progress-tracked flows so a
-// private-repository snapshot fetch does not stall on a credential prompt.
-func (g *GitService) ensureChangeRequestCredentials(repoPath string) {
-	remoteResult := g.runner.RunGit(repoPath, "remote", "get-url", "origin")
-	if !isGitHubHTTPSRemoteURL(remoteResult.Stdout) {
-		return
-	}
-	configureGitHubHTTPSCredentials(g.runner)
 }
 
 func changeRequestSnapshotFailure(code GitHubChangeRequestErrorCode, message string) ChangeRequestSnapshotResult {

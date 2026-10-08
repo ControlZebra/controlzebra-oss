@@ -253,6 +253,7 @@ func (s *IntegrationSessionService) FinishSession(sessionID string) OperationRes
 // The local merge commit remains intact when sharing fails so the user can
 // retry without repeating conflict decisions.
 func (s *IntegrationSessionService) ShareSession(sessionID string) OperationResult {
+	runner := s.git.forGitOperation()
 	done := LogMethod("IntegrationSessionService.ShareSession", map[string]interface{}{"sessionId": sessionID})
 
 	session, err := s.store.load(sessionID)
@@ -288,7 +289,7 @@ func (s *IntegrationSessionService) ShareSession(sessionID string) OperationResu
 		shareRef = session.SourceRef
 	}
 	refspec := session.FeatureOIDAfterMerge + ":" + shareRef
-	push := s.git.RunGit(session.OpenProjectPath, "push", session.RemoteName, refspec)
+	push := runner.RunGit(session.OpenProjectPath, "push", session.RemoteName, refspec)
 	if !push.Success {
 		message := "Your updated work is still saved on this computer. Check your connection and access, then choose Share updated work again."
 		if err := s.transition(&session, integrationStateUpdated, message); err != nil {
@@ -412,6 +413,7 @@ func (s *IntegrationSessionService) UpdateFeatureFromDestination(repoPath string
 // It never pushes. A conflicting merge remains active in the open project so
 // the existing session-keyed resolution APIs can resolve its real index.
 func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string) IntegrationSessionSnapshot {
+	runner := s.git.forGitOperation()
 	done := LogMethod("IntegrationSessionService.UpdateFeatureFromDestination", map[string]interface{}{"repoPath": repoPath})
 	repoPath = strings.TrimSpace(repoPath)
 	if repoPath == "" {
@@ -429,7 +431,7 @@ func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string
 		return snapshot
 	}
 
-	identity := repositoryLockKey(s.git, repoPath)
+	identity := repositoryLockKey(runner, repoPath)
 	if !s.claimPreparation(identity) {
 		snapshot := IntegrationSessionSnapshot{State: integrationStateFetching, Message: integrationSessionOutcomeMessages[integrationStateFetching]}
 		done(snapshot, nil)
@@ -489,7 +491,7 @@ func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string
 	}
 	s.emit(session)
 
-	fetchResult := s.git.RunGit(repoPath, "fetch", target.remoteName)
+	fetchResult := runner.RunGit(repoPath, "fetch", target.remoteName)
 	if !fetchResult.Success {
 		return s.failUpdate(
 			&session,
@@ -539,8 +541,8 @@ func (s *IntegrationSessionService) updateFeatureFromDestination(repoPath string
 		return snapshot
 	}
 
-	mergeResult := s.git.RunGit(repoPath, "merge", "--no-edit", destinationOID)
-	entries, classifyErr := classifyConflictQueue(s.git, repoPath)
+	mergeResult := runner.RunGit(repoPath, "merge", "--no-edit", destinationOID)
+	entries, classifyErr := classifyConflictQueue(runner, repoPath)
 	if classifyErr != nil {
 		return s.failUpdate(
 			&session,
@@ -908,18 +910,19 @@ func (s *IntegrationSessionService) newSession(repoPath string, identity string,
 // The classified entries come back so the caller can publish them without
 // rescanning.
 func (s *IntegrationSessionService) prepare(session *integrationSession) ([]ConflictQueueEntry, error) {
+	runner := s.git.forGitOperation()
 	empty := []ConflictQueueEntry{}
 
 	// Work already contained in the destination has nothing to integrate. The
 	// destination revision is its own result, so Finish becomes a no-op rather
 	// than an empty merge commit nobody asked for.
-	if s.git.RunGit(session.OpenProjectPath, "merge-base", "--is-ancestor", session.SourceOID, session.DestinationOID).Success {
+	if runner.RunGit(session.OpenProjectPath, "merge-base", "--is-ancestor", session.SourceOID, session.DestinationOID).Success {
 		session.State = integrationStateReady
 		session.ResultOID = session.DestinationOID
 		return empty, nil
 	}
 
-	if err := createIntegrationWorkspace(s.git, session.OpenProjectPath, session.SessionID, session.DestinationOID, session.WorkspacePath); err != nil {
+	if err := createIntegrationWorkspace(runner, session.OpenProjectPath, session.SessionID, session.DestinationOID, session.WorkspacePath); err != nil {
 		return empty, err
 	}
 
@@ -927,11 +930,11 @@ func (s *IntegrationSessionService) prepare(session *integrationSession) ([]Conf
 	if session.MergeMode == integrationModeSquash {
 		args = []string{"merge", "--squash", session.SourceOID}
 	}
-	mergeResult := s.git.RunGit(session.WorkspacePath, args...)
+	mergeResult := runner.RunGit(session.WorkspacePath, args...)
 
-	entries, err := classifyConflictQueue(s.git, session.WorkspacePath)
+	entries, err := classifyConflictQueue(runner, session.WorkspacePath)
 	if err != nil {
-		forceRemoveIntegrationWorkspace(s.git, session.OpenProjectPath, session.WorkspacePath)
+		forceRemoveIntegrationWorkspace(runner, session.OpenProjectPath, session.WorkspacePath)
 		return empty, fmt.Errorf("failed to inspect the checked files: %w", err)
 	}
 	if len(entries) > 0 {
@@ -940,7 +943,7 @@ func (s *IntegrationSessionService) prepare(session *integrationSession) ([]Conf
 	}
 	if !mergeResult.Success {
 		// No unmerged files, so this was a real failure rather than a conflict.
-		forceRemoveIntegrationWorkspace(s.git, session.OpenProjectPath, session.WorkspacePath)
+		forceRemoveIntegrationWorkspace(runner, session.OpenProjectPath, session.WorkspacePath)
 		return empty, fmt.Errorf("failed to check this work against the shared project: %s", getErrorMessage(mergeResult))
 	}
 
@@ -1089,7 +1092,7 @@ func (s *IntegrationSessionService) applyResult(session integrationSession, owne
 		// fast-forward updates the ref, files, and staged state together. Git
 		// refuses on its own when local work would be replaced, which is
 		// stricter and race-free compared with checking first and then merging.
-		result := s.git.RunGit(session.OpenProjectPath, "merge", "--ff-only", session.ResultOID)
+		result := s.git.forGitOperation().RunGit(session.OpenProjectPath, "merge", "--ff-only", session.ResultOID)
 		if !result.Success {
 			return fmt.Errorf("%s", integrationSessionOutcomeMessages[integrationStateBlocked])
 		}
