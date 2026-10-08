@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EditorView } from '@codemirror/view';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { parseDocumentString } from 'ladder-visualizer';
 import { clearViewerCache, getCachedContent } from '../../registry/viewer-cache';
@@ -19,7 +20,9 @@ const fixture = (name: string) => readFileSync(`src/viewers/components/shared/__
 const filePath = '/repo/Main.L5X';
 
 describe('L5X file document results', () => {
+  afterEach(() => vi.unstubAllGlobals());
   beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
     clearViewerCache();
     clearAllTabStates();
     vi.clearAllMocks();
@@ -27,8 +30,8 @@ describe('L5X file document results', () => {
 
   it.each([
     ['controller-rll-v35', 'Supported content loaded'],
-    ['document-envelope-v35', 'Some content is available only in Raw'],
-    ['document-encoded-v35', 'Some content is available only in Raw'],
+    ['document-envelope-v35', 'Some content needs source inspection'],
+    ['document-encoded-v35', 'Some content needs source inspection'],
     ['malformed-truncated-v35', 'Cannot parse L5X file'],
   ])('loads and caches the complete %s result once', async (name, status) => {
     vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: fixture(name) });
@@ -44,12 +47,14 @@ describe('L5X file document results', () => {
   });
 
   it('keeps encoded source reachable without presenting an empty project as the export target', async () => {
-    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content: fixture('document-encoded-v35') });
+    const content = fixture('document-encoded-v35');
+    vi.mocked(ReadTextFile).mockResolvedValue({ success: true, content });
     render(<L5XFileViewer filePath={filePath} />);
-    await screen.findByText(/No structured view is available/);
-    expect(screen.queryByText(/navigation/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'View Raw' }));
-    await screen.findByText(/synthetic-encoded-marker/);
+    await screen.findByRole('heading', { name: 'Secret payload' });
+    expect(screen.getByText(/Decoded visualization and semantic operations are unavailable/)).toBeVisible();
+    fireEvent.click(screen.getAllByRole('button', { name: 'View Raw' })[0]);
+    const textBox = await screen.findByRole('textbox', { name: 'File content' });
+    expect(EditorView.findFromDOM(textBox)!.state.sliceDoc()).toBe(content);
     expect(screen.getByRole('button', { name: 'Raw' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

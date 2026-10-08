@@ -15,7 +15,7 @@
  * 
  * Supports both light and dark themes via CSS custom properties.
  */
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Cpu, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadTextFile } from '../../../../bindings/controlzebra/services/filesystemservice';
 import { ICON_SIZES } from '../../../shared/constants';
@@ -26,7 +26,7 @@ import { getPathFileName } from '../shared/path-utils';
 import L5XProjectOrganizer from '../shared/L5XProjectOrganizer';
 import { organizerSelectionId } from '../shared/l5x-organizer-model';
 import L5XDocumentStatus from '../shared/L5XDocumentStatus';
-import { hasEncodedOnlyTargets, parseL5XDocument, type L5XDocumentResult } from '../shared/l5x-document';
+import { parseL5XDocument, type L5XDocumentResult } from '../shared/l5x-document';
 
 // Import ladder-visualizer components and parsers
 import {
@@ -45,6 +45,8 @@ import { normalizeTabData } from './l5x/useTabs';
 import DataTypeView from './l5x/DataTypeView';
 import { L5XRoutineViewer } from './l5x/L5XRoutineViewer';
 import MetadataInspector from './l5x/MetadataInspector';
+import DocumentInspector from './l5x/DocumentInspector';
+import { buildDocumentRecords } from './l5x/document-model';
 import DeclarationView from './l5x/DeclarationView';
 import ControllerCollections from './l5x/ControllerCollections';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -140,8 +142,11 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     loadAndParseFile,
     [refreshCounter]
   );
+  const document = documentResult?.data;
+  const initializedFile = useRef<string | null>(null);
   const controller = documentResult?.controller ?? null;
   const { tabs, activeTabId, openTab, closeTab, selectTab, ambiguousProgramUids } = useTabs(filePath, controller?.programs);
+  const documentRecords = useMemo(() => document ? buildDocumentRecords(document, ambiguousProgramUids) : [], [document, ambiguousProgramUids]);
 
   // Register AOIs when controller data is available (from cache or fresh load)
   useEffect(() => {
@@ -169,6 +174,15 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     openTab(data, data.type === 'data-type' ? data.dataTypeName : title, existing ? existing.id : undefined);
   }, [controller, ambiguousProgramUids, tabs, openTab]);
 
+  // Initialize component exports once. Cached tabs and user selections survive refresh.
+  useEffect(() => {
+    if (!document || initializedFile.current === filePath) return;
+    initializedFile.current = filePath;
+    if (tabs.length || document.source.targetType === 'Controller') return;
+    const target = documentRecords.find(record => record.group === 'Targets');
+    openTab({ type: 'document', selection: target?.selection ?? { kind: 'source' } }, target?.title ?? 'Document');
+  }, [document, documentRecords, filePath, tabs.length, openTab]);
+
   const handleDataTypeSelect = useCallback((dataType: NormalizedDataType) => {
     handleOpen(
       { type: 'data-type', dataTypeName: dataType.name },
@@ -187,6 +201,13 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
   // ============================================================================
 
   const renderTabContent = useCallback((tabData: TabData, isActive: boolean, tabId: string) => {
+    if (tabData.type === 'document') return document ? <div key={tabId} hidden={!isActive} aria-hidden={!isActive}
+      className={`flex h-full min-h-0 min-w-0 flex-col ${isActive ? '' : 'hidden'}`}>
+      <DocumentInspector document={document} records={documentRecords} controller={controller} selection={tabData.selection}
+        onOpen={handleOpen} onShowRaw={onShowRaw}
+        fbdSheetIndex={fbdSheetIndices[`${normalizedFilePath}:${tabId}`] ?? 0}
+        onFbdSheetIndexChange={index => setFbdSheetIndices(current => ({ ...current, [`${normalizedFilePath}:${tabId}`]: index }))} />
+    </div> : null;
     if (!controller) return null;
 
     const containerClass = `flex-1 flex flex-col overflow-hidden h-full ${isActive ? '' : 'hidden'}`;
@@ -345,14 +366,13 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
       default:
         return null;
     }
-  }, [controller, ambiguousProgramUids, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath, handleOpen, onShowRaw, openTab]);
+  }, [document, documentRecords, controller, ambiguousProgramUids, fbdSheetIndices, handleDataTypeSelect, normalizedFilePath, handleOpen, onShowRaw, openTab]);
 
   // ============================================================================
   // Main Content Rendering
   // ============================================================================
 
   const renderMainContent = () => {
-    if (!controller) return null;
 
     if (tabs.length === 0) {
       return (
@@ -401,7 +421,7 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
     );
   }
 
-  if (!controller || documentResult?.status === 'failed' || (documentResult && hasEncodedOnlyTargets(documentResult))) {
+  if (!document || documentResult?.status === 'failed') {
     return (
       <div className="flex h-full flex-col bg-theme-surface text-theme-secondary">
         {documentResult && <L5XDocumentStatus result={documentResult} onShowRaw={onShowRaw} />}
@@ -418,20 +438,22 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-theme-surface">
-      <L5XDocumentStatus result={documentResult} onShowRaw={onShowRaw} />
+      <L5XDocumentStatus result={documentResult} onShowRaw={onShowRaw} records={documentRecords} onOpen={handleOpen} />
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 flex overflow-hidden">
         {/* Navigator sidebar */}
         {uiState.showNavigator && (
           <div className="w-64 bg-theme-surface overflow-hidden flex flex-col">
-            <L5XProjectOrganizer
+            <Button size="sm" variant="ghost" className="m-2 shrink-0 justify-start"
+              onClick={() => openTab({ type: 'document', selection: { kind: 'source' } }, 'Document')}>Document</Button>
+            {controller && <L5XProjectOrganizer
               controller={controller}
               programs={controller.programs}
               onOpen={handleOpen}
               activeTabData={activeTabData}
               ambiguousProgramUids={ambiguousProgramUids}
               className="flex-1"
-            />
+            />}
           </div>
         )}
 
@@ -442,14 +464,14 @@ function L5XViewer({ filePath, onShowRaw }: ViewerProps & { onShowRaw?: () => vo
           title={uiState.showNavigator ? 'Hide navigator' : 'Show navigator'}
         >
           {uiState.showNavigator ? (
-            <ChevronLeft size={14} className="text-theme-secondary" />
+            <ChevronLeft size={ICON_SIZES.xs} className="text-theme-secondary" />
           ) : (
-            <ChevronRight size={14} className="text-theme-secondary" />
+            <ChevronRight size={ICON_SIZES.xs} className="text-theme-secondary" />
           )}
         </button>
 
         {/* Content area with tabs */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
           {/* Tab bar */}
           <TabBar
             tabs={tabs}

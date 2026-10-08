@@ -1,6 +1,8 @@
 import { memo, useMemo } from 'react';
 import type { ParseLocation } from 'ladder-visualizer';
 import { Button } from '../../../shared/ui/button';
+import { findLocationRecord, type DocumentRecord } from '../file/l5x/document-model';
+import type { TabData } from '../file/l5x/useTabs';
 import type { L5XDocumentResult } from './l5x-document';
 
 function locationLabel(location?: ParseLocation): string {
@@ -18,10 +20,12 @@ const STATUS_LABELS = {
 };
 
 /** Source locations are shown for inspection, never used as comparison keys. */
-function L5XDocumentStatus({ result, label, onShowRaw }: {
+function L5XDocumentStatus({ result, label, onShowRaw, records, onOpen }: {
   result: L5XDocumentResult | null;
   label?: string;
   onShowRaw?: () => void;
+  records?: DocumentRecord[];
+  onOpen?: (data: TabData, title: string) => void;
 }): JSX.Element {
   const diagnostics = useMemo(() => [
     ...(result?.errors ?? []).map(issue => ({ ...issue, severity: 'Error' })),
@@ -34,12 +38,12 @@ function L5XDocumentStatus({ result, label, onShowRaw }: {
       <div className="flex items-center justify-between gap-2">
         <p className={result?.status === 'failed' ? 'text-theme-error' : 'text-theme-primary'}>
           {label && <span className="font-medium">{label}: </span>}
-          {result ? STATUS_LABELS[result.status] : 'File absent'}
+          {result ? result.status === 'partial' && onOpen ? 'Some content needs source inspection' : STATUS_LABELS[result.status] : 'File absent'}
         </p>
         {onShowRaw && <Button size="sm" variant="ghost" onClick={onShowRaw}>View Raw</Button>}
       </div>
       {result?.data && result.data.encodedData.length > 0 && (
-        <p>Encoded content is preserved. Use Raw to inspect its source.</p>
+        <p>Encoded content is preserved. {onOpen ? 'Open Document to inspect its payload and wrapper.' : 'Use Raw to inspect its source.'}</p>
       )}
       {result?.status === 'failed' && <p>Use Raw to inspect the file, or export it again from Studio 5000.</p>}
       {diagnostics.length > 0 && (
@@ -50,6 +54,11 @@ function L5XDocumentStatus({ result, label, onShowRaw }: {
               <li key={index}>
                 <p>{issue.severity}: {issue.message}</p>
                 {issue.location && <p className="text-theme-muted">{locationLabel(issue.location)}</p>}
+                {onOpen && (() => {
+                  const record = findLocationRecord(records ?? [], issue.location?.path);
+                  return record && <Button size="sm" variant="ghost"
+                    onClick={() => onOpen({ type: 'document', selection: record.selection }, record.title)}>Inspect source record</Button>;
+                })()}
               </li>
             ))}
           </ul>

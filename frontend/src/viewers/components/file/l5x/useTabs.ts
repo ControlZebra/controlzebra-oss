@@ -8,6 +8,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { NormalizedController } from 'ladder-visualizer';
 import { collectAmbiguousProgramUids, findProgram, programIdentityKey } from './program-identity';
+import { documentSelectionId, type DocumentSelection } from './document-model';
 import { metadataTargetId, type MetadataTarget } from './metadata-model';
 
 // ============================================================================
@@ -28,6 +29,7 @@ export type TabType =
   | 'aoi-local-tags' 
   | 'aoi-routine'
   | 'metadata'
+  | 'document'
   | 'module';
 
 export interface Tab {
@@ -47,6 +49,7 @@ export type TabData =
   | { type: 'aoi-parameters'; aoiName: string }
   | { type: 'aoi-local-tags'; aoiName: string }
   | { type: 'aoi-routine'; aoiName: string; routineIndex: number; routineName?: string }
+  | { type: 'document'; selection: DocumentSelection }
   | { type: 'metadata'; target: MetadataTarget }
   | { type: 'module'; moduleId: number; moduleName: string };
 
@@ -128,6 +131,8 @@ export function generateTabId(data: TabData): string {
       return `module-${data.moduleName}`;
     case 'metadata':
       return metadataTargetId(data.target);
+    case 'document':
+      return documentSelectionId(data.selection);
   }
 }
 

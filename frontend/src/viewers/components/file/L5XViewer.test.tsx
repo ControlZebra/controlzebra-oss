@@ -122,6 +122,9 @@ vi.mock('ladder-visualizer', () => {
     StructuredTextViewer: ({ routine }: { routine: { name: string; versionTag?: string } }) => (
       <div>{`ST:${routine.name}@${routine.versionTag ?? 'unknown'}`}</div>
     ),
+    RawRoutineViewer: ({ routine }: { routine: { rawSource?: { text: string } } }) => (
+      <pre>{routine.rawSource?.text ?? 'Original XML source is unavailable for this routine.'}</pre>
+    ),
     AOIParameterTable: () => <div>AOI Parameters</div>,
     AOILocalTagTable: () => <div>AOI Local Tags</div>,
     ModuleInfoTable: () => <div>Module Info</div>,
@@ -799,7 +802,7 @@ describe('L5XViewer refresh behavior', () => {
     controllerResultMock.mockReturnValue({ success: true, status: 'partial', data: makeController('partial'),
       warnings: [{ message: 'Unsupported declaration dimensions.', location: { line: 12, column: 4, path: '/Controller[1]/Tags[1]' } }] });
     render(<L5XFileViewer filePath="/repo/Programs/Main.L5X" />);
-    await screen.findByText('Some content is available only in Raw');
+    await screen.findByText('Some content needs source inspection');
     openProgramRoutine();
     expect(await screen.findByText('RLL:RoutineA@partial')).toBeVisible();
     fireEvent.click(screen.getByText('1 parser notice'));
@@ -1269,7 +1272,7 @@ describe('L5XViewer refresh behavior', () => {
     expect(fbdDiagramMock).not.toHaveBeenCalled();
   });
 
-  it('keeps ST rendering and unsupported routine messaging unchanged', async () => {
+  it('keeps ST rendering and explains missing SFC source', async () => {
     queueSuccessfulRead(['st']);
     controllerResultMock.mockImplementation(() => ({
       success: true,
@@ -1293,7 +1296,7 @@ describe('L5XViewer refresh behavior', () => {
     const secondView = render(<L5XViewer filePath="/repo/Programs/Other.L5X" />);
     await screen.findByText('No Content Selected');
     openProgramRoutine();
-    expect(await screen.findByText('SFC Visualization Not Supported')).toBeInTheDocument();
+    expect(await screen.findByText('Original XML source is unavailable for this routine.')).toBeInTheDocument();
     secondView.unmount();
   });
 });

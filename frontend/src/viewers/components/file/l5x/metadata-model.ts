@@ -60,6 +60,7 @@ export function metadataLinkTitle(data: TabData): string {
     case 'data-type': return data.dataTypeName;
     case 'module': return data.moduleName;
     case 'controller-info': return 'Controller Info';
+    case 'document': return 'Document';
   }
 }
 
