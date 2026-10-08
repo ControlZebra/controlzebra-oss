@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -156,16 +155,6 @@ func parseGitProgress(line string) (phase string, percent int, message string) {
 	return "", -1, line
 }
 
-// ensureGitHubHTTPSCredentials configures non-interactive GitHub HTTPS auth
-// for progress-tracked operations.
-func (p *ProgressService) ensureGitHubHTTPSCredentials(repoPath string) {
-	remoteResult := p.runner.RunGit(repoPath, "remote", "get-url", "origin")
-	if !isGitHubHTTPSRemoteURL(remoteResult.Stdout) {
-		return
-	}
-	configureGitHubHTTPSCredentials(p.runner)
-}
-
 // SyncWithProgress performs git pull + push with progress updates
 // For branches without an upstream, it skips pull and just pushes with --set-upstream
 // prune: if true, adds --prune to remove stale remote-tracking branches
@@ -181,7 +170,7 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		return failedSync(errMsg)
 	}
 
-	p.ensureGitHubHTTPSCredentials(repoPath)
+	runner := p.runner.forGitOperation()
 
 	hasUpstream := p.checkHasUpstream(repoPath)
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Starting sync..."})
@@ -206,7 +195,7 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 			pullArgs = append(pullArgs, "--tags")
 		}
 
-		pullResult := p.runGitWithProgress(repoPath, operationID, pullArgs)
+		pullResult := p.runGitWithProgress(runner, repoPath, operationID, pullArgs)
 		if sessionID != "" {
 			needsDecisions, reconcileErr := p.syncSessions.ReconcileSyncPull(sessionID)
 			if needsDecisions {
@@ -257,7 +246,7 @@ func (p *ProgressService) SyncWithProgress(repoPath, operationID string, prune b
 		pushArgs = []string{"push", "--set-upstream", remoteName, branchName, "--progress"}
 	}
 
-	pushResult := p.runGitWithProgress(repoPath, operationID, pushArgs)
+	pushResult := p.runGitWithProgress(runner, repoPath, operationID, pushArgs)
 	if !pushResult.Success {
 		errMsg := pushResult.Error
 		if sessionID != "" {
@@ -366,11 +355,11 @@ func (p *ProgressService) PullWithProgress(repoPath, operationID string) Operati
 		return failedOp(errMsg)
 	}
 
-	p.ensureGitHubHTTPSCredentials(repoPath)
+	runner := p.runner.forGitOperation()
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Fetching from remote..."})
 
 	// Using merge strategy (not rebase) for safer conflict resolution
-	result := p.runGitWithProgress(repoPath, operationID, []string{"pull", "--no-rebase", "--progress"})
+	result := p.runGitWithProgress(runner, repoPath, operationID, []string{"pull", "--no-rebase", "--progress"})
 	if !result.Success {
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Message: result.Error, IsComplete: true, Success: false, Error: result.Error})
 		return failedOp("Pull failed: " + result.Error)
@@ -391,10 +380,10 @@ func (p *ProgressService) PushWithProgress(repoPath, operationID string) Operati
 		return failedOp(errMsg)
 	}
 
-	p.ensureGitHubHTTPSCredentials(repoPath)
+	runner := p.runner.forGitOperation()
 	p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "starting", Percent: -1, Message: "Pushing to remote..."})
 
-	result := p.runGitWithProgress(repoPath, operationID, []string{"push", "--progress"})
+	result := p.runGitWithProgress(runner, repoPath, operationID, []string{"push", "--progress"})
 	if !result.Success {
 		p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: "error", Message: result.Error, IsComplete: true, Success: false, Error: result.Error})
 		return failedOp("Push failed: " + result.Error)
@@ -404,103 +393,42 @@ func (p *ProgressService) PushWithProgress(repoPath, operationID string) Operati
 	return successOp("Push complete")
 }
 
-// runGitWithProgress executes a git command and streams progress events
-func (p *ProgressService) runGitWithProgress(repoPath, operationID string, args []string) CommandResult {
+// runGitWithProgress executes through the common runner and parses stderr.
+func (p *ProgressService) runGitWithProgress(runner *CommandRunner, repoPath, operationID string, args []string) CommandResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-
-	gitExec := GitPath()
-	cmd := exec.CommandContext(ctx, gitExec, args...)
-	cmd.Dir = repoPath
-	cmd.SysProcAttr = hideWindowAttr()
-	cmd.Env = buildCommandEnv(gitExec)
-
-	// Git sends progress to stderr
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return CommandResult{Success: false, Error: err.Error()}
-	}
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return CommandResult{Success: false, Error: err.Error()}
-	}
-
-	if err := cmd.Start(); err != nil {
-		return CommandResult{Success: false, Error: err.Error()}
-	}
-
 	var stdoutBuf, stderrBuf strings.Builder
-	var lastUpdate time.Time
-	const debounceInterval = 100 * time.Millisecond
-
-	// Read stderr for progress (git outputs progress to stderr)
+	reader, writer := io.Pipe()
+	parsed := make(chan struct{})
 	go func() {
-		reader := bufio.NewReader(stderrPipe)
+		defer close(parsed)
+		defer reader.Close()
+		input := bufio.NewReader(reader)
+		var lastUpdate time.Time
 		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				if err != io.EOF {
-					stderrBuf.WriteString(err.Error())
+			line, err := input.ReadString('\n')
+			if line != "" {
+				stderrBuf.WriteString(line)
+				now := time.Now()
+				if now.Sub(lastUpdate) >= 100*time.Millisecond {
+					lastUpdate = now
+					phase, percent, message := parseGitProgress(line)
+					if phase != "" || message != "" {
+						p.emitProgress(ProgressUpdate{OperationID: operationID, Phase: phase, Percent: percent, Message: strings.TrimSpace(message)})
+					}
 				}
-				break
 			}
-
-			stderrBuf.WriteString(line)
-
-			// Debounce progress updates
-			now := time.Now()
-			if now.Sub(lastUpdate) < debounceInterval {
-				continue
-			}
-			lastUpdate = now
-
-			phase, percent, message := parseGitProgress(line)
-			if phase != "" || message != "" {
-				p.emitProgress(ProgressUpdate{
-					OperationID: operationID,
-					Phase:       phase,
-					Percent:     percent,
-					Message:     strings.TrimSpace(message),
-				})
-			}
-		}
-	}()
-
-	// Read stdout
-	go func() {
-		reader := bufio.NewReader(stdoutPipe)
-		for {
-			line, err := reader.ReadString('\n')
 			if err != nil {
-				break
+				return
 			}
-			stdoutBuf.WriteString(line)
 		}
 	}()
-
-	// Wait for command to complete
-	err = cmd.Wait()
-
-	result := CommandResult{
-		Stdout:   stdoutBuf.String(),
-		Stderr:   stderrBuf.String(),
-		ExitCode: 0,
-		Success:  true,
+	result := runner.runWithWriters(ctx, repoPath, &stdoutBuf, writer, GitPath(), args...)
+	writer.Close()
+	<-parsed
+	result.Stdout, result.Stderr = stdoutBuf.String(), stderrBuf.String()
+	if !result.Success && result.Stderr != "" {
+		result.Error = result.Stderr
 	}
-
-	if err != nil {
-		result.Success = false
-		result.Error = stderrBuf.String()
-		if result.Error == "" {
-			result.Error = err.Error()
-		}
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-		} else {
-			result.ExitCode = -1
-		}
-	}
-
 	return result
 }

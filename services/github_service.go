@@ -759,7 +759,7 @@ func (g *GitHubService) verifyBranchSyncedForChangeRequest(repoPath string, bran
 			"Publish this branch to GitHub before creating a Change Request.", false
 	}
 
-	remoteResult := g.runner.RunGit(repoPath, "ls-remote", "origin", "refs/heads/"+branch)
+	remoteResult := g.runner.forGitOperation().RunGit(repoPath, "ls-remote", "origin", "refs/heads/"+branch)
 	if !remoteResult.Success {
 		return GitHubChangeRequestErrorBranchNotSynced,
 			"ControlZebra could not confirm this branch on GitHub. Sync and retry.", false
@@ -1086,15 +1086,6 @@ func (g *GitHubService) AuthLogin() GitHubAuthResult {
 		}
 	}
 
-	// Best-effort: preconfigure token-based credentials for non-interactive
-	// app-launched git operations.
-	if !configureGitHubHTTPSCredentials(g.runner) {
-		return GitHubAuthResult{
-			Success: true,
-			Message: "Authentication successful (Git credential setup may need attention)",
-		}
-	}
-
 	return GitHubAuthResult{
 		Success: true,
 		Message: "Authentication successful",
@@ -1116,7 +1107,6 @@ func (g *GitHubService) AuthLoginComplete() GitHubAuthResult {
 	for i := 0; i < 5; i++ {
 		time.Sleep(500 * time.Millisecond)
 		if g.AuthStatus().LoggedIn {
-			configureGitHubHTTPSCredentials(g.runner)
 			g.cancelAuthAttempt(attempt)
 			return GitHubAuthResult{Success: true, Message: "Authentication successful"}
 		}
@@ -1608,9 +1598,7 @@ func (g *GitHubService) RepoClone(repo string, destPath string, shallow bool) Gi
 		cloneTarget = "https://github.com/" + strings.TrimSuffix(cloneTarget, ".git") + ".git"
 	}
 
-	// Best effort. If gh auth is available, configure token-based credentials so
-	// private HTTPS clone works without shelling out to gh credential helper.
-	configureGitHubHTTPSCredentials(g.runner)
+	runner := g.runner.forGitOperation()
 
 	args := []string{"clone"}
 	if shallow {
@@ -1638,7 +1626,7 @@ func (g *GitHubService) RepoClone(repo string, destPath string, shallow bool) Gi
 		}
 	}
 
-	result := g.runner.Run(workDir, GitPath(), args...)
+	result := runner.Run(workDir, GitPath(), args...)
 	if !result.Success {
 		return GitHubCloneResult{
 			Success: false,
@@ -1680,11 +1668,6 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 	// Description
 	if options.Description != "" {
 		args = append(args, "--description", options.Description)
-	}
-
-	// Clone after creation
-	if options.Clone {
-		args = append(args, "--clone")
 	}
 
 	// Add README
@@ -1734,10 +1717,36 @@ func (g *GitHubService) RepoCreate(options GitHubRepoCreateOptions) GitHubRepoCr
 	}
 
 	if options.Clone {
-		createResult.CloneDir = options.Name
-		if options.ClonePath != "" {
-			createResult.CloneDir = filepath.Join(options.ClonePath, options.Name)
+		remote, err := g.createdRepoRemote(workDir, output)
+		if err != "" {
+			return GitHubRepoCreateResult{Error: err}
 		}
+		// gh initializes empty repositories locally, respecting init.defaultBranch.
+		// Repositories initialized on GitHub are cloned with its existing retries.
+		dir := inferRepoNameFromIdentifier(output)
+		cloneDir := filepath.Join(workDir, dir)
+		var setup CommandResult
+		if !options.AddReadme && options.GitIgnore == "" && options.License == "" {
+			setup = g.runner.RunGit(workDir, "init", dir)
+			if setup.Success {
+				setup = g.runner.RunGit(cloneDir, "remote", "add", "origin", remote)
+			}
+		} else {
+			runner := g.forCreatedRepository(output)
+			for attempt := 0; attempt < 4; attempt++ {
+				if attempt > 0 {
+					time.Sleep(3 * time.Second)
+				}
+				setup = runner.RunGit(workDir, "clone", remote)
+				if setup.Success || setup.ExitCode != 128 {
+					break
+				}
+			}
+		}
+		if !setup.Success {
+			return GitHubRepoCreateResult{Error: getErrorMessage(setup)}
+		}
+		createResult.CloneDir = cloneDir
 	}
 
 	return createResult
@@ -1776,9 +1785,15 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 		}
 	}
 
-	// Best-effort: ensure git HTTPS credential helper is configured before
-	// `gh repo create --push` triggers git operations.
-	g.runner.Run("", GhPath(), "auth", "setup-git", "--hostname", "github.com")
+	// Retain gh's --push preflight before creating anything on GitHub.
+	committed := g.runner.RunGit(localPath, "rev-parse", "HEAD")
+	if !committed.Success {
+		return GitHubRepoCreateResult{Error: getErrorMessage(committed)}
+	}
+	bare := g.runner.RunGit(localPath, "rev-parse", "--is-bare-repository")
+	if !bare.Success {
+		return GitHubRepoCreateResult{Error: getErrorMessage(bare)}
+	}
 
 	args := []string{"repo", "create"}
 
@@ -1804,15 +1819,20 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 		args = append(args, "--description", description)
 	}
 
-	// Push after creating
-	args = append(args, "--push")
-
 	result := g.runner.Run(localPath, GhPath(), args...)
 	if !result.Success {
 		return GitHubRepoCreateResult{
 			Success: false,
 			Error:   getGHErrorMessage(result),
 		}
+	}
+	pushArgs := []string{"push", "--set-upstream", "origin", "HEAD"}
+	if strings.TrimSpace(bare.Stdout) == "true" {
+		pushArgs = []string{"push", "origin", "--mirror"}
+	}
+	push := g.forCreatedRepository(result.Stdout).RunGit(localPath, pushArgs...)
+	if !push.Success {
+		return GitHubRepoCreateResult{Error: getErrorMessage(push)}
 	}
 
 	// Construct the full name for the result
@@ -1829,6 +1849,33 @@ func (g *GitHubService) RepoCreateFromLocal(localPath string, name string, descr
 			Private:  private,
 		},
 	}
+}
+
+// A successful GitHub creation already established usable authentication.
+// Other hosts still need their independent github.com authentication decision.
+func (g *GitHubService) forCreatedRepository(repoURL string) *CommandRunner {
+	u, err := url.Parse(strings.TrimSpace(repoURL))
+	if err == nil && u.Hostname() == githubHost {
+		return g.runner.forGitOperation(true)
+	}
+	return g.runner.forGitOperation()
+}
+
+// createdRepoRemote preserves the protocol selected by gh for a newly created
+// repository. Creation prints its canonical URL even when the input was a name.
+func (g *GitHubService) createdRepoRemote(workDir, repoURL string) (string, string) {
+	u, err := url.Parse(repoURL)
+	if err != nil || u.Host == "" || u.Path == "" {
+		return "", "GitHub CLI did not return the created repository URL"
+	}
+	protocol := g.runner.RunGh(workDir, "config", "get", "git_protocol", "--host", u.Host)
+	if !protocol.Success {
+		return "", getGHErrorMessage(protocol)
+	}
+	if strings.TrimSpace(protocol.Stdout) == "ssh" {
+		return "git@" + u.Host + ":" + strings.TrimPrefix(u.Path, "/") + ".git", ""
+	}
+	return strings.TrimSuffix(repoURL, "/") + ".git", ""
 }
 
 // ============================================================================

@@ -362,6 +362,7 @@ func (r *RepositorySettingsService) DeleteSettings(repoPath string) OperationRes
 
 // runFetchAll executes the fetch all command
 func (r *RepositorySettingsService) runFetchAll(repoPath string, settings FetchSettings) OperationResult {
+	runner := r.runner.forGitOperation()
 	args := []string{"fetch"}
 
 	if settings.FetchAllRemotes {
@@ -378,7 +379,7 @@ func (r *RepositorySettingsService) runFetchAll(repoPath string, settings FetchS
 	unlock := lockChangeRequestRepo(repoPath)
 	defer unlock()
 
-	result := r.runner.RunGit(repoPath, args...)
+	result := runner.RunGit(repoPath, args...)
 	if !result.Success {
 		return failedOp("Fetch failed: " + result.Stderr)
 	}
@@ -402,7 +403,7 @@ func (r *RepositorySettingsService) runLFSFetch(repoPath string, settings LFSSet
 	defer unlock()
 
 	// Run git lfs fetch --recent
-	result := r.runner.RunGit(repoPath, "lfs", "fetch", "--recent")
+	result := r.runner.forGitOperation().RunGit(repoPath, "lfs", "fetch", "--recent")
 	if !result.Success {
 		return failedOp("LFS fetch failed: " + result.Stderr)
 	}
@@ -920,7 +921,7 @@ func (r *RepositorySettingsService) DiagnoseRepository(repoPath string) Recovery
 			remoteName := trimOutput(r.runner.RunGit(repoPath, "config", "--get", "branch."+branch+".remote").Stdout)
 			mergeRef := trimOutput(r.runner.RunGit(repoPath, "config", "--get", "branch."+branch+".merge").Stdout)
 			if remoteName != "" && mergeRef != "" {
-				remoteSha := firstLsRemoteSha(r.runner.RunGit(repoPath, "ls-remote", "--heads", remoteName, mergeRef))
+				remoteSha := firstLsRemoteSha(r.runner.forGitOperation().RunGit(repoPath, "ls-remote", "--heads", remoteName, mergeRef))
 				if remoteSha != "" {
 					unpushedResult := r.runner.RunGit(repoPath, "rev-list", "--count", remoteSha+"..HEAD")
 					if unpushedResult.Success {
@@ -947,7 +948,8 @@ func (r *RepositorySettingsService) DiagnoseRepository(repoPath string) Recovery
 
 // AbortMerge aborts an in-progress merge
 func (r *RepositorySettingsService) AbortMerge(repoPath string) OperationResult {
-	result := r.runner.RunGit(repoPath, "merge", "--abort")
+	runner := r.runner.forGitOperation()
+	result := runner.RunGit(repoPath, "merge", "--abort")
 	if !result.Success {
 		return failedOp("Failed to abort merge: " + result.Stderr)
 	}
@@ -1004,9 +1006,10 @@ func (r *RepositorySettingsService) RemoveStaleLocks(repoPath string) OperationR
 
 // RecoverFromDetachedHead creates a new branch from detached HEAD or switches to an existing branch
 func (r *RepositorySettingsService) RecoverFromDetachedHead(repoPath string, newBranchName string, switchToExisting string) OperationResult {
+	runner := r.runner.forGitOperation()
 	// If switchToExisting is provided, switch to that branch
 	if switchToExisting != "" {
-		result := r.runner.RunGit(repoPath, "checkout", switchToExisting)
+		result := runner.RunGit(repoPath, "checkout", switchToExisting)
 		if !result.Success {
 			return failedOp("Failed to switch to branch: " + result.Stderr)
 		}
@@ -1018,7 +1021,7 @@ func (r *RepositorySettingsService) RecoverFromDetachedHead(repoPath string, new
 		newBranchName = "recovered-work-" + time.Now().Format("20060102-150405")
 	}
 
-	result := r.runner.RunGit(repoPath, "checkout", "-b", newBranchName)
+	result := runner.RunGit(repoPath, "checkout", "-b", newBranchName)
 	if !result.Success {
 		return failedOp("Failed to create branch: " + result.Stderr)
 	}
@@ -1070,7 +1073,7 @@ func (r *RepositorySettingsService) RecoverToReflogEntry(repoPath string, hash s
 	}
 
 	// Reset to that point (dangerous, requires confirmation in frontend)
-	result := r.runner.RunGit(repoPath, "reset", "--hard", hash)
+	result := r.runner.forGitOperation().RunGit(repoPath, "reset", "--hard", hash)
 	if !result.Success {
 		return failedOp("Failed to reset to reflog entry: " + result.Stderr)
 	}
@@ -1128,6 +1131,7 @@ func (r *RepositorySettingsService) RepairRepository(repoPath string) OperationR
 
 // ResetHard performs a hard reset to a specific ref (use with caution)
 func (r *RepositorySettingsService) ResetHard(repoPath string, ref string, confirm bool) OperationResult {
+	runner := r.runner.forGitOperation()
 	if !confirm {
 		return failedOp("Hard reset requires confirmation - this will discard all uncommitted changes")
 	}
@@ -1136,13 +1140,13 @@ func (r *RepositorySettingsService) ResetHard(repoPath string, ref string, confi
 		ref = "HEAD"
 	}
 
-	result := r.runner.RunGit(repoPath, "reset", "--hard", ref)
+	result := runner.RunGit(repoPath, "reset", "--hard", ref)
 	if !result.Success {
 		return failedOp("Failed to reset: " + result.Stderr)
 	}
 
 	// Clean untracked files too
-	cleanResult := r.runner.RunGit(repoPath, "clean", "-fd")
+	cleanResult := runner.RunGit(repoPath, "clean", "-fd")
 	if cleanResult.Success {
 		return successOp("Reset to " + ref + " and cleaned untracked files")
 	}
@@ -1152,12 +1156,13 @@ func (r *RepositorySettingsService) ResetHard(repoPath string, ref string, confi
 
 // StashAndReset stashes current changes before resetting
 func (r *RepositorySettingsService) StashAndReset(repoPath string, ref string, stashMessage string) OperationResult {
+	runner := r.runner.forGitOperation()
 	// First stash any changes
 	if stashMessage == "" {
 		stashMessage = "Auto-stash before reset to " + ref
 	}
 
-	stashResult := r.runner.RunGit(repoPath, "stash", "push", "-m", stashMessage)
+	stashResult := runner.RunGit(repoPath, "stash", "push", "-m", stashMessage)
 	stashedChanges := stashResult.Success && !strings.Contains(stashResult.Stdout, "No local changes")
 
 	// Now reset
@@ -1165,11 +1170,11 @@ func (r *RepositorySettingsService) StashAndReset(repoPath string, ref string, s
 		ref = "HEAD"
 	}
 
-	resetResult := r.runner.RunGit(repoPath, "reset", "--hard", ref)
+	resetResult := runner.RunGit(repoPath, "reset", "--hard", ref)
 	if !resetResult.Success {
 		if stashedChanges {
 			// Try to restore stash
-			r.runner.RunGit(repoPath, "stash", "pop")
+			runner.RunGit(repoPath, "stash", "pop")
 		}
 		return failedOp("Failed to reset: " + resetResult.Stderr)
 	}
@@ -1221,21 +1226,22 @@ func (r *RepositorySettingsService) FixRemoteURL(repoPath string, remoteName str
 
 // RecreateRemote removes and re-adds a remote
 func (r *RepositorySettingsService) RecreateRemote(repoPath string, remoteName string, url string) OperationResult {
+	runner := r.runner.forGitOperation()
 	if remoteName == "" {
 		remoteName = "origin"
 	}
 
 	// Remove existing remote (ignore errors if it doesn't exist)
-	r.runner.RunGit(repoPath, "remote", "remove", remoteName)
+	runner.RunGit(repoPath, "remote", "remove", remoteName)
 
 	// Add new remote
-	result := r.runner.RunGit(repoPath, "remote", "add", remoteName, url)
+	result := runner.RunGit(repoPath, "remote", "add", remoteName, url)
 	if !result.Success {
 		return failedOp("Failed to add remote: " + result.Stderr)
 	}
 
 	// Fetch from the new remote
-	fetchResult := r.runner.RunGit(repoPath, "fetch", remoteName)
+	fetchResult := runner.RunGit(repoPath, "fetch", remoteName)
 	if !fetchResult.Success {
 		return successOp("Remote added but fetch failed: " + fetchResult.Stderr)
 	}
