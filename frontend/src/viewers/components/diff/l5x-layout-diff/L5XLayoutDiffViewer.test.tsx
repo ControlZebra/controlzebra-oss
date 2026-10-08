@@ -114,7 +114,7 @@ describe('L5X document diff loading', () => {
     vi.mocked(loadTextSide).mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
     const view = render(<L5XLayoutDiffViewer {...props} />);
     view.rerender(<L5XLayoutDiffViewer {...props} oldSide={{ ...oldSide, ref: 'different' } as DiffSide} />);
-    await screen.findByText(/No changed routines or tags/);
+    await screen.findByText(/No changes in supported comparisons/);
     await act(async () => resolveOld(fixture('malformed-truncated-v35')));
     expect(notices('Previous version')).toHaveTextContent('Supported content loaded');
     expect(parseDocumentString).toHaveBeenCalledTimes(2);
@@ -137,7 +137,7 @@ describe('L5X document diff loading', () => {
     await screen.findByText('Cannot generate L5X diff');
     expect(screen.queryByText(/raw backend failure/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await screen.findByText(/No changed routines or tags/);
+    await screen.findByText(/No changes in supported comparisons/);
     expect(loadTextSide).toHaveBeenLastCalledWith('/repo', newSide);
   });
 });

@@ -5,7 +5,7 @@ import { findProgram, programIdentity, programIdentityKey } from './program-iden
 export type MetadataTarget =
   | { kind: 'controller' }
   | { kind: 'program'; name: string; uid?: string; ambiguousUid?: boolean }
-  | { kind: 'task' | 'aoi' | 'data-type' | 'module'; name: string };
+  | { kind: 'task' | 'aoi' | 'data-type'; name: string } | { kind: 'module'; name: string; moduleId?: number };
 
 export interface MetadataField {
   label: string;
@@ -184,7 +184,8 @@ export function buildMetadataModel(controller: NormalizedController, target: Met
       ] };
     }
     case 'module': {
-      const module = controller.modules.find(candidate => candidate.name === target.name);
+      const module = controller.modules.find(candidate => target.name || target.moduleId === undefined
+        ? candidate.name === target.name : candidate.id === target.moduleId);
       if (!module) return null;
       const properties = fields(module, [['name', 'Name'], ['id', 'Module ID'], ['description', 'Description'],
         ['catalogNumber', 'Catalog number'], ['category', 'Category'], ['usage', 'Usage'],

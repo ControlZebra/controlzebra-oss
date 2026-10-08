@@ -17,6 +17,8 @@ import type {
   L5XDiffAggregateChangeKind,
   L5XDiffControllerTagsEntity,
   L5XDiffLayoutViewModel,
+  L5XDiffMetadataEntity,
+  L5XDiffLocalTagsEntity,
   L5XDiffNavigatorItem,
   L5XDiffNavigatorSection,
   L5XDiffProgramTagsEntity,
@@ -133,7 +135,6 @@ function buildControllerTagsEntity(
   }
 
   const semanticId = buildControllerTagsSemanticId();
-  const sourceController = newController.tags.length > 0 ? newController : oldController;
   const tab: L5XDiffTabDescriptor = {
     id: buildTabId(semanticId),
     semanticId,
@@ -148,8 +149,10 @@ function buildControllerTagsEntity(
     tab,
     changeKind: aggregateChangeKind(tagDiffs),
     title: 'Controller Tags',
-    fullContextTags: sourceController.tags,
-    dataTypes: getDataTypes(sourceController),
+    oldTags: oldController.tags,
+    newTags: newController.tags,
+    oldDataTypes: getDataTypes(oldController),
+    newDataTypes: getDataTypes(newController),
     changedTagDiffs: sortByName(tagDiffs),
   };
 }
@@ -165,9 +168,6 @@ function buildProgramTagsEntity(
 
   const oldProgram = getProgram(oldController, programDiff.name);
   const newProgram = getProgram(newController, programDiff.name);
-  const useNewProgram = Boolean(newProgram?.tags.length);
-  const sourceProgram = useNewProgram ? newProgram : oldProgram;
-  const sourceController = useNewProgram ? newController : oldController;
   const semanticId = buildProgramTagsSemanticId(programDiff.name);
   const tab: L5XDiffTabDescriptor = {
     id: buildTabId(semanticId),
@@ -187,8 +187,10 @@ function buildProgramTagsEntity(
     programName: programDiff.name,
     oldProgram,
     newProgram,
-    fullContextTags: sourceProgram?.tags ?? [],
-    dataTypes: getDataTypes(sourceController),
+    oldTags: oldProgram?.tags ?? [],
+    newTags: newProgram?.tags ?? [],
+    oldDataTypes: getDataTypes(oldController),
+    newDataTypes: getDataTypes(newController),
     changedTagDiffs: sortByName(programDiff.tagDiffs),
   };
 }
@@ -226,7 +228,7 @@ function buildControllerTagsSection(entity: L5XDiffControllerTagsEntity | null):
       badge: `${entity.changedTagDiffs.length} changed`,
       changeKind: entity.changeKind,
       changedCount: entity.changedTagDiffs.length,
-      totalCount: entity.fullContextTags.length,
+      totalCount: new Set([...entity.oldTags, ...entity.newTags].map(tag => tag.name)).size,
     }],
   };
 }
@@ -251,9 +253,70 @@ function buildProgramTagsSection(entities: L5XDiffProgramTagsEntity[]): L5XDiffN
       badge: `${entity.changedTagDiffs.length} changed`,
       changeKind: entity.changeKind,
       changedCount: entity.changedTagDiffs.length,
-      totalCount: entity.fullContextTags.length,
+      totalCount: new Set([...entity.oldTags, ...entity.newTags].map(tag => tag.name)).size,
     })),
   };
+}
+
+function buildEntityInspections(oldController: NormalizedController, newController: NormalizedController,
+  diff: BuildL5XDiffLayoutViewModelInput['diff']): Array<L5XDiffMetadataEntity | L5XDiffLocalTagsEntity> {
+  const entities: Array<L5XDiffMetadataEntity | L5XDiffLocalTagsEntity> = [];
+  const addMetadata = (target: L5XDiffMetadataEntity['target'], changeKind: ChangeKind,
+    propertyChanges: L5XDiffMetadataEntity['propertyChanges'] = [],
+    extra: Pick<L5XDiffMetadataEntity, 'memberDiffs' | 'aoiDiff'> = {}) => {
+    const key = target.kind === 'module' && !target.name ? `id:${target.moduleId}`
+      : encodeSegment(target.kind === 'controller' ? '' : target.name);
+    const semanticId = `metadata:${target.kind}:${key}`;
+    const labels = { controller: 'Controller', program: 'Program', aoi: 'AOI', 'data-type': 'Data type', module: 'Module' };
+    entities.push({ kind: 'metadata', semanticId, navigatorItemId: buildNavigatorItemId(semanticId),
+      tab: { id: buildTabId(semanticId), semanticId, kind: 'metadata',
+        title: target.kind === 'controller' ? 'Controller properties' : `${target.name || (target.kind === 'module' ? target.moduleId : '')} ${labels[target.kind]}` },
+      target, changeKind, propertyChanges, ...extra,
+      oldController: changeKind === 'added' ? undefined : oldController,
+      newController: changeKind === 'removed' ? undefined : newController });
+  };
+  if (diff.controllerInfo.changes.length) addMetadata({ kind: 'controller' }, 'modified', diff.controllerInfo.changes);
+  for (const program of sortByName(diff.programs)) {
+    if (program.kind !== 'modified' || program.propertyChanges?.length)
+      addMetadata({ kind: 'program', name: program.name }, program.kind, program.propertyChanges);
+    if (program.localTagDiffs?.length) {
+      const semanticId = `program-local-tags:${encodeSegment(program.name)}`;
+      entities.push({ kind: 'program-local-tags', semanticId, navigatorItemId: buildNavigatorItemId(semanticId),
+        tab: { id: buildTabId(semanticId), semanticId, kind: 'program-local-tags', title: `${program.name} Local Tags` },
+        changeKind: aggregateChangeKind(program.localTagDiffs), changedLocalTagDiffs: sortByName(program.localTagDiffs),
+        oldDataTypes: getDataTypes(oldController), newDataTypes: getDataTypes(newController) });
+    }
+  }
+  for (const type of sortByName(diff.dataTypes))
+    addMetadata({ kind: 'data-type', name: type.name }, type.kind, type.propertyChanges, { memberDiffs: type.memberDiffs });
+  for (const module of sortByName(diff.modules))
+    addMetadata({ kind: 'module', name: module.name, moduleId: module.id }, module.kind, module.propertyChanges);
+  for (const aoi of sortByName(diff.aois)) {
+    const hasSummaryChanges = [aoi.parameterSummary, aoi.localTagSummary].some(summary =>
+      summary && summary.added + summary.removed + summary.modified > 0);
+    // Routine-only changes already have their own entries and counts.
+    if (aoi.kind !== 'modified' || aoi.propertyChanges?.length || hasSummaryChanges)
+      addMetadata({ kind: 'aoi', name: aoi.name }, aoi.kind, aoi.propertyChanges, { aoiDiff: aoi });
+  }
+  return entities;
+}
+
+function buildInspectionSections(entities: Array<L5XDiffMetadataEntity | L5XDiffLocalTagsEntity>): L5XDiffNavigatorSection[] {
+  const groups = new Map<string, L5XDiffNavigatorSection>();
+  for (const entity of entities) {
+    const category = entity.kind === 'metadata' ? entity.target.kind : entity.kind;
+    const titles = { controller: 'Controller Properties', program: 'Program Properties', aoi: 'AOI Definitions',
+      'data-type': 'Data Types', module: 'Modules', 'program-local-tags': 'Program Local Tags' };
+    const section = groups.get(category) ?? { id: `section:${category}`, kind: entity.kind,
+      title: titles[category], itemCount: 0, items: [] };
+    const count = entity.kind === 'program-local-tags' ? entity.changedLocalTagDiffs.length : 1;
+    section.items.push({ id: entity.navigatorItemId, semanticId: entity.semanticId, tabId: entity.tab.id,
+      kind: entity.kind, title: entity.tab.title, changeKind: entity.changeKind, changedCount: count,
+      badge: entity.kind === 'program-local-tags' ? `${count} changed` : undefined });
+    section.itemCount += 1;
+    groups.set(category, section);
+  }
+  return [...groups.values()];
 }
 
 function toEntityMap(entities: L5XDiffRenderableEntity[]): Record<string, L5XDiffRenderableEntity> {
@@ -289,16 +352,19 @@ export function buildL5XDiffLayoutViewModel({
     .map((programDiff) => buildProgramTagsEntity(oldController, newController, programDiff))
     .filter((entity): entity is L5XDiffProgramTagsEntity => entity !== null);
 
+  const inspections = buildEntityInspections(oldController, newController, diff);
   const entities: L5XDiffRenderableEntity[] = [
     ...routineEntities,
     ...(controllerTagsEntity ? [controllerTagsEntity] : []),
     ...programTagsEntities,
+    ...inspections,
   ];
 
   const navigatorSections = [
     ...buildRoutineSections(routineEntities),
     buildControllerTagsSection(controllerTagsEntity),
     buildProgramTagsSection(programTagsEntities),
+    ...buildInspectionSections(inspections),
   ].filter((section): section is L5XDiffNavigatorSection => section !== null);
 
   const tabs: L5XDiffTabDescriptor[] = entities.map((entity) => entity.tab);

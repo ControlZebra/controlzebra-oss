@@ -30,7 +30,7 @@ export function declarationFields(declaration: Declaration, catalog: Catalog): M
 }
 
 const DecoratedValue = memo(function DecoratedValue({ value, catalog, onOpen }: {
-  value: NormalizedDecoratedTagValue; catalog: Catalog; onOpen: OpenView;
+  value: NormalizedDecoratedTagValue; catalog: Catalog; onOpen?: OpenView;
 }) {
   const fields: MetadataField[] = value.kind === 'alarm'
     ? [{ label: 'Alarm type', value: value.alarmType }, { label: 'Alarm class', value: value.alarmClass },
@@ -63,7 +63,7 @@ const DecoratedValue = memo(function DecoratedValue({ value, catalog, onOpen }: 
 });
 
 const DecoratedValues = memo(function DecoratedValues({ values, catalog, onOpen, label }: {
-  values: NormalizedDecoratedTagValue[]; catalog: Catalog; onOpen: OpenView; label: string;
+  values: NormalizedDecoratedTagValue[]; catalog: Catalog; onOpen?: OpenView; label: string;
 }) {
   return <OrderedItems items={values} label={label} summary={value => value.kind === 'alarm' ? `${value.alarmType} alarm`
     : `${value.name ?? value.dataType ?? value.kind}${value.kind === 'atomic' ? ` = ${formatMetadataValue(value.value)}` : ''}`}>
@@ -71,7 +71,7 @@ const DecoratedValues = memo(function DecoratedValues({ values, catalog, onOpen,
   </OrderedItems>;
 });
 
-const DeclarationComments = memo(function DeclarationComments({ comments, onOpen }: { comments?: NormalizedTagComment[]; onOpen: OpenView }) {
+const DeclarationComments = memo(function DeclarationComments({ comments, onOpen }: { comments?: NormalizedTagComment[]; onOpen?: OpenView }) {
   if (comments === undefined) return <p className="text-xs text-theme-secondary">Comments: Not supplied</p>;
   return <OrderedItems items={comments} label="Operand comments" summary={comment => `Operand: ${formatMetadataValue(comment.operand)}`}>
     {comment => <>
@@ -87,7 +87,7 @@ const DeclarationComments = memo(function DeclarationComments({ comments, onOpen
 });
 
 const DeclarationDetails = memo(function DeclarationDetails({ declaration, catalog, onOpen }: {
-  declaration: Declaration; catalog: Catalog; onOpen: OpenView;
+  declaration: Declaration; catalog: Catalog; onOpen?: OpenView;
 }) {
   const fields = useMemo(() => declarationFields(declaration, catalog), [declaration, catalog]);
   const defaults: NormalizedTagData[] | undefined = useMemo(() => declaration.defaultData === undefined ? undefined
@@ -112,7 +112,7 @@ const DeclarationDetails = memo(function DeclarationDetails({ declaration, catal
 });
 
 function DeclarationView({ declarations, catalog, onOpen }: {
-  declarations: readonly Declaration[]; catalog: Catalog; onOpen: OpenView;
+  declarations: readonly Declaration[]; catalog: Catalog; onOpen?: OpenView;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {

@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight, FileCode, Tags } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileCode, Tags, List } from 'lucide-react';
 import { Button } from '../../../../shared/ui/button';
 import { Input } from '../../../../shared/ui/input';
 import { ICON_SIZES } from '../../../../shared/constants';
@@ -38,7 +38,7 @@ export const L5XDiffNavigator = memo(function L5XDiffNavigator({ sections, activ
     <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
       <nav aria-label="Changed project entries" className="relative" style={rows.length > 50 ? { height: virtualizer.getTotalSize() } : undefined}>
         {visible.map(({ section, item, start }) => {
-          const Icon = item?.kind === 'routine' ? FileCode : Tags;
+          const Icon = item?.kind === 'routine' ? FileCode : item?.kind === 'metadata' ? List : Tags;
           const Chevron = collapsed.has(section.id) && !query ? ChevronRight : ChevronDown;
           return <div key={item?.id ?? section.id} className={start === undefined ? '' : 'absolute left-0 top-0 w-full'}
             style={start === undefined ? undefined : { transform: `translateY(${start}px)` }}>

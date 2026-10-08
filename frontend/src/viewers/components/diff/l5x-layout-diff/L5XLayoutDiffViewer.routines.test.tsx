@@ -58,7 +58,8 @@ it('retains added and deleted owner context in the organizer with one routine co
   const added = screen.getByRole('button', { name: 'AOI AddedOwner / Logic' });
   expect(removed).toHaveTextContent('Removed');
   expect(added).toHaveTextContent('Added');
-  expect(screen.getAllByText('1 changed')).toHaveLength(2);
+  expect(within(screen.getByRole('button', { name: /Program DeletedOwner.*1 changed/ })).getByText('1 changed')).toBeVisible();
+  expect(within(screen.getByRole('button', { name: /AOI AddedOwner.*1 changed/ })).getByText('1 changed')).toBeVisible();
   fireEvent.click(added);
   expect(screen.getByRole('region', { name: 'AOI AddedOwner / Logic comparison' })).toHaveTextContent('Added');
   expect(loadTextSide).toHaveBeenCalledTimes(2);

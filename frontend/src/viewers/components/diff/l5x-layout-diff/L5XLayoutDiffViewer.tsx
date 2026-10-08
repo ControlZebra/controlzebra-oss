@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback } from 'react';
 import {
   AlertCircle,
   ChevronLeft,
@@ -8,11 +8,8 @@ import {
 } from 'lucide-react';
 import {
   diffControllers,
-  TagTable,
-  type ColumnDefinition,
   type L5XDiff,
   type NormalizedController,
-  type NormalizedTag,
 } from 'ladder-visualizer';
 
 import { useLayout } from '../../../../context/LayoutContext';
@@ -27,7 +24,8 @@ import { loadTextSide, serializeDiffSide } from '../diff-side-loaders';
 import { buildL5XDiffLayoutViewModel } from './adapter';
 import { RoutineDiffInspector } from './RoutineDiffInspector';
 import { L5XDiffNavigator } from './L5XDiffNavigator';
-import type { L5XDiffAggregateChangeKind, L5XDiffRenderableEntity } from './types';
+import { EntityDiffInspector } from './EntityDiffInspector';
+import type { L5XDiffRenderableEntity } from './types';
 import { useDiffTabs } from './useDiffTabs';
 
 interface CachedDocument {
@@ -157,95 +155,6 @@ export function clearL5XLayoutDiffCache(): void {
   diffCache.clear();
 }
 
-function getChangeTone(kind: L5XDiffAggregateChangeKind): string {
-  switch (kind) {
-    case 'added':
-      return 'border-theme-added/40 bg-theme-added/10 text-theme-added';
-    case 'removed':
-      return 'border-theme-removed/40 bg-theme-removed/10 text-theme-removed';
-    case 'modified':
-      return 'border-theme-modified/40 bg-theme-modified/10 text-theme-modified';
-    default:
-      return 'border-theme-default bg-theme-elevated text-theme-secondary';
-  }
-}
-
-function formatChangeKind(kind: L5XDiffAggregateChangeKind): string {
-  return kind.charAt(0).toUpperCase() + kind.slice(1);
-}
-
-function getTagRowStyle(tagDiffKind: L5XDiffAggregateChangeKind | undefined): CSSProperties | undefined {
-  if (!tagDiffKind || tagDiffKind === 'mixed') {
-    return undefined;
-  }
-
-  if (tagDiffKind === 'added') {
-    return {
-      '--table-cell-bg': 'var(--color-added-bg)',
-    } as CSSProperties;
-  }
-
-  if (tagDiffKind === 'removed') {
-    return {
-      '--table-cell-bg': 'var(--color-removed-bg)',
-    } as CSSProperties;
-  }
-
-  return {
-    '--table-cell-bg': 'var(--color-modified-bg)',
-  } as CSSProperties;
-}
-
-function buildTagDiffColumns(entity: Extract<L5XDiffRenderableEntity, { kind: 'controller-tags' | 'program-tags' }>): ColumnDefinition<NormalizedTag>[] {
-  const tagDiffsByName = new Map(entity.changedTagDiffs.map((tagDiff) => [tagDiff.name, tagDiff]));
-
-  return [
-    {
-      key: 'diffKind',
-      header: 'Change',
-      sortKey: 'name',
-      render: (tag) => {
-        const diff = tagDiffsByName.get(tag.name);
-        if (!diff) {
-          return <span className="text-theme-muted">Unchanged</span>;
-        }
-
-        return (
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${getChangeTone(diff.kind)}`}>
-            {formatChangeKind(diff.kind)}
-          </span>
-        );
-      },
-      cellStyle: { width: '112px' },
-    },
-    {
-      key: 'propertyChanges',
-      header: 'Changed Fields',
-      sortKey: 'name',
-      render: (tag) => {
-        const diff = tagDiffsByName.get(tag.name);
-        if (!diff || !diff.propertyChanges || diff.propertyChanges.length === 0) {
-          return <span className="text-theme-muted">-</span>;
-        }
-
-        return (
-          <div className="flex flex-wrap gap-1">
-            {diff.propertyChanges.map((propertyChange) => (
-              <span
-                key={`${tag.name}:${propertyChange.property}`}
-                className="rounded border border-theme-default bg-theme-elevated px-1.5 py-0.5 text-[11px] text-theme-secondary"
-              >
-                {propertyChange.property}
-              </span>
-            ))}
-          </div>
-        );
-      },
-      cellStyle: { minWidth: '220px' },
-    },
-  ];
-}
-
 function RenderEntityDetails({
   entity,
   isDarkMode,
@@ -261,21 +170,7 @@ function RenderEntityDetails({
     );
   }
 
-  const tagDiffsByName = new Map(entity.changedTagDiffs.map((tagDiff) => [tagDiff.name, tagDiff]));
-  const changedTagNames = new Set(entity.changedTagDiffs.map((td) => td.name));
-  const changedTags = entity.fullContextTags.filter((t) => changedTagNames.has(t.name));
-
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-4">
-      <TagTable
-        tags={changedTags}
-        dataTypes={entity.dataTypes}
-        extraColumns={buildTagDiffColumns(entity)}
-        getRowStyle={(tag) => getTagRowStyle(tagDiffsByName.get(tag.name)?.kind)}
-        className="min-h-0 flex-1"
-      />
-    </div>
-  );
+  return <EntityDiffInspector entity={entity} />;
 }
 
 function L5XLayoutDiffViewer({
@@ -440,15 +335,11 @@ function L5XLayoutDiffViewer({
   }, [pruneTabs, viewModel]);
 
   useEffect(() => {
-    if (!viewModel || tabs.length > 0 || !viewModel.initialTabId) {
-      return;
-    }
-
-    const initialEntity = viewModel.entitiesByTabId[viewModel.initialTabId];
-    if (initialEntity) {
-      openTab(initialEntity.tab);
-    }
-  }, [openTab, tabs.length, viewModel]);
+    if (!viewModel || (activeTabId && viewModel.entitiesByTabId[activeTabId])) return;
+    // A refreshed comparison may remove the active entry while other tabs remain.
+    const fallback = tabs.find(tab => viewModel.entitiesByTabId[tab.id]) ?? viewModel.tabs[0];
+    if (fallback) openTab(fallback);
+  }, [activeTabId, openTab, tabs, viewModel]);
 
   const handleOpenItem = useCallback((tabId: string) => {
     if (!viewModel) {
@@ -527,8 +418,8 @@ function L5XLayoutDiffViewer({
         {viewModel.navigatorSections.length === 0 ? (
           <div className="flex h-full items-center justify-center text-theme-secondary">
             <div className="text-center">
-              <p className="text-sm font-medium text-theme-primary">No changed routines or tags</p>
-              <p className="mt-1 text-xs text-theme-muted">This view compares RLL, ST, FBD routines and tag groups. Use Raw to inspect other content.</p>
+              <p className="text-sm font-medium text-theme-primary">No changes in supported comparisons</p>
+              <p className="mt-1 text-xs text-theme-muted">Use Raw to inspect content outside the supported comparisons.</p>
             </div>
           </div>
         ) : (
@@ -570,7 +461,7 @@ function L5XLayoutDiffViewer({
                   <RenderEntityDetails key={activeEntity.tab.id} entity={activeEntity} isDarkMode={isDarkMode} />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-theme-surface text-theme-secondary">
-                    Select a changed routine or tag group.
+                    Select a changed entry in the navigator.
                   </div>
                 )}
               </div>

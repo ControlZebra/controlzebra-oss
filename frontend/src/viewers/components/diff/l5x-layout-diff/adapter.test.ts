@@ -134,7 +134,7 @@ describe('buildL5XDiffLayoutViewModel', () => {
     }
   });
 
-  it('uses full tag context from the preferred side while only navigating changed groups', () => {
+  it('retains both sides of tag context while only navigating changed groups', () => {
     const oldController = makeController({
       tags: [
         makeTag('ControllerChanged'),
@@ -169,22 +169,22 @@ describe('buildL5XDiffLayoutViewModel', () => {
     expect(controllerTags.kind).toBe('controller-tags');
     if (controllerTags.kind === 'controller-tags') {
       expect(controllerTags.changedTagDiffs).toHaveLength(1);
-      expect(controllerTags.fullContextTags.map((tag) => tag.name)).toEqual([
+      expect(controllerTags.newTags.map((tag) => tag.name)).toEqual([
         'ControllerChanged',
         'ControllerStable',
       ]);
-      expect(controllerTags.dataTypes.map((dataType) => dataType.name)).toEqual(['NewCatalogType']);
+      expect(controllerTags.newDataTypes.map((dataType) => dataType.name)).toEqual(['NewCatalogType']);
     }
 
     const programTags = model.entitiesByTabId[buildTabId(buildProgramTagsSemanticId('Mixing'))];
     expect(programTags.kind).toBe('program-tags');
     if (programTags.kind === 'program-tags') {
       expect(programTags.changedTagDiffs).toHaveLength(1);
-      expect(programTags.fullContextTags.map((tag) => tag.name)).toEqual([
+      expect(programTags.newTags.map((tag) => tag.name)).toEqual([
         'ProgramChanged',
         'ProgramStable',
       ]);
-      expect(programTags.dataTypes.map((dataType) => dataType.name)).toEqual(['NewCatalogType']);
+      expect(programTags.newDataTypes.map((dataType) => dataType.name)).toEqual(['NewCatalogType']);
     }
   });
 
@@ -212,14 +212,14 @@ describe('buildL5XDiffLayoutViewModel', () => {
 
     expect(controllerTags.kind).toBe('controller-tags');
     if (controllerTags.kind === 'controller-tags') {
-      expect(controllerTags.fullContextTags.map((tag) => tag.name)).toEqual(['DeletedControllerTag']);
-      expect(controllerTags.dataTypes.map((dataType) => dataType.name)).toEqual(['OldCatalogType']);
+      expect(controllerTags.oldTags.map((tag) => tag.name)).toEqual(['DeletedControllerTag']);
+      expect(controllerTags.oldDataTypes.map((dataType) => dataType.name)).toEqual(['OldCatalogType']);
     }
 
     expect(programTags.kind).toBe('program-tags');
     if (programTags.kind === 'program-tags') {
-      expect(programTags.fullContextTags.map((tag) => tag.name)).toEqual(['DeletedProgramTag']);
-      expect(programTags.dataTypes.map((dataType) => dataType.name)).toEqual(['OldCatalogType']);
+      expect(programTags.oldTags.map((tag) => tag.name)).toEqual(['DeletedProgramTag']);
+      expect(programTags.oldDataTypes.map((dataType) => dataType.name)).toEqual(['OldCatalogType']);
     }
   });
 

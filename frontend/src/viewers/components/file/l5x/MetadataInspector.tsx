@@ -8,13 +8,13 @@ import type { TabData } from './useTabs';
 /** The same property presentation can be used by later comparison inspectors. */
 export const MetadataPropertyList = memo(function MetadataPropertyList({ fields, onOpen }: {
   fields: MetadataField[];
-  onOpen: (data: TabData, title: string) => void;
+  onOpen?: (data: TabData, title: string) => void;
 }) {
   return <Table className="table-fixed text-xs" aria-label="Metadata fields"><TableBody>
     {fields.map((field, index) => <TableRow key={index}>
       <TableHead scope="row" className="h-auto w-2/5 break-words px-3 py-2 align-top">{field.label}</TableHead>
       <TableCell className="whitespace-pre-wrap break-words px-3 py-2 align-top [overflow-wrap:anywhere]">
-        {field.link ? <Button type="button" variant="ghost" size="sm"
+        {field.link && onOpen ? <Button type="button" variant="ghost" size="sm"
           className="h-auto max-w-full justify-start whitespace-pre-wrap break-words p-0 text-left text-accent-primary underline [overflow-wrap:anywhere]"
           aria-label={`Open ${field.label}: ${formatMetadataValue(field.value)}`}
           onClick={() => onOpen(field.link!, metadataLinkTitle(field.link!))}>{formatMetadataValue(field.value)}</Button>
@@ -28,7 +28,7 @@ function MetadataInspector({ controller, target, onOpen, onShowRaw, ambiguousPro
   controller: NormalizedController;
   target: MetadataTarget;
   ambiguousProgramUids?: ReadonlySet<string>;
-  onOpen: (data: TabData, title: string) => void;
+  onOpen?: (data: TabData, title: string) => void;
   onShowRaw?: () => void;
 }) {
   const headingId = useId();
