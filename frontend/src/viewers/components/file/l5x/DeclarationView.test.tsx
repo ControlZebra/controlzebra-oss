@@ -12,7 +12,11 @@ function fixture(name: string) {
   if (!result.data) throw new Error(`No controller in ${name}`);
   return result.data;
 }
-function open(name: string | RegExp) { fireEvent.click(screen.getByRole('button', { name })); }
+function open(name: string | RegExp, scope: ReturnType<typeof within> = screen) {
+  const button = scope.getByRole('button', { name });
+  fireEvent.click(button);
+  return within(button.parentElement!);
+}
 
 describe('L5X declaration details', () => {
   it('shows exact program local identity, declared order, comments, source defaults and type links', () => {
@@ -90,16 +94,17 @@ describe('L5X declaration details', () => {
       { ...base, name: 'Empty', defaultValue: '' }, { ...base, name: 'NoRepresentations', defaultData: [] },
       { ...base, name: 'EmptySource', defaultData: [{ format: 'String', length: 0, text: '', values: [] }] },
     ]} catalog={[]} onOpen={vi.fn()} />);
+    const declarations = within(screen.getByRole('region', { name: 'Declarations' }));
     for (const [name, text] of [['Value', 'Not supplied'], ['Zero', '0'], ['False', 'false'], ['Empty', 'Empty string']]) {
-      open(new RegExp(`\\d\\. ${name} BOOL`));
-      expect(screen.getByRole('row', { name: `Default value ${text}` })).toBeVisible();
+      const details = open(new RegExp(`\\d\\. ${name} BOOL`), declarations);
+      expect(details.getByRole('row', { name: `Default value ${text}` })).toBeVisible();
     }
-    open(/5\. NoRepresentations/);
-    expect(screen.getByRole('region', { name: 'Default representations' })).toHaveTextContent('None');
-    open(/6\. EmptySource/);
-    open('1. String');
-    expect(screen.getByRole('region', { name: 'Source default text' })).toHaveTextContent('Empty string');
-    expect(screen.getByRole('row', { name: 'Length 0' })).toBeVisible();
+    const noRepresentations = open(/5\. NoRepresentations/, declarations);
+    expect(noRepresentations.getByRole('region', { name: 'Default representations' })).toHaveTextContent('None');
+    const emptySource = open(/6\. EmptySource/, declarations);
+    const source = open('1. String', within(emptySource.getByRole('region', { name: 'Default representations' })));
+    expect(source.getByRole('region', { name: 'Source default text' })).toHaveTextContent('Empty string');
+    expect(source.getByRole('row', { name: 'Length 0' })).toBeVisible();
   });
 
   it('does not access collapsed descendants and pages large declared arrays without creating missing elements', () => {
@@ -108,14 +113,14 @@ describe('L5X declaration details', () => {
     const declarations: AOILocalTag[] = [{ name: 'Large', dataType: 'DINT', externalAccess: 'None', defaultData: [{ format: 'Decorated', values: [array] }] }];
     render(<DeclarationView declarations={declarations} catalog={[]} onOpen={vi.fn()} />);
     expect(readElements).not.toHaveBeenCalled();
-    open(/1\. Large/);
-    open('1. Decorated');
+    const declaration = open(/1\. Large/);
+    const representation = open('1. Decorated', within(declaration.getByRole('region', { name: 'Default representations' })));
     expect(readElements).not.toHaveBeenCalled();
-    open('1. DINT');
-    const elements = within(screen.getByRole('region', { name: 'Array elements' }));
+    const arrayDetails = open('1. DINT', within(representation.getByRole('region', { name: 'Decorated values' })));
+    const elements = within(arrayDetails.getByRole('region', { name: 'Array elements' }));
     expect(elements.getAllByRole('button', { expanded: false })).toHaveLength(50);
     expect(elements.queryByRole('button', { name: '51. [50] = 50' })).not.toBeInTheDocument();
-    fireEvent.click(elements.getByRole('button', { name: 'Next' }));
+    fireEvent.click(within(elements.getByRole('navigation', { name: 'Array elements pages' })).getByRole('button', { name: 'Next' }));
     expect(elements.getByRole('button', { name: '51. [50] = 50' })).toBeVisible();
     expect(elements.getByText('Page 2 of 3')).toBeVisible();
   });
@@ -123,15 +128,16 @@ describe('L5X declaration details', () => {
   it('pages declarations and clears expanded positions when refresh reorders the collection', () => {
     const declarations = Array.from({ length: 120 }, (_, index): AOILocalTag => ({ name: `Local${index}`, dataType: 'DINT', externalAccess: 'None' }));
     const { rerender } = render(<DeclarationView declarations={declarations} catalog={[]} onOpen={vi.fn()} />);
-    expect(screen.getAllByRole('button', { expanded: false })).toHaveLength(50);
-    open('Next');
-    open('51. Local50 DINT');
-    expect(screen.getByRole('row', { name: 'Name Local50' })).toBeVisible();
+    const collection = within(screen.getByRole('region', { name: 'Declarations' }));
+    expect(collection.getAllByRole('button', { expanded: false })).toHaveLength(50);
+    fireEvent.click(within(collection.getByRole('navigation', { name: 'Declarations pages' })).getByRole('button', { name: 'Next' }));
+    const details = open('51. Local50 DINT', collection);
+    expect(details.getByRole('row', { name: 'Name Local50' })).toBeVisible();
     rerender(<DeclarationView declarations={[...declarations].reverse()} catalog={[]} onOpen={vi.fn()} />);
-    expect(screen.queryByRole('row', { name: 'Name Local50' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '1. Local119 DINT' })).toHaveAttribute('aria-expanded', 'false');
+    expect(collection.queryByRole('row', { name: 'Name Local50' })).not.toBeInTheDocument();
+    expect(collection.getByRole('button', { name: '1. Local119 DINT' })).toHaveAttribute('aria-expanded', 'false');
     fireEvent.change(screen.getByRole('textbox', { name: 'Filter declarations' }), { target: { value: 'Local11' } });
-    expect(screen.getAllByRole('button', { expanded: false }).map(button => button.textContent?.trim())).toEqual([
+    expect(collection.getAllByRole('button', { expanded: false }).map(button => button.textContent?.trim())).toEqual([
       ...Array.from({ length: 10 }, (_, index) => `${index + 1}. Local${119 - index} DINT`), '11. Local11 DINT',
     ]);
     fireEvent.change(screen.getByRole('textbox', { name: 'Filter declarations' }), { target: { value: 'Missing' } });
